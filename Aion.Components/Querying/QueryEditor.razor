@@ -1,0 +1,60 @@
+@using Aion.Components.Connections
+@using BlazorMonaco.Editor
+@using Aion.Components.Shared
+
+<MudStack>
+    <MudStack Row="true">
+        <MudTabs>
+            @foreach (var query in State.Queries)
+            {
+                <MudTabPanel Text="@query.Name">
+                </MudTabPanel>
+            }
+        </MudTabs>
+        <MudSpacer />
+        <PrimaryActionButton Text="Run" OnClick="RunQuery" />
+    </MudStack>
+    
+    @if (State.Active?.Result?.Error != null)
+    {
+        <MudAlert Severity="Severity.Error" Class="my-2">@State.Active.Result.Error</MudAlert>
+    }
+    
+    <StandaloneCodeEditor CssClass="h-100 flex-grow-1" @ref="_editor" ConstructionOptions="DefaultOptions" OnDidInit="HandleInit" />
+</MudStack>
+@code {
+    [Inject] protected QueryState State { get; set; } = default!;
+    [Inject] protected ConnectionState Connections { get; set; } = default!;
+    private StandaloneEditorConstructionOptions DefaultOptions(StandaloneCodeEditor editor) => new()
+    {
+        Language = "sql",
+    };
+
+    private StandaloneCodeEditor? _editor = default!;
+
+    protected async Task HandleInit()
+    {
+        if (_editor != null)
+        {
+            await _editor.SetValue(State.Queries.First().Query);
+        }
+    }
+
+    private async Task RunQuery()
+    {
+        Console.WriteLine("Running query...");
+        var query = State.Active ?? State.Queries.First();
+        
+        // Get current query text from editor
+        if (_editor != null)
+        {
+            query.Query = await _editor.GetValue();
+            Console.WriteLine($"Query text: {query.Query}");
+        }
+        
+        var result = await Connections.ExecuteQueryAsync(query);
+        State.SetResult(query, result);
+        StateHasChanged();
+    }
+
+}

@@ -1,0 +1,12 @@
+<h3>ConnectionPanel</h3>
+
+<h6>@Connection.Name</h6>
+
+@foreach (var table in Connection.Tables)
+{
+    <MudText>@table</MudText>
+}
+
+@code {
+    [Parameter] public ConnectionModel Connection { get; set; } = default!;
+}

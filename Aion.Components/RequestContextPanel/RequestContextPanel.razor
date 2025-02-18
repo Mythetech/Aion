@@ -1,0 +1,41 @@
+@using System.Reflection
+@using Aion.Components.Theme
+<MudStack Class="h-100 w-100">
+    <MudStack Row="true" Class="w-100">
+        <MudPaper Elevation="0" Square="true" Width="calc(100% - 3.5rem)" Class="flex-shrink-1 px-1">
+           
+        </MudPaper>
+        <MudPaper Elevation="0" Square="true" Width="3.5rem">
+            <MudTooltip Text="Close">
+                <MudIconButton Icon="@AionIcons.Close" Color="Color.Surface" Variant="Variant.Text" OnClick="@PanelClosed"/>
+            </MudTooltip>
+        </MudPaper>
+    </MudStack>
+  
+        <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center">
+            <MudText>No context</MudText>
+        </MudStack>
+    
+</MudStack>
+@code {
+    [Inject]
+    GlobalAppState AppState { get; set; }
+
+    [Parameter]
+    public EventCallback PanelClosed { get; set; } = default!;
+
+    [Parameter]
+    public bool IsOpen { get; set; } = false;
+
+    private MudToggleGroup<string> _toggle;
+
+    private string _openTab = "";
+
+    public async Task Open(string tab)
+    {
+        _openTab = tab;
+        
+        StateHasChanged();
+    }
+}
+

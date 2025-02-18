@@ -1,0 +1,22 @@
+@using Aion.Components.Theme
+@inherits MudComponentBase
+
+<MudTooltip Text="@Text" RootClass="@RootClass">
+    <MudIcon Icon="@Icon" Class="@Class" Color="@Color" />
+</MudTooltip>
+@code {
+    [Parameter]
+    public string Icon { get; set; } = AionIcons.Rounded;
+
+    [Parameter]
+    public Color Color { get; set; } = Color.Default;
+
+    [Parameter]
+    public string? Text { get; set; }
+
+    [Parameter]
+    public Size Size { get; set; } = Size.Medium;
+    
+    [Parameter]
+    public string RootClass { get; set; } = "";
+}

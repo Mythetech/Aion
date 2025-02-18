@@ -1,0 +1,181 @@
+@implements IDisposable
+@using Aion.Components.Theme
+@using MouseEvent = MudBlazor.MouseEvent
+@using Aion.Components.Shared
+@using Aion.Components.Connections
+<MudStack Row="true" Class="mud-width-full">
+<MudStack Spacing="1" Class="app-context-panel mud-width-full" Style="" AlignItems="MudBlazor.AlignItems.Start">
+    <AionIconButton Class="p-2" Icon="app-icon" OnClick="@OpenAboutAion" />
+    <AionIconButton Class="p-2" Icon="@AionIcons.Add" OnClick="AddConnection" Tooltip="Create Connection"  />
+    @*Side bar Panel*@
+    @foreach (var connection in ConnectionState.Connections)
+    {
+        <ContextPanelItem Active="@(_activeItem?.Title == "Connection")" @ref="@_contextPanelItems["Connection"]" Title="@connection.Name" Icon="@AionIcons.Connection" ContextPanelItemClicked="HandleContextPanelItemClicked">
+            <PanelContent>
+                <ConnectionPanel Connection="@connection"/>
+            </PanelContent>
+        </ContextPanelItem>
+    }
+    <MudSpacer />
+    
+    <MudMenu ActivationEvent="MouseEvent.MouseOver" AnchorOrigin="Origin.TopRight">
+        <ActivatorContent>
+            <MudTooltip Text="Color Mode">
+                <MudIconButton Class="ml-1" Icon="@(AppState.IsDarkMode ? AionIcons.DarkMode : AionIcons.LightMode)" Color="Color.Primary" Variant="Variant.Text" OnClick="@DarkModeToggled"/>
+            </MudTooltip>
+        </ActivatorContent>
+        <ChildContent>
+            <MudToggleGroup T="string" Size="Size.Small" Value="@SelectedColorMode" ValueChanged="HandleColorModeChanged" Style="align-items: center">
+                <ToggleIcon Value="light" Icon="@AionIcons.LightMode" Text="Light Mode" />
+                <ToggleIcon Value="dark" Icon="@AionIcons.DarkMode" Text="Dark Mode" />
+                <ToggleIcon Value="system" Icon="@AionIcons.Round("laptop")" Text="System Default" />
+            </MudToggleGroup>
+        </ChildContent>
+    </MudMenu>
+    <MudTooltip Text="Settings">
+        <MudIconButton Class="ml-1" Color="Color.Primary" Icon="@AionIcons.Settings" OnClick="OpenSettingsDialog" />
+    </MudTooltip>
+
+    <MudIconButton Class="ml-1" Icon="@(AppState.SideBarOpen ? AionIcons.CollapseLeft : AionIcons.ExpandRight)" Color="Color.Inherit" OnClick="@DrawerToggled" />
+</MudStack>
+
+<MudStack Class="p-0 mud-width-full" Style="@($"{(!AppState.SideBarOpen ? "width:0px;" : "")}")">
+    <MudPaper Class="h-100 w-100" Style="@($"max-width:24vw;")" Square="true">
+        <MudStack Spacing="3" Class="p-4 w-100">
+            @if (_activeItem != null)
+            {
+                <MudStack Row="true" Class="w-100" Spacing="3" AlignItems="AlignItems.Center">
+                    <MudIcon Icon="@_activeItem.Icon" Color="Color.Primary" />
+                    <MudText Typo="Typo.h6">@_activeItem.Title</MudText>
+                    <MudSpacer />
+                    <AionIconButton Tooltip="Close" Icon="@AionIcons.Close" Variant="Variant.Text" OnClick="@CloseContextPanel" />
+                </MudStack>
+                @_activeItem.PanelContent
+            }
+            else
+            {
+                <MudStack Row="true" Class="w-100 p-4">
+                    <MudText Typo="Typo.subtitle1">No Item Selected</MudText>
+                    <MudSpacer />
+                    <MudIconButton Icon="@AionIcons.Close" Variant="Variant.Text" OnClick="@CloseContextPanel" />
+                </MudStack>
+                <MudText Typo="Typo.subtitle2" Class="mud-text-secondary">Select an item from the side menu</MudText>
+            }
+        </MudStack>
+    </MudPaper>
+</MudStack>
+</MudStack>
+@code {
+    [Inject]
+    protected GlobalAppState AppState { get; set; } = default!;
+
+    [Inject] protected ConnectionState ConnectionState { get; set; } = default!;
+
+    [Inject]
+    protected IDialogService DialogService { get; set; } = default!;
+
+    [Parameter]
+    public bool IsDarkMode { get; set; } = false;
+
+    [Parameter]
+    public EventCallback DarkModeToggled { get; set; }
+
+    [Parameter]
+    public EventCallback DrawerToggled { get; set; }
+
+    [Parameter]
+    public string DrawerBackgroundColor { get; set; } = "background-color:#FFFFFF";
+
+    private string SelectedColorMode => AppState.IsDarkMode ? "dark" : "light";
+
+    private ContextPanelItem? _activeItem;
+
+    private Dictionary<string, ContextPanelItem>
+    _contextPanelItems = new();
+
+    protected async Task HandleColorModeChanged(string s)
+    {
+        if (!AppState.IsDarkMode && s.Equals("light", StringComparison.OrdinalIgnoreCase))
+            return;
+        
+        if (s.Equals("light", StringComparison.OrdinalIgnoreCase))
+        {
+            AppState.IsDarkMode = false;            
+        }
+        else
+        {
+            AppState.IsDarkMode = true;
+        }
+        
+        StateHasChanged();
+    }
+
+    protected override void OnInitialized()
+    {
+        AppState.OnChange += SideBarChanged;
+        ConnectionState.ConnectionStateChanged += StateHasChanged;
+    }
+    protected void SideBarChanged()
+    {
+        if (AppState.SideBarOpen)
+        {
+            _activeItem = null;
+        }
+
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        AppState.OnChange -= SideBarChanged;
+        ConnectionState.ConnectionStateChanged -= StateHasChanged;
+    }
+
+    protected async Task CloseContextPanel()
+    {
+        if (AppState.SideBarOpen)
+        {
+            await DrawerToggled.InvokeAsync();
+            _activeItem = null;
+            StateHasChanged();
+        }
+    }
+
+    protected async Task HandleContextPanelItemClicked(ContextPanelItem item)
+    {
+        if (!AppState.SideBarOpen)
+        {
+            await DrawerToggled.InvokeAsync();
+        }
+        else if (_activeItem?.Title == item.Title)
+        {
+            _activeItem = null;
+            await DrawerToggled.InvokeAsync();
+        }
+
+        _activeItem = item;
+        StateHasChanged();
+    }
+
+    protected async Task OpenSettingsDialog()
+    {
+        var options = new DialogOptions { CloseOnEscapeKey = true, BackgroundClass = "aion-dialog", MaxWidth = MaxWidth.Medium };
+
+        //var dialog = await DialogService.ShowAsync<SettingsDialog>("Settings", options);
+        //var result = await dialog.Result;
+    }
+
+    protected async Task OpenAboutAion()
+    {
+        var options = new DialogOptions { CloseOnEscapeKey = true, BackgroundClass = "aion-dialog", MaxWidth = MaxWidth.Small };
+
+        var dialog = await DialogService.ShowAsync<AboutAion>("About", options);
+        var result = await dialog.Result;
+    }
+
+    protected async Task AddConnection()
+    {
+        await ConnectionState.ConnectAsync("Host=127.0.0.1:5432;Database=IrisCloudDb;Username=postgres;Password=Test123!");
+    }
+}
+

@@ -1,0 +1,88 @@
+@inherits LayoutComponentBase
+@using Aion.Components.Theme
+@using MudBlazor;
+@using Aion.Components.AppContextPanel
+@implements IDisposable
+
+<MudThemeProvider @ref="_theme" @bind-IsDarkMode="@AppState.IsDarkMode" Theme="@Theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Class="pl-4" Elevation="0">
+        <MudStack Row="true" Class="w-100" AlignItems="@AlignItems.Center" Spacing="12">
+            <MudText Class="app-header-font mud-text-secondary" Typo="Typo.h6">Aion</MudText>
+            <MudSpacer />
+        </MudStack>
+    </MudAppBar>
+    <MudDrawer Width="25vw" @bind-Open="@AppState.SideBarOpen" Variant="DrawerVariant.Mini" Style="overflow: hidden;">
+        <ContextPanel IsDarkMode="@AppState.IsDarkMode"
+                      DrawerBackgroundColor="@_backgroundColor"
+                      DrawerToggled="@(() => AppState.ToggleSideBar())"
+                      DarkModeToggled="@(() => AppState.IsDarkMode = !AppState.IsDarkMode)" />
+    </MudDrawer>
+    <MudMainContent Class=" pl-2 pr-0" Style="max-height:100dvh;max-width:100vw;overflow:hidden;">
+        <MudContainer Class="px-0" MaxWidth="MaxWidth.ExtraLarge" Style="@($"width:{GetWidth.Invoke()};height:94vh;overflow:hidden;")">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    [Inject]
+    protected GlobalAppState AppState { get; set; } = default!;
+
+    [Inject]
+    protected Microsoft.JSInterop.IJSRuntime JS { get; set; } = default!;
+    
+    [Inject]
+    protected ISnackbar Snackbar { get; set; }
+
+    private Func<string> GetWidth => () => AppState.SideBarOpen ? "74vw" : "calc(100vw - 52px)";
+
+    protected MudThemeProvider _theme { get; set; } = default!;
+
+    public bool _isDarkMode = false;
+
+    private string _backgroundColor => (!AppState.IsDarkMode ? $"background-color:{_theme.Theme.PaletteLight.OverlayLight}" : $"background-color:{_theme.Theme.PaletteDark.Black}");
+
+    private MudTheme Theme { get; } = new AionTheme();
+    
+    protected override void OnInitialized()
+    {
+        AppState.OnDarkModeChanged += HandleDarkModeChange;
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            AppState.SetThemeProvider(_theme);
+        }
+        
+        base.OnAfterRender(firstRender);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await AppState.SetSystemColorMode();
+        }
+        
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    protected async void HandleDarkModeChange(bool isDarkMode)
+    {
+        await BlazorMonaco.Editor.Global.SetTheme(JS, isDarkMode ? "vs-dark" : "vs");
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        AppState.OnDarkModeChanged -= HandleDarkModeChange;
+    }
+
+}

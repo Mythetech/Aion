@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aion.Desktop", "Aion.Desktop\Aion.Desktop.csproj", "{8C94DAAD-84C4-46DC-B16F-A50E49B85C17}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aion.Components", "Aion.Components\Aion.Components.csproj", "{5E005C9A-6894-4A12-8FC5-F841EA85724F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8C94DAAD-84C4-46DC-B16F-A50E49B85C17}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8C94DAAD-84C4-46DC-B16F-A50E49B85C17}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8C94DAAD-84C4-46DC-B16F-A50E49B85C17}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8C94DAAD-84C4-46DC-B16F-A50E49B85C17}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5E005C9A-6894-4A12-8FC5-F841EA85724F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5E005C9A-6894-4A12-8FC5-F841EA85724F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5E005C9A-6894-4A12-8FC5-F841EA85724F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5E005C9A-6894-4A12-8FC5-F841EA85724F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

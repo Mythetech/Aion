@@ -1,0 +1,16 @@
+@inherits MudComponentBase
+
+<MudToggleItem Value="@Value" Class="toggle-icon">
+    <TooltipIcon RootClass="toggle-inner" Icon="@Icon" Text="@Text" />
+</MudToggleItem>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Value { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string Icon { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string Text { get; set; } = default!;
+} 

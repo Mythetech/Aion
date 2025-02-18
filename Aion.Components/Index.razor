@@ -1,0 +1,81 @@
+@page "/"
+@using MudBlazor
+@using MudExtensions
+@using Aion.Components.Querying
+@using Microsoft.FluentUI.AspNetCore.Components
+@using Aion.Components.RequestContextPanel
+@using Aion.Components.Shared
+@using Aion.Components.Theme
+
+<MudStack Row="true" Class="w-100 h-100 ml-1" Spacing="0">
+    <FluentMultiSplitter BarSize="1" @ref="_primarySplitter"  OnCollapse="@((args) => HandleCollapse(args))" OnExpand="HandleExpand" Height="100%" Width="@(_sidePanelClosed ? "97%" :"100%")" Orientation="Microsoft.FluentUI.AspNetCore.Components.Orientation.Horizontal" Style="overflow-x:clip;">
+        <FluentMultiSplitterPane Size="@(!_sidePanelClosed ? "80%" : "88%")" Min="400px" Max="100%">
+            <FluentMultiSplitter Height="100%" Width="100%" Orientation="Microsoft.FluentUI.AspNetCore.Components.Orientation.Vertical">
+                <FluentMultiSplitterPane Size="50%" Min="150px">
+                    <MudPaper Height="100%" Elevation="0" Width="98%">
+                        <QueryEditor />
+                    </MudPaper>
+                </FluentMultiSplitterPane>
+                <FluentMultiSplitterPane Size="50%" Min="150px" Collapsible="true">
+                    <MudPaper Height="100%" Elevation="0" Width="98%">
+                        <QueryResponsePanel />
+                    </MudPaper>
+                </FluentMultiSplitterPane>
+            </FluentMultiSplitter>
+        </FluentMultiSplitterPane>
+        <FluentMultiSplitterPane Id="request-context-panel" Collapsed="@_sidePanelClosed" Collapsible="true" Size="@(!_sidePanelClosed ? "20%" :"12%")" Min="50px" Max=@(!_sidePanelClosed ? "50%" :"3%")>
+            <MudPaper Height="100%" Width="100%">
+                <RequestContextPanel @ref="_requestContextPanel" PanelClosed="@(() => ToggleSidePanel())" />
+            </MudPaper>
+        </FluentMultiSplitterPane>
+    </FluentMultiSplitter>
+    @if (_sidePanelClosed)
+    {
+    <MudStack Spacing="3" AlignItems="AlignItems.Center" Class="w-100" Style="max-width: 30px;">
+        <AionIconButton Size="Size.Small" Tooltip="Info Panel" Icon="@AionIcons.Info" OnClick="@(() => ToggleSidePanel("Info"))" />
+    </MudStack>
+    }
+</MudStack>
+
+@code {
+    [Inject]
+    protected GlobalAppState AppState { get; set; } = default!;
+    
+    private RequestContextPanel.RequestContextPanel _requestContextPanel = default!;
+    
+    private FluentMultiSplitter _primarySplitter = default!;
+
+    private FluentMultiSplitterPane _contextPanel = default!;
+    
+    private bool _sidePanelClosed = true;
+
+    
+    protected void HandleExpand(FluentMultiSplitterEventArgs args)
+    {
+        if (args.Pane.Id == "request-context-panel")
+        {
+            _sidePanelClosed = false;
+            StateHasChanged();
+        }
+    }
+
+    protected void HandleCollapse(FluentMultiSplitterEventArgs args)
+    {
+        if (args.Pane.Id == "request-context-panel")
+        {
+            _sidePanelClosed = true;
+            StateHasChanged();
+        }
+    }
+    protected async Task ToggleSidePanel(string selectedTab = "")
+    {
+        _sidePanelClosed = !_sidePanelClosed;
+        
+        StateHasChanged();
+
+        if (!string.IsNullOrWhiteSpace(selectedTab))
+            await _requestContextPanel.Open(selectedTab);
+
+        StateHasChanged();
+    }
+}

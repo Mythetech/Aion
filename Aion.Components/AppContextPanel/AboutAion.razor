@@ -1,0 +1,32 @@
+@using System.Reflection
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="6" Class="pt-0">
+                <MudImage ObjectFit="ObjectFit.Contain" Class="w-100 h-100" Src="../aion-logo-full.png" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudStack Class="w-100 h-100" Spacing="3" AlignItems="AlignItems.Center" Justify="Justify.Center">
+                    <MudText Class="app-header-font" Typo="Typo.h4">Aion</MudText>
+                    <MudText Typo="Typo.h5" Class="mud-text-secondary"></MudText>
+                    <MudText Typo="Typo.h6"></MudText>
+                </MudStack>
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudText Typo="Typo.body1" class="mud-text-secondary pl-3">Version @Version</MudText>
+        <MudSpacer />
+        <MudButton OnClick="Cancel">Close</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">Get Started!</MudButton>
+    </DialogActions>
+</MudDialog>
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; }
+    private void Cancel() => MudDialog.Cancel();
+
+    private string Version => Assembly.GetExecutingAssembly().GetName().Version.ToString();
+
+}

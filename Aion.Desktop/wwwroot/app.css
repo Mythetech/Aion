@@ -1,0 +1,161 @@
+html {
+    overflow-x: hidden;
+}
+
+.app-header-font {
+    font-family: 'Gotu';
+}
+
+.mud-snackbar {
+    border: 1px solid var(--mud-palette-dark);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.mud-alert-outlined-success {
+    background-color: rgba(var(--mud-palette-success-rgb), 0.5);
+    border: 1px solid var(--mud-palette-success);
+    box-shadow: 0px 0px 0.4em 0.1em var(--mud-palette-success);
+}
+
+.mud-alert-outlined-warning {
+    background-color: rgba(var(--mud-palette-warning-rgb), 0.5);
+    border: 1px solid var(--mud-palette-warning-rgb);
+    box-shadow: 0px 0px 0.4em 0.1em var(--mud-palette-warning);
+}
+
+.mud-alert-outlined-info {
+    background-color: rgba(var(--mud-palette-info-rgb), 0.5);
+    border: 1px solid var(--mud-palette-info-rgb);
+    box-shadow: 0px 0px 0.4em 0.1em var(--mud-palette-info);
+}
+
+.mud-alert-outlined-error {
+    background-color: rgba(var(--mud-palette-error-rgb), 0.5);
+    border: 1px solid var(--mud-palette-error);
+    box-shadow: 0px 0px 0.4em 0.1em var(--mud-palette-error);
+}
+
+.toggle-icon {
+    min-width: unset;
+    max-height: 33px;
+}
+
+.toggle-inner {
+    max-height: 24px;
+    width: unset;
+    max-width: 24px;
+    display: flex;
+}
+
+.aion-dialog {
+    display: none;
+    backdrop-filter: blur(8px);
+    will-change: backdrop-filter;
+}
+
+.app-context-panel {
+    height: 100dvh;
+    min-width: 3.5em;
+    max-width: 3.5em;
+    overflow: hidden;
+    background: linear-gradient(360deg, var(--mud-palette-secondary), var(--mud-palette-surface));
+    border-right: solid 1px var(--mud-palette-secondary);
+    /*padding-right: 0.05em;*/
+}
+
+.context-item-active {
+    border-right: solid 2px var(--mud-palette-primary);
+}
+
+.mud-appbar {
+    background: linear-gradient(90deg, var(--mud-palette-surface), var(--mud-palette-primary));
+}
+
+.h-100 {
+    height: 100%;
+}
+
+.w-100 {
+    width: 100%;
+}
+
+.fluent-multi-splitter {
+    /* Resize Icon colors */
+    --neutral-stroke-strong-rest: var(--mud-palette-primary-lighten);
+    --neutral-stroke-strong-hover: var(--mud-palette-primary-lighten);
+    /* Bar colors */
+    --neutral-stroke-rest: var(--mud-palette-primary-darken); /* var(--mud-palette-primary); */
+    --neutral-stroke-hover: var(--mud-palette-primary);
+    /* Bar size */
+    --fluent-multi-splitter-bar-size: 10px !important;
+    border-radius: 2em;
+}
+
+.fluent-multi-splitter > .fluent-multi-splitter-bar:has([status="lastresizable"]) {
+    opacity: 0.2;
+}
+
+.fluent-multi-splitter-bar {
+    border-radius: 2em;
+}
+
+.fluent-multi-splitter-bar::before,
+.fluent-multi-splitter-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    height: 100%;
+    background-color: var(--mud-palette-surface);
+    pointer-events: none;
+}
+
+.fluent-multi-splitter-bar::before {
+    left: 0;
+}
+
+.fluent-multi-splitter-bar::before {
+    right: 0;
+}
+
+
+.fluent-multi-splitter:has([orientation="vertical"]) > * > * > .fluent-multi-splitter-bar::before,
+.fluent-multi-splitter:has([orientation="vertical"]) > * > * > .fluent-multi-splitter-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 100%;
+    height: 8px;
+    background-color: var(--mud-palette-surface);
+    pointer-events: none;
+}
+
+.fluent-multi-splitter:has([orientation="vertical"]) > * > * > .fluent-multi-splitter-bar::before {
+    left: 0;
+}
+
+.fluent-multi-splitter:has([orientation="vertical"]) > * > * > .fluent-multi-splitter-bar::after {
+    right: 0;
+}
+
+.monaco-editor-container {
+    min-height: 100px;
+    height: 100%;
+    width: 100%;
+    padding: 1em;
+}
+
+.primary-action-button {
+    transition-property: all;
+    transition-timing-function: cubic-bezier(.4,0,.2,1);
+    transition-duration: .2s;
+    background: linear-gradient(90deg, var(--mud-palette-primary) 0%, var(--mud-palette-secondary) 100%);
+    border:solid 1px var(--mud-palette-surface);
+    min-width: 120px;
+    & :hover {
+        background-color: linear-gradient(90deg, var(--mud-palette-primary-darken) 0%, var(--mud-palette-secondary-darken) 100%);
+    }
+}

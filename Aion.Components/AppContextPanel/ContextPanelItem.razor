@@ -1,0 +1,33 @@
+@if (!Active)
+{
+    <MudTooltip Text="@Title">
+        <MudNavLink IconColor="@Color.Surface" Icon="@Icon" OnClick="@(async () => await ContextPanelItemClicked.InvokeAsync(this))" />
+    </MudTooltip>
+}
+else
+{
+    <MudNavLink Class="context-item-active" IconColor="@Color.Primary" Icon="@Icon" OnClick="@(async () => await ContextPanelItemClicked.InvokeAsync(this))"/>
+}
+
+@code {
+    [Parameter]
+    public RenderFragment PanelContent { get; set; } = default!;
+
+    [Parameter]
+    public string Icon { get; set; } = default!;
+
+    [Parameter]
+    public bool Active { get; set; } = false;
+
+    [Parameter]
+    public string Title { get; set; } = "";
+
+    [Parameter]
+    public EventCallback<ContextPanelItem> ContextPanelItemClicked { get; set; } = default!;
+
+    public void Toggle()
+    {
+        Active = !Active;
+        StateHasChanged();
+    }
+}

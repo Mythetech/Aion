@@ -1,0 +1,36 @@
+@implements IDisposable
+
+@if (State?.Active?.Result != null)
+{
+    <MudText Typo="Typo.caption" Class="mud-text-secondary">@(State?.Active?.Result?.RowCount ?? 0)</MudText>
+    <MudTable Items="State.Active.Result.Rows">
+        <HeaderContent>
+            @foreach (var col in State.Active.Result.Columns)
+            {
+                <MudTh>@col</MudTh>
+            }
+        </HeaderContent>
+        <RowTemplate>
+            @foreach (var row in State.Active.Result.Rows.First().Keys)
+            {
+                <MudTd DataLabel="@row">@context.GetValueOrDefault(row)</MudTd>
+            }
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    [Inject] protected QueryState State { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        State.StateChanged += StateHasChanged;
+        base.OnInitialized();
+    }
+
+    public void Dispose()
+    {
+        State.StateChanged -= StateHasChanged;
+    }
+
+}

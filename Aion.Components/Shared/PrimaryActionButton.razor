@@ -1,0 +1,19 @@
+<MudButton
+    Class="primary-action-button rounded-xl"
+    OnClick="@OnClick"
+    StartIcon="@Icon"
+    Size="@Size">
+    @Text
+</MudButton>
+
+@code {
+    [Parameter]
+    public EventCallback OnClick { get; set; }
+    
+    [Parameter]
+    public MudBlazor.Size Size { get; set; }
+
+    [Parameter] public string Text { get; set; } = "";
+    
+    [Parameter] public string? Icon { get; set; }
+}
