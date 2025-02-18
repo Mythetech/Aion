@@ -4,6 +4,7 @@ namespace Aion.Components.Connections;
 
 public interface IConnectionService
 {
-    Task<List<string>> ConnectAsync(string connectionString);
-    Task<QueryResult> ExecuteQueryAsync(string connectionString, string query);
+    Task<List<string>> GetDatabasesAsync(string connectionString);
+    Task<List<string>> GetTablesAsync(string connectionString, string database);
+    Task<QueryResult> ExecuteQueryAsync(string connectionString, string query, CancellationToken cancellationToken);
 }

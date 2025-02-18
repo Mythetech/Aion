@@ -2,11 +2,31 @@
 
 <h6>@Connection.Name</h6>
 
-@foreach (var table in Connection.Tables)
-{
-    <MudText>@table</MudText>
-}
+<MudExpansionPanels>
+        @foreach (var database in Connection.Databases)
+        {
+            <MudExpansionPanel Text="@database.Name" @onclick="@(() => LoadTables(database))">
+                @if (database.TablesLoaded)
+                {
+                    @foreach (var table in database.Tables)
+                    {
+                        <MudText Class="ml-4">@table</MudText>
+                    }
+                }
+                else
+                {
+                    <MudText Class="ml-4">Loading...</MudText>
+                }
+            </MudExpansionPanel>
+        }
+</MudExpansionPanels>
 
 @code {
     [Parameter] public ConnectionModel Connection { get; set; } = default!;
+    [Inject] public ConnectionState ConnectionState { get; set; } = default!;
+
+    private async Task LoadTables(DatabaseModel database)
+    {
+        await ConnectionState.LoadTablesAsync(Connection, database);
+    }
 }

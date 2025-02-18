@@ -33,4 +33,8 @@ public static class AionIcons
     public static string Connection => Round("database");
     
     public static string Info => Round("info");
+
+    public static string Run => Round("play_arrow");
+    
+    public static string Stop => Round("stop");
 }

@@ -156,6 +156,36 @@ html {
     border:solid 1px var(--mud-palette-surface);
     min-width: 120px;
     & :hover {
-        background-color: linear-gradient(90deg, var(--mud-palette-primary-darken) 0%, var(--mud-palette-secondary-darken) 100%);
+        background: linear-gradient(90deg, var(--mud-palette-primary-darken) 0%, var(--mud-palette-secondary-darken) 100%)!important;
     }
+}
+
+.run-query-button {
+    transition-property: all;
+    transition-timing-function: cubic-bezier(.4,0,.2,1);
+    transition-duration: .2s;
+    background: linear-gradient(90deg, var(--mud-palette-success) 0%, var(--mud-palette-success-darken) 100%);
+    border:solid 1px var(--mud-palette-surface);
+    min-width: 120px;
+}
+
+.run-query-button:hover {
+        background: linear-gradient(90deg, var(--mud-palette-success-lighten) 0%, var(--mud-palette-success) 100%)!important;
+}
+
+.context-panel-badge-dot {
+    max-width: var(--mud-drawer-width-mini-left);
+}
+
+.cancel-query-button {
+    transition-property: all;
+    transition-timing-function: cubic-bezier(.4,0,.2,1);
+    transition-duration: .2s;
+    background: linear-gradient(90deg, var(--mud-palette-dark) 0%, var(--mud-palette-dark-darken) 100%);
+    border:solid 1px var(--mud-palette-surface);
+    min-width: 120px;
+}
+
+.cancel-query-button:hover {
+    background: linear-gradient(90deg, var(--mud-palette-dark-lighten) 0%, var(--mud-palette-dark) 100%)!important;
 }

@@ -9,4 +9,7 @@ public class QueryModel
     public QueryResult? Result { get; set; }
     public bool IsExecuting { get; set; }
     public DateTime? LastExecuted => Result?.ExecutedAt;
+    
+    public Guid? ConnectionId { get; set; }
+    public string? DatabaseName { get; set; }
 }

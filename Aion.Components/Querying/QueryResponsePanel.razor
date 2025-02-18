@@ -2,8 +2,8 @@
 
 @if (State?.Active?.Result != null)
 {
-    <MudText Typo="Typo.caption" Class="mud-text-secondary">@(State?.Active?.Result?.RowCount ?? 0)</MudText>
-    <MudTable Items="State.Active.Result.Rows">
+    
+    <MudTable Items="State.Active.Result.Rows" Dense="true" Hover="true">
         <HeaderContent>
             @foreach (var col in State.Active.Result.Columns)
             {
@@ -17,6 +17,7 @@
             }
         </RowTemplate>
     </MudTable>
+    <MudText Typo="Typo.caption" Class="mud-text-secondary">@(State?.Active?.Result?.RowCount ?? 0) Results</MudText>
 }
 
 @code {

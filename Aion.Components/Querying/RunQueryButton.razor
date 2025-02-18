@@ -1,0 +1,31 @@
+@using Aion.Components.Theme
+<MudButton
+    Class="@GetButtonClass()"
+    OnClick="@OnClick"
+    StartIcon="@GetIcon()"
+    Disabled="@Disabled"
+    Size="@Size">
+    @GetButtonText()
+</MudButton>
+
+@code {
+    [Parameter]
+    public EventCallback OnClick { get; set; }
+
+    [Parameter]
+    public MudBlazor.Size Size { get; set; }
+
+    [Parameter] public string Text { get; set; } = "";
+
+    [Parameter] public bool Disabled { get; set; }
+
+    [Parameter] public bool IsExecuting { get; set; }
+
+    private string GetButtonClass() => IsExecuting 
+        ? "cancel-query-button rounded-xl py-2"
+        : "run-query-button rounded-xl py-2";
+
+    private string GetIcon() => IsExecuting ? AionIcons.Stop : AionIcons.Run;
+
+    private string GetButtonText() => IsExecuting ? "Cancel" : Text;
+}

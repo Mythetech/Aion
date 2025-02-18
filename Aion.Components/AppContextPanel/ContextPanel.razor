@@ -3,18 +3,21 @@
 @using MouseEvent = MudBlazor.MouseEvent
 @using Aion.Components.Shared
 @using Aion.Components.Connections
-<MudStack Row="true" Class="mud-width-full">
+<MudStack Spacing="0" Row="true" Class="mud-width-full">
 <MudStack Spacing="1" Class="app-context-panel mud-width-full" Style="" AlignItems="MudBlazor.AlignItems.Start">
     <AionIconButton Class="p-2" Icon="app-icon" OnClick="@OpenAboutAion" />
     <AionIconButton Class="p-2" Icon="@AionIcons.Add" OnClick="AddConnection" Tooltip="Create Connection"  />
     @*Side bar Panel*@
     @foreach (var connection in ConnectionState.Connections)
     {
-        <ContextPanelItem Active="@(_activeItem?.Title == "Connection")" @ref="@_contextPanelItems["Connection"]" Title="@connection.Name" Icon="@AionIcons.Connection" ContextPanelItemClicked="HandleContextPanelItemClicked">
-            <PanelContent>
-                <ConnectionPanel Connection="@connection"/>
-            </PanelContent>
-        </ContextPanelItem>
+        <MudBadge Dot="true" Color="@(connection.Active ? Color.Success : Color.Error)" Overlap="true" Class="context-panel-badge-dot" BadgeAriaLabel="@(connection.Active ? "Connected" : "Disconnected")" title="@(connection.Active ? "Connected" : "Disconnected")">
+
+            <ContextPanelItem Active="@(_activeItem?.Title == "Connection")" @ref="@_contextPanelItems["Connection"]" Title="@connection.Name" Icon="@AionIcons.Connection" ContextPanelItemClicked="HandleContextPanelItemClicked">
+                <PanelContent>
+                    <ConnectionPanel Connection="@connection"/>
+                </PanelContent>
+            </ContextPanelItem>
+        </MudBadge>
     }
     <MudSpacer />
     

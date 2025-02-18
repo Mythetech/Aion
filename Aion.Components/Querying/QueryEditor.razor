@@ -1,18 +1,53 @@
 @using Aion.Components.Connections
 @using BlazorMonaco.Editor
 @using Aion.Components.Shared
+@using Aion.Components.Theme
+
 
 <MudStack>
-    <MudStack Row="true">
-        <MudTabs>
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="pa-2">
+        <MudSelect T="ConnectionModel" 
+                  Label="Connection"
+                  Value="@SelectedConnection"
+                  ValueChanged="@OnConnectionChanged"
+                  Margin="Margin.Dense">
+            @foreach (var connection in Connections.Connections)
+            {
+                <MudSelectItem Value="@connection">@connection.Name</MudSelectItem>
+            }
+        </MudSelect>
+        <MudDivider Class="h-100" Vertical="true" DividerType="DividerType.FullWidth" />
+        <MudSelect T="string" 
+                  Label="Database"
+                  Value="@SelectedDatabase"
+                  ValueChanged="@OnDatabaseChanged"
+                  Disabled="@(SelectedConnection == null)"
+                  Margin="Margin.Dense">
+            @if (SelectedConnection != null)
+            {
+                @foreach (var db in SelectedConnection.Databases)
+                {
+                    <MudSelectItem Value="@db.Name">@db.Name</MudSelectItem>
+                }
+            }
+        </MudSelect>
+        
+        <MudSpacer />
+        <RunQueryButton Text="Run" 
+                        OnClick="RunQuery" 
+                        Disabled="@(!CanExecuteQuery)"
+                        IsExecuting="@(State.Active?.IsExecuting ?? false)" />
+    </MudStack>
+    <MudStack Row="true" AlignItems="AlignItems.Center">
+        <MudTabs @bind-ActivePanelIndex="ActiveTabIndex">
             @foreach (var query in State.Queries)
             {
-                <MudTabPanel Text="@query.Name">
+                <MudTabPanel Text="@query.Name" OnClick="@(() => OnTabChanged(query))">
                 </MudTabPanel>
             }
         </MudTabs>
         <MudSpacer />
-        <PrimaryActionButton Text="Run" OnClick="RunQuery" />
+        <AionIconButton Icon="@AionIcons.Add" Tooltip="New Query" OnClick="@(() => State.AddQuery())" />
     </MudStack>
     
     @if (State.Active?.Result?.Error != null)
@@ -25,12 +60,68 @@
 @code {
     [Inject] protected QueryState State { get; set; } = default!;
     [Inject] protected ConnectionState Connections { get; set; } = default!;
-    private StandaloneEditorConstructionOptions DefaultOptions(StandaloneCodeEditor editor) => new()
+    
+    private ConnectionModel? SelectedConnection => State.Active?.ConnectionId != null 
+        ? Connections.Connections.FirstOrDefault(c => c.Id == State.Active.ConnectionId)
+        : null;
+        
+    private string? SelectedDatabase
     {
-        Language = "sql",
-    };
+        get => State.Active?.DatabaseName;
+        set
+        {
+            if (State.Active != null)
+            {
+                State.UpdateQueryDatabase(State.Active, value);
+            }
+        }
+    }
+    
+    private bool CanExecuteQuery => SelectedConnection != null && !string.IsNullOrEmpty(SelectedDatabase);
+    
+    private StandaloneCodeEditor? _editor;
+    
+    private int ActiveTabIndex { get; set; }
 
-    private StandaloneCodeEditor? _editor = default!;
+    private StandaloneEditorConstructionOptions DefaultOptions(StandaloneCodeEditor editor)
+    {
+        return new StandaloneEditorConstructionOptions
+        {
+            Language = "sql",
+        };
+    }
+
+    private CancellationTokenSource? _queryTokenSource;
+
+    protected override void OnInitialized()
+    {
+        State.StateChanged += StateHasChanged;
+        Connections.ConnectionStateChanged += StateHasChanged;
+        base.OnInitialized();
+    }
+
+    public void Dispose()
+    {
+        State.StateChanged -= StateHasChanged;
+        Connections.ConnectionStateChanged -= StateHasChanged;
+        _queryTokenSource?.Dispose();
+    }
+
+    private void OnConnectionChanged(ConnectionModel? connection)
+    {
+        if (State.Active != null && connection != null)
+        {
+            State.UpdateQueryConnection(State.Active, connection);
+        }
+    }
+
+    private void OnDatabaseChanged(string? database)
+    {
+        if (State.Active != null && database != null)
+        {
+            State.UpdateQueryDatabase(State.Active, database);
+        }
+    }
 
     protected async Task HandleInit()
     {
@@ -40,21 +131,60 @@
         }
     }
 
-    private async Task RunQuery()
+    private async Task OnTabChanged(QueryModel query)
     {
-        Console.WriteLine("Running query...");
-        var query = State.Active ?? State.Queries.First();
-        
-        // Get current query text from editor
+        State.SetActive(query);
         if (_editor != null)
         {
-            query.Query = await _editor.GetValue();
-            Console.WriteLine($"Query text: {query.Query}");
+            await _editor.SetValue(query.Query);
         }
-        
-        var result = await Connections.ExecuteQueryAsync(query);
-        State.SetResult(query, result);
-        StateHasChanged();
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Set initial active tab index based on active query
+            ActiveTabIndex = State.Queries.FindIndex(q => q.Id == State.Active?.Id);
+            StateHasChanged();
+        }
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    private async Task RunQuery()
+    {
+        if (!CanExecuteQuery) return;
+        
+        var query = State.Active ?? State.Queries.First();
+
+        if (query.IsExecuting)
+        {
+            // Cancel the running query
+            _queryTokenSource?.Cancel();
+            return;
+        }
+        
+        try
+        {
+            _queryTokenSource?.Dispose();
+            _queryTokenSource = new CancellationTokenSource();
+            
+            Console.WriteLine("Running query...");
+            
+            // Get current query text from editor
+            if (_editor != null)
+            {
+                var currentText = await _editor.GetValue();
+                query.Query = currentText;
+                Console.WriteLine($"Query text: {query.Query}");
+            }
+            
+            var result = await Connections.ExecuteQueryAsync(query, _queryTokenSource.Token);
+            State.SetResult(query, result);
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
 }
