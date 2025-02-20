@@ -1,5 +1,7 @@
 using Aion.Components.Querying;
 using Aion.Components.Shared.Snackbar;
+using Aion.Core.Database;
+using Aion.Core.Queries;
 using MudBlazor;
 
 namespace Aion.Components.Connections;
@@ -8,11 +10,13 @@ public class ConnectionState
 {
     private readonly IConnectionService _connectionService;
     private readonly ISnackbarProvider _provider;
+    private readonly IDatabaseProviderFactory _providerFactory;
     private ISnackbar? _snackbar;
 
-    public ConnectionState(IConnectionService connectionService)
+    public ConnectionState(IConnectionService connectionService, IDatabaseProviderFactory providerFactory)
     {
         _connectionService = connectionService;
+        _providerFactory = providerFactory;
     }
     
     public event Action? ConnectionStateChanged;
@@ -25,28 +29,22 @@ public class ConnectionState
         Active = false,
     }];
 
-    public async Task ConnectAsync(string connectionString)
+    public async Task ConnectAsync(ConnectionModel connection)
     {
         try
         {
-            var databases = await _connectionService.GetDatabasesAsync(connectionString);
+            var databases = await _connectionService.GetDatabasesAsync(connection.ConnectionString, connection.Type);
             
-            var segments = connectionString.Split(';');
-            var host = segments.FirstOrDefault(s => s.StartsWith("Host="))?.Replace("Host=", "");
+            connection.Databases = databases.Select(db => new DatabaseModel { Name = db }).ToList();
+            connection.Active = true;
             
-            Connections.Add(new ConnectionModel()
-            {
-                Name = host ?? "New Connection",
-                ConnectionString = connectionString,
-                Databases = databases.Select(db => new DatabaseModel { Name = db }).ToList(),
-                Active = true,
-            });
-            
+            Connections.Add(connection);
             OnConnectionStateChanged();
         }
         catch (Exception ex)
         {
             Console.WriteLine(ex.Message);
+            throw;
         }
     }
 
@@ -57,10 +55,10 @@ public class ConnectionState
         try
         {
             var connectionString = connection.ConnectionString;
-            // Ensure we're using the correct database
-            connectionString = UpdateConnectionString(connectionString, database.Name);
+            var provider = GetProvider(connection.Type);
+            connectionString = provider.UpdateConnectionString(connectionString, database.Name);
             
-            var tables = await _connectionService.GetTablesAsync(connectionString, database.Name);
+            var tables = await _connectionService.GetTablesAsync(connectionString, database.Name, connection.Type);
             database.Tables = tables;
             database.TablesLoaded = true;
             
@@ -69,16 +67,8 @@ public class ConnectionState
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to load tables: {ex.Message}");
+            throw;
         }
-    }
-
-    private string UpdateConnectionString(string connectionString, string database)
-    {
-        var segments = connectionString.Split(';')
-            .Where(s => !s.StartsWith("Database="))
-            .ToList();
-        segments.Add($"Database={database}");
-        return string.Join(";", segments);
     }
     
     public async Task<QueryResult> ExecuteQueryAsync(QueryModel query, CancellationToken cancellationToken)
@@ -100,11 +90,10 @@ public class ConnectionState
                 throw new Exception("Selected connection not found");
             }
 
-            var connectionString = UpdateConnectionString(connection.ConnectionString, query.DatabaseName);
-            Console.WriteLine($"Executing query on connection: {connection.Name}, database: {query.DatabaseName}");
-            Console.WriteLine($"Query text: {query.Query}");
-
-            var result = await _connectionService.ExecuteQueryAsync(connectionString, query.Query, cancellationToken);
+            var provider = GetProvider(connection.Type);
+            var connectionString = provider.UpdateConnectionString(connection.ConnectionString, query.DatabaseName);
+            
+            var result = await _connectionService.ExecuteQueryAsync(connectionString, query.Query, connection.Type, cancellationToken);
             
             query.IsExecuting = false;
             OnConnectionStateChanged();
@@ -125,5 +114,6 @@ public class ConnectionState
             return new QueryResult { Error = ex.Message };
         }
     }
-    
+
+    private IDatabaseProvider GetProvider(DatabaseType type) => _providerFactory.GetProvider(type);
 }

@@ -1,0 +1,142 @@
+@using Aion.Components.Theme
+@using Aion.Core.Database
+@using Microsoft.Extensions.DependencyInjection
+@using MudBlazor.Utilities
+@using Aion.Components.Shared
+
+<MudDialog>
+    <DialogContent>
+        @if (!string.IsNullOrEmpty(ValidationError))
+        {
+        <MudAlert Severity="Severity.Error" Class="my-2">@ValidationError</MudAlert>
+        }
+        <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6">
+            <MudTabPanel Text="Basic">
+                <MudForm Model="@Model" @ref="@_form">
+                    <MudStack>
+                        <MudTextField @bind-Value="Model.Name"
+                                      Label="Connection Name"/>
+
+                        <MudSelect T="DatabaseType"
+                                   @bind-Value="Model.Type"
+                                   Label="Database Type"
+                                   Required="true"
+                                   RequiredError="Database type is required">
+                            @foreach (var type in ProviderFactory.SupportedDatabases)
+                            {
+                                <MudSelectItem Value="@type">@type.ToString()</MudSelectItem>
+                            }
+                        </MudSelect>
+
+                        <MudTextField @bind-Value="Model.Host"
+                                      Label="Server"
+                                      Required="true"
+                                      RequiredError="Server is required"/>
+
+                        <MudTextField @bind-Value="Model.Port"
+                                      Label="Port"
+                                      Required="true"
+                                      Placeholder="@GetDefaultPort()"
+                                      RequiredError="Port is required"/>
+
+                        <MudTextField @bind-Value="Model.Username"
+                                      Label="Username"
+                                      Required="true"
+                                      RequiredError="Username is required"/>
+
+                        <MudTextField @bind-Value="Model.Password"
+                                      Label="Password"
+                                      Required="true"
+                                      InputType="InputType.Password"
+                                      RequiredError="Password is required"/>
+
+
+                    </MudStack>
+                </MudForm>
+            </MudTabPanel>
+
+            <MudTabPanel Text="Connection String">
+                <MudTextField @bind-Value="Model.ConnectionString"
+                              Label="Connection String"
+                              Lines="3"
+                              Required="true"
+                              RequiredError="Connection string is required"/>
+            </MudTabPanel>
+        </MudTabs>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <PrimaryActionButton OnClick="Submit" Text="Connect" />
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+    [Inject] private IDatabaseProviderFactory ProviderFactory { get; set; } = default!;
+    
+    private MudForm? _form;
+    
+    private ConnectionDialogModel Model { get; set; } = new();
+    
+    private string? ValidationError { get; set; }
+    
+    [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
+    
+    private string GetDefaultPort()
+    {
+        var provider = ProviderFactory.GetProvider(Model.Type);
+        return provider.GetDefaultPort().ToString();
+    }
+    
+    private async Task Submit()
+    {
+        if (_form != null)
+        {
+            await _form.Validate();
+            if (_form.IsValid)
+            {
+                var connectionString = BuildConnectionString();
+                var provider = ProviderFactory.GetProvider(Model.Type);
+                
+                if (!provider.ValidateConnectionString(connectionString, out var error))
+                {
+                    ValidationError = error;
+                    return;
+                }
+
+                string name = Model.Name ?? connectionString.Split(";")[0].Split("=")[1];
+                MudDialog.Close(DialogResult.Ok(new ConnectionModel
+                {
+                    Name = name,
+                    ConnectionString = connectionString,
+                    Type = Model.Type,
+                    Active = false
+                }));
+            }
+        }
+    }
+    
+    private void Cancel() => MudDialog.Cancel();
+    
+    private string BuildConnectionString()
+    {
+        if (!string.IsNullOrEmpty(Model.ConnectionString))
+            return Model.ConnectionString;
+            
+        return Model.Type switch
+        {
+            DatabaseType.PostgreSQL => $"Host={Model.Host};Port={Model.Port};Username={Model.Username};Password={Model.Password}",
+            DatabaseType.SQLServer => $"Server={Model.Host},{Model.Port};User Id={Model.Username};Password={Model.Password}",
+            DatabaseType.MySQL => $"Server={Model.Host};Port={Model.Port};User={Model.Username};Password={Model.Password}",
+            DatabaseType.SQLite => $"Data Source={Model.Host}",
+            _ => throw new ArgumentOutOfRangeException()
+        };
+    }
+    
+    protected override void OnInitialized()
+    {
+        // Set default port when database type changes
+        Model.Port = GetDefaultPort();
+        base.OnInitialized();
+    }
+} 

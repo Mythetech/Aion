@@ -5,7 +5,7 @@
 @using Aion.Components.Connections
 <MudStack Spacing="0" Row="true" Class="mud-width-full">
 <MudStack Spacing="1" Class="app-context-panel mud-width-full" Style="" AlignItems="MudBlazor.AlignItems.Start">
-    <AionIconButton Class="p-2" Icon="app-icon" OnClick="@OpenAboutAion" />
+    <AionIconButton Class="p-2" Icon="@AionIcons.Aion" OnClick="@OpenAboutAion" />
     <AionIconButton Class="p-2" Icon="@AionIcons.Add" OnClick="AddConnection" Tooltip="Create Connection"  />
     @*Side bar Panel*@
     @foreach (var connection in ConnectionState.Connections)
@@ -44,7 +44,7 @@
 
 <MudStack Class="p-0 mud-width-full" Style="@($"{(!AppState.SideBarOpen ? "width:0px;" : "")}")">
     <MudPaper Class="h-100 w-100" Style="@($"max-width:24vw;")" Square="true">
-        <MudStack Spacing="3" Class="p-4 w-100">
+        <MudStack Spacing="3" Class="pa-4 w-100">
             @if (_activeItem != null)
             {
                 <MudStack Row="true" Class="w-100" Spacing="3" AlignItems="AlignItems.Center">
@@ -57,7 +57,7 @@
             }
             else
             {
-                <MudStack Row="true" Class="w-100 p-4">
+                <MudStack Row="true" Class="w-100 pa-4">
                     <MudText Typo="Typo.subtitle1">No Item Selected</MudText>
                     <MudSpacer />
                     <MudIconButton Icon="@AionIcons.Close" Variant="Variant.Text" OnClick="@CloseContextPanel" />
@@ -178,7 +178,22 @@
 
     protected async Task AddConnection()
     {
-        await ConnectionState.ConnectAsync("Host=127.0.0.1:5432;Database=IrisCloudDb;Username=postgres;Password=Test123!");
+        var options = new DialogOptions 
+        { 
+            CloseOnEscapeKey = true, 
+            BackgroundClass = "aion-dialog", 
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        var dialog = await DialogService.ShowAsync<ConnectionDialog>("New Connection", options);
+        var result = await dialog.Result;
+        
+        if (!result.Canceled)
+        {
+            var connection = (ConnectionModel)result.Data;
+            await ConnectionState.ConnectAsync(connection);
+        }
     }
 }
 

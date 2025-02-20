@@ -1,3 +1,5 @@
+using Aion.Core.Queries;
+
 namespace Aion.Components.Querying;
 
 public class QueryModel

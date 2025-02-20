@@ -1,10 +1,12 @@
 @using System.Reflection
+@using Aion.Components.Shared
+@using Aion.Components.Theme
 
 <MudDialog>
     <DialogContent>
         <MudGrid>
             <MudItem xs="6" Class="pt-0">
-                <MudImage ObjectFit="ObjectFit.Contain" Class="w-100 h-100" Src="../aion-logo-full.png" />
+                <MudIcon Class="w-100 h-100" Icon="@AionIcons.Aion" />
             </MudItem>
             <MudItem xs="6">
                 <MudStack Class="w-100 h-100" Spacing="3" AlignItems="AlignItems.Center" Justify="Justify.Center">
@@ -19,7 +21,7 @@
         <MudText Typo="Typo.body1" class="mud-text-secondary pl-3">Version @Version</MudText>
         <MudSpacer />
         <MudButton OnClick="Cancel">Close</MudButton>
-        <MudButton Variant="Variant.Text" OnClick="Cancel">Get Started!</MudButton>
+        <PrimaryActionButton OnClick="Cancel" Text="Get Started!" />
     </DialogActions>
 </MudDialog>
 @code {

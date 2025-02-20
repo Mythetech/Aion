@@ -1,6 +1,7 @@
 using Aion.Components.Connections;
 using Aion.Components.Querying;
 using Aion.Components.Shared.Snackbar;
+using Aion.Core.Database;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FluentUI.AspNetCore.Components;
 using MudBlazor;
@@ -29,6 +30,10 @@ public static class RegistrationExtensions
         services.AddSingleton<QueryState>();
 
         services.AddSingleton<IConnectionService, TConnectionService>();
+        // Database providers
+        services.AddScoped<IDatabaseProviderFactory, DatabaseProviderFactory>();
+        services.AddScoped<IDatabaseProvider, PostgreSqlProvider>();
+        services.AddScoped<IDatabaseProvider, MySqlProvider>();
         
         services.AddFluentUIComponents();
         

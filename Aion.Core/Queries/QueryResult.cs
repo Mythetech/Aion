@@ -1,4 +1,4 @@
-namespace Aion.Components.Querying;
+namespace Aion.Core.Queries;
 
 public class QueryResult
 {

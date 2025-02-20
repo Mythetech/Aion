@@ -1,4 +1,5 @@
 using Aion.Components.Connections;
+using Aion.Core.Queries;
 
 namespace Aion.Components.Querying;
 

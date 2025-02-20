@@ -4,6 +4,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aion.Desktop", "Aion.Deskto
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aion.Components", "Aion.Components\Aion.Components.csproj", "{5E005C9A-6894-4A12-8FC5-F841EA85724F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aion.Core", "Aion.Core\Aion.Core.csproj", "{ECC152E7-6581-41E5-80B3-F6800027C6CB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{5E005C9A-6894-4A12-8FC5-F841EA85724F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5E005C9A-6894-4A12-8FC5-F841EA85724F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5E005C9A-6894-4A12-8FC5-F841EA85724F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ECC152E7-6581-41E5-80B3-F6800027C6CB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ECC152E7-6581-41E5-80B3-F6800027C6CB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ECC152E7-6581-41E5-80B3-F6800027C6CB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ECC152E7-6581-41E5-80B3-F6800027C6CB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
