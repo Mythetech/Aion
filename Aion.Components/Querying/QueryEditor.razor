@@ -53,6 +53,25 @@
         </MudSelect>
 
         <MudSpacer/>
+        
+        <MudToggleIconButton
+            @bind-Toggled="@State.Active.IncludeEstimatedPlan"
+            Icon="@Icons.Material.Outlined.Analytics" 
+            Color="@Color.Inherit"
+            ToggledIcon="@Icons.Material.Filled.Analytics"
+            ToggledColor="@Color.Primary"
+            Size="Size.Small"/>
+            
+        <MudToggleIconButton
+            @bind-Toggled="@State.Active.IncludeActualPlan"
+            Icon="@Icons.Material.Outlined.Assessment" 
+            Color="@Color.Inherit"
+            ToggledIcon="@Icons.Material.Filled.Assessment"
+            ToggledColor="@Color.Primary"
+            Size="Size.Small"/>
+        
+        <MudSpacer />
+
         <RunQueryButton Text="Run"
                         OnClick="RunQuery"
                         Disabled="@(!CanExecuteQuery)"

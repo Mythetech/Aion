@@ -12,4 +12,6 @@ public interface IDatabaseProvider
     string UpdateConnectionString(string connectionString, string database);
     int GetDefaultPort();
     bool ValidateConnectionString(string connectionString, out string? error);
+    Task<QueryPlan> GetEstimatedPlanAsync(string connectionString, string query);
+    Task<QueryPlan> GetActualPlanAsync(string connectionString, string query);
 } 

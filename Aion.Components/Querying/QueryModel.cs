@@ -15,6 +15,12 @@ public class QueryModel
     public Guid? ConnectionId { get; set; }
     public string? DatabaseName { get; set; }
 
+    public bool IncludeEstimatedPlan { get; set; }
+    public bool IncludeActualPlan { get; set; }
+    
+    public QueryPlan? EstimatedPlan { get; set; }
+    public QueryPlan? ActualPlan { get; set; }
+
     public QueryModel Clone()
     {
         return new QueryModel()
@@ -25,7 +31,11 @@ public class QueryModel
             Result = Result?.Clone(),
             IsExecuting = IsExecuting,
             ConnectionId = ConnectionId,
-            DatabaseName = DatabaseName
+            DatabaseName = DatabaseName,
+            IncludeEstimatedPlan = IncludeEstimatedPlan,
+            IncludeActualPlan = IncludeActualPlan,
+            EstimatedPlan = EstimatedPlan?.Clone(),
+            ActualPlan = ActualPlan?.Clone()
         };
     }
 }

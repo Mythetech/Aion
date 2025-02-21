@@ -1,6 +1,7 @@
 using Aion.Core.Database.PostgreSQL;
 using Aion.Core.Queries;
 using Npgsql;
+using System.Text;
 
 namespace Aion.Core.Database;
 
@@ -138,6 +139,70 @@ public class PostgreSqlProvider : IDatabaseProvider
         {
             error = ex.Message;
             return false;
+        }
+    }
+
+    public async Task<QueryPlan> GetEstimatedPlanAsync(string connectionString, string query)
+    {
+        var plan = new QueryPlan
+        {
+            PlanType = "Estimated",
+            PlanFormat = "TEXT"
+        };
+
+        try
+        {
+            using var conn = new NpgsqlConnection(connectionString);
+            await conn.OpenAsync();
+            
+            using var cmd = new NpgsqlCommand($"EXPLAIN {query}", conn);
+            using var reader = await cmd.ExecuteReaderAsync();
+
+            var planText = new StringBuilder();
+            while (await reader.ReadAsync())
+            {
+                planText.AppendLine(reader.GetString(0));
+            }
+
+            plan.PlanContent = planText.ToString();
+            return plan;
+        }
+        catch (Exception ex)
+        {
+            plan.PlanContent = $"Error getting plan: {ex.Message}";
+            return plan;
+        }
+    }
+
+    public async Task<QueryPlan> GetActualPlanAsync(string connectionString, string query)
+    {
+        var plan = new QueryPlan
+        {
+            PlanType = "Actual",
+            PlanFormat = "TEXT"
+        };
+
+        try
+        {
+            using var conn = new NpgsqlConnection(connectionString);
+            await conn.OpenAsync();
+            
+            using var cmd = new NpgsqlCommand($"EXPLAIN ANALYZE {query}", conn);
+            using var reader = await cmd.ExecuteReaderAsync();
+
+            var planText = new StringBuilder();
+            while (await reader.ReadAsync())
+            {
+                planText.AppendLine(reader.GetString(0));
+            }
+
+            plan.PlanContent = planText.ToString();
+            return plan;
+        }
+        catch (Exception ex)
+        {
+            plan.PlanContent = $"Error getting plan: {ex.Message}";
+            return plan;
         }
     }
 } 

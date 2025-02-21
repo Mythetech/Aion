@@ -2,21 +2,40 @@
 
 @if (State?.Active?.Result != null)
 {
+    <MudTabs>
+        <MudTabPanel Text="Results">
+            <MudTable Items="State.Active.Result.Rows" Dense="true" Hover="true" >
+                <HeaderContent>
+                    @foreach (var col in State.Active.Result.Columns)
+                    {
+                        <MudTh>@col</MudTh>
+                    }
+                </HeaderContent>
+                <RowTemplate>
+                    @foreach (var row in State.Active.Result.Rows.First().Keys)
+                    {
+                        <MudTd DataLabel="@row">@context.GetValueOrDefault(row)</MudTd>
+                    }
+                </RowTemplate>
+            </MudTable>
+        </MudTabPanel>
+        <MudTabPanel Text="Messages">
+            <MudText>@State.Active.Result.Error</MudText>
+        </MudTabPanel>
+        @if (State.Active.EstimatedPlan != null)
+        {
+            <MudTabPanel Text="Estimated Plan">
+               @State.Active.EstimatedPlan.PlanContent
+            </MudTabPanel>
+        }
+        @if (State.Active.ActualPlan != null)
+        {
+        <MudTabPanel Text="Actual Plan">
+            @State.Active.ActualPlan.PlanContent
+        </MudTabPanel>
+        }
+    </MudTabs>
     
-    <MudTable Items="State.Active.Result.Rows" Dense="true" Hover="true">
-        <HeaderContent>
-            @foreach (var col in State.Active.Result.Columns)
-            {
-                <MudTh>@col</MudTh>
-            }
-        </HeaderContent>
-        <RowTemplate>
-            @foreach (var row in State.Active.Result.Rows.First().Keys)
-            {
-                <MudTd DataLabel="@row">@context.GetValueOrDefault(row)</MudTd>
-            }
-        </RowTemplate>
-    </MudTable>
     <MudText Typo="Typo.caption" Class="mud-text-secondary">@(State?.Active?.Result?.RowCount ?? 0) Results</MudText>
 }
 

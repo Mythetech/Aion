@@ -1,6 +1,7 @@
 using Aion.Core.Database.MySql;
 using Aion.Core.Queries;
 using MySql.Data.MySqlClient;
+using System.Text;
 
 namespace Aion.Core.Database;
 
@@ -149,6 +150,73 @@ public class MySqlProvider : IDatabaseProvider
         {
             error = ex.Message;
             return false;
+        }
+    }
+
+    public async Task<QueryPlan> GetEstimatedPlanAsync(string connectionString, string query)
+    {
+        var plan = new QueryPlan
+        {
+            PlanType = "Estimated",
+            PlanFormat = "TEXT"
+        };
+
+        try
+        {
+            using var conn = new MySqlConnection(connectionString);
+            await conn.OpenAsync();
+            
+            using var cmd = new MySqlCommand($"EXPLAIN FORMAT=JSON {query}", conn);
+            var result = await cmd.ExecuteScalarAsync();
+
+            plan.PlanFormat = "JSON";
+            plan.PlanContent = result?.ToString() ?? string.Empty;
+            return plan;
+        }
+        catch (Exception ex)
+        {
+            plan.PlanContent = $"Error getting plan: {ex.Message}";
+            return plan;
+        }
+    }
+
+    public async Task<QueryPlan> GetActualPlanAsync(string connectionString, string query)
+    {
+        var plan = new QueryPlan
+        {
+            PlanType = "Actual",
+            PlanFormat = "TEXT"
+        };
+
+        try
+        {
+            using var conn = new MySqlConnection(connectionString);
+            await conn.OpenAsync();
+            
+            // MySQL 8.0+ supports EXPLAIN ANALYZE
+            using var cmd = new MySqlCommand($"EXPLAIN ANALYZE {query}", conn);
+            using var reader = await cmd.ExecuteReaderAsync();
+
+            var planText = new StringBuilder();
+            while (await reader.ReadAsync())
+            {
+                // EXPLAIN ANALYZE returns a single column with the plan
+                planText.AppendLine(reader.GetString(0));
+            }
+
+            plan.PlanContent = planText.ToString();
+            return plan;
+        }
+        catch (MySqlException ex) when (ex.Message.Contains("ANALYZE", StringComparison.OrdinalIgnoreCase))
+        {
+            // Fallback for older MySQL versions that don't support EXPLAIN ANALYZE
+            plan.PlanContent = "EXPLAIN ANALYZE is only supported in MySQL 8.0+";
+            return plan;
+        }
+        catch (Exception ex)
+        {
+            plan.PlanContent = $"Error getting plan: {ex.Message}";
+            return plan;
         }
     }
 } 

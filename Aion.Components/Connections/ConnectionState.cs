@@ -106,7 +106,23 @@ public class ConnectionState
             var provider = GetProvider(connection.Type);
             var connectionString = provider.UpdateConnectionString(connection.ConnectionString, query.DatabaseName);
             
-            var result = await _connectionService.ExecuteQueryAsync(connectionString, query.Query, connection.Type, cancellationToken);
+            if (query.IncludeEstimatedPlan)
+            {
+                query.EstimatedPlan = await provider.GetEstimatedPlanAsync(connectionString, query.Query);
+            }
+
+            if (query.IncludeActualPlan)
+            {
+                query.ActualPlan = await provider.GetActualPlanAsync(connectionString, query.Query);
+                var plan = new QueryResult { Error = "Query not executed - actual plan requested" };
+                query.IsExecuting = false;
+                OnConnectionStateChanged();
+
+                await _bus.PublishAsync(new QueryExecuted(query.Clone()));
+                return plan;
+            }
+
+            var result = await provider.ExecuteQueryAsync(connectionString, query.Query, cancellationToken);
             
             query.Result = result;
             
@@ -129,7 +145,7 @@ public class ConnectionState
 
             return result;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Console.WriteLine($"Query execution failed: {ex.Message}");
             query.IsExecuting = false;
