@@ -1,3 +1,4 @@
+using Aion.Core.Database.MySql;
 using Aion.Core.Queries;
 using MySql.Data.MySqlClient;
 
@@ -5,22 +6,22 @@ namespace Aion.Core.Database;
 
 public class MySqlProvider : IDatabaseProvider
 {
+    public IStandardDatabaseCommands Commands { get; } = new MySqlCommands();
     public DatabaseType DatabaseType => DatabaseType.MySQL;
     
     public async Task<List<string>> GetDatabasesAsync(string connectionString)
     {
         var databases = new List<string>();
         
-        using var conn = new MySqlConnection(connectionString);    
+        var builder = new MySqlConnectionStringBuilder(connectionString);
+        builder.Database = null; // Don't specify a database when listing databases
+        
+        using var conn = new MySqlConnection(builder.ConnectionString);    
         await conn.OpenAsync();
         
-        // Query to get all databases, excluding system databases
         const string sql = @"
-            SELECT SCHEMA_NAME 
-            FROM information_schema.SCHEMATA 
-            WHERE SCHEMA_NAME NOT IN 
-                ('information_schema', 'mysql', 'performance_schema', 'sys')
-            ORDER BY SCHEMA_NAME";
+            SHOW DATABASES 
+            WHERE `Database` NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys');";
             
         using var cmd = new MySqlCommand(sql, conn);
         using var reader = await cmd.ExecuteReaderAsync();
@@ -40,13 +41,12 @@ public class MySqlProvider : IDatabaseProvider
         using var conn = new MySqlConnection(connectionString);    
         await conn.OpenAsync();
         
-        // Query to get all tables in the database
         const string sql = @"
-            SELECT TABLE_NAME 
-            FROM information_schema.TABLES 
-            WHERE TABLE_SCHEMA = @database 
-            AND TABLE_TYPE = 'BASE TABLE'
-            ORDER BY TABLE_NAME";
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = @database 
+            AND table_type = 'BASE TABLE'
+            ORDER BY table_name";
             
         using var cmd = new MySqlCommand(sql, conn);
         cmd.Parameters.AddWithValue("@database", database);
@@ -66,7 +66,14 @@ public class MySqlProvider : IDatabaseProvider
         
         try 
         {
-            using var conn = new MySqlConnection(connectionString);    
+            // For CREATE DATABASE, we need to connect without a database specified
+            var builder = new MySqlConnectionStringBuilder(connectionString);
+            if (query.TrimStart().StartsWith("CREATE DATABASE", StringComparison.OrdinalIgnoreCase))
+            {
+                builder.Database = null;
+            }
+            
+            using var conn = new MySqlConnection(builder.ConnectionString);    
             await conn.OpenAsync(cancellationToken);
             
             using var cmd = new MySqlCommand(query, conn);
@@ -127,6 +134,12 @@ public class MySqlProvider : IDatabaseProvider
             {
                 error = "User ID is required";
                 return false;
+            }
+
+            // Add default authentication if not specified
+            if (!connectionString.Contains("AllowPublicKeyRetrieval"))
+            {
+                builder.AllowPublicKeyRetrieval = true;
             }
             
             error = null;

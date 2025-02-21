@@ -1,3 +1,4 @@
+using Aion.Core.Database.PostgreSQL;
 using Aion.Core.Queries;
 using Npgsql;
 
@@ -5,6 +6,7 @@ namespace Aion.Core.Database;
 
 public class PostgreSqlProvider : IDatabaseProvider
 {
+    public IStandardDatabaseCommands Commands { get; } = new PostgreSqlCommands();
     public DatabaseType DatabaseType => DatabaseType.PostgreSQL;
 
     public async Task<List<string>> GetDatabasesAsync(string connectionString)

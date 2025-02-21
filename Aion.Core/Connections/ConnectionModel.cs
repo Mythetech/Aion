@@ -1,6 +1,6 @@
 using Aion.Core.Database;
 
-namespace Aion.Components.Connections;
+namespace Aion.Core.Connections;
 
 public class ConnectionModel
 {
@@ -10,11 +10,7 @@ public class ConnectionModel
     public DatabaseType Type { get; set; }
     public List<DatabaseModel> Databases { get; set; } = [];
     public bool Active { get; set; }
+    public bool SaveCredentials { get; set; }
+    public bool IsSavedConnection { get; set; }
 }
 
-public class DatabaseModel
-{
-    public string Name { get; set; }
-    public List<string> Tables { get; set; } = [];
-    public bool TablesLoaded { get; set; }
-}

@@ -1,3 +1,4 @@
+@using Aion.Components.Connections
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -20,5 +21,14 @@
 
     [Inject]
     protected NavigationManager Navigation { get; set; } 
+
+    [Inject]
+    protected ConnectionState ConnectionState { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ConnectionState.InitializeAsync();
+        await base.OnInitializedAsync();
+    }
 
 }

@@ -1,22 +1,47 @@
-<h3>ConnectionPanel</h3>
+@using Aion.Components.Querying
+@using Aion.Core.Connections
+@using Aion.Core.Database
+@using Aion.Components.Shared
+@using Aion.Components.Shared.Snackbar
+@using Aion.Components.Theme
+<h3>@Connection.Name</h3>
 
-<h6>@Connection.Name</h6>
+<MudStack Row="true" AlignItems="AlignItems.Center"> 
+    <h6>@Connection.Type</h6>
+    <MudSpacer />
+    <AionIconButton Icon="@AionIcons.Add" Tooltip="Add Database" OnClick="AddDatabase" />
+</MudStack>
 
 <MudExpansionPanels>
         @foreach (var database in Connection.Databases)
         {
             <MudExpansionPanel Text="@database.Name" @onclick="@(() => LoadTables(database))">
+                <MudStack Spacing="1">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Tables @(database.TablesLoaded ? database.Tables.Count : "")</MudText>
                 @if (database.TablesLoaded)
                 {
                     @foreach (var table in database.Tables)
                     {
-                        <MudText Class="ml-4">@table</MudText>
+                        <MudMenu Dense="true" Class="ml-4 w-100" ActivationEvent="MouseEvent.RightClick">
+                            <ActivatorContent>
+                                @table
+                            </ActivatorContent>
+                            <ChildContent>
+                                <MudMenuItem>
+                                    Select Top 1000
+                                </MudMenuItem>
+                                <MudMenuItem>
+                                    Edit Data
+                                </MudMenuItem>
+                            </ChildContent>
+                        </MudMenu>
                     }
                 }
                 else
                 {
                     <MudText Class="ml-4">Loading...</MudText>
                 }
+                </MudStack>
             </MudExpansionPanel>
         }
 </MudExpansionPanels>
@@ -24,9 +49,46 @@
 @code {
     [Parameter] public ConnectionModel Connection { get; set; } = default!;
     [Inject] public ConnectionState ConnectionState { get; set; } = default!;
+    [Inject] public QueryState QueryState { get; set; } = default!;
+    [Inject] protected ISnackbar Snackbar { get; set; } = default!;
+
+    private async Task AddDatabase()
+    {
+        string databaseName = "Untitled";
+        var script = await ConnectionState.GetProvider(Connection.Type).Commands.GenerateCreateDatabaseScript(databaseName);
+        var result = await ConnectionState.ExecuteQueryAsync(new QueryModel()
+        {
+            ConnectionId = Connection.Id,
+            DatabaseName = databaseName,
+            Query = script
+        }, new CancellationToken());
+        if (!string.IsNullOrWhiteSpace(result.Error))
+        {
+            Snackbar.AddAionNotification(result.Error, Severity.Error);
+        }
+    }
 
     private async Task LoadTables(DatabaseModel database)
     {
         await ConnectionState.LoadTablesAsync(Connection, database);
+    }
+
+    private async Task CreateTable(DatabaseModel database)
+    {
+        var provider = ConnectionState.GetProvider(Connection.Type);
+        var script = await provider.Commands.GenerateCreateTableScript(
+            database.Name, 
+            "NewTable", 
+            new[] { 
+                new ColumnDefinition("Id", "INTEGER", false, "SERIAL"),
+                new ColumnDefinition("Name", "VARCHAR(100)", false)
+            });
+
+        var result = await ConnectionState.ExecuteQueryAsync(new QueryModel()
+        {
+            ConnectionId = Connection.Id,
+            DatabaseName = database.Name,
+            Query = script
+        }, new CancellationToken());
     }
 }
