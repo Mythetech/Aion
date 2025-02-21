@@ -2,27 +2,47 @@
 @using BlazorMonaco.Editor
 @using Aion.Components.Shared
 @using Aion.Components.Theme
+@using Aion.Core.Connections
 
 
 <MudStack>
+    <MudStack Row="true" AlignItems="AlignItems.Center">
+        <MudTabs Class="mud-width-full flex-grow-1" @bind-ActivePanelIndex="ActiveTabIndex" PanelClass="pa-1" MinimumTabWidth="auto">
+            @foreach (var query in State.Queries)
+            {
+                <MudTabPanel OnClick="@(() => OnTabChanged(query))">
+                    <TabContent>
+                        <MudStack Row="true" AlignItems="AlignItems.Center">
+                            <MudText>
+                                @query.Name
+                            </MudText>
+                            <AionIconButton Size="Size.Small" Icon="@AionIcons.Close" Tooltip="Close" OnClick="@(async () => await CloseTab(query))" />
+                        </MudStack>
+                    </TabContent>
+                </MudTabPanel>
+            }
+        </MudTabs>
+        <MudSpacer />
+        <AionIconButton Icon="@AionIcons.Add" Tooltip="New Query" OnClick="@(async () => { State.AddQuery(); ActiveTabIndex = State.Queries.Count - 1; await _editor.SetValue(State.Active.Query); })" />
+    </MudStack>
     <MudStack Row="true" AlignItems="AlignItems.Center" Class="pa-2">
-        <MudSelect T="ConnectionModel" 
-                  Label="Connection"
-                  Value="@SelectedConnection"
-                  ValueChanged="@OnConnectionChanged"
-                  Margin="Margin.Dense">
+        <MudSelect T="ConnectionModel"
+                   Label="Connection"
+                   Value="@SelectedConnection"
+                   ValueChanged="@OnConnectionChanged"
+                   Margin="Margin.Dense">
             @foreach (var connection in Connections.Connections)
             {
                 <MudSelectItem Value="@connection">@connection.Name</MudSelectItem>
             }
         </MudSelect>
-        <MudDivider Class="h-100" Vertical="true" DividerType="DividerType.FullWidth" />
-        <MudSelect T="string" 
-                  Label="Database"
-                  Value="@SelectedDatabase"
-                  ValueChanged="@OnDatabaseChanged"
-                  Disabled="@(SelectedConnection == null)"
-                  Margin="Margin.Dense">
+        <MudDivider Class="h-100" Vertical="true" DividerType="DividerType.FullWidth"/>
+        <MudSelect T="string"
+                   Label="Database"
+                   Value="@SelectedDatabase"
+                   ValueChanged="@OnDatabaseChanged"
+                   Disabled="@(SelectedConnection == null)"
+                   Margin="Margin.Dense">
             @if (SelectedConnection != null)
             {
                 @foreach (var db in SelectedConnection.Databases)
@@ -31,31 +51,21 @@
                 }
             }
         </MudSelect>
-        
-        <MudSpacer />
-        <RunQueryButton Text="Run" 
-                        OnClick="RunQuery" 
+
+        <MudSpacer/>
+        <RunQueryButton Text="Run"
+                        OnClick="RunQuery"
                         Disabled="@(!CanExecuteQuery)"
-                        IsExecuting="@(State.Active?.IsExecuting ?? false)" />
+                        IsExecuting="@(State.Active?.IsExecuting ?? false)"/>
     </MudStack>
-    <MudStack Row="true" AlignItems="AlignItems.Center">
-        <MudTabs @bind-ActivePanelIndex="ActiveTabIndex">
-            @foreach (var query in State.Queries)
-            {
-                <MudTabPanel Text="@query.Name" OnClick="@(() => OnTabChanged(query))">
-                </MudTabPanel>
-            }
-        </MudTabs>
-        <MudSpacer />
-        <AionIconButton Icon="@AionIcons.Add" Tooltip="New Query" OnClick="@(() => State.AddQuery())" />
-    </MudStack>
-    
+
+
     @if (State.Active?.Result?.Error != null)
     {
         <MudAlert Severity="Severity.Error" Class="my-2">@State.Active.Result.Error</MudAlert>
     }
-    
-    <StandaloneCodeEditor CssClass="h-100 flex-grow-1" @ref="_editor" ConstructionOptions="DefaultOptions" OnDidInit="HandleInit" />
+
+    <StandaloneCodeEditor CssClass="h-100 flex-grow-1" @ref="_editor" ConstructionOptions="DefaultOptions" OnDidInit="HandleInit" OnDidChangeModelContent="UpdateQuery"/>
 </MudStack>
 @code {
     [Inject] protected QueryState State { get; set; } = default!;
@@ -123,6 +133,12 @@
         }
     }
 
+    private async Task UpdateQuery(ModelContentChangedEvent evt)
+    {
+        var text = await _editor.GetValue();
+        State.Active.Query = text;
+    }
+
     protected async Task HandleInit()
     {
         if (_editor != null)
@@ -137,6 +153,19 @@
         if (_editor != null)
         {
             await _editor.SetValue(query.Query);
+        }
+    }
+
+    private async Task CloseTab(QueryModel query)
+    {
+        bool wasActive = query.Id == State.Active.Id;
+        
+        State.Remove(query);
+
+        if (wasActive)
+        {
+            StateHasChanged();
+            await OnTabChanged(State.Active);
         }
     }
 

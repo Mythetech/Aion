@@ -1,5 +1,8 @@
+using Aion.Components.Infrastructure.MessageBus;
 using Aion.Components.Querying;
+using Aion.Components.Querying.Events;
 using Aion.Components.Shared.Snackbar;
+using Aion.Core.Connections;
 using Aion.Core.Database;
 using Aion.Core.Queries;
 using MudBlazor;
@@ -9,14 +12,14 @@ namespace Aion.Components.Connections;
 public class ConnectionState
 {
     private readonly IConnectionService _connectionService;
-    private readonly ISnackbarProvider _provider;
     private readonly IDatabaseProviderFactory _providerFactory;
-    private ISnackbar? _snackbar;
+    private readonly IMessageBus _bus;
 
-    public ConnectionState(IConnectionService connectionService, IDatabaseProviderFactory providerFactory)
+    public ConnectionState(IConnectionService connectionService, IDatabaseProviderFactory providerFactory, IMessageBus bus)
     {
         _connectionService = connectionService;
         _providerFactory = providerFactory;
+        _bus = bus;
     }
     
     public event Action? ConnectionStateChanged;
@@ -29,6 +32,14 @@ public class ConnectionState
         Active = false,
     }];
 
+    public async Task InitializeAsync()
+    {
+        await _connectionService.InitializeAsync();
+        var savedConnections = await _connectionService.GetSavedConnections();
+        Connections = savedConnections.ToList();
+        OnConnectionStateChanged();
+    }
+
     public async Task ConnectAsync(ConnectionModel connection)
     {
         try
@@ -37,6 +48,8 @@ public class ConnectionState
             
             connection.Databases = databases.Select(db => new DatabaseModel { Name = db }).ToList();
             connection.Active = true;
+            
+            await _connectionService.AddConnection(connection);
             
             Connections.Add(connection);
             OnConnectionStateChanged();
@@ -95,8 +108,12 @@ public class ConnectionState
             
             var result = await _connectionService.ExecuteQueryAsync(connectionString, query.Query, connection.Type, cancellationToken);
             
+            query.Result = result;
+            
             query.IsExecuting = false;
             OnConnectionStateChanged();
+
+            await _bus.PublishAsync(new QueryExecuted(query.Clone()));
             return result;
         }
         catch (OperationCanceledException)
@@ -104,16 +121,27 @@ public class ConnectionState
             Console.WriteLine("Query execution cancelled");
             query.IsExecuting = false;
             OnConnectionStateChanged();
-            return new QueryResult { Error = "Query cancelled" };
+            var result = new QueryResult { Error = "Query cancelled", Cancelled = true};
+
+            query.Result = result;
+            
+            await _bus.PublishAsync(new QueryExecuted(query.Clone()));
+
+            return result;
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Query execution failed: {ex.Message}");
             query.IsExecuting = false;
             OnConnectionStateChanged();
-            return new QueryResult { Error = ex.Message };
+            
+            var result = new QueryResult { Error = ex.Message };
+            query.Result = result;
+            
+            await _bus.PublishAsync(new QueryExecuted(query.Clone()));
+            return result;
         }
     }
 
-    private IDatabaseProvider GetProvider(DatabaseType type) => _providerFactory.GetProvider(type);
+    public IDatabaseProvider GetProvider(DatabaseType type) => _providerFactory.GetProvider(type);
 }

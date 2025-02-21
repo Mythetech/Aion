@@ -1,4 +1,5 @@
 using Aion.Components.Connections;
+using Aion.Core.Connections;
 using Aion.Core.Queries;
 
 namespace Aion.Components.Querying;
@@ -30,6 +31,25 @@ public class QueryState
         OnStateChanged();
 
         return query;
+    }
+
+    public void Remove(QueryModel query)
+    {
+        Queries.RemoveAll(x => x.Id == query.Id);
+        if (Active == null || Active?.Id == query.Id)
+        {
+            var newActive = Queries?.FirstOrDefault();
+            if (newActive != null)
+            {
+                SetActive(newActive);
+            }
+            else
+            {
+                AddQuery();
+            }
+        }
+        
+        OnStateChanged();
     }
 
     public void SetActive(QueryModel query)

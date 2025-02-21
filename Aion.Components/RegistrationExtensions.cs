@@ -1,4 +1,5 @@
 using Aion.Components.Connections;
+using Aion.Components.History;
 using Aion.Components.Querying;
 using Aion.Components.Shared.Snackbar;
 using Aion.Core.Database;
@@ -28,6 +29,7 @@ public static class RegistrationExtensions
         services.AddSingleton<GlobalAppState>();
         services.AddSingleton<ConnectionState>();
         services.AddSingleton<QueryState>();
+        services.AddSingleton<HistoryState>();
 
         services.AddSingleton<IConnectionService, TConnectionService>();
         // Database providers

@@ -1,4 +1,4 @@
-@if (!Active)
+@if (!Active && !ActiveFunc(ActiveId))
 {
     <MudTooltip Text="@Title">
         <MudNavLink IconColor="@Color.Surface" Icon="@Icon" OnClick="@(async () => await ContextPanelItemClicked.InvokeAsync(this))" />
@@ -24,6 +24,19 @@ else
 
     [Parameter]
     public EventCallback<ContextPanelItem> ContextPanelItemClicked { get; set; } = default!;
+
+    [Parameter]
+    public Guid Id { get; set; } = Guid.NewGuid();
+
+    [Parameter]
+    public Guid? ActiveId { get; set; }
+    
+    private bool ActiveFunc(Guid? id)
+    {
+        if (id == null) return false;
+
+        return id.Equals(Id);
+    }
 
     public void Toggle()
     {

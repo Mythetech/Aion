@@ -7,6 +7,11 @@ namespace Aion.Desktop.Database;
 public interface IDatabaseProvider
 {
     /// <summary>
+    /// Gets the standard database commands for this provider
+    /// </summary>
+    IStandardDatabaseCommands Commands { get; }
+
+    /// <summary>
     /// Gets a list of available databases from the server
     /// </summary>
     Task<List<string>> GetDatabasesAsync(string connectionString);

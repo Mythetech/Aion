@@ -3,6 +3,8 @@
 @using MouseEvent = MudBlazor.MouseEvent
 @using Aion.Components.Shared
 @using Aion.Components.Connections
+@using Aion.Core.Connections
+@using Aion.Components.History
 <MudStack Spacing="0" Row="true" Class="mud-width-full">
 <MudStack Spacing="1" Class="app-context-panel mud-width-full" Style="" AlignItems="MudBlazor.AlignItems.Start">
     <AionIconButton Class="p-2" Icon="@AionIcons.Aion" OnClick="@OpenAboutAion" />
@@ -11,14 +13,31 @@
     @foreach (var connection in ConnectionState.Connections)
     {
         <MudBadge Dot="true" Color="@(connection.Active ? Color.Success : Color.Error)" Overlap="true" Class="context-panel-badge-dot" BadgeAriaLabel="@(connection.Active ? "Connected" : "Disconnected")" title="@(connection.Active ? "Connected" : "Disconnected")">
+            @{
+                var id = Guid.NewGuid();
+                if (_connectionLookup.TryGetValue(connection?.ConnectionString ?? connection?.Name, out Guid connectionId))
+                {
+                    id = connectionId;
+                }
 
-            <ContextPanelItem Active="@(_activeItem?.Title == "Connection")" @ref="@_contextPanelItems["Connection"]" Title="@connection.Name" Icon="@AionIcons.Connection" ContextPanelItemClicked="HandleContextPanelItemClicked">
+                _connectionLookup[connection?.ConnectionString ?? connection?.Name] = id;
+            }
+            <ContextPanelItem ActiveId="@_activeItem?.Id" @ref="@_contextPanelItems[id.ToString()]" Title="@connection?.Name" Icon="@AionIcons.Connection" ContextPanelItemClicked="HandleContextPanelItemClicked">
                 <PanelContent>
                     <ConnectionPanel Connection="@connection"/>
                 </PanelContent>
             </ContextPanelItem>
         </MudBadge>
     }
+    
+    <MudDivider DividerType="DividerType.Middle" Class="ml-3" Style="width:60%"/>
+    
+    <ContextPanelItem ActiveId="@_activeItem?.Id" @ref="@_contextPanelItems["history"]" Title="History" Icon="@AionIcons.History" ContextPanelItemClicked="HandleContextPanelItemClicked">
+        <PanelContent>
+            <HistoryPanel />
+        </PanelContent>
+    </ContextPanelItem>
+    
     <MudSpacer />
     
     <MudMenu ActivationEvent="MouseEvent.MouseOver" AnchorOrigin="Origin.TopRight">
@@ -93,8 +112,8 @@
 
     private ContextPanelItem? _activeItem;
 
-    private Dictionary<string, ContextPanelItem>
-    _contextPanelItems = new();
+    private Dictionary<string, ContextPanelItem> _contextPanelItems = new();
+    private Dictionary<string, Guid> _connectionLookup = new();
 
     protected async Task HandleColorModeChanged(string s)
     {
@@ -150,7 +169,7 @@
         {
             await DrawerToggled.InvokeAsync();
         }
-        else if (_activeItem?.Title == item.Title)
+        else if (_activeItem?.Id == item.Id)
         {
             _activeItem = null;
             await DrawerToggled.InvokeAsync();

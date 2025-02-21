@@ -1,4 +1,5 @@
 ﻿using Aion.Components;
+using Aion.Components.Infrastructure.MessageBus;
 using Microsoft.Extensions.DependencyInjection;
 using Photino.Blazor;
 
@@ -17,10 +18,16 @@ namespace Aion.Desktop
             appBuilder.Services.AddHttpClient();
 
             appBuilder.RootComponents.Add<Components.App>("app");
+            
+            appBuilder.Services.AddMessageBus(typeof(Program).Assembly, typeof(IConsumer<>).Assembly);
 
             appBuilder.Services.AddAionComponents<ConnectionService>();
+            
+            appBuilder.Services.AddSingleton<IConnectionStorage, FileConnectionStorage>();
 
             var app = appBuilder.Build();
+            
+            app.Services.UseMessageBus(typeof(Program).Assembly, typeof(IConsumer<>).Assembly);
 
             app.MainWindow
                 .SetSize(1920, 1080)

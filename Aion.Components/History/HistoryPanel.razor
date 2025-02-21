@@ -1,0 +1,53 @@
+@using Aion.Components.Theme
+@using Aion.Components.Shared
+@implements IDisposable
+
+@foreach (var query in State.Queries.OrderByDescending(x => x.Timestamp))
+{
+    <MudStack Row="true" Class="w-100">
+        <TooltipIcon Text="@query.Timestamp.ToString("G")" Icon="@AionIcons.Round("schedule")"/>
+        <MudTooltip Text="@query.Data.Query" RootClass="flex-grow-1">
+        <MudText Class="flex-grow-1">
+            @query.Data.Name
+        </MudText>
+        </MudTooltip>
+        @if (query.Data.Result == null)
+        {
+            <TooltipIcon Text="Unknown" Icon="@AionIcons.Round("circle")" />
+        }
+        else if (query.Data.Result.Cancelled)
+        {
+            <TooltipIcon Text="Cancelled" Icon="@AionIcons.Round("hide_source")" />
+        }
+        else
+        {
+            <TooltipIcon Color="@(query.Data.Result.Success ? Color.Success : Color.Error )" Icon="@(query.Data.Result.Success ? AionIcons.Success : AionIcons.Close )" />
+        }
+    </MudStack>
+}
+
+@if (State.Queries.Count < 1)
+{
+    <MudContainer>
+        <MudStack>
+            <MudText>No History</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">Queries will automatically be saved to history</MudText>
+        </MudStack>
+    </MudContainer>
+}
+
+@code {
+    [Inject]
+    protected HistoryState State { get; set; }
+
+    protected override void OnInitialized()
+    {
+        State.HistoryStateChanged += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        State.HistoryStateChanged -= StateHasChanged;
+    }
+
+}
