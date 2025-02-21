@@ -5,7 +5,7 @@
         <MudText>@message</MudText>
     }
     <MudSpacer/>
-    <ProgressCountdown Duration="Snackbar.Configuration.VisibleStateDuration" Color="@GetColor(Severity)"/>
+    <ProgressCountdown Duration="Severity == Severity.Error ? 5000 : Snackbar.Configuration.VisibleStateDuration" Color="@GetColor(Severity)"/>
 </MudStack>
 @code {
     [Inject] protected ISnackbar Snackbar { get; set; } = default!;

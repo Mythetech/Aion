@@ -6,6 +6,8 @@ using Aion.Core.Connections;
 using Aion.Core.Database;
 using Aion.Core.Queries;
 using MudBlazor;
+using Aion.Components.Connections.Events;
+using Microsoft.Extensions.Logging;
 
 namespace Aion.Components.Connections;
 
@@ -13,13 +15,15 @@ public class ConnectionState
 {
     private readonly IConnectionService _connectionService;
     private readonly IDatabaseProviderFactory _providerFactory;
-    private readonly IMessageBus _bus;
+    private readonly IMessageBus _messageBus;
+    private readonly ILogger<ConnectionState> _logger;
 
-    public ConnectionState(IConnectionService connectionService, IDatabaseProviderFactory providerFactory, IMessageBus bus)
+    public ConnectionState(IConnectionService connectionService, IDatabaseProviderFactory providerFactory, IMessageBus bus, ILogger<ConnectionState> logger)
     {
         _connectionService = connectionService;
         _providerFactory = providerFactory;
-        _bus = bus;
+        _messageBus = bus;
+        _logger = logger;
     }
     
     public event Action? ConnectionStateChanged;
@@ -37,6 +41,13 @@ public class ConnectionState
         await _connectionService.InitializeAsync();
         var savedConnections = await _connectionService.GetSavedConnections();
         Connections = savedConnections.ToList();
+       
+        // Refresh databases for each connection
+        foreach (var connection in Connections)
+        {
+            await RefreshDatabaseAsync(connection);
+        }
+        
         OnConnectionStateChanged();
     }
 
@@ -118,7 +129,7 @@ public class ConnectionState
                 query.IsExecuting = false;
                 OnConnectionStateChanged();
 
-                await _bus.PublishAsync(new QueryExecuted(query.Clone()));
+                await _messageBus.PublishAsync(new QueryExecuted(query.Clone()));
                 return plan;
             }
 
@@ -129,7 +140,7 @@ public class ConnectionState
             query.IsExecuting = false;
             OnConnectionStateChanged();
 
-            await _bus.PublishAsync(new QueryExecuted(query.Clone()));
+            await _messageBus.PublishAsync(new QueryExecuted(query.Clone()));
             return result;
         }
         catch (OperationCanceledException)
@@ -141,7 +152,7 @@ public class ConnectionState
 
             query.Result = result;
             
-            await _bus.PublishAsync(new QueryExecuted(query.Clone()));
+            await _messageBus.PublishAsync(new QueryExecuted(query.Clone()));
 
             return result;
         }
@@ -154,8 +165,26 @@ public class ConnectionState
             var result = new QueryResult { Error = ex.Message };
             query.Result = result;
             
-            await _bus.PublishAsync(new QueryExecuted(query.Clone()));
+            await _messageBus.PublishAsync(new QueryExecuted(query.Clone()));
             return result;
+        }
+    }
+
+    public async Task RefreshDatabaseAsync(ConnectionModel connection)
+    {
+        try 
+        {
+            var databases = await _connectionService.GetDatabasesAsync(
+                connection.ConnectionString, 
+                connection.Type
+            );
+            connection.Databases = databases.Select(db => new DatabaseModel { Name = db }).ToList();
+            connection.Active = true;
+            OnConnectionStateChanged();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"Failed to refresh databases for connection {connection.Name}: {ex.Message}");
         }
     }
 

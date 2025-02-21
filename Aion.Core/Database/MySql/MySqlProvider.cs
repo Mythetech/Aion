@@ -15,7 +15,7 @@ public class MySqlProvider : IDatabaseProvider
         var databases = new List<string>();
         
         var builder = new MySqlConnectionStringBuilder(connectionString);
-        builder.Database = null; // Don't specify a database when listing databases
+        builder.Database = null; 
         
         using var conn = new MySqlConnection(builder.ConnectionString);    
         await conn.OpenAsync();

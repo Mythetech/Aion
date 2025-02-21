@@ -54,21 +54,23 @@
 
         <MudSpacer/>
         
+        <MudTooltip Text="Estimated Query Plan">
         <MudToggleIconButton
             @bind-Toggled="@State.Active.IncludeEstimatedPlan"
             Icon="@Icons.Material.Outlined.Analytics" 
             Color="@Color.Inherit"
             ToggledIcon="@Icons.Material.Filled.Analytics"
-            ToggledColor="@Color.Primary"
-            Size="Size.Small"/>
+            ToggledColor="@Color.Primary" />
+        </MudTooltip>
             
+        <MudTooltip Text="Actual Query Plan">
         <MudToggleIconButton
             @bind-Toggled="@State.Active.IncludeActualPlan"
             Icon="@Icons.Material.Outlined.Assessment" 
             Color="@Color.Inherit"
             ToggledIcon="@Icons.Material.Filled.Assessment"
-            ToggledColor="@Color.Primary"
-            Size="Size.Small"/>
+            ToggledColor="@Color.Primary" />
+        </MudTooltip>
         
         <MudSpacer />
 
@@ -106,7 +108,7 @@
         }
     }
     
-    private bool CanExecuteQuery => SelectedConnection != null && !string.IsNullOrEmpty(SelectedDatabase);
+    private bool CanExecuteQuery => SelectedConnection != null;
     
     private StandaloneCodeEditor? _editor;
     

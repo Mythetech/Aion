@@ -1,9 +1,11 @@
+@using Aion.Components.Connections.Events
 @using Aion.Components.Querying
 @using Aion.Core.Connections
 @using Aion.Core.Database
 @using Aion.Components.Shared
 @using Aion.Components.Shared.Snackbar
 @using Aion.Components.Theme
+@using Aion.Components.Infrastructure.MessageBus
 <h3>@Connection.Name</h3>
 
 <MudStack Row="true" AlignItems="AlignItems.Center"> 
@@ -51,21 +53,35 @@
     [Inject] public ConnectionState ConnectionState { get; set; } = default!;
     [Inject] public QueryState QueryState { get; set; } = default!;
     [Inject] protected ISnackbar Snackbar { get; set; } = default!;
+    [Inject] private IDialogService DialogService { get; set; } = default!;
+    [Inject] private IMessageBus MessageBus { get; set; } = default!;
 
     private async Task AddDatabase()
     {
-        string databaseName = "Untitled";
+        var options = AionDialogs.CreateDefaultOptions();
+        
+        var dialog = await DialogService.ShowAsync<CreateDatabaseDialog>("New Database", options);
+        var result = await dialog.Result;
+        
+        if (result.Canceled) return;
+        
+        var databaseName = (string)result.Data;
+
         var script = await ConnectionState.GetProvider(Connection.Type).Commands.GenerateCreateDatabaseScript(databaseName);
-        var result = await ConnectionState.ExecuteQueryAsync(new QueryModel()
+        var queryResult = await ConnectionState.ExecuteQueryAsync(new QueryModel()
         {
             ConnectionId = Connection.Id,
             DatabaseName = databaseName,
             Query = script
         }, new CancellationToken());
-        if (!string.IsNullOrWhiteSpace(result.Error))
+        
+        if (!string.IsNullOrWhiteSpace(queryResult.Error))
         {
-            Snackbar.AddAionNotification(result.Error, Severity.Error);
+            Snackbar.AddAionNotification(queryResult.Error, Severity.Error);
+            return;
         }
+        
+        await MessageBus.PublishAsync(new DatabaseCreated(Connection, databaseName));
     }
 
     private async Task LoadTables(DatabaseModel database)

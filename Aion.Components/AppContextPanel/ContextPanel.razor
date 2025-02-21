@@ -7,8 +7,8 @@
 @using Aion.Components.History
 <MudStack Spacing="0" Row="true" Class="mud-width-full">
 <MudStack Spacing="1" Class="app-context-panel mud-width-full" Style="" AlignItems="MudBlazor.AlignItems.Start">
-    <AionIconButton Class="p-2" Icon="@AionIcons.Aion" OnClick="@OpenAboutAion" />
-    <AionIconButton Class="p-2" Icon="@AionIcons.Add" OnClick="AddConnection" Tooltip="Create Connection"  />
+    <AionIconButton Class="p-2 ml-1" Icon="@AionIcons.Aion" OnClick="@OpenAboutAion" />
+    <AionIconButton Class="p-2 ml-1" Icon="@AionIcons.Add" OnClick="AddConnection" Tooltip="Create Connection"  />
     @*Side bar Panel*@
     @foreach (var connection in ConnectionState.Connections)
     {
@@ -189,7 +189,7 @@
 
     protected async Task OpenAboutAion()
     {
-        var options = new DialogOptions { CloseOnEscapeKey = true, BackgroundClass = "aion-dialog", MaxWidth = MaxWidth.Small };
+        var options = AionDialogs.CreateDefaultOptions();
 
         var dialog = await DialogService.ShowAsync<AboutAion>("About", options);
         var result = await dialog.Result;
@@ -200,7 +200,7 @@
         var options = new DialogOptions 
         { 
             CloseOnEscapeKey = true, 
-            BackgroundClass = "aion-dialog", 
+            BackgroundClass = "aion-dialog",
             MaxWidth = MaxWidth.Small,
             FullWidth = true
         };

@@ -11,7 +11,15 @@ public static class SnackbarExtensions
             { "Message", message },
             {"Severity", severity}
         };
+        
+        
 
-        snackbar.Add<AionNotificationBar>(parameters, severity);
+        snackbar.Add<AionNotificationBar>(parameters, severity, configure =>
+        {
+            if (severity == Severity.Error)
+            {
+                configure.VisibleStateDuration = 5500;
+            }
+        });
     }
 }

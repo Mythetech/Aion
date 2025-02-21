@@ -1,0 +1,56 @@
+@using Aion.Components.Shared
+@using Aion.Core.Connections
+
+<MudDialog Class="aion-transparent-dialog">
+    <DialogContent>
+        @if (!string.IsNullOrEmpty(ValidationError))
+        {
+            <MudAlert Severity="Severity.Error" Class="my-2">@ValidationError</MudAlert>
+        }
+        
+        <MudForm Model="@Model" @ref="@_form">
+            <MudTextField @bind-Value="Model.Name"
+                         Label="Database Name"
+                         Required="true"
+                         RequiredError="Database name is required"/>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <PrimaryActionButton OnClick="Submit" Text="Create" />
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+    
+    private MudForm? _form;
+    private string? ValidationError { get; set; }
+    
+    private class DatabaseModel
+    {
+        public string Name { get; set; } = string.Empty;
+    }
+    
+    private DatabaseModel Model { get; set; } = new();
+    
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        if (_form != null)
+        {
+            await _form.Validate();
+            if (_form.IsValid)
+            {
+                if (string.IsNullOrWhiteSpace(Model.Name))
+                {
+                    ValidationError = "Database name is required";
+                    return;
+                }
+
+                MudDialog.Close(DialogResult.Ok(Model.Name));
+            }
+        }
+    }
+} 

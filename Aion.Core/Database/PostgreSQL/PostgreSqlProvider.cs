@@ -15,7 +15,7 @@ public class PostgreSqlProvider : IDatabaseProvider
         var databases = new List<string>();
         
         var builder = new NpgsqlConnectionStringBuilder(connectionString);
-        builder.Database = "postgres"; // Connect to default postgres database
+        builder.Database = "postgres"; 
         
         using var conn = new NpgsqlConnection(builder.ConnectionString);    
         await conn.OpenAsync();
@@ -69,19 +69,24 @@ public class PostgreSqlProvider : IDatabaseProvider
         
         try 
         {
+            var builder = new NpgsqlConnectionStringBuilder(connectionString);
+            if (query.TrimStart().StartsWith("CREATE DATABASE", StringComparison.OrdinalIgnoreCase))
+            {
+                builder.Database = "postgres";
+                connectionString = builder.ConnectionString;
+            }
+            
             using var conn = new NpgsqlConnection(connectionString);    
             await conn.OpenAsync(cancellationToken);
             
             using var cmd = new NpgsqlCommand(query, conn);
             using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
-            // Get column names
             for (int i = 0; i < reader.FieldCount; i++)
             {
                 result.Columns.Add(reader.GetName(i));
             }
 
-            // Read rows
             while (await reader.ReadAsync(cancellationToken))
             {
                 var row = new Dictionary<string, object>();
@@ -119,7 +124,6 @@ public class PostgreSqlProvider : IDatabaseProvider
         {
             var builder = new NpgsqlConnectionStringBuilder(connectionString);
             
-            // Check required parameters
             if (string.IsNullOrEmpty(builder.Host))
             {
                 error = "Host is required";

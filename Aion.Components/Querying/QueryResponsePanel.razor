@@ -2,7 +2,8 @@
 
 @if (State?.Active?.Result != null)
 {
-    <MudTabs>
+    <MudStack Style="max-height: 95%;">
+    <MudTabs Class="py-2 px-1" MinimumTabWidth="140px">
         <MudTabPanel Text="Results">
             <MudTable Items="State.Active.Result.Rows" Dense="true" Hover="true" >
                 <HeaderContent>
@@ -14,7 +15,7 @@
                 <RowTemplate>
                     @foreach (var row in State.Active.Result.Rows.First().Keys)
                     {
-                        <MudTd DataLabel="@row">@context.GetValueOrDefault(row)</MudTd>
+                        <MudTd Style="text-wrap:nowrap;" DataLabel="@row">@context.GetValueOrDefault(row)</MudTd>
                     }
                 </RowTemplate>
             </MudTable>
@@ -35,8 +36,8 @@
         </MudTabPanel>
         }
     </MudTabs>
-    
-    <MudText Typo="Typo.caption" Class="mud-text-secondary">@(State?.Active?.Result?.RowCount ?? 0) Results</MudText>
+    </MudStack>
+    <MudText Typo="Typo.caption" Class="mud-text-secondary ml-4">@(State?.Active?.Result?.RowCount ?? 0) Results</MudText>
 }
 
 @code {

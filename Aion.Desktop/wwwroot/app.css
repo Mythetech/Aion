@@ -204,3 +204,13 @@ html {
 .mud-tab {
     text-transform: none;
 }
+
+.aion-transparent-dialog {
+    box-shadow: 0px -2px 0.1em 0.1em var(--mud-palette-primary), 0 2px 0.1em 0.1em var(--mud-palette-secondary);
+    background-color: transparent;
+    backdrop-filter: blur(8px);
+}
+
+.bg-transparent {
+    background-color: transparent;
+}
