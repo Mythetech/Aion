@@ -209,4 +209,53 @@ public class PostgreSqlProvider : IDatabaseProvider
             return plan;
         }
     }
+
+    public async Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string table)
+    {
+        var columns = new List<ColumnInfo>();
+        
+        using var conn = new NpgsqlConnection(connectionString);    
+        await conn.OpenAsync();
+        
+        const string sql = @"
+            SELECT 
+                c.column_name,
+                c.data_type,
+                c.is_nullable = 'YES' as is_nullable,
+                c.column_default,
+                c.character_maximum_length,
+                CASE WHEN pk.constraint_type = 'PRIMARY KEY' THEN true ELSE false END as is_primary_key,
+                CASE WHEN c.column_default LIKE 'nextval%' THEN true ELSE false END as is_identity
+            FROM information_schema.columns c
+            LEFT JOIN (
+                SELECT ku.column_name, tc.constraint_type
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage ku
+                    ON tc.constraint_name = ku.constraint_name
+                WHERE tc.constraint_type = 'PRIMARY KEY'
+                    AND ku.table_name = @table
+            ) pk ON c.column_name = pk.column_name
+            WHERE c.table_name = @table
+            ORDER BY c.ordinal_position";
+            
+        using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@table", table);
+        using var reader = await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            columns.Add(new ColumnInfo
+            {
+                Name = reader.GetString(0),
+                DataType = reader.GetString(1),
+                IsNullable = reader.GetBoolean(2),
+                DefaultValue = reader.IsDBNull(3) ? null : reader.GetString(3),
+                MaxLength = reader.IsDBNull(4) ? null : reader.GetInt32(4),
+                IsPrimaryKey = reader.GetBoolean(5),
+                IsIdentity = reader.GetBoolean(6)
+            });
+        }
+
+        return columns;
+    }
 } 

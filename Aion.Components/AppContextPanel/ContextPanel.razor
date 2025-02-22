@@ -62,8 +62,8 @@
 </MudStack>
 
 <MudStack Class="p-0 mud-width-full" Style="@($"{(!AppState.SideBarOpen ? "width:0px;" : "")}")">
-    <MudPaper Class="h-100 w-100" Style="@($"max-width:24vw;")" Square="true">
-        <MudStack Spacing="3" Class="pa-4 w-100">
+    <MudPaper Class="h-100 w-100" Style="@($"max-width:24vw;max-height:100dvh")" Square="true">
+        <MudStack Spacing="3" Class="pa-4 w-100 h-100">
             @if (_activeItem != null)
             {
                 <MudStack Row="true" Class="w-100" Spacing="3" AlignItems="AlignItems.Center">

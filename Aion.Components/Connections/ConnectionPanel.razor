@@ -1,4 +1,5 @@
 @using Aion.Components.Connections.Events
+@using Aion.Components.Connections.Models
 @using Aion.Components.Querying
 @using Aion.Core.Connections
 @using Aion.Core.Database
@@ -14,39 +15,106 @@
     <AionIconButton Icon="@AionIcons.Add" Tooltip="Add Database" OnClick="AddDatabase" />
 </MudStack>
 
-<MudExpansionPanels>
-        @foreach (var database in Connection.Databases)
-        {
-            <MudExpansionPanel Text="@database.Name" @onclick="@(() => LoadTables(database))">
-                <MudStack Spacing="1">
-                <MudText Typo="Typo.caption" Class="mud-text-secondary">Tables @(database.TablesLoaded ? database.Tables.Count : "")</MudText>
+<MudTreeView T="string" Hover="true" Dense="true" ExpandOnClick="true">
+    @foreach (var database in Connection.Databases)
+    {
+        <MudTreeViewItem Text="@database.Name"
+                         Value="@database.Name"
+                         Icon="@AionIcons.Connection">
+            @* Database level *@
+            <BodyContent Context="ctx">
+                <div class="d-flex align-center justify-space-between w-100">
+                    <div class="d-flex align-center">
+                        <MudText>@database.Name</MudText>
+                    </div>
+                    <div>
+                        <MudMenu Dense="true" AnchorOrigin="Origin.BottomRight">
+                            <ActivatorContent>
+                                <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.MoreVert" />
+                            </ActivatorContent>
+                            <ChildContent>
+                                <MudMenuItem OnClick="@(() => CreateTable(database))">Create Table</MudMenuItem>
+                                <MudMenuItem OnClick="@(() => RefreshDatabase(database))">Refresh</MudMenuItem>
+                            </ChildContent>
+                        </MudMenu>
+                    </div>
+                </div>
+            </BodyContent>
+            
+            @* Tables level *@
+            <ChildContent>
+            <MudTreeViewItem  Text="Tables" Icon="@AionIcons.Table" ExpandedChanged="@(() => LoadTables(database))">
                 @if (database.TablesLoaded)
                 {
                     @foreach (var table in database.Tables)
                     {
-                        <MudMenu Dense="true" Class="ml-4 w-100" ActivationEvent="MouseEvent.RightClick">
-                            <ActivatorContent>
-                                @table
-                            </ActivatorContent>
+                        <MudTreeViewItem Text="@table" Value="@table" Icon="@AionIcons.Table">
+                            <BodyContent Context="ctx">
+                                <div class="d-flex align-center justify-space-between w-100">
+                                    <div class="d-flex align-center">
+                                        <MudText>@table</MudText>
+                                    </div>
+                                    <div>
+                                        <MudMenu Dense="true" AnchorOrigin="Origin.BottomRight">
+                                            <ActivatorContent>
+                                                <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.MoreVert" />
+                                            </ActivatorContent>
+                                            <ChildContent>
+                                                <MudMenuItem OnClick="@(() => SelectTop1000(database.Name, table))">Select Top 1000</MudMenuItem>
+                                                <MudMenuItem OnClick="@(() => EditData(database.Name, table))">Edit Data</MudMenuItem>
+                                                <MudMenuItem OnClick="@(() => RefreshTable(database))">Refresh</MudMenuItem>
+                                            </ChildContent>
+                                        </MudMenu>
+                                    </div>
+                                </div>
+                            </BodyContent>
+                            
+                            @* Columns level *@
                             <ChildContent>
-                                <MudMenuItem>
-                                    Select Top 1000
-                                </MudMenuItem>
-                                <MudMenuItem>
-                                    Edit Data
-                                </MudMenuItem>
+                            <MudTreeViewItem Text="Columns" Icon="@AionIcons.Column" ExpandedChanged="@(() => LoadColumns(database, table))">
+                                @if (database.LoadedColumnTables.Contains(table))
+                                {
+                                    @foreach (var column in database.TableColumns[table])
+                                    {
+                                        <MudTreeViewItem Icon="@(column.IsPrimaryKey ? Icons.Material.Filled.Key : AionIcons.Column)">
+                                            <BodyContent Context="ctx">
+                                                <div class="d-flex align-center">
+                                                    <MudText>@column.Name</MudText>
+                                                    <MudText Class="ml-2 mud-text-secondary" Style="font-size: 0.8em;">
+                                                        @column.DataType@(column.MaxLength.HasValue ? $"({column.MaxLength})" : "")
+                                                        @(column.IsNullable ? "NULL" : "NOT NULL")
+                                                        @if (column.IsIdentity)
+                                                        {
+                                                            <span class="ml-1">(Identity)</span>
+                                                        }
+                                                        @if (!string.IsNullOrEmpty(column.DefaultValue))
+                                                        {
+                                                            <span class="ml-1">DEFAULT @column.DefaultValue</span>
+                                                        }
+                                                    </MudText>
+                                                </div>
+                                            </BodyContent>
+                                        </MudTreeViewItem>
+                                    }
+                                }
+                                else
+                                {
+                                    <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+                                }
+                            </MudTreeViewItem>
                             </ChildContent>
-                        </MudMenu>
+                        </MudTreeViewItem>
                     }
                 }
                 else
                 {
-                    <MudText Class="ml-4">Loading...</MudText>
+                    <MudProgressCircular Indeterminate="true" Size="Size.Small" />
                 }
-                </MudStack>
-            </MudExpansionPanel>
-        }
-</MudExpansionPanels>
+            </MudTreeViewItem>
+            </ChildContent>
+        </MudTreeViewItem>
+    }
+</MudTreeView>
 
 @code {
     [Parameter] public ConnectionModel Connection { get; set; } = default!;
@@ -55,6 +123,15 @@
     [Inject] protected ISnackbar Snackbar { get; set; } = default!;
     [Inject] private IDialogService DialogService { get; set; } = default!;
     [Inject] private IMessageBus MessageBus { get; set; } = default!;
+    
+    private string GetIcon(DatabaseTreeItem item) => item?.ItemType switch
+    {
+        "database" => AionIcons.Connection,
+        "table" => AionIcons.Table,
+        "column" => AionIcons.Column,
+        "index" => AionIcons.Index,
+        _ => AionIcons.Info
+    };
 
     private async Task AddDatabase()
     {
@@ -84,11 +161,6 @@
         await MessageBus.PublishAsync(new DatabaseCreated(Connection, databaseName));
     }
 
-    private async Task LoadTables(DatabaseModel database)
-    {
-        await ConnectionState.LoadTablesAsync(Connection, database);
-    }
-
     private async Task CreateTable(DatabaseModel database)
     {
         var provider = ConnectionState.GetProvider(Connection.Type);
@@ -107,4 +179,58 @@
             Query = script
         }, new CancellationToken());
     }
+
+    private async Task SelectTop1000(string databaseName, string tableName)
+    {
+        var query = QueryState.AddQuery($"Select Top 1000 - {tableName}");
+        query.ConnectionId = Connection.Id;
+        query.DatabaseName = databaseName;
+        query.Query = $"SELECT * FROM {tableName} LIMIT 1000";
+    }
+
+    private async Task EditData(string databaseName, string tableName)
+    {
+        // TODO: Implement table data editor
+    }
+
+    private async Task RefreshDatabase(DatabaseModel database)
+    {
+        await ConnectionState.RefreshDatabaseAsync(Connection);
+        await RefreshTreeView();
+    }
+
+    private async Task RefreshTable(DatabaseModel database)
+    {
+        database.TablesLoaded = false;
+        await ConnectionState.LoadTablesAsync(Connection, database);
+        await RefreshTreeView();
+    }
+
+    private async Task LoadTables(DatabaseModel? database)
+    {
+        if (database == null || database.TablesLoaded)
+            return;
+        
+        await ConnectionState.LoadTablesAsync(Connection, database);
+        await RefreshTreeView();
+    }
+
+    private async Task LoadColumns(DatabaseModel? database, string table)
+    {
+        if (database == null || string.IsNullOrWhiteSpace(table))
+            return;
+        
+        if (!database.LoadedColumnTables.Contains(table))
+        {
+            await ConnectionState.LoadColumnsAsync(Connection, database, table);
+            await RefreshTreeView();
+        }
+    }
+
+    private Task RefreshTreeView()
+    {
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
 }
