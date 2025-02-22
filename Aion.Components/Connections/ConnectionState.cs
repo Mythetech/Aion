@@ -91,7 +91,6 @@ public class ConnectionState
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to load tables: {ex.Message}");
-            throw;
         }
     }
     
@@ -185,6 +184,29 @@ public class ConnectionState
         catch (Exception ex)
         {
             _logger.LogError(ex, $"Failed to refresh databases for connection {connection.Name}: {ex.Message}");
+        }
+    }
+
+    public async Task LoadColumnsAsync(ConnectionModel connection, DatabaseModel database, string table)
+    {
+        if (database.LoadedColumnTables.Contains(table)) return;
+
+        try
+        {
+            var connectionString = connection.ConnectionString;
+            var provider = GetProvider(connection.Type);
+            connectionString = provider.UpdateConnectionString(connectionString, database.Name);
+            
+            var columns = await provider.GetColumnsAsync(connectionString, database.Name, table);
+            database.TableColumns[table] = columns;
+            database.LoadedColumnTables.Add(table);
+            
+            OnConnectionStateChanged();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"Failed to load columns for table {table}: {ex.Message}");
+            throw;
         }
     }
 

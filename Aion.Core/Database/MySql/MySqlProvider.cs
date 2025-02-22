@@ -219,4 +219,47 @@ public class MySqlProvider : IDatabaseProvider
             return plan;
         }
     }
+
+    public async Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string table)
+    {
+        var columns = new List<ColumnInfo>();
+        
+        using var conn = new MySqlConnection(connectionString);    
+        await conn.OpenAsync();
+        
+        const string sql = @"
+            SELECT 
+                c.COLUMN_NAME,
+                c.DATA_TYPE,
+                c.IS_NULLABLE = 'YES' as IS_NULLABLE,
+                c.COLUMN_DEFAULT,
+                c.CHARACTER_MAXIMUM_LENGTH,
+                c.COLUMN_KEY = 'PRI' as IS_PRIMARY_KEY,
+                c.EXTRA = 'auto_increment' as IS_IDENTITY
+            FROM information_schema.COLUMNS c
+            WHERE c.TABLE_SCHEMA = @database
+            AND c.TABLE_NAME = @table
+            ORDER BY c.ORDINAL_POSITION";
+            
+        using var cmd = new MySqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@database", database);
+        cmd.Parameters.AddWithValue("@table", table);
+        using var reader = await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            columns.Add(new ColumnInfo
+            {
+                Name = reader.GetString(0),
+                DataType = reader.GetString(1),
+                IsNullable = reader.GetBoolean(2),
+                DefaultValue = reader.IsDBNull(3) ? null : reader.GetString(3),
+                MaxLength = reader.IsDBNull(4) ? null : reader.GetInt32(4),
+                IsPrimaryKey = reader.GetBoolean(5),
+                IsIdentity = reader.GetBoolean(6)
+            });
+        }
+
+        return columns;
+    }
 } 
