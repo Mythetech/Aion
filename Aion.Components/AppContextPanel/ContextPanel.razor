@@ -1,10 +1,13 @@
 @implements IDisposable
+@implements IConsumer<Aion.Components.AppContextPanel.Commands.ActivatePanel>
+@using Aion.Components.AppContextPanel.Commands
 @using Aion.Components.Theme
 @using MouseEvent = MudBlazor.MouseEvent
 @using Aion.Components.Shared
 @using Aion.Components.Connections
 @using Aion.Core.Connections
 @using Aion.Components.History
+@using Aion.Components.Infrastructure.MessageBus
 <MudStack Spacing="0" Row="true" Class="mud-width-full">
 <MudStack Spacing="1" Class="app-context-panel mud-width-full" Style="" AlignItems="MudBlazor.AlignItems.Start">
     <AionIconButton Class="p-2 ml-1" Icon="@AionIcons.Aion" OnClick="@OpenAboutAion" />
@@ -14,15 +17,10 @@
     {
         <MudBadge Dot="true" Color="@(connection.Active ? Color.Success : Color.Error)" Overlap="true" Class="context-panel-badge-dot" BadgeAriaLabel="@(connection.Active ? "Connected" : "Disconnected")" title="@(connection.Active ? "Connected" : "Disconnected")">
             @{
-                var id = Guid.NewGuid();
-                if (_connectionLookup.TryGetValue(connection?.ConnectionString ?? connection?.Name, out Guid connectionId))
-                {
-                    id = connectionId;
-                }
-
+                var id = connection.Id;
                 _connectionLookup[connection?.ConnectionString ?? connection?.Name] = id;
             }
-            <ContextPanelItem ActiveId="@_activeItem?.Id" @ref="@_contextPanelItems[id.ToString()]" Title="@connection?.Name" Icon="@AionIcons.Connection" ContextPanelItemClicked="HandleContextPanelItemClicked">
+            <ContextPanelItem Id="@id" ActiveId="@_activeItem?.Id" @ref="@_contextPanelItems[id.ToString()]" Title="@connection?.Name" Icon="@AionIcons.Connection" ContextPanelItemClicked="HandleContextPanelItemClicked">
                 <PanelContent>
                     <ConnectionPanel Connection="@connection"/>
                 </PanelContent>
@@ -108,6 +106,8 @@
     [Parameter]
     public string DrawerBackgroundColor { get; set; } = "background-color:#FFFFFF";
 
+    [Inject] public IMessageBus Bus { get; set; } = default!;
+
     private string SelectedColorMode => AppState.IsDarkMode ? "dark" : "light";
 
     private ContextPanelItem? _activeItem;
@@ -135,7 +135,8 @@
     protected override void OnInitialized()
     {
         AppState.OnChange += SideBarChanged;
-        ConnectionState.ConnectionStateChanged += StateHasChanged;
+        ConnectionState.ConnectionStateChanged += HandleConnectionStateChanged;
+        Bus.Subscribe(this);
     }
     protected void SideBarChanged()
     {
@@ -150,7 +151,13 @@
     public void Dispose()
     {
         AppState.OnChange -= SideBarChanged;
-        ConnectionState.ConnectionStateChanged -= StateHasChanged;
+        ConnectionState.ConnectionStateChanged -= HandleConnectionStateChanged;
+        Bus.Unsubscribe(this);
+    }
+
+    protected void HandleConnectionStateChanged()
+    {
+        StateHasChanged();
     }
 
     protected async Task CloseContextPanel()
@@ -197,13 +204,7 @@
 
     protected async Task AddConnection()
     {
-        var options = new DialogOptions 
-        { 
-            CloseOnEscapeKey = true, 
-            BackgroundClass = "aion-dialog",
-            MaxWidth = MaxWidth.Small,
-            FullWidth = true
-        };
+        var options = AionDialogs.CreateDefaultOptions();
 
         var dialog = await DialogService.ShowAsync<ConnectionDialog>("New Connection", options);
         var result = await dialog.Result;
@@ -213,6 +214,20 @@
             var connection = (ConnectionModel)result.Data;
             await ConnectionState.ConnectAsync(connection);
         }
+    }
+
+    public async Task Consume(ActivatePanel message)
+    {
+        if (!Guid.TryParse(message.Id, out Guid result))
+            return;
+        
+        var panel = _contextPanelItems.Values.FirstOrDefault(x => x.Id == result);
+
+        if (panel == null) return;
+        
+        if(!panel.IsActive)
+            await HandleContextPanelItemClicked(panel);
+        
     }
 }
 
