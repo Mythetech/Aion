@@ -1,9 +1,12 @@
 @using Aion.Components.Connections
+@using Aion.Components.Infrastructure.MessageBus
+@using Aion.Components.Querying.Commands
 @using BlazorMonaco.Editor
 @using Aion.Components.Shared
 @using Aion.Components.Theme
 @using Aion.Core.Connections
-
+@implements IDisposable
+@implements Aion.Components.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.FocusQuery>
 
 <MudStack>
     <MudStack Row="true" AlignItems="AlignItems.Center">
@@ -91,6 +94,7 @@
 @code {
     [Inject] protected QueryState State { get; set; } = default!;
     [Inject] protected ConnectionState Connections { get; set; } = default!;
+    [Inject] protected IMessageBus Bus { get; set; } = default!;
     
     private ConnectionModel? SelectedConnection => State.Active?.ConnectionId != null 
         ? Connections.Connections.FirstOrDefault(c => c.Id == State.Active.ConnectionId)
@@ -128,6 +132,7 @@
     {
         State.StateChanged += StateHasChanged;
         Connections.ConnectionStateChanged += StateHasChanged;
+        Bus.Subscribe(this);
         base.OnInitialized();
     }
 
@@ -135,6 +140,7 @@
     {
         State.StateChanged -= StateHasChanged;
         Connections.ConnectionStateChanged -= StateHasChanged;
+        Bus.Unsubscribe(this);
         _queryTokenSource?.Dispose();
     }
 
@@ -194,7 +200,6 @@
     {
         if (firstRender)
         {
-            // Set initial active tab index based on active query
             ActiveTabIndex = State.Queries.FindIndex(q => q.Id == State.Active?.Id);
             StateHasChanged();
         }
@@ -209,7 +214,6 @@
 
         if (query.IsExecuting)
         {
-            // Cancel the running query
             _queryTokenSource?.Cancel();
             return;
         }
@@ -219,14 +223,10 @@
             _queryTokenSource?.Dispose();
             _queryTokenSource = new CancellationTokenSource();
             
-            Console.WriteLine("Running query...");
-            
-            // Get current query text from editor
             if (_editor != null)
             {
                 var currentText = await _editor.GetValue();
                 query.Query = currentText;
-                Console.WriteLine($"Query text: {query.Query}");
             }
             
             var result = await Connections.ExecuteQueryAsync(query, _queryTokenSource.Token);
@@ -237,4 +237,13 @@
             StateHasChanged();
         }
     }
+
+    public async Task Consume(FocusQuery message)
+    {
+        ActiveTabIndex = State.Queries.FindIndex(q => q.Id == message.Query.Id);
+        State.SetActive(message.Query);
+        await _editor.SetValue(message.Query.Query);
+        StateHasChanged();
+    }
+
 }

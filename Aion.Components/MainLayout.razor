@@ -51,9 +51,12 @@
                              InputClass="appbar-narrow-height"
                              AdornmentIcon="@AionIcons.Search" AdornmentColor="Color.Primary">
                 <ItemTemplate>
-                    <MudText onclick="@(async () => await HandleSearch(context))">
-                        @context
-                    </MudText>
+                    <MudStack Class="pa-1" Row="true" AlignItems="AlignItems.Center" onclick="@(async () => await HandleSearch(context))">
+                        <TooltipIcon Size="Size.Small" Text="@(context.Description ?? context.Kind.ToString())" Icon="@context.Icon" />
+                        <MudText >
+                            @context
+                        </MudText>
+                    </MudStack>
                 </ItemTemplate>
             </MudAutocomplete>
             <MudSpacer />
@@ -158,13 +161,8 @@
 
     private async Task HandleSearch(SearchModel result)
     {
-        switch(result.Kind)
-        {
-            case ResultKind.Connection:
-                break;
-            default:
-                break;
-        }
+        if(result.SearchAction != null)
+            await result.SearchAction.Invoke();
 
         if(_searchAutocomplete != null)
             await _searchAutocomplete.ClearAsync();

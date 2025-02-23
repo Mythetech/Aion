@@ -1,3 +1,5 @@
+@using Aion.Components.AppContextPanel.Commands
+@using Aion.Components.Connections.Commands
 @using Aion.Components.Connections.Events
 @using Aion.Components.Connections.Models
 @using Aion.Components.Querying
@@ -7,6 +9,9 @@
 @using Aion.Components.Shared.Snackbar
 @using Aion.Components.Theme
 @using Aion.Components.Infrastructure.MessageBus
+@using Aion.Components.Querying.Commands
+@implements IConsumer<Aion.Components.Connections.Commands.ExpandDatabase>
+@implements IDisposable
 
 <MudStack Row="true" AlignItems="AlignItems.Center">
     <h3>@Connection.Name</h3>
@@ -32,6 +37,7 @@
     {
         <MudTreeViewItem Text="@database.Name"
                          Value="@database.Name"
+                         @ref="_databases[database.Name]"
                          Icon="@AionIcons.Connection">
             @* Database level *@
             <BodyContent Context="ctx">
@@ -135,6 +141,8 @@
     [Inject] protected ISnackbar Snackbar { get; set; } = default!;
     [Inject] private IDialogService DialogService { get; set; } = default!;
     [Inject] private IMessageBus MessageBus { get; set; } = default!;
+
+    private Dictionary<string, MudTreeViewItem<string>> _databases = new();
     
     private string GetIcon(DatabaseTreeItem item) => item?.ItemType switch
     {
@@ -210,7 +218,9 @@
         var query = QueryState.AddQuery($"Select Top 1000 - {tableName}");
         query.ConnectionId = Connection.Id;
         query.DatabaseName = databaseName;
-        query.Query = $"SELECT * FROM {tableName} LIMIT 1000";
+        query.Query = $"SELECT * FROM \"{tableName}\" LIMIT 1000";
+
+        await MessageBus.PublishAsync(new FocusQuery(query));
     }
 
     private async Task EditData(string databaseName, string tableName)
@@ -256,6 +266,29 @@
     {
         StateHasChanged();
         return Task.CompletedTask;
+    }
+
+    public async Task Consume(ExpandDatabase message)
+    {
+        await Task.Yield();
+        
+        if (_databases.TryGetValue(message.DatabaseName, out var treeview))
+        {
+            await treeview.ExpandAllAsync();
+            await treeview.ReloadAsync();
+        }
+        StateHasChanged();
+    }
+
+    protected override void OnInitialized()
+    {
+        MessageBus.Subscribe(this);
+    }
+
+    public void Dispose()
+    {
+        MessageBus.Unsubscribe(this);
+
     }
 
 }
