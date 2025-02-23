@@ -1,6 +1,8 @@
 using Aion.Components.Querying.Commands;
 using Aion.Components.Infrastructure.MessageBus;
+using Aion.Components.Shared.Snackbar.Commands;
 using Microsoft.Extensions.Logging;
+using MudBlazor;
 
 namespace Aion.Components.Querying.Consumers;
 
@@ -8,11 +10,13 @@ public class SqlQueryExporter : IConsumer<ExportQueryToSql>
 {
     private readonly QueryState _state;
     private readonly ILogger<SqlQueryExporter> _logger;
+    private readonly IMessageBus _bus;
 
-    public SqlQueryExporter(QueryState state, ILogger<SqlQueryExporter> logger)
+    public SqlQueryExporter(QueryState state, ILogger<SqlQueryExporter> logger, IMessageBus bus)
     {
         _state = state;
         _logger = logger;
+        _bus = bus;
     }
 
     public async Task Consume(ExportQueryToSql message)
@@ -22,6 +26,7 @@ public class SqlQueryExporter : IConsumer<ExportQueryToSql>
         if (query == null)
         {
             _logger.LogError("No query available to export");
+            await _bus.PublishAsync(new AddNotification("No query available to export", Severity.Warning));
             return;
         }
 
@@ -29,7 +34,6 @@ public class SqlQueryExporter : IConsumer<ExportQueryToSql>
         {
             var fileName = $"query_{DateTime.Now:yyyyMMddHHmmss}.sql";
             
-            // Add metadata as comments
             var sql = $"-- Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}\n" +
                      $"-- Connection: {query.ConnectionId}\n" +
                      $"-- Database: {query.DatabaseName}\n\n" +
@@ -38,10 +42,12 @@ public class SqlQueryExporter : IConsumer<ExportQueryToSql>
             await File.WriteAllTextAsync(fileName, sql);
             
             _logger.LogInformation("Exported query to SQL: {FileName}", fileName);
+            await _bus.PublishAsync(new AddNotification($"Exported query to {fileName}", Severity.Success));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to export query to SQL");
+            await _bus.PublishAsync(new AddNotification("Failed to export query to SQL", Severity.Error));
         }
     }
 } 
