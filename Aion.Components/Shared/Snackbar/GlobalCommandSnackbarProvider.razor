@@ -1,0 +1,15 @@
+@using Aion.Components.Shared.Snackbar.Commands
+
+@inherits Aion.Components.Infrastructure.MessageBus.ComponentConsumer<AddNotification>
+
+@code {
+    [Inject]
+    protected ISnackbar Snackbar { get; set; }
+    
+    protected override Task Consume(AddNotification message, CancellationToken cancellationToken)
+    {
+        Snackbar.AddAionNotification(message.Message, message.Severity);
+        return Task.CompletedTask;
+    }
+
+}

@@ -2,18 +2,45 @@
 @using Aion.Components.Theme
 @using MudBlazor;
 @using Aion.Components.AppContextPanel
+@using Aion.Components.Infrastructure.MessageBus
+@using Aion.Components.Querying.Commands
+@using Aion.Components.Shared.Snackbar
+@using Aion.Components.Shared
 @implements IDisposable
 
 <MudThemeProvider @ref="_theme" @bind-IsDarkMode="@AppState.IsDarkMode" Theme="@Theme" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
+<GlobalCommandSnackbarProvider />
 
 <MudLayout>
     <MudAppBar Class="pl-4" Elevation="0">
-        <MudStack Row="true" Class="w-100" AlignItems="@AlignItems.Center" Spacing="12">
+        <MudStack Row="true" Class="w-100" AlignItems="@AlignItems.Center" Spacing="1">
             <MudText Class="app-header-font mud-text-secondary" Typo="Typo.h6">Aion</MudText>
+            <MudMenu Variant="Variant.Text" Size="Size.Small" Dense="true" ActivationEvent="MouseEvent.MouseOver" Label="File">
+                <MudMenu Label="New">
+                    <MudMenuItem Icon="@AionIcons.Connection">Connection</MudMenuItem>
+                    <MudMenuItem Icon="@AionIcons.Query">Query</MudMenuItem>
+                </MudMenu>
+                <MudMenuItem Icon="@AionIcons.Save">Save Query</MudMenuItem>
+                <MudMenu Label="Export">
+                    <MudMenuItem Icon="@AionIcons.Json" OnClick="@(async () => await Bus.PublishAsync(new ExportResultsToJson()))">Export Results to Json</MudMenuItem>
+                    <MudMenuItem Icon="@AionIcons.Csv" OnClick="@(async () => await Bus.PublishAsync(new ExportResultsToCsv()))">Export Results to Csv</MudMenuItem>
+                    <MudMenuItem Icon="@AionIcons.Spreadsheet" OnClick="@(async () => await Bus.PublishAsync(new ExportResultsToExcel()))">Export Results to Excel</MudMenuItem>
+                </MudMenu>
+            </MudMenu>
+            <MudMenu Variant="Variant.Text" Size="Size.Small" Dense="true" ActivationEvent="MouseEvent.MouseOver" Label="Edit">
+                <MudMenuItem>Format</MudMenuItem>
+            </MudMenu>
+            <MudInputString bind-Value="@_searchInput" AdornmentIcon="@AionIcons.Search" Variant="Variant.Outlined" Placeholder="Search..." Class="rounded-xl" Style="max-height: calc(var(--mud-appbar-height) - 4px);width: 25%;margin-left: 25%; background-color: transparent; backdrop-filter: blur(8px);" />
             <MudSpacer />
+            <MudMenu ActivationEvent="MouseEvent.LeftClick">
+                <ActivatorContent>
+                    <AionIconButton Icon="@AionIcons.Round("person")" Disabled="true" Tooltip="Account" />
+                </ActivatorContent>
+            </MudMenu>
+            
         </MudStack>
     </MudAppBar>
     <MudDrawer Width="25vw" @bind-Open="@AppState.SideBarOpen" Variant="DrawerVariant.Mini" Style="overflow: hidden;">
@@ -35,9 +62,12 @@
 
     [Inject]
     protected Microsoft.JSInterop.IJSRuntime JS { get; set; } = default!;
-    
-    [Inject]
-    protected ISnackbar Snackbar { get; set; }
+
+    [Inject] protected ISnackbar Snackbar { get; set; } = default!;
+
+    [Inject] protected IMessageBus Bus { get; set; } = default!;
+
+    private string _searchInput = "";
 
     private Func<string> GetWidth => () => AppState.SideBarOpen ? "74vw" : "calc(100vw - 52px)";
 

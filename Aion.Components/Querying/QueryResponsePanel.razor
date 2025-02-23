@@ -1,11 +1,24 @@
+@using Aion.Components.Infrastructure.MessageBus
+@using Aion.Components.Querying.Commands
+@using Aion.Components.Shared
+@using Aion.Components.Theme
+@using Aion.Core.Queries
 @implements IDisposable
 
 @if (State?.Active?.Result != null)
 {
+    QueryResult queryResult = State.Active.Result;
     <MudStack Style="max-height: 95%;">
     <MudTabs Class="py-2 px-1" MinimumTabWidth="140px">
-        <MudTabPanel Text="Results">
-            <MudTable Items="State.Active.Result.Rows" Dense="true" Hover="true" >
+    <MudTabPanel Text="Results">
+        <MudStack Class="h-100 w-100">
+            <MudStack Row="true">
+                <MudSpacer />
+                <AionIconButton Icon="@AionIcons.Json" Tooltip="Export to Json" OnClick="async () => await Bus.PublishAsync(new ExportResultsToJson(queryResult))" />
+                <AionIconButton Icon="@AionIcons.Csv"  Tooltip="Export to Csv" OnClick="async () => await Bus.PublishAsync(new ExportResultsToCsv(queryResult))" />
+                <AionIconButton Icon="@AionIcons.Spreadsheet" Tooltip="Export to Excel" OnClick="async () => await Bus.PublishAsync(new ExportResultsToExcel(queryResult))"/>
+            </MudStack>
+            <MudTable Class="flex-grow-1" Items="State.Active.Result.Rows" Dense="true" Hover="true">
                 <HeaderContent>
                     @foreach (var col in State.Active.Result.Columns)
                     {
@@ -19,6 +32,7 @@
                     }
                 </RowTemplate>
             </MudTable>
+        </MudStack>
         </MudTabPanel>
         <MudTabPanel Text="Messages">
             <MudText>@State.Active.Result.Error</MudText>
@@ -42,6 +56,8 @@
 
 @code {
     [Inject] protected QueryState State { get; set; } = default!;
+
+    [Inject] protected IMessageBus Bus { get; set; } = default!;
 
     protected override void OnInitialized()
     {

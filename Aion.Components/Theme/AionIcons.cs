@@ -10,6 +10,8 @@ public static class AionIcons
 
     public static string DarkMode => Round("dark_mode");
 
+    public static string Search => Round("search");
+
     public static string Close => Round("close");
     
     public static string Success => Round("check_circle");
@@ -31,9 +33,11 @@ public static class AionIcons
     public static string Delete => Round("delete");
 
     public static string Copy => Round("content_copy");
-
-    public static string Connection => Round("database");
     
+    public static string Save => Round("save");
+    public static string Connection => Round("database");
+    public static string Query => Round("database_search");
+
     public static string Info => Round("info");
 
     public static string Run => Round("play_arrow");
@@ -50,4 +54,10 @@ public static class AionIcons
     public static string Index => Round("sort");
 
     public static string Key => Round("key");
+
+    public static string Json => Round("file_json");
+
+    public static string Csv => Round("csv");
+
+    public static string Spreadsheet => Round("data_table");
 }

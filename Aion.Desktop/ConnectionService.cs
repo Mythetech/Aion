@@ -37,7 +37,7 @@ public class ConnectionService : IConnectionService
             await _storage.SaveConnectionsAsync(_connections);
     }
 
-    public async Task<List<string>> GetDatabasesAsync(string connectionString, DatabaseType type)
+    public async Task<List<string>?> GetDatabasesAsync(string connectionString, DatabaseType type)
     {
         var provider = _providerFactory.GetProvider(type);
         return await provider.GetDatabasesAsync(connectionString);
