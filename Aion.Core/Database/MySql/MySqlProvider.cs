@@ -2,24 +2,40 @@ using Aion.Core.Database.MySql;
 using Aion.Core.Queries;
 using MySql.Data.MySqlClient;
 using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace Aion.Core.Database;
 
 public class MySqlProvider : IDatabaseProvider
 {
+    private readonly ILogger<MySqlProvider> _logger;
+
+    public MySqlProvider(ILogger<MySqlProvider> logger)
+    {
+        _logger = logger;
+    }
+    
     public IStandardDatabaseCommands Commands { get; } = new MySqlCommands();
     public DatabaseType DatabaseType => DatabaseType.MySQL;
     
-    public async Task<List<string>> GetDatabasesAsync(string connectionString)
+    public async Task<List<string>?> GetDatabasesAsync(string connectionString)
     {
         var databases = new List<string>();
         
         var builder = new MySqlConnectionStringBuilder(connectionString);
         builder.Database = null; 
         
-        using var conn = new MySqlConnection(builder.ConnectionString);    
-        await conn.OpenAsync();
-        
+        using var conn = new MySqlConnection(builder.ConnectionString);
+        try
+        {
+            await conn.OpenAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex.Message);
+            return null;
+        }
+
         const string sql = @"
             SHOW DATABASES 
             WHERE `Database` NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys');";

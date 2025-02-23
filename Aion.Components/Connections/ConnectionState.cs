@@ -177,8 +177,15 @@ public class ConnectionState
                 connection.ConnectionString, 
                 connection.Type
             );
-            connection.Databases = databases.Select(db => new DatabaseModel { Name = db }).ToList();
-            connection.Active = true;
+            if (databases != null)
+            {
+                connection.Databases = databases.Select(db => new DatabaseModel { Name = db }).ToList();
+                connection.Active = true;
+            }
+            else
+            {
+                connection.Active = false;
+            }
             OnConnectionStateChanged();
         }
         catch (Exception ex)

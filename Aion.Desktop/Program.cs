@@ -34,8 +34,10 @@ namespace Aion.Desktop
                 .SetUseOsDefaultSize(false)
                 .SetFullScreen(false)
                 .SetLogVerbosity(10)
+                .SetSmoothScrollingEnabled(true)
+                .SetJavascriptClipboardAccessEnabled(true)
                 .SetTitle("Aion Desktop");
-
+            
             AppDomain.CurrentDomain.UnhandledException += (sender, error) =>
             {
                 app.MainWindow.ShowMessage("Fatal exception", error.ExceptionObject.ToString());

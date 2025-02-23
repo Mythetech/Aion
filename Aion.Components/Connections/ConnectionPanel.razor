@@ -7,7 +7,19 @@
 @using Aion.Components.Shared.Snackbar
 @using Aion.Components.Theme
 @using Aion.Components.Infrastructure.MessageBus
-<h3>@Connection.Name</h3>
+
+<MudStack Row="true" AlignItems="AlignItems.Center">
+    <h3>@Connection.Name</h3>
+    <MudSpacer />
+    @if (Connection.Active)
+    {
+        <MudChip Size="Size.Small" Variant="Variant.Text" T="string" Color="Color.Success">Connected</MudChip>
+    }
+    else
+    {
+        <MudChip Size="Size.Small" Variant="Variant.Text"  T="string" Color="Color.Error" OnClick="RefreshConnection">Disconnected</MudChip>
+    }
+</MudStack>
 
 <MudStack Row="true" AlignItems="AlignItems.Center"> 
     <h6>@Connection.Type</h6>
@@ -132,6 +144,19 @@
         "index" => AionIcons.Index,
         _ => AionIcons.Info
     };
+
+    private async Task RefreshConnection()
+    {
+        await ConnectionState.RefreshDatabaseAsync(Connection);
+        if (Connection.Active)
+        {
+            Snackbar.AddAionNotification($"Reconnected to {Connection.Name}", Severity.Success);
+        }
+        else
+        {
+            Snackbar.AddAionNotification("Failed to reconnect", Severity.Error);
+        }
+    }
 
     private async Task AddDatabase()
     {
