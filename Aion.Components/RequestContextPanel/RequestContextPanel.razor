@@ -1,9 +1,15 @@
 @using System.Reflection
+@using System.Text.Json
+@using System.Text.Json.Nodes
 @using Aion.Components.Theme
+@using Aion.Components.Shared
+@using Aion.Core.Extensions
+@using Aion.Components.Shared.JsonTreeView
+@implements IDisposable
 <MudStack Class="h-100 w-100">
-    <MudStack Row="true" Class="w-100">
+    <MudStack Row="true" Class="w-100 pa-1" AlignItems="AlignItems.Center">
         <MudPaper Elevation="0" Square="true" Width="calc(100% - 3.5rem)" Class="flex-shrink-1 px-1">
-           
+            <MudText Typo="Typo.h6">@_queryName</MudText>
         </MudPaper>
         <MudPaper Elevation="0" Square="true" Width="3.5rem">
             <MudTooltip Text="Close">
@@ -12,10 +18,51 @@
         </MudPaper>
     </MudStack>
   
+    @if (string.IsNullOrWhiteSpace(_openTab))
+    {
         <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center">
             <MudText>No context</MudText>
         </MudStack>
+    }
     
+    @if (_openTab.Equals("Info", StringComparison.OrdinalIgnoreCase))
+    {
+        <MudStack>
+            <MudText>Select an active connection to query your data</MudText>
+        </MudStack>
+    }
+    
+    @if (_openTab.Equals(JsonView))
+    {
+        <MudStack AlignItems="AlignItems.Center" Row="true" Spacing="1" Class="px-4">
+            <MudText>Column</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">@_columnName</MudText>
+            <MudSpacer />
+            <MudToggleGroup Class="mr-4" Value="_jsonViewerSelection" ValueChanged="((s) => { _jsonViewerSelection = s; StateHasChanged(); })" T="string" Outlined="true" Color="Color.Primary" Delimiters="true" Size="Size.Small">
+                <MudToggleItem T="string" Value="@("raw")">
+                    <TooltipIcon Text="JSON (Raw)" Icon="@AionIcons.RawJson" />
+                </MudToggleItem>
+                <MudToggleItem T="string" Value="@("pretty")">
+                    <TooltipIcon Text="JSON (Pretty)" Icon="@AionIcons.PrettyJson" />
+                </MudToggleItem>
+            </MudToggleGroup>
+        </MudStack>
+        <MudStack Class="pa-2 h-100 w-100">
+            @if (_jsonViewerSelection.Equals("Raw", StringComparison.OrdinalIgnoreCase))
+            {
+                <pre>
+            <code>
+        @_code
+        </code>
+        </pre>
+            }
+            else if (_jsonViewerSelection.Equals("pretty"))
+            {
+                    <JsonTreeView Json="@ToJson(_code)" Dense="true" Hover="true" />
+            }
+        </MudStack>
+    }
+
 </MudStack>
 @code {
     [Inject]
@@ -29,13 +76,98 @@
 
     private MudToggleGroup<string> _toggle;
 
+    private string _queryName = "";
+
     private string _openTab = "";
 
-    public async Task Open(string tab)
+    private string JsonView => "JsonView";
+
+    private string _code = "";
+
+    private string _columnName = "";
+
+    private string _jsonViewerSelection = "raw";
+
+    public async Task Open(string tab, string? args = default)
     {
         _openTab = tab;
+
+        if (tab.Equals(JsonView))
+        {
+            _code = JsonSerializer.Serialize(JsonSerializer.Deserialize<dynamic>(args), new JsonSerializerOptions() { WriteIndented = true });
+        }
         
         StateHasChanged();
     }
+
+    public async Task OpenJsonDetailView(QueryResponseJsonDetail columnDetail)
+    {
+        _openTab = JsonView;
+
+        _queryName = columnDetail.QueryName;
+
+        _columnName = columnDetail.Column;
+        
+        _code = JsonSerializer.Serialize(JsonSerializer.Deserialize<dynamic>(columnDetail.Json), new JsonSerializerOptions() { WriteIndented = true });
+        
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        _openTab = "";
+        _queryName = "";
+        _columnName = "";
+        _code = "";
+    }
+    
+    private string ToJson(string compressed)
+        => ToJson(JsonSerializer.Deserialize<Dictionary<string, string>>(compressed));
+
+    private string ToJson(Dictionary<string, string> d)
+    {
+        var jsonString = System.Text.Json.JsonSerializer.Serialize(d);
+        var jsonNode = JsonNode.Parse(jsonString);
+
+        var tempDict = new Dictionary<string, JsonNode>();
+
+        foreach (var property in jsonNode!.AsObject())
+        {
+            if (property.Value is JsonValue jsonValue && jsonValue.GetValueKind() == JsonValueKind.String)
+            {
+                var valueString = jsonValue.ToString();
+                if ((valueString.StartsWith("{") && valueString.EndsWith("}")) || (valueString.StartsWith("[") && valueString.EndsWith("]")))
+                {
+                    try
+                    {
+                        var parsedNode = JsonNode.Parse(valueString);
+                        tempDict[property.Key] = parsedNode!;
+                    }
+                    catch (JsonException)
+                    {
+                        tempDict[property.Key] = jsonValue;
+                    }
+                }
+                else
+                {
+                    tempDict[property.Key] = jsonValue;
+                }
+            }
+            else
+            {
+                tempDict[property.Key] = property.Value!;
+            }
+        }
+
+        jsonNode.AsObject().Clear();
+        foreach (var kvp in tempDict)
+        {
+            jsonNode.AsObject().Add(kvp.Key, kvp.Value);
+        }
+
+        return jsonNode.ToJsonString();
+    }
+    
+
 }
 

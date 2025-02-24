@@ -11,6 +11,8 @@
 @using Aion.Components.Infrastructure.MessageBus
 @using Aion.Components.Querying.Commands
 @implements IConsumer<Aion.Components.Connections.Commands.ExpandDatabase>
+@implements IConsumer<Aion.Components.Connections.Commands.ExpandTable>
+
 @implements IDisposable
 
 <MudStack Row="true" AlignItems="AlignItems.Center">
@@ -66,7 +68,7 @@
                 {
                     @foreach (var table in database.Tables)
                     {
-                        <MudTreeViewItem Text="@table" Value="@table" Icon="@AionIcons.Table">
+                        <MudTreeViewItem @ref="@_tables[database.Name + "|" + table]"  Text="@table" Value="@table" Icon="@AionIcons.Table">
                             <BodyContent Context="ctx">
                                 <div class="d-flex align-center justify-space-between w-100">
                                     <div class="d-flex align-center">
@@ -143,6 +145,8 @@
     [Inject] private IMessageBus MessageBus { get; set; } = default!;
 
     private Dictionary<string, MudTreeViewItem<string>> _databases = new();
+
+    private Dictionary<string, MudTreeViewItem<string>> _tables = new();
     
     private string GetIcon(DatabaseTreeItem item) => item?.ItemType switch
     {
@@ -282,13 +286,32 @@
 
     protected override void OnInitialized()
     {
-        MessageBus.Subscribe(this);
+        MessageBus.Subscribe<ExpandDatabase>(this);
+        MessageBus.Subscribe<ExpandTable>(this);
     }
 
     public void Dispose()
     {
-        MessageBus.Unsubscribe(this);
+        MessageBus.Unsubscribe<ExpandDatabase>(this);
+        MessageBus.Unsubscribe<ExpandTable>(this);
+    }
 
+    public async Task Consume(ExpandTable message)
+    {
+        await Task.Yield();
+        if (_databases.TryGetValue(message.Database.Name, out var treeview))
+        {
+            await treeview.ExpandAllAsync();
+            await treeview.ReloadAsync();
+        }
+        
+        if(_tables.TryGetValue(message.Database.Name + "|" + message.TableName, out var tableTree))
+        {
+            await tableTree.ExpandAllAsync();
+            await tableTree.ReloadAsync();
+        }
+        
+        StateHasChanged();
     }
 
 }
