@@ -6,6 +6,7 @@ using Aion.Components.Querying;
 using Aion.Components.Querying.Commands;
 using Aion.Components.Theme;
 using Aion.Core.Connections;
+using Aion.Core.Database;
 using Microsoft.Extensions.Logging;
 
 namespace Aion.Components.Search;
@@ -76,7 +77,8 @@ public class SearchService
                                 Name = $"{table}",
                                 Description = $"{connection.Name} > {database.Name}",
                                 Icon = AionIcons.Table,
-                                Kind = ResultKind.Table
+                                Kind = ResultKind.Table,
+                                SearchAction = () => TableAction(connection, database, table)
                             };
                         }
                     }
@@ -97,7 +99,8 @@ public class SearchService
                                     Name = $"{table}",
                                     Description = $"{connection.Name} > {database.Name}",
                                     Icon = AionIcons.Table,
-                                    Kind = ResultKind.Table
+                                    Kind = ResultKind.Table,
+                                    SearchAction = () => TableAction(connection, database, table)
                                 };
                             }
                         }
@@ -134,6 +137,15 @@ public class SearchService
         await _bus.PublishAsync(new ActivatePanel(connection.Id.ToString()));
         await Task.Delay(25);
         await _bus.PublishAsync(new ExpandDatabase(connection, databaseName));
+    }
+    
+    private async Task TableAction(ConnectionModel connection, DatabaseModel database, string tableName)
+    {
+        await _bus.PublishAsync(new ActivatePanel(connection.Id.ToString()));
+        await Task.Delay(25);
+        await _bus.PublishAsync(new ExpandDatabase(connection, database.Name));
+        await Task.Delay(25);
+        await _bus.PublishAsync(new ExpandTable(connection, database, tableName));
     }
 
     private async Task QueryAction(QueryModel query)

@@ -1,0 +1,54 @@
+﻿<MudTreeViewItem @ref="_treeViewItem"
+                 ChildContent="@ChildContent"
+                 Class=""
+                 @bind-Expanded="@_expanded"
+                 T="string"
+                 Text="@Key"
+                 Icon="@($"{Icon}")"
+                 IconColor="@Color.Default"
+                 ExpandButtonIconColor="@(_expanded ? Color.Primary : Color.Default)">
+    <BodyContent>
+        <MudStack Row="true" Class="mud-width-full" Spacing="2">
+            <MudText Color="Color.Default">@Key</MudText>
+            @*<MudText Color="@(Nested ? (_expanded ? Color.Primary : Color.Secondary) : Color.Default)">@Key</MudText>*@
+            @if (Value.Equals("null"))
+            {
+                <MudChip T="string" Class="m-0" Size="MudBlazor.Size.Small" Variant="Variant.Text" Color="@Color.Warning">Null</MudChip>
+            }
+            else if (Nested || Value?.Split(" ")?.Length > 1 && (Value.Split(" ")[0].Equals("object", StringComparison.OrdinalIgnoreCase) || Value.Split(" ")[0].Equals("array", StringComparison.OrdinalIgnoreCase)))
+            {
+                <MudText Typo="Typo.subtitle2" Class="mud-info-text">@(Value.Split(" ")[0])</MudText>
+                <MudChip T="string" Class="m-0" Size="MudBlazor.Size.Small" Variant="Variant.Text" Color="@(decimal.TryParse(Value.Split(" ")[1], out var d) ? Color.Tertiary : Color.Warning)">@(Value.Split(" ")?[1])</MudChip>
+            }
+            else
+            {
+                <MudText Class="mud-text-secondary">@Value</MudText>
+
+            }
+        </MudStack>
+    </BodyContent>
+</MudTreeViewItem>
+
+@code {
+    [Parameter]
+    public string Icon { get; set; } = "";
+
+    [Parameter]
+    public string Key { get; set; } = "";
+
+    [Parameter]
+    public string Value { get; set; } = "";
+
+    [Parameter]
+    public bool Nested { get; set; } = false;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; } = default!;
+
+    protected MudTreeViewItem<string> _treeViewItem = default!;
+
+    protected bool _expanded { get; set; } = true;
+
+    // IconColor="@(Nested ? (_expanded ? Color.Primary : Color.Secondary) : Color.Default)"
+
+}

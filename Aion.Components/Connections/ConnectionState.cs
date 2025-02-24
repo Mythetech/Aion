@@ -7,6 +7,7 @@ using Aion.Core.Database;
 using Aion.Core.Queries;
 using MudBlazor;
 using Aion.Components.Connections.Events;
+using Aion.Components.Shared.Snackbar.Commands;
 using Microsoft.Extensions.Logging;
 
 namespace Aion.Components.Connections;
@@ -42,7 +43,6 @@ public class ConnectionState
         var savedConnections = await _connectionService.GetSavedConnections();
         Connections = savedConnections.ToList();
        
-        // Refresh databases for each connection
         foreach (var connection in Connections)
         {
             await RefreshDatabaseAsync(connection);
@@ -63,12 +63,14 @@ public class ConnectionState
             await _connectionService.AddConnection(connection);
             
             Connections.Add(connection);
+            
+            await _messageBus.PublishAsync(new AddNotification($"Connected to {connection.Name}", Severity.Success));
             OnConnectionStateChanged();
         }
         catch (Exception ex)
         {
-            Console.WriteLine(ex.Message);
-            throw;
+            await _messageBus.PublishAsync(new AddNotification($"Error connecting to {connection.Name}{Environment.NewLine}{ex.Message}", Severity.Error));
+
         }
     }
 
@@ -98,7 +100,7 @@ public class ConnectionState
     {
         if (!Connections.Any())
         {
-            Console.WriteLine("No connections available");
+            await _messageBus.PublishAsync(new AddNotification("No connection available", Severity.Error));
             return default;
         }
         
@@ -144,7 +146,6 @@ public class ConnectionState
         }
         catch (OperationCanceledException)
         {
-            Console.WriteLine("Query execution cancelled");
             query.IsExecuting = false;
             OnConnectionStateChanged();
             var result = new QueryResult { Error = "Query cancelled", Cancelled = true};
@@ -157,7 +158,6 @@ public class ConnectionState
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            Console.WriteLine($"Query execution failed: {ex.Message}");
             query.IsExecuting = false;
             OnConnectionStateChanged();
             

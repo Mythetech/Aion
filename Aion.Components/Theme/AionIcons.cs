@@ -60,4 +60,8 @@ public static class AionIcons
     public static string Csv => Round("csv");
 
     public static string Spreadsheet => Round("data_table");
+
+    public static string PrettyJson => Round("data_object");
+
+    public static string RawJson => Round("abc");
 }

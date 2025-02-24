@@ -1,5 +1,8 @@
+@using System.Text.Json.Nodes
 @using Aion.Components.Infrastructure.MessageBus
 @using Aion.Components.Querying.Commands
+@using Aion.Components.RequestContextPanel
+@using Aion.Components.RequestContextPanel.Commands
 @using Aion.Components.Shared
 @using Aion.Components.Theme
 @using Aion.Core.Queries
@@ -28,7 +31,19 @@
                 <RowTemplate>
                     @foreach (var row in State.Active.Result.Rows.First().Keys)
                     {
-                        <MudTd Style="text-wrap:nowrap;" DataLabel="@row">@context.GetValueOrDefault(row)</MudTd>
+                        <MudTd Style="text-wrap:nowrap;" DataLabel="@row">
+                            @{
+                                var value = context.GetValueOrDefault(row);
+                            }
+                            @if (value != null && value.ToString().StartsWith('{') && value.ToString().EndsWith('}'))
+                            {
+                                <MudLink OnClick="@(async () => await OpenJsonDetailView(State.Active.Name, row, value.ToString()))">@value</MudLink>
+                            }
+                            else
+                            {
+                                @value
+                            }
+                        </MudTd>
                     }
                 </RowTemplate>
             </MudTable>
@@ -68,6 +83,11 @@
     public void Dispose()
     {
         State.StateChanged -= StateHasChanged;
+    }
+
+    protected async Task OpenJsonDetailView(string queryName, string column, string json)
+    {
+        await Bus.PublishAsync(new OpenJsonDetailView(new QueryResponseJsonDetail(queryName, column, json)));
     }
 
 }

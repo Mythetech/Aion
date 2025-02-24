@@ -1,11 +1,17 @@
 @page "/"
+@using Aion.Components.Infrastructure.MessageBus
 @using MudBlazor
-@using MudExtensions
 @using Aion.Components.Querying
 @using Microsoft.FluentUI.AspNetCore.Components
 @using Aion.Components.RequestContextPanel
+@using Aion.Components.RequestContextPanel.Commands
 @using Aion.Components.Shared
 @using Aion.Components.Theme
+@using MudBlazor.Extensions
+@implements IDisposable
+@implements Aion.Components.Infrastructure.MessageBus.IConsumer<Aion.Components.RequestContextPanel.Commands.OpenRequestContextPanel>
+@implements Aion.Components.Infrastructure.MessageBus.IConsumer<Aion.Components.RequestContextPanel.Commands.OpenJsonDetailView>
+
 
 <MudStack Row="true" Class="w-100 h-100 ml-1" Spacing="0">
     <FluentMultiSplitter BarSize="1" @ref="_primarySplitter"  OnCollapse="@((args) => HandleCollapse(args))" OnExpand="HandleExpand" Height="100%" Width="@(_sidePanelClosed ? "97%" :"100%")" Orientation="Microsoft.FluentUI.AspNetCore.Components.Orientation.Horizontal" Style="overflow-x:clip;">
@@ -40,6 +46,8 @@
 @code {
     [Inject]
     protected GlobalAppState AppState { get; set; } = default!;
+
+    [Inject] protected IMessageBus Bus { get; set; } = default!;
     
     private RequestContextPanel.RequestContextPanel _requestContextPanel = default!;
     
@@ -78,4 +86,36 @@
 
         StateHasChanged();
     }
+
+    protected override void OnInitialized()
+    {
+        Bus.Subscribe<OpenRequestContextPanel>(this);
+        Bus.Subscribe<OpenJsonDetailView>(this);
+    }
+
+    public void Dispose()
+    {
+        _contextPanel.Dispose();
+        Bus.Unsubscribe<OpenRequestContextPanel>(this);
+        Bus.Unsubscribe<OpenJsonDetailView>(this);
+    }
+
+    public async Task Consume(OpenRequestContextPanel message)
+    {
+        _sidePanelClosed = false;
+        
+        StateHasChanged();
+
+        await _requestContextPanel.Open(message.View, message.Args);
+    }
+
+    public async Task Consume(OpenJsonDetailView message)
+    {
+        _sidePanelClosed = false;
+        
+        StateHasChanged();
+
+        await _requestContextPanel.OpenJsonDetailView(message.ColumnDetail);
+    }
+
 }
