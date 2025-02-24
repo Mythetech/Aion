@@ -3,6 +3,7 @@
 @using System.Text.Json.Nodes
 @using Aion.Components.Theme
 @using Aion.Components.Shared
+@using Aion.Components.Shared.Dialogs
 @using Aion.Components.Shared.JsonTreeView
 @implements IDisposable
 <MudStack Class="h-100 w-100">
@@ -37,7 +38,7 @@
             <MudText>Column</MudText>
             <MudText Typo="Typo.caption" Class="mud-text-secondary">@_columnName</MudText>
             <MudSpacer />
-            <MudToggleGroup Class="mr-4" Value="_jsonViewerSelection" ValueChanged="((s) => { _jsonViewerSelection = s; StateHasChanged(); })" T="string" Outlined="true" Color="Color.Primary" Delimiters="true" Size="Size.Small">
+            <MudToggleGroup Value="_jsonViewerSelection" ValueChanged="((s) => { _jsonViewerSelection = s; StateHasChanged(); })" T="string" Outlined="true" Color="Color.Primary" Delimiters="true" Size="Size.Small">
                 <MudToggleItem T="string" Value="@("raw")">
                     <TooltipIcon Text="JSON (Raw)" Icon="@AionIcons.RawJson" />
                 </MudToggleItem>
@@ -45,6 +46,7 @@
                     <TooltipIcon Text="JSON (Pretty)" Icon="@AionIcons.PrettyJson" />
                 </MudToggleItem>
             </MudToggleGroup>
+            <AionIconButton Class="mr-4" Tooltip="Expand" OnClick="OpenJsonViewerDialog" Icon="@AionIcons.ExpandContent"  />
         </MudStack>
         <MudStack Class="pa-2 h-100 w-100">
             @if (_jsonViewerSelection.Equals("Raw", StringComparison.OrdinalIgnoreCase))
@@ -57,7 +59,7 @@
             }
             else if (_jsonViewerSelection.Equals("pretty"))
             {
-                    <JsonTreeView Json="@ToJson(_code)" Dense="true" Hover="true" />
+                    <JsonTreeView Json="@_code.ParseNestedJson()" Dense="true" Hover="true" />
             }
         </MudStack>
     }
@@ -66,6 +68,8 @@
 @code {
     [Inject]
     GlobalAppState AppState { get; set; }
+
+    [Inject] protected IDialogService DialogService { get; set; } = default!;
 
     [Parameter]
     public EventCallback PanelClosed { get; set; } = default!;
@@ -112,6 +116,19 @@
         StateHasChanged();
     }
 
+    protected async Task OpenJsonViewerDialog()
+    {
+        var options = AionDialogs.CreateDefaultOptions(MaxWidth.ExtraExtraLarge);
+
+        var parameters = new DialogParameters
+        {
+            { "ViewMode", _jsonViewerSelection },
+            { "Json", _code }
+        };
+
+        await DialogService.ShowAsync<JsonDetailDialog>("Json Viewer", parameters, options);
+    }
+
     public void Dispose()
     {
         _openTab = "";
@@ -119,54 +136,5 @@
         _columnName = "";
         _code = "";
     }
-    
-    private string ToJson(string compressed)
-        => ToJson(JsonSerializer.Deserialize<Dictionary<string, string>>(compressed));
-
-    private string ToJson(Dictionary<string, string> d)
-    {
-        var jsonString = System.Text.Json.JsonSerializer.Serialize(d);
-        var jsonNode = JsonNode.Parse(jsonString);
-
-        var tempDict = new Dictionary<string, JsonNode>();
-
-        foreach (var property in jsonNode!.AsObject())
-        {
-            if (property.Value is JsonValue jsonValue && jsonValue.GetValueKind() == JsonValueKind.String)
-            {
-                var valueString = jsonValue.ToString();
-                if ((valueString.StartsWith("{") && valueString.EndsWith("}")) || (valueString.StartsWith("[") && valueString.EndsWith("]")))
-                {
-                    try
-                    {
-                        var parsedNode = JsonNode.Parse(valueString);
-                        tempDict[property.Key] = parsedNode!;
-                    }
-                    catch (JsonException)
-                    {
-                        tempDict[property.Key] = jsonValue;
-                    }
-                }
-                else
-                {
-                    tempDict[property.Key] = jsonValue;
-                }
-            }
-            else
-            {
-                tempDict[property.Key] = property.Value!;
-            }
-        }
-
-        jsonNode.AsObject().Clear();
-        foreach (var kvp in tempDict)
-        {
-            jsonNode.AsObject().Add(kvp.Key, kvp.Value);
-        }
-
-        return jsonNode.ToJsonString();
-    }
-    
-
 }
 
