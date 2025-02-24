@@ -63,5 +63,7 @@ public static class AionIcons
 
     public static string PrettyJson => Round("data_object");
 
-    public static string RawJson => Round("abc");
+    public static string RawJson => Round("raw_on");
+    
+    public static string ExpandContent => Round("expand_content");
 }

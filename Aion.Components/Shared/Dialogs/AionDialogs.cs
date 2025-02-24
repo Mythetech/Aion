@@ -10,6 +10,7 @@ public static class AionDialogs
         CloseOnEscapeKey = true, 
         BackgroundClass = "aion-dialog",
         MaxWidth = maxWidth,
-        FullWidth = true
+        FullWidth = true,
+        CloseButton = true,
     };
 }

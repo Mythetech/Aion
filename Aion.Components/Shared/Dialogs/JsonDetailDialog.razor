@@ -1,0 +1,40 @@
+@using Aion.Components.Theme
+@using Aion.Core.Database
+@using Microsoft.Extensions.DependencyInjection
+@using MudBlazor.Utilities
+@using Aion.Components.Shared
+@using Aion.Core.Connections
+@using Microsoft.AspNetCore.Components.Forms
+@using Aion.Components.Shared.JsonTreeView
+
+<MudDialog Class="aion-transparent-dialog">
+    <DialogContent>
+        <MudStack Class="pa-4 h-100 w-100" Justify="Justify.Center">
+            @if (ViewMode.Equals("Raw", StringComparison.OrdinalIgnoreCase))
+            {
+            <pre>
+                <code>
+                    @Json
+                </code>
+            </pre>
+            }
+            else if (ViewMode.Equals("pretty", StringComparison.OrdinalIgnoreCase))
+            {
+              <JsonTreeView Json="@Json.ParseNestedJson()" Dense="true" Hover="true" />
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public string ViewMode { get; set; } = "pretty";
+
+    [Parameter] public string Json { get; set; } = "";
+    
+    private void Cancel() => MudDialog.Cancel();
+} 
