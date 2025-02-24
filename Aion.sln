@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aion.Components", "Aion.Com
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aion.Core", "Aion.Core\Aion.Core.csproj", "{ECC152E7-6581-41E5-80B3-F6800027C6CB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aion.Test", "Aion.Test\Aion.Test.csproj", "{A8F94C06-ADBC-4992-9DBD-C7D43D234406}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{ECC152E7-6581-41E5-80B3-F6800027C6CB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{ECC152E7-6581-41E5-80B3-F6800027C6CB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{ECC152E7-6581-41E5-80B3-F6800027C6CB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A8F94C06-ADBC-4992-9DBD-C7D43D234406}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A8F94C06-ADBC-4992-9DBD-C7D43D234406}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A8F94C06-ADBC-4992-9DBD-C7D43D234406}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A8F94C06-ADBC-4992-9DBD-C7D43D234406}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
