@@ -6,6 +6,30 @@ html {
     font-family: 'Gotu';
 }
 
+.aion-icon {
+    background-image: url('aion.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    border-radius: 1em;
+    scale: 1.5;
+}
+
+.about-aion-dialog {
+    /*background: linear-gradient(115deg, #312651EE 55%, #31265199 80%, transparent);*/
+}
+
+.aion-image {
+    transition: all 0.3s ease-in-out;
+}
+
+.aion-image:hover {
+    box-shadow: 0.1em 0.1em 0.4em 0.1em #312651,
+                -0.1em 0.1em 0.4em 0.1em #9a57a7,
+                0.1em -0.1em 0.4em 0.1em #76a0ff,
+                -0.1em -0.1em 0.4em 0.1em #a6b3e5;
+
+}
+
 .mud-snackbar {
     border: 1px solid var(--mud-palette-dark);
     backdrop-filter: blur(8px);
