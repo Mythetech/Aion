@@ -56,7 +56,7 @@ jobs:
     - name: Install .NET Core
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 8.0.x
+        dotnet-version: 9.0.x
 
     - name: Execute unit tests
       run: dotnet test
@@ -64,7 +64,7 @@ jobs:
         Configuration: Release
 
   build-package:
-    needs: test  # This ensures tests pass before we try to build
+    needs: test 
     runs-on: windows-latest
     
     env:
