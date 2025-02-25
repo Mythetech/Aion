@@ -8,9 +8,8 @@
                  IconColor="@Color.Default"
                  ExpandButtonIconColor="@(_expanded ? Color.Primary : Color.Default)">
     <BodyContent>
-        <MudStack Row="true" Class="mud-width-full" Spacing="2">
+        <MudStack Row="true" Class="mud-width-full" Spacing="2" AlignItems="AlignItems.Center">
             <MudText Color="Color.Default">@Key</MudText>
-            @*<MudText Color="@(Nested ? (_expanded ? Color.Primary : Color.Secondary) : Color.Default)">@Key</MudText>*@
             @if (Value.Equals("null"))
             {
                 <MudChip T="string" Class="m-0" Size="MudBlazor.Size.Small" Variant="Variant.Text" Color="@Color.Warning">Null</MudChip>
@@ -18,7 +17,7 @@
             else if (Nested || Value?.Split(" ")?.Length > 1 && (Value.Split(" ")[0].Equals("object", StringComparison.OrdinalIgnoreCase) || Value.Split(" ")[0].Equals("array", StringComparison.OrdinalIgnoreCase)))
             {
                 <MudText Typo="Typo.subtitle2" Class="mud-info-text">@(Value.Split(" ")[0])</MudText>
-                <MudChip T="string" Class="m-0" Size="MudBlazor.Size.Small" Variant="Variant.Text" Color="@(decimal.TryParse(Value.Split(" ")[1], out var d) ? Color.Tertiary : Color.Warning)">@(Value.Split(" ")?[1])</MudChip>
+                <MudChip T="string" Class="m-0" Size="MudBlazor.Size.Small" Variant="Variant.Text" Color="@(decimal.TryParse(Value.Split(" ")[1], out var d) ? Color.Primary : Color.Warning)">@(Value.Split(" ")?[1])</MudChip>
             }
             else
             {
@@ -48,7 +47,5 @@
     protected MudTreeViewItem<string> _treeViewItem = default!;
 
     protected bool _expanded { get; set; } = true;
-
-    // IconColor="@(Nested ? (_expanded ? Color.Primary : Color.Secondary) : Color.Default)"
-
+    
 }

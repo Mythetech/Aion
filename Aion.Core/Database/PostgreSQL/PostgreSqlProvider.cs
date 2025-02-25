@@ -7,6 +7,7 @@ namespace Aion.Core.Database;
 
 public class PostgreSqlProvider : IDatabaseProvider
 {
+    private readonly Dictionary<string, NpgsqlTransaction> _activeTransactions = new();
     public IStandardDatabaseCommands Commands { get; } = new PostgreSqlCommands();
     public DatabaseType DatabaseType => DatabaseType.PostgreSQL;
 
@@ -257,5 +258,76 @@ public class PostgreSqlProvider : IDatabaseProvider
         }
 
         return columns;
+    }
+
+    public async Task<TransactionInfo> BeginTransactionAsync(string connectionString)
+    {
+        var transaction = new TransactionInfo();
+        
+        var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync();
+        var dbTransaction = await conn.BeginTransactionAsync();
+        
+        _activeTransactions[transaction.Id] = dbTransaction;
+        
+        return transaction;
+    }
+
+    public async Task CommitTransactionAsync(string connectionString, string transactionId)
+    {
+        if (_activeTransactions.TryGetValue(transactionId, out var transaction))
+        {
+            await transaction.CommitAsync();
+            await transaction.Connection!.DisposeAsync();
+            _activeTransactions.Remove(transactionId);
+        }
+    }
+
+    public async Task RollbackTransactionAsync(string connectionString, string transactionId)
+    {
+        if (_activeTransactions.TryGetValue(transactionId, out var transaction))
+        {
+            await transaction.RollbackAsync();
+            await transaction.Connection!.DisposeAsync();
+            _activeTransactions.Remove(transactionId);
+        }
+    }
+
+    public async Task<QueryResult> ExecuteInTransactionAsync(string connectionString, string query, string transactionId, CancellationToken cancellationToken)
+    {
+        if (!_activeTransactions.TryGetValue(transactionId, out var transaction))
+        {
+            return new QueryResult { Error = "Transaction not found" };
+        }
+
+        var result = new QueryResult();
+        try 
+        {
+            using var cmd = new NpgsqlCommand(query, transaction.Connection, transaction);
+            using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                result.Columns.Add(reader.GetName(i));
+            }
+
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var row = new Dictionary<string, object>();
+                for (int i = 0; i < reader.FieldCount; i++)
+                {
+                    var value = reader.GetValue(i);
+                    row[result.Columns[i]] = value == DBNull.Value ? null : value;
+                }
+                result.Rows.Add(row);
+            }
+
+            return result;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            result.Error = ex.Message;
+            return result;
+        }
     }
 } 

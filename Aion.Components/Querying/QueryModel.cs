@@ -6,24 +6,22 @@ public class QueryModel
 {
     public Guid Id { get; init; } = Guid.NewGuid();
     public string Name { get; set; } = "";
-
     public string Query { get; set; } = "";
     public QueryResult? Result { get; set; }
     public bool IsExecuting { get; set; }
     public DateTime? LastExecuted => Result?.ExecutedAt;
-    
     public Guid? ConnectionId { get; set; }
     public string? DatabaseName { get; set; }
-
     public bool IncludeEstimatedPlan { get; set; }
     public bool IncludeActualPlan { get; set; }
-    
     public QueryPlan? EstimatedPlan { get; set; }
     public QueryPlan? ActualPlan { get; set; }
+    public bool UseTransaction { get; set; }
+    public TransactionInfo? Transaction { get; set; }
 
     public QueryModel Clone()
     {
-        return new QueryModel()
+        return new QueryModel
         {
             Id = Id,
             Name = Name,
@@ -35,7 +33,9 @@ public class QueryModel
             IncludeEstimatedPlan = IncludeEstimatedPlan,
             IncludeActualPlan = IncludeActualPlan,
             EstimatedPlan = EstimatedPlan?.Clone(),
-            ActualPlan = ActualPlan?.Clone()
+            ActualPlan = ActualPlan?.Clone(),
+            UseTransaction = UseTransaction,
+            Transaction = Transaction
         };
     }
 }

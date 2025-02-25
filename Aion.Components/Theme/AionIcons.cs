@@ -66,4 +66,13 @@ public static class AionIcons
     public static string RawJson => Round("raw_on");
     
     public static string ExpandContent => Round("expand_content");
+
+    public static string Transaction => Round("lock");
+
+    public static string TransactionOff => Round("lock_open");
+
+    public static string EstimatedQueryPlan => Round("query_stats");
+    
+    public static string ActualQueryPlan => Round("monitoring");
+
 }

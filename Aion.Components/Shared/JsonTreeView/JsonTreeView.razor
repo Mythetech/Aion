@@ -35,6 +35,12 @@
     /// </summary>
     [Parameter]
     public bool Sorted { get; set; }
+    
+    public void ReInitialize()
+    {
+        OnInitialized();
+    }
+    
 
     /// <inheritdoc />
     protected override void OnInitialized()

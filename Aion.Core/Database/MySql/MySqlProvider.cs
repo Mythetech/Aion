@@ -236,6 +236,27 @@ public class MySqlProvider : IDatabaseProvider
         }
     }
 
+    public async Task<TransactionInfo> BeginTransactionAsync(string connectionString)
+    {
+        throw new NotImplementedException();
+    }
+
+    public async Task CommitTransactionAsync(string connectionString, string transactionId)
+    {
+        throw new NotImplementedException();
+    }
+
+    public async Task RollbackTransactionAsync(string connectionString, string transactionId)
+    {
+        throw new NotImplementedException();
+    }
+
+    public async Task<QueryResult> ExecuteInTransactionAsync(string connectionString, string query, string transactionId,
+        CancellationToken cancellationToken)
+    {
+        throw new NotImplementedException();
+    }
+
     public async Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string table)
     {
         var columns = new List<ColumnInfo>();

@@ -10,7 +10,7 @@
 @using Aion.Components.Infrastructure.MessageBus
 <MudStack Spacing="0" Row="true" Class="mud-width-full">
 <MudStack Spacing="1" Class="app-context-panel mud-width-full" Style="" AlignItems="MudBlazor.AlignItems.Start">
-    <AionIconButton Class="p-2 ml-1" Icon="@AionIcons.Aion" OnClick="@OpenAboutAion" />
+    <AionIconButton Class="p-2 ml-1" Icon="aion-icon" OnClick="@OpenAboutAion" />
     <AionIconButton Class="p-2 ml-1" Icon="@AionIcons.Add" OnClick="AddConnection" Tooltip="Create Connection"  />
     @*Side bar Panel*@
     @foreach (var connection in ConnectionState.Connections)

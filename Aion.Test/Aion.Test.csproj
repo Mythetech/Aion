@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="bunit" Version="1.38.5" />
+        <PackageReference Include="coverlet.collector" Version="6.0.0"/>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0"/>
+        <PackageReference Include="NSubstitute" Version="5.3.0" />
+        <PackageReference Include="Shouldly" Version="4.3.0" />
+        <PackageReference Include="Testcontainers" Version="4.2.0" />
+        <PackageReference Include="Testcontainers.MsSql" Version="4.2.0" />
+        <PackageReference Include="Testcontainers.MySql" Version="4.2.0" />
+        <PackageReference Include="Testcontainers.PostgreSql" Version="4.2.0" />
+        <PackageReference Include="xunit" Version="2.5.3"/>
+        <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Using Include="Xunit"/>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Components\Infrastructure\" />
+      <Folder Include="Integration\" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Aion.Components\Aion.Components.csproj" />
+      <ProjectReference Include="..\Aion.Core\Aion.Core.csproj" />
+    </ItemGroup>
+
+</Project>

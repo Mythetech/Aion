@@ -5,6 +5,7 @@
 @using Aion.Components.Shared
 @using Aion.Components.Theme
 @using Aion.Core.Connections
+@using Aion.Core.Queries
 @implements IDisposable
 @implements Aion.Components.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.FocusQuery>
 
@@ -57,22 +58,34 @@
 
         <MudSpacer/>
         
-        <MudTooltip Text="Estimated Query Plan">
-        <MudToggleIconButton
-            @bind-Toggled="@State.Active.IncludeEstimatedPlan"
-            Icon="@Icons.Material.Outlined.Analytics" 
-            Color="@Color.Inherit"
-            ToggledIcon="@Icons.Material.Filled.Analytics"
-            ToggledColor="@Color.Primary" />
+        <MudTooltip Text="@($"Transactions ({(State.Active.UseTransaction ? "On" : "Off")})")">
+            <MudChip T="string" 
+                     Icon="@(State.Active.UseTransaction ? AionIcons.Transaction : AionIcons.TransactionOff)"
+                     Variant="@(State.Active.UseTransaction ? Variant.Text : Variant.Outlined)" 
+                     @bind-Selected="@State.Active.UseTransaction" 
+                     OnClick="() => State.Active.UseTransaction = !State.Active.UseTransaction" Color="Color.Primary">
+                Transactions
+            </MudChip>
         </MudTooltip>
-            
-        <MudTooltip Text="Actual Query Plan">
-        <MudToggleIconButton
-            @bind-Toggled="@State.Active.IncludeActualPlan"
-            Icon="@Icons.Material.Outlined.Assessment" 
-            Color="@Color.Inherit"
-            ToggledIcon="@Icons.Material.Filled.Assessment"
-            ToggledColor="@Color.Primary" />
+
+        <MudTooltip Text="@($"Estimated Query Plan ({(State.Active.IncludeEstimatedPlan ? "On" : "Off")})")">
+            <MudChip T="string"
+                     Icon="@AionIcons.EstimatedQueryPlan"
+                     Variant="@(State.Active.IncludeEstimatedPlan ? Variant.Text : Variant.Outlined)"
+                     @bind-Selected="@State.Active.IncludeEstimatedPlan"
+                     OnClick="() => State.Active.IncludeEstimatedPlan = !State.Active.IncludeEstimatedPlan" Color="Color.Primary">
+                Estimated Query Plan
+            </MudChip>
+        </MudTooltip>
+
+        <MudTooltip Text="@($"Actual Query Plan ({(State.Active.IncludeEstimatedPlan ? "On" : "Off")})")">
+            <MudChip T="string"
+                     Icon="@AionIcons.ActualQueryPlan"
+                     Variant="@(State.Active.IncludeActualPlan ? Variant.Text : Variant.Outlined)"
+                     @bind-Selected="@State.Active.IncludeActualPlan"
+                     OnClick="() => State.Active.IncludeActualPlan = !State.Active.IncludeActualPlan" Color="Color.Primary">
+                Actual Query Plan
+            </MudChip>
         </MudTooltip>
         
         <MudSpacer />

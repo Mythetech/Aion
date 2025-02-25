@@ -15,4 +15,8 @@ public interface IDatabaseProvider
     bool ValidateConnectionString(string connectionString, out string? error);
     Task<QueryPlan> GetEstimatedPlanAsync(string connectionString, string query);
     Task<QueryPlan> GetActualPlanAsync(string connectionString, string query);
+    Task<TransactionInfo> BeginTransactionAsync(string connectionString);
+    Task CommitTransactionAsync(string connectionString, string transactionId);
+    Task RollbackTransactionAsync(string connectionString, string transactionId);
+    Task<QueryResult> ExecuteInTransactionAsync(string connectionString, string query, string transactionId, CancellationToken cancellationToken);
 } 

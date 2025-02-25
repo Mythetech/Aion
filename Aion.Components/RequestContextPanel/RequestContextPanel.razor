@@ -59,7 +59,7 @@
             }
             else if (_jsonViewerSelection.Equals("pretty"))
             {
-                    <JsonTreeView Json="@_code.ParseNestedJson()" Dense="true" Hover="true" />
+                    <JsonTreeView @ref="_tree" Json="@_code.ParseNestedJson()" Dense="true" Hover="true" />
             }
         </MudStack>
     }
@@ -78,6 +78,8 @@
     public bool IsOpen { get; set; } = false;
 
     private MudToggleGroup<string> _toggle;
+
+    private JsonTreeView? _tree;
 
     private string _queryName = "";
 
@@ -113,6 +115,9 @@
         
         _code = JsonSerializer.Serialize(JsonSerializer.Deserialize<dynamic>(columnDetail.Json), new JsonSerializerOptions() { WriteIndented = true });
         
+        if(_tree != null)
+            _tree.ReInitialize();
+    
         StateHasChanged();
     }
 
