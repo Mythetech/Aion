@@ -9,6 +9,7 @@ using MudBlazor;
 using Aion.Components.Connections.Events;
 using Aion.Components.Shared.Snackbar.Commands;
 using Microsoft.Extensions.Logging;
+using Aion.Components.Connections.Commands;
 
 namespace Aion.Components.Connections;
 
@@ -98,26 +99,17 @@ public class ConnectionState
     
     public async Task<QueryResult> ExecuteQueryAsync(QueryModel query, CancellationToken cancellationToken)
     {
-        if (!Connections.Any())
-        {
-            await _messageBus.PublishAsync(new AddNotification("No connection available", Severity.Error));
-            return default;
-        }
-        
-        try
+        var connection = Connections.FirstOrDefault(x => x.Id == query.ConnectionId);
+        if (connection == null) return new QueryResult { Error = "Connection not found" };
+
+        var provider = GetProvider(connection.Type);
+        var connectionString = provider.UpdateConnectionString(connection.ConnectionString, query.DatabaseName);
+
+        try 
         {
             query.IsExecuting = true;
-            OnConnectionStateChanged();
-
-            var connection = Connections.FirstOrDefault(x => x.Id == query.ConnectionId);
-            if (connection == null)
-            {
-                throw new Exception("Selected connection not found");
-            }
-
-            var provider = GetProvider(connection.Type);
-            var connectionString = provider.UpdateConnectionString(connection.ConnectionString, query.DatabaseName);
             
+            // Handle query plans first
             if (query.IncludeEstimatedPlan)
             {
                 query.EstimatedPlan = await provider.GetEstimatedPlanAsync(connectionString, query.Query);
@@ -126,46 +118,49 @@ public class ConnectionState
             if (query.IncludeActualPlan)
             {
                 query.ActualPlan = await provider.GetActualPlanAsync(connectionString, query.Query);
-                var plan = new QueryResult { Error = "Query not executed - actual plan requested" };
+                var qr = new QueryResult { Error = "Query not executed - actual plan requested" };
                 query.IsExecuting = false;
-                OnConnectionStateChanged();
-
-                await _messageBus.PublishAsync(new QueryExecuted(query.Clone()));
-                return plan;
+                await _messageBus.PublishAsync(new QueryExecuted(query));
+                return qr;
             }
 
-            var result = await provider.ExecuteQueryAsync(connectionString, query.Query, cancellationToken);
+            if (query.UseTransaction)
+            {
+                await _messageBus.PublishAsync(new StartTransaction(query));
+            }
             
-            query.Result = result;
-            
-            query.IsExecuting = false;
-            OnConnectionStateChanged();
+            var result = query.Transaction?.Status == TransactionStatus.Active
+                ? await provider.ExecuteInTransactionAsync(
+                    connectionString,
+                    query.Query,
+                    query.Transaction.Value.Id,
+                    cancellationToken)
+                : await provider.ExecuteQueryAsync(
+                    connectionString,
+                    query.Query,
+                    cancellationToken);
 
-            await _messageBus.PublishAsync(new QueryExecuted(query.Clone()));
+            query.Result = result;
+            query.IsExecuting = false;
+            
+            await _messageBus.PublishAsync(new QueryExecuted(query));
             return result;
         }
         catch (OperationCanceledException)
         {
             query.IsExecuting = false;
-            OnConnectionStateChanged();
-            var result = new QueryResult { Error = "Query cancelled", Cancelled = true};
-
+            var result = new QueryResult { Error = "Query cancelled", Cancelled = true };
             query.Result = result;
-            
-            await _messageBus.PublishAsync(new QueryExecuted(query.Clone()));
-
+            await _messageBus.PublishAsync(new QueryExecuted(query));
             return result;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Error executing query");
+            query.Result = new QueryResult { Error = ex.Message };
             query.IsExecuting = false;
-            OnConnectionStateChanged();
-            
-            var result = new QueryResult { Error = ex.Message };
-            query.Result = result;
-            
-            await _messageBus.PublishAsync(new QueryExecuted(query.Clone()));
-            return result;
+            await _messageBus.PublishAsync(new QueryExecuted(query));
+            return query.Result;
         }
     }
 

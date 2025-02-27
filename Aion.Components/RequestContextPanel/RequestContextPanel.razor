@@ -1,6 +1,9 @@
 @using System.Reflection
 @using System.Text.Json
 @using System.Text.Json.Nodes
+@using Aion.Components.Connections.Commands
+@using Aion.Components.Infrastructure.MessageBus
+@using Aion.Components.Querying
 @using Aion.Components.Theme
 @using Aion.Components.Shared
 @using Aion.Components.Shared.Dialogs
@@ -17,6 +20,20 @@
             </MudTooltip>
         </MudPaper>
     </MudStack>
+    
+    <MudStack Row="true" Justify="Justify.Center">
+        <MudLink Color="@(_openTab.Equals("Info") ? Color.Primary : Color.Default)" OnClick="@(async () => await Open("Info"))">Info</MudLink>
+        @if (!string.IsNullOrWhiteSpace(_code))
+        {
+            <MudLink Color="@(_openTab.Equals(JsonView) ? Color.Primary : Color.Default)" OnClick="@(async () => await Open(JsonView))">Json</MudLink>
+        }
+        
+        @if (QueryState?.Active?.Transaction.HasValue ?? false)
+        {
+            <MudLink Color="@(_openTab.Equals("Transactions") ? Color.Primary : Color.Default)" OnClick="@(async () => await Open("Transactions"))">Transactions</MudLink>
+        }
+
+    </MudStack>
   
     @if (string.IsNullOrWhiteSpace(_openTab))
     {
@@ -27,26 +44,36 @@
     
     @if (_openTab.Equals("Info", StringComparison.OrdinalIgnoreCase))
     {
-        <MudStack>
-            <MudText>Select an active connection to query your data</MudText>
-        </MudStack>
+        @if(QueryState.Active.Result == null)
+        {
+            <MudStack>
+                <MudText>Select an active connection to query your data</MudText>
+            </MudStack>
+            }
+        else
+        {
+            <MudText>@QueryState.Active.Result.ExecutedAt</MudText>
+        }
     }
     
     @if (_openTab.Equals(JsonView))
     {
-        <MudStack AlignItems="AlignItems.Center" Row="true" Spacing="1" Class="px-4">
-            <MudText>Column</MudText>
-            <MudText Typo="Typo.caption" Class="mud-text-secondary">@_columnName</MudText>
-            <MudSpacer />
+        <MudStack AlignItems="AlignItems.Center" Row="true" Spacing="3" Class="px-4">
+            
+            <MudStack Spacing="0">
+                <MudText Typo="Typo.caption">Column</MudText>
+                <MudText Class="mud-text-secondary">@_columnName</MudText>
+            </MudStack>
+            <MudSpacer/>
             <MudToggleGroup Value="_jsonViewerSelection" ValueChanged="((s) => { _jsonViewerSelection = s; StateHasChanged(); })" T="string" Outlined="true" Color="Color.Primary" Delimiters="true" Size="Size.Small">
-                <MudToggleItem T="string" Value="@("raw")">
-                    <TooltipIcon Text="JSON (Raw)" Icon="@AionIcons.RawJson" />
-                </MudToggleItem>
                 <MudToggleItem T="string" Value="@("pretty")">
                     <TooltipIcon Text="JSON (Pretty)" Icon="@AionIcons.PrettyJson" />
                 </MudToggleItem>
+                <MudToggleItem T="string" Value="@("raw")">
+                    <TooltipIcon Text="JSON (Raw)" Icon="@AionIcons.RawJson" />
+                </MudToggleItem>
             </MudToggleGroup>
-            <AionIconButton Class="mr-4" Tooltip="Expand" OnClick="OpenJsonViewerDialog" Icon="@AionIcons.ExpandContent"  />
+            <AionIconButton Class="mr-4" Tooltip="Expand" OnClick="OpenJsonViewerDialog" Icon="@AionIcons.ExpandContent"/>
         </MudStack>
         <MudStack Class="pa-2 h-100 w-100">
             @if (_jsonViewerSelection.Equals("Raw", StringComparison.OrdinalIgnoreCase))
@@ -63,6 +90,26 @@
             }
         </MudStack>
     }
+    
+    @if (_openTab.Equals("Transactions") && QueryState.Active.Transaction.HasValue)
+    {
+        <MudStack Class="pa-2 mr-4">
+            <KeyValueListItem Key="Id" Value="@QueryState.Active.Transaction.Value.Id" />
+            <KeyValueListItem Key="Status" Value="@QueryState.Active.Transaction.Value.Status.ToString()" />
+            <KeyValueListItem Key="Start" Value="@QueryState.Active.Transaction.Value.StartTime.ToLocalTime().ToString("G")" />
+
+            <MudDivider Class="pb-4 mt-4" DividerType="DividerType.Middle"/>
+
+            <MudStack Row="true" Class="w-100">
+                <MudButton E Variant="Variant.Filled" Class="rounded-xl flex-grow-1" Color="Color.Error" OnClick="@(async () => await MessageBus.PublishAsync(new RollbackTransaction(QueryState.Active)))">Rollback</MudButton>
+                <MudButton Variant="Variant.Filled" Class="rounded-xl flex-grow-1" Color="Color.Success" OnClick="@(async () => await MessageBus.PublishAsync(new CommitTransaction(QueryState.Active)))">Commit</MudButton>
+            </MudStack>
+            </MudStack>
+    }
+    else if (_openTab.Equals("Transactions"))
+    {
+        <MudText>No Active Transaction</MudText>
+    }
 
 </MudStack>
 @code {
@@ -70,6 +117,10 @@
     GlobalAppState AppState { get; set; }
 
     [Inject] protected IDialogService DialogService { get; set; } = default!;
+
+    [Inject] protected QueryState QueryState { get; set; } = default!;
+
+    [Inject] protected IMessageBus MessageBus { get; set; } = default!;
 
     [Parameter]
     public EventCallback PanelClosed { get; set; } = default!;
@@ -91,13 +142,18 @@
 
     private string _columnName = "";
 
-    private string _jsonViewerSelection = "raw";
+    private string _jsonViewerSelection = "pretty";
+
+    protected override void OnInitialized()
+    {
+        QueryState.StateChanged += StateHasChanged;
+    }
 
     public async Task Open(string tab, string? args = default)
     {
         _openTab = tab;
 
-        if (tab.Equals(JsonView))
+        if (tab.Equals(JsonView) && !string.IsNullOrWhiteSpace(args))
         {
             _code = JsonSerializer.Serialize(JsonSerializer.Deserialize<dynamic>(args), new JsonSerializerOptions() { WriteIndented = true });
         }
@@ -105,7 +161,7 @@
         StateHasChanged();
     }
 
-    public async Task OpenJsonDetailView(QueryResponseJsonDetail columnDetail)
+    public Task OpenJsonDetailView(QueryResponseJsonDetail columnDetail)
     {
         _openTab = JsonView;
 
@@ -119,6 +175,7 @@
             _tree.ReInitialize();
     
         StateHasChanged();
+        return Task.CompletedTask;
     }
 
     protected async Task OpenJsonViewerDialog()
@@ -136,6 +193,7 @@
 
     public void Dispose()
     {
+        QueryState.StateChanged -= StateHasChanged;
         _openTab = "";
         _queryName = "";
         _columnName = "";
