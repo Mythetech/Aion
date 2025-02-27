@@ -1,7 +1,9 @@
 ﻿using Aion.Components;
 using Aion.Components.Infrastructure.MessageBus;
+using Aion.Components.Querying;
 using Microsoft.Extensions.DependencyInjection;
 using Photino.Blazor;
+using Aion.Desktop.Services;
 
 namespace Aion.Desktop
 {
@@ -24,6 +26,7 @@ namespace Aion.Desktop
             appBuilder.Services.AddAionComponents<ConnectionService>();
             
             appBuilder.Services.AddSingleton<IConnectionStorage, FileConnectionStorage>();
+            appBuilder.Services.AddSingleton<IQuerySaveService, FileQuerySaveService>();
 
             var app = appBuilder.Build();
             

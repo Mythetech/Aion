@@ -1,5 +1,6 @@
 using Aion.Components.Connections;
 using Aion.Components.Infrastructure.MessageBus;
+using Aion.Components.Querying.Commands;
 using Aion.Core.Connections;
 using Aion.Core.Queries;
 using Aion.Components.Querying.Events;
@@ -9,20 +10,34 @@ namespace Aion.Components.Querying;
 public class QueryState
 {
     private readonly IMessageBus _messageBus;
+    private readonly IQuerySaveService _saveService;
 
     public event Action? StateChanged;
  
     protected void OnStateChanged() => StateChanged?.Invoke();
     
 
-    public List<QueryModel> Queries { get; } = [new() {Name = "Query1", Query = "Select * From \" \""}];
+    public List<QueryModel> Queries { get; private set; } = [new() {Name = "Query1", Query = "Select * From \" \""}];
     
     public QueryModel? Active { get; private set; }
 
-    public QueryState(IMessageBus messageBus)
+    public QueryState(IMessageBus messageBus, IQuerySaveService saveService)
     {
         _messageBus = messageBus;
+        _saveService = saveService;
         SetActive(Queries.First());
+    }
+
+    public async Task InitializeAsync()
+    {
+        var queries = await _saveService.LoadQueriesAsync();
+        if (queries?.Count() >= 1)
+        {
+            Queries = [..queries];
+            SetActive(Queries.First());
+        }
+        
+        OnStateChanged();
     }
 
     public QueryModel AddQuery(string? name = "Untitled")
@@ -39,8 +54,10 @@ public class QueryState
         return query;
     }
 
-    public void Remove(QueryModel query)
+    public async Task Remove(QueryModel query)
     {
+        await _messageBus.PublishAsync(new DeleteQuery(query));
+        
         Queries.RemoveAll(x => x.Id == query.Id);
         if (Active == null || Active?.Id == query.Id)
         {
