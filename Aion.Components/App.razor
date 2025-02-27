@@ -1,4 +1,5 @@
 @using Aion.Components.Connections
+@using Aion.Components.Querying
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -25,9 +26,12 @@
     [Inject]
     protected ConnectionState ConnectionState { get; set; }
 
+    [Inject] protected QueryState QueryState { get; set; } = default!;
+
     protected override async Task OnInitializedAsync()
     {
         await ConnectionState.InitializeAsync();
+        await QueryState.InitializeAsync();
         await base.OnInitializedAsync();
     }
 

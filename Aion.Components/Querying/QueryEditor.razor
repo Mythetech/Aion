@@ -210,7 +210,7 @@
     {
         bool wasActive = query.Id == State.Active.Id;
         
-        State.Remove(query);
+        await State.Remove(query);
 
         if (wasActive)
         {
@@ -231,10 +231,12 @@
 
     private async Task RunQuery()
     {
+        var query = State.Active ?? State.Queries.First();
+        
+        await Bus.PublishAsync(new SaveQuery(query));
+        
         if (!CanExecuteQuery) return;
         
-        var query = State.Active ?? State.Queries.First();
-
         if (query.IsExecuting || query.Transaction?.Status == TransactionStatus.Active)
         {
             await Bus.PublishAsync(new RollbackTransaction(query));

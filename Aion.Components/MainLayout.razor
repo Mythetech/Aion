@@ -24,8 +24,9 @@
                     <MudMenuItem Icon="@AionIcons.Connection">Connection</MudMenuItem>
                     <MudMenuItem Icon="@AionIcons.Query">Query</MudMenuItem>
                 </MudMenu>
-                <MudMenuItem Icon="@AionIcons.Save">Save Query</MudMenuItem>
-                <MudMenuItem Icon="@AionIcons.Save">Save Query as File</MudMenuItem>
+                <MudMenuItem Icon="@AionIcons.Save" OnClick="@(async () => await Bus.PublishAsync(new SaveQuery()))">Save Query</MudMenuItem>
+                <MudMenuItem Icon="@AionIcons.Save" OnClick="@(async () => await Bus.PublishAsync(new SaveAllQueries()))">Save All Queries</MudMenuItem>
+                <MudMenuItem Icon="@AionIcons.SaveAs">Save Query as File</MudMenuItem>
                 <MudMenu Label="Export">
                     <MudMenuItem Icon="@AionIcons.Json" OnClick="@(async () => await Bus.PublishAsync(new ExportResultsToJson()))">Export Results to Json</MudMenuItem>
                     <MudMenuItem Icon="@AionIcons.Csv" OnClick="@(async () => await Bus.PublishAsync(new ExportResultsToCsv()))">Export Results to Csv</MudMenuItem>
