@@ -31,28 +31,45 @@
                         </MudSelect>
 
                         <MudTextField @bind-Value="Model.Host"
-                                      Label="Server"
+                                      Label="@GetHostLabel()"
                                       Required="true"
-                                      RequiredError="Server is required"/>
+                                      RequiredError="Host is required"/>
+
+                        @if (Model.Type == DatabaseType.SQLServer)
+                        {
+                            <MudTextField @bind-Value="Model.Instance"
+                                        Label="Instance Name (optional)"
+                                        HelperText="Leave empty for default instance"/>
+                        }
 
                         <MudTextField @bind-Value="Model.Port"
+                                      Disabled="@(Model.Type == DatabaseType.SQLServer && !string.IsNullOrEmpty(Model.Instance))"
                                       Label="Port"
-                                      Required="false" 
-                                      Placeholder="@GetDefaultPort()"
+                                      Required="true"
                                       RequiredError="Port is required"/>
 
-                        <MudTextField @bind-Value="Model.Username"
-                                      Label="Username"
-                                      Required="true"
-                                      RequiredError="Username is required"/>
+                        @if (Model.Type == DatabaseType.SQLServer)
+                        {
+                            <MudSwitch T="bool" @bind-Checked="Model.UseWindowsAuth"
+                                      Color="Color.Primary"
+                                      Label="Use Windows Authentication"/>
+                        }
 
-                        <MudTextField @bind-Value="Model.Password"
-                                      Label="Password"
-                                      Required="true"
-                                      InputType="InputType.Password"
-                                      RequiredError="Password is required"/>
+                        @if (!Model.UseWindowsAuth)
+                        {
+                            <MudTextField @bind-Value="Model.Username"
+                                        Label="Username"
+                                        Required="true"
+                                        RequiredError="Username is required"/>
 
+                            <MudTextField @bind-Value="Model.Password"
+                                        Label="Password"
+                                        InputType="InputType.Password"/>
+                        }
 
+                        <MudSwitch T="bool" @bind-Checked="Model.SaveCredentials"
+                                  Color="Color.Primary"
+                                  Label="Save Credentials"/>
                     </MudStack>
                 </MudForm>
             </MudTabPanel>
@@ -67,10 +84,6 @@
         </MudTabs>
 
         <div class="form-group">
-            <MudStack Row="true" Spacing="0" AlignItems="AlignItems.Center">
-                <MudCheckBox T="bool" @bind-Value="Model.SaveCredentials"/>
-                <MudText>Remember this connection</MudText>
-            </MudStack>
             @if (Model.SaveCredentials)
             {
                 <MudAlert Severity="Severity.Warning">
@@ -105,6 +118,12 @@
         var provider = ProviderFactory.GetProvider(Model.Type);
         return provider.GetDefaultPort().ToString();
     }
+    
+    private string GetHostLabel() => Model.Type switch
+    {
+        DatabaseType.SQLServer => "Server",
+        _ => "Host"
+    };
     
     private async Task Submit()
     {
@@ -145,11 +164,23 @@
         return Model.Type switch
         {
             DatabaseType.PostgreSQL => $"Host={Model.Host};Port={Model.Port};Username={Model.Username};Password={Model.Password}",
-            DatabaseType.SQLServer => $"Server={Model.Host},{Model.Port};User Id={Model.Username};Password={Model.Password}",
+            DatabaseType.SQLServer => BuildSqlServerConnectionString(),
             DatabaseType.MySQL => $"Server={Model.Host};Port={Model.Port};User={Model.Username};Password={Model.Password}",
             DatabaseType.SQLite => $"Data Source={Model.Host}",
             _ => throw new ArgumentOutOfRangeException()
         };
+    }
+    
+    private string BuildSqlServerConnectionString()
+    {
+        var server = Model.Instance != null 
+            ? $"{Model.Host}\\{Model.Instance}"
+            : $"{Model.Host},{Model.Port}";
+
+        if (Model.UseWindowsAuth)
+            return $"Server={server};Integrated Security=true";
+
+        return $"Server={server};User Id={Model.Username};Password={Model.Password}";
     }
     
     protected override void OnInitialized()

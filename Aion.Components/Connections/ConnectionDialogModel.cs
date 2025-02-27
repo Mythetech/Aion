@@ -11,6 +11,7 @@ public class ConnectionDialogModel
     public string Username { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
     public string ConnectionString { get; set; } = string.Empty;
-    
+    public string? Instance { get; set; }
+    public bool UseWindowsAuth { get; set; }
     public bool SaveCredentials { get; set; }
 } 

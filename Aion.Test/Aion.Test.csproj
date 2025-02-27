@@ -35,6 +35,7 @@
     <ItemGroup>
       <ProjectReference Include="..\Aion.Components\Aion.Components.csproj" />
       <ProjectReference Include="..\Aion.Core\Aion.Core.csproj" />
+      <ProjectReference Include="..\Aion.Desktop\Aion.Desktop.csproj" />
     </ItemGroup>
 
 </Project>

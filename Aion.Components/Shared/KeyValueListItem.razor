@@ -1,0 +1,13 @@
+<MudStack Row="true" Class="w-100">
+    <MudText Class="mud-text-secondary">
+        @Key
+    </MudText>
+    <MudText>
+        @Value
+    </MudText>
+</MudStack>
+@code {
+    [Parameter] public string Key { get; set; } = default!;
+
+    [Parameter] public string Value { get; set; } = default!;
+}

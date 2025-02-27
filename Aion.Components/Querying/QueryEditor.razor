@@ -1,4 +1,5 @@
 @using Aion.Components.Connections
+@using Aion.Components.Connections.Commands
 @using Aion.Components.Infrastructure.MessageBus
 @using Aion.Components.Querying.Commands
 @using BlazorMonaco.Editor
@@ -78,7 +79,7 @@
             </MudChip>
         </MudTooltip>
 
-        <MudTooltip Text="@($"Actual Query Plan ({(State.Active.IncludeEstimatedPlan ? "On" : "Off")})")">
+        <MudTooltip Text="@($"Actual Query Plan ({(State.Active.IncludeActualPlan ? "On" : "Off")})")">
             <MudChip T="string"
                      Icon="@AionIcons.ActualQueryPlan"
                      Variant="@(State.Active.IncludeActualPlan ? Variant.Text : Variant.Outlined)"
@@ -93,7 +94,7 @@
         <RunQueryButton Text="Run"
                         OnClick="RunQuery"
                         Disabled="@(!CanExecuteQuery)"
-                        IsExecuting="@(State.Active?.IsExecuting ?? false)"/>
+                        IsExecuting="@((State.Active?.IsExecuting ?? false) || HasActiveTransaction())"/>
     </MudStack>
 
 
@@ -108,6 +109,15 @@
     [Inject] protected QueryState State { get; set; } = default!;
     [Inject] protected ConnectionState Connections { get; set; } = default!;
     [Inject] protected IMessageBus Bus { get; set; } = default!;
+
+    protected bool HasActiveTransaction()
+    {
+        var query = State.Active;
+
+        if (query?.Transaction == null) return false;
+
+        return query.Transaction.Value.Status == TransactionStatus.Active;
+    }
     
     private ConnectionModel? SelectedConnection => State.Active?.ConnectionId != null 
         ? Connections.Connections.FirstOrDefault(c => c.Id == State.Active.ConnectionId)
@@ -225,9 +235,10 @@
         
         var query = State.Active ?? State.Queries.First();
 
-        if (query.IsExecuting)
+        if (query.IsExecuting || query.Transaction?.Status == TransactionStatus.Active)
         {
-            _queryTokenSource?.Cancel();
+            await Bus.PublishAsync(new RollbackTransaction(query));
+            await _queryTokenSource?.CancelAsync();
             return;
         }
         
