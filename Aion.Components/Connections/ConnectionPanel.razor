@@ -16,8 +16,8 @@
 
 @implements IDisposable
 
-<MudStack Row="true" AlignItems="AlignItems.Center">
-    <h3>@Connection.Name</h3>
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="w-100" Spacing="0">
+    <h3 class="text-truncate">@Connection.Name</h3>
     <MudSpacer />
     @if (Connection.Active)
     {

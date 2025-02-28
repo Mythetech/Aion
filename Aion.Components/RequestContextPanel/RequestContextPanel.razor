@@ -8,11 +8,12 @@
 @using Aion.Components.Shared
 @using Aion.Components.Shared.Dialogs
 @using Aion.Components.Shared.JsonTreeView
+@using Aion.Core.Extensions
 @implements IDisposable
 <MudStack Class="h-100 w-100">
     <MudStack Row="true" Class="w-100 pa-1" AlignItems="AlignItems.Center">
         <MudPaper Elevation="0" Square="true" Width="calc(100% - 3.5rem)" Class="flex-shrink-1 px-1">
-            <MudText Typo="Typo.h6">@_queryName</MudText>
+            <MudText Class="text-truncate" Typo="Typo.h6">@_queryName</MudText>
         </MudPaper>
         <MudPaper Elevation="0" Square="true" Width="3.5rem">
             <MudTooltip Text="Close">

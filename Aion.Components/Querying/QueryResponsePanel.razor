@@ -21,32 +21,36 @@
                 <AionIconButton Icon="@AionIcons.Csv"  Tooltip="Export to Csv" OnClick="async () => await Bus.PublishAsync(new ExportResultsToCsv(queryResult))" />
                 <AionIconButton Icon="@AionIcons.Spreadsheet" Tooltip="Export to Excel" OnClick="async () => await Bus.PublishAsync(new ExportResultsToExcel(queryResult))"/>
             </MudStack>
-            <MudTable Class="flex-grow-1" Items="State.Active.Result.Rows" Dense="true" Hover="true">
-                <HeaderContent>
+
+            <MudDataGrid T="Dictionary<string, object>" 
+                        Items="@State.Active.Result.Rows"
+                        Dense="true"
+                        Hover="true"
+                        Filterable="true"
+                        ColumnResizeMode="ResizeMode.Container"
+                        Class="flex-grow-1">
+                <Columns>
                     @foreach (var col in State.Active.Result.Columns)
                     {
-                        <MudTh>@col</MudTh>
+                        <TemplateColumn T="Dictionary<string, object>" Title="@col" Resizable="true">
+                            <CellTemplate>
+                                @{
+                                    var value = context.Item.GetValueOrDefault(col);
+                                }
+                                @if (value != null && value.ToString().StartsWith('{') && value.ToString().EndsWith('}'))
+                                {
+                                    <MudLink Class=" overflow-x-auto d-flex" OnClick="@(async () => await OpenJsonDetailView(State.Active.Name, col, value.ToString()))">@value</MudLink>
+                                }
+                                else
+                                {
+                                    <MudText Class=" overflow-x-auto d-flex">@value</MudText>
+                                }
+                            </CellTemplate>
+                        </TemplateColumn>
                     }
-                </HeaderContent>
-                <RowTemplate>
-                    @foreach (var row in State.Active.Result.Rows.First().Keys)
-                    {
-                        <MudTd Style="text-wrap:nowrap;" DataLabel="@row">
-                            @{
-                                var value = context.GetValueOrDefault(row);
-                            }
-                            @if (value != null && value.ToString().StartsWith('{') && value.ToString().EndsWith('}'))
-                            {
-                                <MudLink OnClick="@(async () => await OpenJsonDetailView(State.Active.Name, row, value.ToString()))">@value</MudLink>
-                            }
-                            else
-                            {
-                                @value
-                            }
-                        </MudTd>
-                    }
-                </RowTemplate>
-            </MudTable>
+                </Columns>
+            </MudDataGrid>
+
         </MudStack>
         </MudTabPanel>
         <MudTabPanel Text="Messages">
