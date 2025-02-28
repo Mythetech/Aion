@@ -44,6 +44,15 @@ public class QueryState
         OnStateChanged();
         _initializing = false;
     }
+    
+    private QueryModel AddQueryInternal(QueryModel query)
+    {
+        Queries.Add(query);
+        SetActive(query);
+        OnStateChanged();
+
+        return query;
+    }
 
     public QueryModel AddQuery(string? name = "Untitled")
     {
@@ -52,11 +61,14 @@ public class QueryState
             Name = name,
         };
         
-        Queries.Add(query);
-        SetActive(query);
-        OnStateChanged();
+        return AddQueryInternal(query);
+    }
 
-        return query;
+    public QueryModel Clone(QueryModel query)
+    {
+        var clone = query.Clone(true);
+        
+        return AddQueryInternal(clone);
     }
 
     public async Task Remove(QueryModel query)

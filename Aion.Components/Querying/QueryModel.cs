@@ -19,11 +19,11 @@ public class QueryModel
     public bool UseTransaction { get; set; }
     public TransactionInfo? Transaction { get; set; }
 
-    public QueryModel Clone()
+    public QueryModel Clone(bool newId = false)
     {
         return new QueryModel
         {
-            Id = Id,
+            Id = newId ? Guid.NewGuid() : Id,
             Name = Name,
             Query = Query,
             Result = Result?.Clone(),

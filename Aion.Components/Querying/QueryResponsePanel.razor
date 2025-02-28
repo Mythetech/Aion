@@ -6,77 +6,91 @@
 @using Aion.Components.Shared
 @using Aion.Components.Theme
 @using Aion.Core.Queries
+@using DocumentFormat.OpenXml.Wordprocessing
 @implements IDisposable
 
 @if (State?.Active?.Result != null)
 {
     QueryResult queryResult = State.Active.Result;
-    <MudStack Style="max-height: 95%;">
-    <MudTabs Class="py-2 px-1" MinimumTabWidth="140px">
-    <MudTabPanel Text="Results">
-        <MudStack Class="h-100 w-100">
-            <MudStack Row="true">
-                <MudSpacer />
-                <AionIconButton Icon="@AionIcons.Json" Tooltip="Export to Json" OnClick="async () => await Bus.PublishAsync(new ExportResultsToJson(queryResult))" />
-                <AionIconButton Icon="@AionIcons.Csv"  Tooltip="Export to Csv" OnClick="async () => await Bus.PublishAsync(new ExportResultsToCsv(queryResult))" />
-                <AionIconButton Icon="@AionIcons.Spreadsheet" Tooltip="Export to Excel" OnClick="async () => await Bus.PublishAsync(new ExportResultsToExcel(queryResult))"/>
-            </MudStack>
-
-            <MudDataGrid T="Dictionary<string, object>" 
-                        Items="@State.Active.Result.Rows"
-                        Dense="true"
-                        Hover="true"
-                        Filterable="true"
-                        ColumnResizeMode="ResizeMode.Container"
-                        Class="flex-grow-1">
-                <Columns>
-                    @foreach (var col in State.Active.Result.Columns)
-                    {
-                        <TemplateColumn T="Dictionary<string, object>" Title="@col" Resizable="true">
-                            <CellTemplate>
-                                @{
-                                    var value = context.Item.GetValueOrDefault(col);
-                                }
-                                @if (value != null && value.ToString().StartsWith('{') && value.ToString().EndsWith('}'))
-                                {
-                                    <MudLink Class=" overflow-x-auto d-flex" OnClick="@(async () => await OpenJsonDetailView(State.Active.Name, col, value.ToString()))">@value</MudLink>
-                                }
-                                else
-                                {
-                                    <MudText Class=" overflow-x-auto d-flex">@value</MudText>
-                                }
-                            </CellTemplate>
-                        </TemplateColumn>
-                    }
-                </Columns>
-            </MudDataGrid>
-
+    <MudStack Class="pa-4 h-100 w-100">
+        <MudStack Row="true" Class="w-100">
+            <MudTabs Class="py-2 px-1" MinimumTabWidth="140px" >
+                <MudTabPanel Text="Results" OnClick="() => _activeTab = Results" />
+                <MudTabPanel Text="Messages" OnClick="() => _activeTab = Messages" />
+                @if (State.Active.EstimatedPlan != null)
+                {
+                    <MudTabPanel Text="Estimated Plan" OnClick="() => _activeTab = EstimatedPlan" />
+                    
+                }
+                @if (State.Active.ActualPlan != null)
+                {
+                    <MudTabPanel Text="Actual Plan" OnClick="() => _activeTab = ActualPlan" />
+                }
+            </MudTabs>
+            <MudSpacer />
+            <AionIconButton Icon="@AionIcons.Json" Tooltip="Export to Json" OnClick="async () => await Bus.PublishAsync(new ExportResultsToJson(queryResult))"/>
+            <AionIconButton Icon="@AionIcons.Csv" Tooltip="Export to Csv" OnClick="async () => await Bus.PublishAsync(new ExportResultsToCsv(queryResult))"/>
+            <AionIconButton Icon="@AionIcons.Spreadsheet" Tooltip="Export to Excel" OnClick="async () => await Bus.PublishAsync(new ExportResultsToExcel(queryResult))"/>
         </MudStack>
-        </MudTabPanel>
-        <MudTabPanel Text="Messages">
+        @if (_activeTab == Results)
+        {
+            <MudStack Class="h-100 w-100 overflow-auto flex-shrink-1">
+                <MudDataGrid T="Dictionary<string, object>"
+                             Items="@State.Active.Result.Rows"
+                             Dense="true"
+                             Hover="true"
+                             Filterable="true"
+                             ColumnResizeMode="ResizeMode.Container">
+                    <Columns>
+                        @foreach (var col in State.Active.Result.Columns)
+                        {
+                            <TemplateColumn T="Dictionary<string, object>" Title="@col" Resizable="true">
+                                <CellTemplate>
+                                    @{
+                                        var value = context.Item.GetValueOrDefault(col);
+                                    }
+                                    @if (value != null && value.ToString().StartsWith('{') && value.ToString().EndsWith('}'))
+                                    {
+                                        <MudLink Class=" overflow-x-auto d-flex" OnClick="@(async () => await OpenJsonDetailView(State.Active.Name, col, value.ToString()))">@value</MudLink>
+                                    }
+                                    else
+                                    {
+                                        <MudText Class=" overflow-x-auto d-flex">@value</MudText>
+                                    }
+                                </CellTemplate>
+                            </TemplateColumn>
+                        }
+                    </Columns>
+                </MudDataGrid>
+            </MudStack>
+        }
+        else if (_activeTab == Messages)
+        {
             <MudText>@State.Active.Result.Error</MudText>
-        </MudTabPanel>
-        @if (State.Active.EstimatedPlan != null)
-        {
-            <MudTabPanel Text="Estimated Plan">
-               @State.Active.EstimatedPlan.PlanContent
-            </MudTabPanel>
         }
-        @if (State.Active.ActualPlan != null)
+        else if (_activeTab == EstimatedPlan)
         {
-        <MudTabPanel Text="Actual Plan">
+            @State.Active.EstimatedPlan.PlanContent
+        }
+        else if (_activeTab == ActualPlan)
+        {
             @State.Active.ActualPlan.PlanContent
-        </MudTabPanel>
         }
-    </MudTabs>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary ml-4">@(State?.Active?.Result?.RowCount ?? 0) Results</MudText>
     </MudStack>
-    <MudText Typo="Typo.caption" Class="mud-text-secondary ml-4">@(State?.Active?.Result?.RowCount ?? 0) Results</MudText>
 }
 
 @code {
     [Inject] protected QueryState State { get; set; } = default!;
 
     [Inject] protected IMessageBus Bus { get; set; } = default!;
+
+    private const string Results = "results";
+    private string Messages => "messages";
+    private string EstimatedPlan => "estimated";
+    private string ActualPlan => "actual";
+
+    private string _activeTab = Results;
 
     protected override void OnInitialized()
     {
