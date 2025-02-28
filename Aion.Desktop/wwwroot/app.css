@@ -257,3 +257,17 @@ html {
 .appbar-narrow-height {
     max-height: calc(var(--mud-appbar-height) - 4px);
 }
+
+.text-nowrap {
+    text-wrap: nowrap;
+}
+
+.text-truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.context-panel-width {
+    max-width: calc(var(--mud-drawer-width-left) - 5em);
+}

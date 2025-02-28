@@ -5,6 +5,7 @@
 @using Aion.Components.Shared
 @using Aion.Core.Connections
 @using Microsoft.AspNetCore.Components.Forms
+@using Aion.Components.Shared.Switch
 
 <MudDialog Class="aion-transparent-dialog">
     <DialogContent>
@@ -66,52 +67,61 @@
                                         Label="Password"
                                         InputType="InputType.Password"/>
                         }
+                        <AionSwitch T="bool" @bind-Value="Model.SaveCredentials"
+                                    Color="Color.Primary"
+                                    Label="Save Credentials"/>
 
-                        <MudSwitch T="bool" @bind-Checked="Model.SaveCredentials"
-                                  Color="Color.Primary"
-                                  Label="Save Credentials"/>
                     </MudStack>
                 </MudForm>
             </MudTabPanel>
 
             <MudTabPanel Text="Connection String">
-                <MudTextField @bind-Value="Model.ConnectionString"
-                              Label="Connection String"
-                              Lines="3"
-                              Required="true"
-                              RequiredError="Connection string is required"/>
+                <MudStack>
+                    <MudTextField @bind-Value="Model.Name"
+                                Label="Connection Name"/>
+                                
+                    <MudTextField @bind-Value="Model.ConnectionString"
+                                  Label="Connection String"
+                                  Lines="3"
+                                  Required="true"
+                                  RequiredError="Connection string is required"/>
+
+                    <AionSwitch T="bool" @bind-Value="Model.SaveCredentials"
+                                Color="Color.Primary"
+                                Label="Save Credentials"/>
+
+                </MudStack>
             </MudTabPanel>
         </MudTabs>
-
-        <div class="form-group">
-            @if (Model.SaveCredentials)
-            {
-                <MudAlert Severity="Severity.Warning">
-                    <small>
-                        Warning: Credentials will be stored unencrypted.
-                        This is intended for local development connections only.
-                    </small>
-                </MudAlert>
-            }
-        </div>
+        
+        @if (Model.SaveCredentials)
+        {
+        <MudAlert Severity="Severity.Warning">
+            <small>
+                Warning: Credentials will be stored unencrypted.
+                This is intended for local development connections only.
+            </small>
+        </MudAlert>
+        }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <PrimaryActionButton OnClick="Submit" Text="Connect" />
+        <MudButton OnClick="Cancel" Disabled="@_isConnecting">Cancel</MudButton>
+        <PrimaryActionButton OnClick="Submit" 
+                             Text="Connect"
+                             Loading="@_isConnecting"
+                             LoadingText="Connecting"/>
     </DialogActions>
 </MudDialog>
 
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
     [Inject] private IDatabaseProviderFactory ProviderFactory { get; set; } = default!;
+    [Inject] private ConnectionState ConnectionState { get; set; } = default!;
     
     private MudForm? _form;
-    
     private ConnectionDialogModel Model { get; set; } = new();
-    
     private string? ValidationError { get; set; }
-    
-    [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
+    private bool _isConnecting;
     
     private string GetDefaultPort()
     {
@@ -132,24 +142,42 @@
             await _form.Validate();
             if (_form.IsValid)
             {
-                var connectionString = BuildConnectionString();
-                var provider = ProviderFactory.GetProvider(Model.Type);
-                
-                if (!provider.ValidateConnectionString(connectionString, out var error))
+                try 
                 {
-                    ValidationError = error;
-                    return;
-                }
+                    _isConnecting = true;
+                    StateHasChanged();
 
-                string name = Model.Name ?? connectionString.Split(";")[0].Split("=")[1];
-                MudDialog.Close(DialogResult.Ok(new ConnectionModel
+                    var connectionString = BuildConnectionString();
+                    var provider = ProviderFactory.GetProvider(Model.Type);
+                
+                    if (!provider.ValidateConnectionString(connectionString, out var error))
+                    {
+                        ValidationError = error;
+                        return;
+                    }
+
+                    string name = Model.Name ?? connectionString.Split(";")[0].Split("=")[1];
+                    var connection = new ConnectionModel
+                    {
+                        Name = name,
+                        ConnectionString = connectionString,
+                        Type = Model.Type,
+                        Active = false,
+                        SaveCredentials = Model.SaveCredentials
+                    };
+
+                    await ConnectionState.ConnectAsync(connection);
+                    MudDialog.Close(DialogResult.Ok(connection));
+                }
+                catch (Exception ex)
                 {
-                    Name = name,
-                    ConnectionString = connectionString,
-                    Type = Model.Type,
-                    Active = false,
-                    SaveCredentials = Model.SaveCredentials
-                }));
+                    ValidationError = ex.Message;
+                }
+                finally
+                {
+                    _isConnecting = false;
+                    StateHasChanged();
+                }
             }
         }
     }

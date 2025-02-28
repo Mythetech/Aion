@@ -1,12 +1,21 @@
-using System;
-using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+
+namespace Aion.Core.Extensions;
 
 public static class JsonExtensions
 {
     public static string ParseNestedJson(this string compressed)
-        => ParseNestedJson(JsonSerializer.Deserialize<Dictionary<string, string>>(compressed));
+    {
+        try
+        {
+            return ParseNestedJson(JsonSerializer.Deserialize<Dictionary<string, string>>(compressed));
+        }
+        catch
+        {
+            return compressed;
+        }
+    }
 
     public static string ParseNestedJson(Dictionary<string, string> dict)
     {
@@ -52,4 +61,4 @@ public static class JsonExtensions
 
         return jsonNode.ToJsonString();
     }
-} 
+}

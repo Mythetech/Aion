@@ -39,7 +39,7 @@
     {
     <MudStack Spacing="3" AlignItems="AlignItems.Center" Class="w-100" Style="max-width: 30px;">
         <AionIconButton Class="py-4" Size="Size.Small" Tooltip="Info Panel" Icon="@AionIcons.Info" OnClick="@(() => ToggleSidePanel("Info"))" />
-        @if (QueryState.Active.Transaction.HasValue)
+        @if (QueryState?.Active?.Transaction.HasValue ?? false)
         {
             <AionIconButton Tooltip="Transactions" Icon="@AionIcons.Transaction" OnClick="@(() => ToggleSidePanel("Transactions"))"></AionIconButton>
         }

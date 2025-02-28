@@ -21,15 +21,19 @@ public class QueryState
     
     public QueryModel? Active { get; private set; }
 
+    private bool _initializing = false;
+
     public QueryState(IMessageBus messageBus, IQuerySaveService saveService)
     {
         _messageBus = messageBus;
         _saveService = saveService;
-        SetActive(Queries.First());
     }
 
     public async Task InitializeAsync()
     {
+        if (_initializing) return;
+        
+        _initializing = true;
         var queries = await _saveService.LoadQueriesAsync();
         if (queries?.Count() >= 1)
         {
@@ -38,6 +42,7 @@ public class QueryState
         }
         
         OnStateChanged();
+        _initializing = false;
     }
 
     public QueryModel AddQuery(string? name = "Untitled")

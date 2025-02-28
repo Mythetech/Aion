@@ -60,13 +60,13 @@
 </MudStack>
 
 <MudStack Class="p-0 mud-width-full" Style="@($"{(!AppState.SideBarOpen ? "width:0px;" : "")}")">
-    <MudPaper Class="h-100 w-100" Style="@($"max-width:24vw;max-height:100dvh")" Square="true">
+    <MudPaper Class="h-100 w-100" Style="@($"max-width:calc(var(--mud-drawer-width-left) - 3.5rem);max-height:100dvh")" Square="true">
         <MudStack Spacing="3" Class="pa-4 w-100 h-100">
             @if (_activeItem != null)
             {
-                <MudStack Row="true" Class="w-100" Spacing="3" AlignItems="AlignItems.Center">
-                    <MudIcon Icon="@_activeItem.Icon" Color="Color.Primary" />
-                    <MudText Typo="Typo.h6">@_activeItem.Title</MudText>
+                <MudStack Row="true" Class="w-100 mr-4" Spacing="0" AlignItems="AlignItems.Center">
+                    <MudIcon Class="mr-2 mt-1" Icon="@_activeItem.Icon" Color="Color.Primary" />
+                    <MudText Class="text-truncate" Typo="Typo.h6">@_activeItem.Title</MudText>
                     <MudSpacer />
                     <AionIconButton Tooltip="Close" Icon="@AionIcons.Close" Variant="Variant.Text" OnClick="@CloseContextPanel" />
                 </MudStack>
@@ -205,15 +205,8 @@
     protected async Task AddConnection()
     {
         var options = AionDialogs.CreateDefaultOptions();
-
         var dialog = await DialogService.ShowAsync<ConnectionDialog>("New Connection", options);
-        var result = await dialog.Result;
-        
-        if (!result.Canceled)
-        {
-            var connection = (ConnectionModel)result.Data;
-            await ConnectionState.ConnectAsync(connection);
-        }
+        await dialog.Result;
     }
 
     public async Task Consume(ActivatePanel message)
