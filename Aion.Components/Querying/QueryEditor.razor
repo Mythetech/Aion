@@ -10,7 +10,7 @@
 @implements IDisposable
 @implements Aion.Components.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.FocusQuery>
 
-<MudStack>
+<MudStack Class="h-100">
     <MudStack Row="true" AlignItems="AlignItems.Center">
         <MudTabs Class="mud-width-full flex-grow-1" @bind-ActivePanelIndex="ActiveTabIndex" PanelClass="pa-1" MinimumTabWidth="auto">
             @foreach (var query in State.Queries)
@@ -18,10 +18,21 @@
                 <MudTabPanel OnClick="@(() => OnTabChanged(query))">
                     <TabContent>
                         <MudStack Row="true" AlignItems="AlignItems.Center">
-                            <MudText>
-                                @query.Name
-                            </MudText>
-                            <AionIconButton Size="Size.Small" Icon="@AionIcons.Close" Tooltip="Close" OnClick="@(async () => await CloseTab(query))" />
+                            <MudMenu ActivationEvent="MouseEvent.RightClick">
+                                <ActivatorContent>
+                                    <MudText>
+                                        @query.Name
+                                    </MudText>
+                                </ActivatorContent>
+                                <ChildContent>
+                                    <MudMenuItem OnClick="@(() => OnTabChanged(query))" Icon="@AionIcons.OpenFile">Open</MudMenuItem>
+                                    <MudMenuItem Icon="@AionIcons.Copy">Clone</MudMenuItem>
+                                    <MudMenuItem Icon="@AionIcons.Edit">Rename</MudMenuItem>
+                                    <MudMenuItem OnClick="@(async () => await CloseTab(query))" Icon="@AionIcons.Close">Close</MudMenuItem>
+
+                                </ChildContent>
+                            </MudMenu>
+                            <AionIconButton Size="Size.Small" Icon="@AionIcons.Close" Tooltip="Close" OnClick="@(async () => await CloseTab(query))"/>
                         </MudStack>
                     </TabContent>
                 </MudTabPanel>
@@ -212,6 +223,7 @@
     private async Task OnTabChanged(QueryModel query)
     {
         State.SetActive(query);
+        ActiveTabIndex = State.Queries.FindIndex(q => q.Id == State.Active?.Id);
         if (_editor != null)
         {
             await _editor.SetValue(query.Query);
@@ -284,4 +296,15 @@
         StateHasChanged();
     }
 
+    private Task CloneQuery(QueryModel query)
+    {
+        State.Clone(query);
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private Task RenameQuery(QueryModel query)
+    {
+        return Task.CompletedTask;
+    }
 }

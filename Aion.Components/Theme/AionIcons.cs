@@ -39,6 +39,12 @@ public static class AionIcons
     public static string SaveAs => Round("save_as");
     
     public static string SaveFile => Round("save_file");
+    
+    public static string OpenFile => Round("file_open");
+    
+    public static string OpenInNew => Round("open_in_new");
+
+    public static string Edit => Round("edit");
 
     public static string Connection => Round("database");
     public static string Query => Round("database_search");
