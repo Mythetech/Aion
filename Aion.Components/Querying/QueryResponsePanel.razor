@@ -10,6 +10,7 @@
 @using Blazor.Diagrams.Core.PathGenerators
 @using Blazor.Diagrams.Core.Routers
 @using Blazor.Diagrams.Options
+@using DocumentFormat.OpenXml.Wordprocessing
 @using Blazor.Diagrams.Components
 @using Blazor.Diagrams.Core.Anchors
 @using Blazor.Diagrams.Core.Geometry
@@ -20,13 +21,13 @@
 {
     QueryResult queryResult = State.Active.Result;
     <MudStack Class="pa-4 h-100 w-100">
-        <MudStack Row="true" Class="w-100" AlignItems="AlignItems.Center">
+        <MudStack Row="true" Class="w-100">
             <MudTabs Class="py-2 px-1" MinimumTabWidth="140px" >
                 <MudTabPanel Text="Results" OnClick="() => _activeTab = Results" />
                 <MudTabPanel Text="Messages" OnClick="() => _activeTab = Messages" />
                 @if (State.Active.EstimatedPlan != null)
                 {
-                    <MudTabPanel Text="Estimated Plan" OnClick="OpenEstimatedQueryPlan" />
+                    <MudTabPanel Text="Estimated Plan" OnClick="() => _activeTab = EstimatedPlan" />
                     
                 }
                 @if (State.Active.ActualPlan != null)
@@ -77,75 +78,28 @@
         }
         else if (_activeTab == EstimatedPlan)
         {
-            @State.Active.EstimatedPlan.PlanContent
-        <div class="diagram-container">
-            <CascadingValue Value="@Diagram" IsFixed="true">
-                <DiagramCanvas></DiagramCanvas>
-            </CascadingValue>
-        </div>
+            <QueryPlanVisualizer Plan="@State.Active.EstimatedPlan" />
         }
         else if (_activeTab == ActualPlan)
         {
-            @State.Active.ActualPlan.PlanContent
+            <QueryPlanVisualizer Plan="@State.Active.ActualPlan" />
         }
         <MudText Typo="Typo.caption" Class="mud-text-secondary ml-4">@(State?.Active?.Result?.RowCount ?? 0) Results</MudText>
     </MudStack>
+}
+
+@if (ShowQueryPlan)
+{
+    <MudPaper Class="pa-4 mt-4">
+        <MudText Typo="Typo.h6">Query Plan</MudText>
+        <QueryPlanVisualizer Plan="@QueryPlan" />
+    </MudPaper>
 }
 
 @code {
     [Inject] protected QueryState State { get; set; } = default!;
 
     [Inject] protected IMessageBus Bus { get; set; } = default!;
-
-    private BlazorDiagram Diagram { get; set; } = default!;
-
-    private BlazorDiagramOptions _diagramOptions = new()
-    {
-        AllowMultiSelection = true,
-        Zoom =
-        {
-            Enabled = false,
-        },
-        Links =
-        {
-            DefaultRouter = new NormalRouter(),
-            DefaultPathGenerator = new SmoothPathGenerator()
-        },
-    };
-
-    private void OpenEstimatedQueryPlan()
-    {
-        _activeTab = EstimatedPlan;
-        Diagram = new(_diagramOptions);
-        int x = 50;
-        int y = 50;
-        bool parent = true;
-        foreach (var node in State.Active.EstimatedPlan.PlanContent.Split("->"))
-        {
-            var n = Diagram.Nodes.Add(new NodeModel(position: new Point(x, y))
-            {
-                Title = node
-            });
-
-            var p = n.AddPort(PortAlignment.Right);
-
-            if (!parent)
-            {
-                var destinationLeftPort = n.AddPort(PortAlignment.Left);
-                var source = Diagram.Nodes.ElementAtOrDefault(Diagram.Nodes.Count - 2);
-                var sourcePort = source.GetPort(PortAlignment.Right);
-                var sourceAnchor = new SinglePortAnchor(sourcePort);
-                var targetAnchor = new SinglePortAnchor(destinationLeftPort);
-                var link = Diagram.Links.Add(new LinkModel(sourceAnchor, targetAnchor));
-            }
-
-            parent = false;
-            x += 400;
-            y += 50;
-        }
-
-        Diagram.Refresh();
-    }
 
     private const string Results = "results";
     private string Messages => "messages";
@@ -154,10 +108,15 @@
 
     private string _activeTab = Results;
 
+    [Parameter]
+    public QueryPlan? QueryPlan { get; set; }
+    
+    [Parameter]
+    public bool ShowQueryPlan { get; set; }
+
     protected override void OnInitialized()
     {
         State.StateChanged += StateHasChanged;
-        Diagram = new(_diagramOptions);
         base.OnInitialized();
     }
 
