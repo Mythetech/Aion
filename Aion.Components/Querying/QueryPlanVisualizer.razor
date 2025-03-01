@@ -1,0 +1,86 @@
+@using Blazor.Diagrams
+@using Blazor.Diagrams.Core.PathGenerators
+@using Blazor.Diagrams.Core.Routers
+@using Blazor.Diagrams.Options
+@using Blazor.Diagrams.Components
+@using Blazor.Diagrams.Core.Anchors
+@using Blazor.Diagrams.Core.Geometry
+@using Blazor.Diagrams.Core.Models
+@using Aion.Core.Queries
+
+@if (Plan != null)
+{
+    @Plan.PlanContent
+    <div class="diagram-container">
+        <CascadingValue Value="@Diagram" IsFixed="true">
+            <DiagramCanvas></DiagramCanvas>
+        </CascadingValue>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public QueryPlan? Plan { get; set; }
+
+    private BlazorDiagram Diagram { get; set; } = default!;
+
+    private readonly BlazorDiagramOptions _diagramOptions = new()
+    {
+        AllowMultiSelection = true,
+        Zoom =
+        {
+            Enabled = false,
+        },
+        Links =
+        {
+            DefaultRouter = new NormalRouter(),
+            DefaultPathGenerator = new SmoothPathGenerator()
+        },
+    };
+
+    protected override void OnInitialized()
+    {
+        Diagram = new(_diagramOptions);
+        base.OnInitialized();
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Plan != null)
+        {
+            RenderDiagram();
+        }
+    }
+
+    private void RenderDiagram()
+    {
+        Diagram = new(_diagramOptions);
+        int x = 10;
+        int y = 10;
+        bool parent = true;
+        foreach (var node in Plan!.PlanContent.Split("->"))
+        {
+            var n = Diagram.Nodes.Add(new NodeModel(position: new Point(x, y))
+            {
+                Title = node
+            });
+
+            var p = n.AddPort(PortAlignment.Right);
+
+            if (!parent)
+            {
+                var destinationLeftPort = n.AddPort(PortAlignment.Left);
+                var source = Diagram.Nodes.ElementAtOrDefault(Diagram.Nodes.Count - 2);
+                var sourceAnchor = new SinglePortAnchor(source.GetPort(PortAlignment.Right));
+                var targetAnchor = new SinglePortAnchor(destinationLeftPort);
+                var link = Diagram.Links.Add(new LinkModel(sourceAnchor, targetAnchor));
+            }
+
+            parent = false;
+            x += 350;
+            y += 50;
+        }
+
+        Diagram.Refresh();
+    }
+} 
