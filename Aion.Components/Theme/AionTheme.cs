@@ -12,6 +12,7 @@ public class AionTheme : MudTheme
             Secondary = Colors.Purple.Lighten4,
             Tertiary = Colors.DeepOrange.Default,
             Background = "#EEE",
+            BackgroundGray = "#FFF",
             Surface = "#EEE",
         };
         PaletteDark = new PaletteDark()
@@ -24,6 +25,7 @@ public class AionTheme : MudTheme
             Background = "#111",
             GrayDarker = "#222",
             ActionDefault = Colors.Indigo.Default,
+            BackgroundGray = "#222"
         };
         Typography = new Typography()
         {

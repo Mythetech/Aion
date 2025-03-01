@@ -279,3 +279,20 @@ html {
 .context-panel-width {
     max-width: calc(var(--mud-drawer-width-left) - 5em);
 }
+
+.diagram-container {
+    width: 100%;
+    height: 100%;
+    background-color: var(--mud-palette-background-gray);
+}
+
+.default-node {
+    width: auto;
+    height: auto;
+    background-color: var(--mud-palette-surface);
+    padding: 1em;
+}
+
+.default-node.selected {
+    border: solid 1px var(--mud-palette-primary);
+}
