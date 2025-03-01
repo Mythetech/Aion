@@ -14,7 +14,7 @@
 
 
 <MudStack Row="true" Class="w-100 h-100 ml-1" Spacing="0">
-    <FluentMultiSplitter BarSize="1" @ref="_primarySplitter"  OnCollapse="@((args) => HandleCollapse(args))" OnExpand="HandleExpand" Height="100%" Width="@(_sidePanelClosed ? "97%" :"100%")" Orientation="Microsoft.FluentUI.AspNetCore.Components.Orientation.Horizontal" Style="overflow-x:clip;">
+    <FluentMultiSplitter BarSize="1" @ref="_primarySplitter"  OnCollapse="@((args) => HandleCollapse(args))" OnExpand="HandleExpand" Height="100%" Width="@(_sidePanelClosed ? "97%" :"100%")" Orientation="Microsoft.FluentUI.AspNetCore.Components.Orientation.Horizontal" Style="border-radius:0;overflow-x:clip;">
         <FluentMultiSplitterPane Size="@(!_sidePanelClosed ? "80%" : "88%")" Min="400px" Max="100%">
             <FluentMultiSplitter Height="100%" Width="100%" Orientation="Microsoft.FluentUI.AspNetCore.Components.Orientation.Vertical">
                 <FluentMultiSplitterPane Size="50%" Min="150px">

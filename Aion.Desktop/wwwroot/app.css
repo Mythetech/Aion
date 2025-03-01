@@ -235,6 +235,8 @@ html {
 
 .mud-tab {
     text-transform: none;
+    min-height: unset;
+    padding: 3px 1px;
 }
 
 .aion-transparent-dialog {
