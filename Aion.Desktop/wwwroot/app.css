@@ -259,7 +259,6 @@ html {
 
 .aion-search {
     max-height: calc(var(--mud-appbar-height) - 4px);
-    width: 50%;
     background-color: transparent; 
     backdrop-filter: blur(8px);
 }
