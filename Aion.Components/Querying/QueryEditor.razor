@@ -26,10 +26,9 @@
                                 </ActivatorContent>
                                 <ChildContent>
                                     <MudMenuItem OnClick="@(() => OnTabChanged(query))" Icon="@AionIcons.OpenFile">Open</MudMenuItem>
-                                    <MudMenuItem Icon="@AionIcons.Copy">Clone</MudMenuItem>
+                                    <MudMenuItem OnClick="@(() => CloneQuery(query))" Icon="@AionIcons.Copy">Clone</MudMenuItem>
                                     <MudMenuItem Icon="@AionIcons.Edit">Rename</MudMenuItem>
                                     <MudMenuItem OnClick="@(async () => await CloseTab(query))" Icon="@AionIcons.Close">Close</MudMenuItem>
-
                                 </ChildContent>
                             </MudMenu>
                             <AionIconButton Size="Size.Small" Icon="@AionIcons.Close" Tooltip="Close" OnClick="@(async () => await CloseTab(query))"/>
@@ -171,6 +170,7 @@
     protected override void OnInitialized()
     {
         State.StateChanged += StateHasChanged;
+        State.ActiveQueryTextChanged += RefreshEditor;
         Connections.ConnectionStateChanged += StateHasChanged;
         Bus.Subscribe(this);
         base.OnInitialized();
@@ -179,6 +179,7 @@
     public void Dispose()
     {
         State.StateChanged -= StateHasChanged;
+        State.ActiveQueryTextChanged -= RefreshEditor;
         Connections.ConnectionStateChanged -= StateHasChanged;
         Bus.Unsubscribe(this);
         _queryTokenSource?.Dispose();
@@ -200,6 +201,14 @@
         }
     }
 
+    private async Task RefreshEditor()
+    {
+        if (_editor != null)
+        {
+            await _editor.SetValue(State.Active.Query);
+        }
+    }
+
     private async Task UpdateQuery(ModelContentChangedEvent evt)
     {
         if (!_initialized) return;
@@ -213,11 +222,8 @@
         await State.InitializeAsync();
         
         _initialized = true;
-        
-        if (_editor != null)
-        {
-            await _editor.SetValue(State.Active.Query);
-        }
+
+        await RefreshEditor();
     }
 
     private async Task OnTabChanged(QueryModel query)

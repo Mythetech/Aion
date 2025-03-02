@@ -1,0 +1,10 @@
+@using Aion.Components.Infrastructure.Commands
+@inherits Aion.Components.Infrastructure.MessageBus.ComponentConsumer<Aion.Components.Infrastructure.Commands.CopyToClipboard>
+@inject IJsApiService JsApiService
+
+@code {
+    protected override async Task Consume(CopyToClipboard message, CancellationToken cancellationToken)
+    {
+        await JsApiService.CopyToClipboardAsync(message.Text);
+    }
+}

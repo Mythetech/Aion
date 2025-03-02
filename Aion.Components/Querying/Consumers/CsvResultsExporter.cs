@@ -1,4 +1,5 @@
 using System.Text;
+using Aion.Components.Infrastructure;
 using Aion.Components.Querying.Commands;
 using Aion.Components.Infrastructure.MessageBus;
 using Microsoft.Extensions.Logging;
@@ -12,12 +13,14 @@ public class CsvResultsExporter : IConsumer<ExportResultsToCsv>
     private readonly QueryState _state;
     private readonly ILogger<CsvResultsExporter> _logger;
     private readonly IMessageBus _bus;
+    private readonly IFileSaveService _saveService;
 
-    public CsvResultsExporter(QueryState state, ILogger<CsvResultsExporter> logger, IMessageBus bus)
+    public CsvResultsExporter(QueryState state, ILogger<CsvResultsExporter> logger, IMessageBus bus, IFileSaveService saveService)
     {
         _state = state;
         _logger = logger;
         _bus = bus;
+        _saveService = saveService;
     }
 
     public async Task Consume(ExportResultsToCsv message)
@@ -35,10 +38,8 @@ public class CsvResultsExporter : IConsumer<ExportResultsToCsv>
         {
             var csv = new StringBuilder();
             
-            // Add headers
             csv.AppendLine(string.Join(",", result.Columns.Select(EscapeCsvField)));
 
-            // Add rows
             foreach (var row in result.Rows)
             {
                 var fields = result.Columns.Select(col => EscapeCsvField(row[col]?.ToString() ?? string.Empty));
@@ -46,7 +47,13 @@ public class CsvResultsExporter : IConsumer<ExportResultsToCsv>
             }
 
             var fileName = $"query_results_{DateTime.Now:yyyyMMddHHmmss}.csv";
-            await File.WriteAllTextAsync(fileName, csv.ToString());
+            bool success = await _saveService.SaveFileAsync(fileName, csv.ToString());
+
+            if (!success)
+            {
+                await _bus.PublishAsync(new AddNotification($"Csv export cancelled", Severity.Info));
+                return;
+            }
             
             _logger.LogInformation("Exported query results to CSV: {FileName}", fileName);
             await _bus.PublishAsync(new AddNotification($"Exported results to {fileName}", Severity.Success));

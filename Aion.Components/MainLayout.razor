@@ -2,11 +2,14 @@
 @using Aion.Components.Theme
 @using MudBlazor;
 @using Aion.Components.AppContextPanel
+@using Aion.Components.Connections.Commands
 @using Aion.Components.Infrastructure.MessageBus
 @using Aion.Components.Querying.Commands
 @using Aion.Components.Search
 @using Aion.Components.Shared.Snackbar
 @using Aion.Components.Shared
+@using Aion.Components.Shared.Dialogs
+@using Aion.Components.Infrastructure
 @implements IDisposable
 
 <MudThemeProvider @ref="_theme" @bind-IsDarkMode="@AppState.IsDarkMode" Theme="@Theme" />
@@ -14,6 +17,8 @@
 <MudDialogProvider />
 <MudSnackbarProvider />
 <GlobalCommandSnackbarProvider />
+<DialogCommandProvider />
+<JsApiCommandProvider  />
 
 <MudLayout>
     <MudAppBar Class="pl-4" Elevation="0">
@@ -23,7 +28,7 @@
                 <MudText Class="app-header-font mud-text-secondary pr-4" Typo="Typo.h6">Aion</MudText>
                 <MudMenu Variant="Variant.Text" Size="Size.Small" Dense="true" ActivationEvent="MouseEvent.MouseOver" Label="File">
                     <MudMenu Label="New">
-                        <MudMenuItem Icon="@AionIcons.Connection">Connection</MudMenuItem>
+                        <MudMenuItem Icon="@AionIcons.Connection" OnClick="@(async () => await Bus.PublishAsync(new PromptCreateConnection()))">Connection</MudMenuItem>
                         <MudMenuItem Icon="@AionIcons.Query">Query</MudMenuItem>
                     </MudMenu>
                     <MudMenuItem Icon="@AionIcons.Save" OnClick="@(async () => await Bus.PublishAsync(new SaveQuery()))">Save Query</MudMenuItem>
@@ -36,7 +41,8 @@
                     </MudMenu>
                 </MudMenu>
                 <MudMenu Variant="Variant.Text" Size="Size.Small" Dense="true" ActivationEvent="MouseEvent.MouseOver" Label="Edit">
-                    <MudMenuItem>Format</MudMenuItem>
+                    <MudMenuItem Icon="@AionIcons.Copy" OnClick="@(async () => await Bus.PublishAsync(new CopyQueryToClipboard()))">Copy Query</MudMenuItem>
+                    <MudMenuItem Icon="@AionIcons.Format" OnClick="@(async () => await Bus.PublishAsync(new FormatQuery()))">Format</MudMenuItem>
                 </MudMenu>
             </MudStack>
             <MudStack Row="true" Style="width:33%;margin-right: 12%;" AlignItems="@AlignItems.Center" Spacing="0">

@@ -13,6 +13,8 @@ public class QueryState
     private readonly IQuerySaveService _saveService;
 
     public event Action? StateChanged;
+
+    public event Func<Task>? ActiveQueryTextChanged;
  
     protected void OnStateChanged() => StateChanged?.Invoke();
     
@@ -135,5 +137,25 @@ public class QueryState
         q.DatabaseName = databaseName;
         
         OnStateChanged();
+    }
+    
+    public async Task UpdateQueryText(QueryModel query, string queryText)
+    {
+        var q = Queries.FirstOrDefault(x => x.Id.Equals(query.Id));
+        if (q == null) return;
+        
+        q.Query = queryText;
+        
+        OnStateChanged();
+
+        if (IsActive(query))
+        {
+            await ActiveQueryTextChanged?.Invoke()!;
+        }
+    }
+
+    private bool IsActive(QueryModel query)
+    {
+        return Active?.Id.Equals(query.Id) ?? false;
     }
 }

@@ -5,6 +5,7 @@
 @using MouseEvent = MudBlazor.MouseEvent
 @using Aion.Components.Shared
 @using Aion.Components.Connections
+@using Aion.Components.Connections.Commands
 @using Aion.Core.Connections
 @using Aion.Components.History
 @using Aion.Components.Infrastructure.MessageBus
@@ -204,9 +205,7 @@
 
     protected async Task AddConnection()
     {
-        var options = AionDialogs.CreateDefaultOptions();
-        var dialog = await DialogService.ShowAsync<ConnectionDialog>("New Connection", options);
-        await dialog.Result;
+        await Bus.PublishAsync(new PromptCreateConnection());
     }
 
     public async Task Consume(ActivatePanel message)
