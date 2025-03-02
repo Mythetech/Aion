@@ -1,0 +1,13 @@
+@using Aion.Components.Infrastructure.MessageBus
+@using Aion.Components.Shared.Dialogs.Commands
+@inherits ComponentConsumer<ShowDialog>
+
+@code {
+    [Inject] IDialogService DialogService { get; set; } = default!;
+    
+    protected override async Task Consume(ShowDialog message, CancellationToken cancellationToken)
+    {
+        var r = await DialogService.ShowAsync(message.Dialog, message.Title, message?.Parameters ?? new(), message?.Options ?? AionDialogs.CreateDefaultOptions());
+        await r.Result;
+    }
+}

@@ -86,4 +86,6 @@ public static class AionIcons
     
     public static string ActualQueryPlan => Round("monitoring");
 
+    public static string Format => Round("format_indent_increase");
+
 }

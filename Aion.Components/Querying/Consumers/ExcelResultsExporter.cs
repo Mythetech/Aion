@@ -1,3 +1,4 @@
+using Aion.Components.Infrastructure;
 using ClosedXML.Excel;
 using Aion.Components.Querying.Commands;
 using Aion.Components.Infrastructure.MessageBus;
@@ -12,12 +13,14 @@ public class ExcelResultsExporter : IConsumer<ExportResultsToExcel>
     private readonly QueryState _state;
     private readonly ILogger<ExcelResultsExporter> _logger;
     private readonly IMessageBus _bus;
+    private readonly IFileSaveService _service;
 
-    public ExcelResultsExporter(QueryState state, ILogger<ExcelResultsExporter> logger, IMessageBus bus)
+    public ExcelResultsExporter(QueryState state, ILogger<ExcelResultsExporter> logger, IMessageBus bus, IFileSaveService service)
     {
         _state = state;
         _logger = logger;
         _bus = bus;
+        _service = service;
     }
 
     public async Task Consume(ExportResultsToExcel message)
@@ -50,11 +53,17 @@ public class ExcelResultsExporter : IConsumer<ExportResultsToExcel>
                 }
             }
 
-            // Auto-fit columns
             worksheet.Columns().AdjustToContents();
 
             var fileName = $"query_results_{DateTime.Now:yyyyMMddHHmmss}.xlsx";
-            workbook.SaveAs(fileName);
+            string? location = await _service.PromptFileSaveAsync(fileName);
+
+            if (string.IsNullOrWhiteSpace(location))
+            {
+                await _bus.PublishAsync(new AddNotification($"Csv export cancelled", Severity.Info));
+                return;
+            }
+            workbook.SaveAs(location);
             
             _logger.LogInformation("Exported query results to Excel: {FileName}", fileName);
             await _bus.PublishAsync(new AddNotification($"Exported results to {fileName}", Severity.Success));
