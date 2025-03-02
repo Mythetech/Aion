@@ -1,5 +1,5 @@
 @using Environment = System.Environment
-<MudStack Class="flex-grow-1" Spacing="1">
+<MudStack Class="flex-grow-1 w-100" Spacing="1">
     @foreach (string message in Message.Split(Environment.NewLine))
     {
         <MudText>@message</MudText>

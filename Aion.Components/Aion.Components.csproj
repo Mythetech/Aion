@@ -23,9 +23,5 @@
       <ProjectReference Include="..\Aion.Core\Aion.Core.csproj" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Folder Include="Infrastructure\" />
-    </ItemGroup>
-
 
 </Project>
