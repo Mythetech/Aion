@@ -1,4 +1,5 @@
 ﻿using Aion.Components;
+using Aion.Components.Infrastructure;
 using Aion.Components.Infrastructure.MessageBus;
 using Aion.Components.Querying;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,7 +29,14 @@ namespace Aion.Desktop
             appBuilder.Services.AddSingleton<IConnectionStorage, FileConnectionStorage>();
             appBuilder.Services.AddSingleton<IQuerySaveService, FileQuerySaveService>();
 
+            appBuilder.Services.AddSingleton<IPhotinoAppProvider, PhotinoAppProvider>();
+            appBuilder.Services.AddTransient<IFileSaveService, PhotinoInteropFileSaveService>();
+            
             var app = appBuilder.Build();
+
+            var appProvider = ((PhotinoAppProvider)app.Services.GetRequiredService<IPhotinoAppProvider>());
+
+            appProvider.Instance = app;
             
             app.Services.UseMessageBus(typeof(Program).Assembly, typeof(IConsumer<>).Assembly);
 
@@ -45,7 +53,7 @@ namespace Aion.Desktop
             {
                 app.MainWindow.ShowMessage("Fatal exception", error.ExceptionObject.ToString());
             };
-
+            
             app.Run();
         }
     }

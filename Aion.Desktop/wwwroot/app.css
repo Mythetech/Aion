@@ -37,27 +37,31 @@ html {
 }
 
 .mud-alert-filled-success {
-    background-color: rgba(var(--mud-palette-success-rgb), 0.5);
+    background-color: rgba(var(--mud-palette-success-rgb), 0.25);
     border: 1px solid var(--mud-palette-success);
     box-shadow: 0px 0px 0.4em 0.1em var(--mud-palette-success);
 }
 
 .mud-alert-filled-warning {
-    background-color: rgba(var(--mud-palette-warning-rgb), 0.5);
+    background-color: rgba(var(--mud-palette-warning-rgb), 0.25);
     border: 1px solid var(--mud-palette-warning-rgb);
     box-shadow: 0px 0px 0.4em 0.1em var(--mud-palette-warning);
 }
 
 .mud-alert-filled-info {
-    background-color: rgba(var(--mud-palette-info-rgb), 0.5);
+    background-color: rgba(var(--mud-palette-info-rgb), 0.25);
     border: 1px solid var(--mud-palette-info-rgb);
     box-shadow: 0px 0px 0.4em 0.1em var(--mud-palette-info);
 }
 
 .mud-alert-filled-error {
-    background-color: rgba(var(--mud-palette-error-rgb), 0.5);
+    background-color: rgba(var(--mud-palette-error-rgb), 0.25);
     border: 1px solid var(--mud-palette-error);
     box-shadow: 0px 0px 0.4em 0.1em var(--mud-palette-error);
+}
+
+.mud-snackbar-content-message {
+    flex-grow: 1;
 }
 
 .toggle-icon {

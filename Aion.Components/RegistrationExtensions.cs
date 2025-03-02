@@ -23,6 +23,8 @@ public static class RegistrationExtensions
             config.SnackbarConfiguration.PreventDuplicates = true;
             config.SnackbarConfiguration.NewestOnTop = true;
             config.SnackbarConfiguration.ShowCloseIcon = true;
+            //config.SnackbarConfiguration.RequireInteraction = true;
+            config.SnackbarConfiguration.MaximumOpacity = 80;
             config.SnackbarConfiguration.VisibleStateDuration = 3000;
             config.SnackbarConfiguration.HideTransitionDuration = 200;
             config.SnackbarConfiguration.ShowTransitionDuration = 100;
