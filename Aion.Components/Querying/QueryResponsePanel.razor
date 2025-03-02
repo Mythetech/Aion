@@ -36,6 +36,18 @@
                 }
             </MudTabs>
             <MudSpacer />
+            <MudTextField 
+                T="string"
+                @bind-Value="@_search" 
+                Class="rounded-xl" 
+                Variant="Variant.Text" 
+                Margin="Margin.Dense"
+                Clearable="true"
+                Immediate="true"
+                AdornmentIcon="@AionIcons.Filter" 
+                Adornment="Adornment.End"
+                Placeholder="Find in results..." />
+            <MudSpacer />
             <AionIconButton Icon="@AionIcons.Json" Tooltip="Export to Json" OnClick="async () => await Bus.PublishAsync(new ExportResultsToJson(queryResult))"/>
             <AionIconButton Icon="@AionIcons.Csv" Tooltip="Export to Csv" OnClick="async () => await Bus.PublishAsync(new ExportResultsToCsv(queryResult))"/>
             <AionIconButton Icon="@AionIcons.Spreadsheet" Tooltip="Export to Excel" OnClick="async () => await Bus.PublishAsync(new ExportResultsToExcel(queryResult))"/>
@@ -48,6 +60,7 @@
                              Dense="true"
                              Hover="true"
                              Filterable="true"
+                             QuickFilter="FilterResults"
                              ColumnResizeMode="ResizeMode.Container">
                     <Columns>
                         @foreach (var col in State.Active.Result.Columns)
@@ -101,6 +114,7 @@
 
     [Inject] protected IMessageBus Bus { get; set; } = default!;
 
+    private string? _search = "";
     private const string Results = "results";
     private string Messages => "messages";
     private string EstimatedPlan => "estimated";
@@ -130,4 +144,25 @@
         await Bus.PublishAsync(new OpenJsonDetailView(new QueryResponseJsonDetail(queryName, column, json)));
     }
 
+    protected bool FilterResults(Dictionary<string, object> item)
+    {
+        if (string.IsNullOrEmpty(_search))
+            return true;
+        
+        foreach (object value in item.Values)
+        {
+            if (string.IsNullOrEmpty(value?.ToString())) continue;
+
+            try
+            {
+                if (((string)value).Contains(_search, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            catch{}
+        }
+
+        return false;
+    }
 }
