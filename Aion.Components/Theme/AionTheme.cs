@@ -14,6 +14,7 @@ public class AionTheme : MudTheme
             Background = "#EEE",
             BackgroundGray = "#FFF",
             Surface = "#EEE",
+            ActionDefault = Colors.Indigo.Lighten2,
         };
         PaletteDark = new PaletteDark()
         {

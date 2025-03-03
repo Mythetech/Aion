@@ -2,7 +2,7 @@
 <MudStack Class="flex-grow-1 w-100" Spacing="1">
     @foreach (string message in Message.Split(Environment.NewLine))
     {
-        <MudText>@message</MudText>
+        <MudText Color="GetColor(Severity)">@message</MudText>
     }
     <MudSpacer/>
     <ProgressCountdown Duration="Severity == Severity.Error ? 5000 : Snackbar.Configuration.VisibleStateDuration" Color="@GetColor(Severity)"/>

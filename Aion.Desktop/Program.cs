@@ -47,6 +47,7 @@ namespace Aion.Desktop
                 .SetLogVerbosity(10)
                 .SetSmoothScrollingEnabled(true)
                 .SetJavascriptClipboardAccessEnabled(true)
+                .SetTransparent(true)
                 .SetTitle("Aion Desktop");
             
             AppDomain.CurrentDomain.UnhandledException += (sender, error) =>
