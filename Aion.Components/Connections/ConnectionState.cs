@@ -109,8 +109,7 @@ public class ConnectionState
 
         try 
         {
-            query.IsExecuting = true;
-
+            query.StartExecution();
             await NotifyQueryChanged();
             
             if (query.IncludeEstimatedPlan)
@@ -144,27 +143,24 @@ public class ConnectionState
                     query.Query,
                     cancellationToken);
 
-            query.Result = result;
-            query.IsExecuting = false;
-            
+            query.SetResult(result);
             await _messageBus.PublishAsync(new QueryExecuted(query));
             return result;
         }
         catch (OperationCanceledException)
         {
-            query.IsExecuting = false;
             var result = new QueryResult { Error = "Query cancelled", Cancelled = true };
-            query.Result = result;
+            query.SetResult(result);
             await _messageBus.PublishAsync(new QueryExecuted(query));
             return result;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error executing query");
-            query.Result = new QueryResult { Error = ex.Message };
-            query.IsExecuting = false;
+            var result = new QueryResult { Error = ex.Message };
+            query.SetResult(result);
             await _messageBus.PublishAsync(new QueryExecuted(query));
-            return query.Result;
+            return result;
         }
     }
 

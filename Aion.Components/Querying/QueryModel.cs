@@ -18,6 +18,23 @@ public class QueryModel
     public QueryPlan? ActualPlan { get; set; }
     public bool UseTransaction { get; set; }
     public TransactionInfo? Transaction { get; set; }
+    public DateTimeOffset? ExecutionStartTime { get; private set; }
+    public DateTimeOffset? ExecutionEndTime { get; private set; }
+    public TimeSpan? ExecutionDuration => ExecutionEndTime - ExecutionStartTime;
+
+    public void StartExecution()
+    {
+        IsExecuting = true;
+        ExecutionStartTime = DateTimeOffset.Now;
+        ExecutionEndTime = null;
+    }
+
+    public void SetResult(QueryResult result)
+    {
+        Result = result;
+        IsExecuting = false;
+        ExecutionEndTime = DateTimeOffset.Now;
+    }
 
     public QueryModel Clone(bool newId = false)
     {
@@ -35,7 +52,9 @@ public class QueryModel
             EstimatedPlan = EstimatedPlan?.Clone(),
             ActualPlan = ActualPlan?.Clone(),
             UseTransaction = UseTransaction,
-            Transaction = Transaction
+            Transaction = Transaction,
+            ExecutionStartTime = ExecutionStartTime,
+            ExecutionEndTime = ExecutionEndTime
         };
     }
 }
