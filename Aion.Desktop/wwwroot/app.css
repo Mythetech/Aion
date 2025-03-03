@@ -32,8 +32,16 @@ html {
 
 .mud-snackbar {
     border: 1px solid var(--mud-palette-dark);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background:transparent;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+}
+
+#mud-snackbar-container {
+    border-radius: 0.5em 0.5em 0.25em 0.25em;
+    background-color: transparent;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
 }
 
 .mud-alert-filled-success {
@@ -58,6 +66,8 @@ html {
     background-color: rgba(var(--mud-palette-error-rgb), 0.25);
     border: 1px solid var(--mud-palette-error);
     box-shadow: 0px 0px 0.4em 0.1em var(--mud-palette-error);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
 }
 
 .mud-snackbar-content-message {
@@ -185,29 +195,31 @@ html {
 }
 
 .primary-action-button {
-    transition-property: all;
+    transition-property: background;
     transition-timing-function: cubic-bezier(.4,0,.2,1);
     transition-duration: .2s;
     background: linear-gradient(90deg, var(--mud-palette-primary) 0%, var(--mud-palette-secondary) 100%);
-    border:solid 1px var(--mud-palette-surface);
     min-width: 120px;
 }
 
-.primary-action-button:hover {
-    background: linear-gradient(90deg, var(--mud-palette-primary-darken) 0%, var(--mud-palette-secondary-darken) 100%)!important;
+.primary-action-button:hover:not([disabled]) {
+    background: linear-gradient(90deg, var(--mud-palette-primary-lighten) 0%, var(--mud-palette-secondary-lighten) 100%)!important;
+    box-shadow: 0 0 0.2em 0.1em var(--mud-palette-primary);
 }
 
 .run-query-button {
-    transition-property: all;
+    transition-property: background;
     transition-timing-function: cubic-bezier(.4,0,.2,1);
     transition-duration: .2s;
     background: linear-gradient(90deg, var(--mud-palette-success) 0%, var(--mud-palette-success-darken) 100%);
     border:solid 1px var(--mud-palette-surface);
+    color: var(--mud-palette-success-text);
     min-width: 120px;
 }
 
-.run-query-button:hover {
+.run-query-button:hover:not([disabled]) {
         background: linear-gradient(90deg, var(--mud-palette-success-lighten) 0%, var(--mud-palette-success) 100%)!important;
+        box-shadow: 0 0 0.2em 0.1em var(--mud-palette-success);
 }
 
 .context-panel-badge-dot {
@@ -215,7 +227,7 @@ html {
 }
 
 .cancel-query-button {
-    transition-property: all;
+    transition-property: background;
     transition-timing-function: cubic-bezier(.4,0,.2,1);
     transition-duration: .2s;
     background: linear-gradient(90deg, var(--mud-palette-dark) 0%, var(--mud-palette-dark-darken) 100%);
