@@ -94,13 +94,14 @@
             <MudText Typo="Typo.caption" Class="mud-text-secondary ml-4">
                 @(State?.Active?.Result?.RowCount ?? 0) Results
             </MudText>
-            <QueryTimer StartTime="@State.Active.ExecutionStartTime" EndTime="@State.Active.ExecutionEndTime" Typo="Typo.caption" />
+            <QueryTimer StartTime="@State.Active.ExecutionStartTime" EndTime="@State.Active.ExecutionEndTime" Typo="Typo.caption"/>
         </MudStack>
     </MudStack>
 }
 else if (State?.Active?.IsExecuting ?? false)
 {
     <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Spacing="3" Class="h-100">
+        <MudSkeleton Width="100%" Height="97%" SkeletonType="SkeletonType.Rectangle" Style="position:absolute;" Class="ml-8" Animation="Animation.Wave"/>
         <WaveLoader />
         <LoadingText Text="Running Query" />
         <QueryTimer StartTime="@State.Active.ExecutionStartTime" EndTime="@State.Active.ExecutionEndTime" />
