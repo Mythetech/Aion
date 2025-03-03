@@ -103,9 +103,9 @@
 }
 else if (State?.Active?.IsExecuting ?? false)
 {
-    <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Spacing="3" Style="height:50%;">
-        <MudText Typo="Typo.h6" Class="mud-text-secondary mb-4">Executing Query...</MudText>
-        <GrowColorDots />
+    <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Spacing="3" Class="h-100">
+        <WaveLoader />
+        <LoadingText Text="Running Query" />
     </MudStack>
 }
 

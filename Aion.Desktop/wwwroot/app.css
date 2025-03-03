@@ -232,11 +232,14 @@ html {
     transition-duration: .2s;
     background: linear-gradient(90deg, var(--mud-palette-dark) 0%, var(--mud-palette-dark-darken) 100%);
     border:solid 1px var(--mud-palette-surface);
+    color: var(--mud-palette-dark-text);
     min-width: 120px;
 }
 
 .cancel-query-button:hover {
     background: linear-gradient(90deg, var(--mud-palette-dark-lighten) 0%, var(--mud-palette-dark) 100%)!important;
+    box-shadow: 0 0 0.2em 0.1em var(--mud-palette-dark);
+
 }
 
 .mud-drawer::after {
