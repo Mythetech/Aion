@@ -1,0 +1,31 @@
+.loader {
+    display: inline-block;
+    position: relative;
+    font-size: var(--mud-typography-h6-size);
+    font-family: var(--mud-typography-default-family);
+    box-sizing: border-box;
+}
+.loader::after {
+    content: '';
+    width: 5px;
+    height: 5px;
+    background: var(--mud-palette-text-primary);
+    position: absolute;
+    bottom: 2px;
+    right: -8px;
+    box-sizing: border-box;
+    border-radius: 10em;
+    animation: animloader 1s linear infinite;
+}
+
+@keyframes animloader {
+    0% {
+        box-shadow: 10px 0 rgba(255, 255, 255, 0), 20px 0 rgba(255, 255, 255, 0);
+    }
+    50% {
+        box-shadow: 10px 0 var(--mud-palette-text-primary), 20px 0 rgba(255, 255, 255, 0);
+    }
+    100% {
+        box-shadow: 10px 0 var(--mud-palette-text-primary), 20px 0 var(--mud-palette-text-primary);
+    }
+}

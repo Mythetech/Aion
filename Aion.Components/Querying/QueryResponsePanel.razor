@@ -6,16 +6,8 @@
 @using Aion.Components.Shared
 @using Aion.Components.Theme
 @using Aion.Core.Queries
-@using Blazor.Diagrams;
-@using Blazor.Diagrams.Core.PathGenerators
-@using Blazor.Diagrams.Core.Routers
-@using Blazor.Diagrams.Options
-@using DocumentFormat.OpenXml.Wordprocessing
-@using Blazor.Diagrams.Components
-@using Blazor.Diagrams.Core.Anchors
-@using Blazor.Diagrams.Core.Geometry
-@using Blazor.Diagrams.Core.Models
 @using Aion.Components.Shared.Loaders
+@using Aion.Components.Querying
 @implements IDisposable
 
 @if (State?.Active?.Result != null && (!State?.Active?.IsExecuting ?? false))
@@ -98,14 +90,21 @@
         {
             <QueryPlanVisualizer Plan="@State.Active.ActualPlan" />
         }
-        <MudText Typo="Typo.caption" Class="mud-text-secondary ml-4">@(State?.Active?.Result?.RowCount ?? 0) Results</MudText>
+        <MudStack Row="true" AlignItems="AlignItems.Center">
+            <MudText Typo="Typo.caption" Class="mud-text-secondary ml-4">
+                @(State?.Active?.Result?.RowCount ?? 0) Results
+            </MudText>
+            <QueryTimer StartTime="@State.Active.ExecutionStartTime" EndTime="@State.Active.ExecutionEndTime" Typo="Typo.caption"/>
+        </MudStack>
     </MudStack>
 }
 else if (State?.Active?.IsExecuting ?? false)
 {
-    <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Spacing="3" Style="height:50%;">
-        <MudText Typo="Typo.h6" Class="mud-text-secondary mb-4">Executing Query...</MudText>
-        <GrowColorDots />
+    <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Spacing="3" Class="h-100">
+        <MudSkeleton Width="100%" Height="97%" SkeletonType="SkeletonType.Rectangle" Style="position:absolute;" Class="ml-8" Animation="Animation.Wave"/>
+        <WaveLoader />
+        <LoadingText Text="Running Query" />
+        <QueryTimer StartTime="@State.Active.ExecutionStartTime" EndTime="@State.Active.ExecutionEndTime" />
     </MudStack>
 }
 

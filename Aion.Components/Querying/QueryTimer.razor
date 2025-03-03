@@ -1,0 +1,44 @@
+@using Aion.Components.Theme
+@using Aion.Components.Shared
+@implements IDisposable
+<MudText Typo="@Typo" Class="mud-text-secondary">
+    @if (EndTime.HasValue)
+    {
+        <span>Completed in @FormatDuration(EndTime.Value - StartTime.Value)</span>
+    }
+    else if (StartTime.HasValue)
+    {
+        <span>@FormatDuration(DateTimeOffset.Now - StartTime.Value)</span>
+    }
+</MudText>
+@code {
+    [Parameter] public DateTimeOffset? StartTime { get; set; }
+    [Parameter] public DateTimeOffset? EndTime { get; set; }
+    [Parameter] public Typo Typo { get; set; } = Typo.body1;
+
+    private Timer? _timer;
+
+    protected override void OnInitialized()
+    {
+        if (StartTime.HasValue && !EndTime.HasValue)
+        {
+            _timer = new Timer(_ => InvokeAsync(StateHasChanged), null, 0, 100);
+        }
+    }
+
+    private string FormatDuration(TimeSpan duration)
+    {
+        if (duration.TotalHours >= 1)
+            return $"{duration.TotalHours:F1}h";
+        if (duration.TotalMinutes >= 1)
+            return $"{duration.TotalMinutes:F1}m";
+        if (duration.TotalSeconds >= 1)
+            return $"{duration.TotalSeconds:F1}s";
+        return $"{duration.TotalMilliseconds:F0}ms";
+    }
+
+    public void Dispose()
+    {
+        _timer?.Dispose();
+    }
+} 
