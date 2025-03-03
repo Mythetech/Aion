@@ -7,7 +7,7 @@ using Aion.Components.Querying.Events;
 
 namespace Aion.Components.Querying;
 
-public class QueryState
+public class QueryState : IConsumer<QueryChanged>
 {
     private readonly IMessageBus _messageBus;
     private readonly IQuerySaveService _saveService;
@@ -103,6 +103,10 @@ public class QueryState
     public void SetActive(QueryModel query)
     {
         Active = Queries.FirstOrDefault(x => x.Id.Equals(query.Id));
+
+        if (Active == null) return;
+
+        Active.IsExecuting = false;
         
         OnStateChanged();
     }
@@ -157,5 +161,11 @@ public class QueryState
     private bool IsActive(QueryModel query)
     {
         return Active?.Id.Equals(query.Id) ?? false;
+    }
+
+    public Task Consume(QueryChanged message)
+    {
+        OnStateChanged();
+        return Task.CompletedTask;
     }
 }
