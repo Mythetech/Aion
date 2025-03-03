@@ -32,6 +32,8 @@ public class ConnectionState
     
     protected void OnConnectionStateChanged() => ConnectionStateChanged?.Invoke();
     
+    protected async Task NotifyQueryChanged() => await _messageBus.PublishAsync(new QueryChanged());
+    
     public List<ConnectionModel> Connections { get; set; } = [new ConnectionModel()
     {
         Name = "TestDefault",
@@ -108,11 +110,13 @@ public class ConnectionState
         try 
         {
             query.IsExecuting = true;
+
+            await NotifyQueryChanged();
             
-            // Handle query plans first
             if (query.IncludeEstimatedPlan)
             {
                 query.EstimatedPlan = await provider.GetEstimatedPlanAsync(connectionString, query.Query);
+                await NotifyQueryChanged();
             }
 
             if (query.IncludeActualPlan)
