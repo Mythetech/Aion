@@ -94,6 +94,7 @@
             <MudText Typo="Typo.caption" Class="mud-text-secondary ml-4">
                 @(State?.Active?.Result?.RowCount ?? 0) Results
             </MudText>
+            <MudDivider Vertical="true" /> 
             <QueryTimer StartTime="@State.Active.ExecutionStartTime" EndTime="@State.Active.ExecutionEndTime" Typo="Typo.caption"/>
         </MudStack>
     </MudStack>
