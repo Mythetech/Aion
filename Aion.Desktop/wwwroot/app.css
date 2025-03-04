@@ -316,3 +316,11 @@ html {
 .default-node.selected {
     border: solid 1px var(--mud-palette-primary);
 }
+
+.mt-n4 {
+    margin-top: -1em;
+}
+
+.mt-n3 {
+    margin-top: -0.75em;
+}

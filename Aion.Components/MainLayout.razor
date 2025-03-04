@@ -29,7 +29,7 @@
                 <MudMenu Variant="Variant.Text" Size="Size.Small" Dense="true" ActivationEvent="MouseEvent.MouseOver" Label="File">
                     <MudMenu Label="New">
                         <MudMenuItem Icon="@AionIcons.Connection" OnClick="@(async () => await Bus.PublishAsync(new PromptCreateConnection()))">Connection</MudMenuItem>
-                        <MudMenuItem Icon="@AionIcons.Query">Query</MudMenuItem>
+                        <MudMenuItem Icon="@AionIcons.Query" OnClick="@(async () => await Bus.PublishAsync(new CreateQuery()))">Query</MudMenuItem>
                     </MudMenu>
                     <MudMenuItem Icon="@AionIcons.Save" OnClick="@(async () => await Bus.PublishAsync(new SaveQuery()))">Save Query</MudMenuItem>
                     <MudMenuItem Icon="@AionIcons.Save" OnClick="@(async () => await Bus.PublishAsync(new SaveAllQueries()))">Save All Queries</MudMenuItem>
