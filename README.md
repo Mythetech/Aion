@@ -2,7 +2,7 @@
 
 Aion is a modern, cross-platform SQL client designed for developers and database administrators. Built with .NET, it provides a powerful yet intuitive interface for working with multiple database systems.
 
-<img width="1728" alt="image" src="https://github.com/user-attachments/assets/0bc88bf1-9770-4cc0-9726-c5c2d9e8deeb" />
+<img width="1727" alt="image" src="https://github.com/user-attachments/assets/b26c040a-8599-4e8e-85b1-0ac78316cc97" />
 
 ## Features
 
@@ -35,6 +35,8 @@ Aion is a modern, cross-platform SQL client designed for developers and database
 - Integrated transaction management
 - Query plan analysis
 
+<img width="1727" alt="image" src="https://github.com/user-attachments/assets/f031f829-a117-4a70-aa9f-9dc2628c3383" />
+
 ## Prerequisites
 
 - .NET 9.0
@@ -43,7 +45,7 @@ Aion is a modern, cross-platform SQL client designed for developers and database
 
 1. Clone the repository
     ```bash
-    git clone [repository-url]
+    git clone https://github.com/Mythetech/Aion.git
     cd Aion
     ```
 
