@@ -1,6 +1,6 @@
-# State Management in Apollo
+# State Management in Aion
 
-Apollo uses a simplified Flux/Redux-inspired architecture called Model State Components for state management that maintains unidirectional data flow while reducing boilerplate code.
+Aion uses a simplified Flux/Redux-inspired architecture called Model State Components for state management that maintains unidirectional data flow while reducing boilerplate code.
 
 ## Core Concepts
 
@@ -46,17 +46,18 @@ The architecture consists of three main parts:
 ### State Class Example
 
     ```csharp
-    public class ActiveTypeState : IConsumer<BuildCompleted>
+    public class State 
     {
-        public Type[]? Types { get; private set; }
-        public Dictionary<Type, object> Instances { get; } = new();
+        public string Name { get; private set; }
         
         public event Action? StateChanged;
 
-        public Task Consume(BuildCompleted message)
+        public void NotifyStateChanged() => Action?.Invoke();
+
+        public void Update(string name)
         {
-            HandleBuildCompleted(message.Result.CompiledAssembly);
-            return Task.CompletedTask;
+            Name = name;
+            NotifyStateChanged();
         }
     }
     ```
@@ -66,8 +67,10 @@ The architecture consists of three main parts:
     ```csharp
     @implements IDisposable
 
+    <div>@_state.Text</div>
+
     @code {
-        [Inject] public ActiveTypeState _state { get; set; } = default!;
+        [Inject] public State _state { get; set; } = default!;
 
         protected override void OnInitialized()
         {
@@ -87,6 +90,7 @@ The architecture consists of three main parts:
 - No reducer functions
 - Optional message bus instead of mandatory dispatcher
 - C# events/delegates instead of Observable streams
+- No built-in undo/redo
 
 ### Shared Concepts
  - Unidirectional Data Flow
