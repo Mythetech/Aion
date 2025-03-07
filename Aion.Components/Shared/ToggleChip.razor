@@ -1,0 +1,26 @@
+@using Aion.Components.Theme
+
+<MudTooltip Text="@($"{Text} ({(Value ? "On" : "Off")})")">
+    <MudChip T="string"
+             Icon="@Icon"
+             Variant="@(Value ? Variant.Text : Variant.Outlined)"
+             @bind-Selected="@Value"
+             OnClick="@(async () => { Value = !Value; await ValueChanged.InvokeAsync(Value); })"
+             Color="Color.Primary">
+        @Text
+    </MudChip>
+</MudTooltip>
+
+@code {
+    [Parameter]
+    public string Text { get; set; } = "";
+
+    [Parameter]
+    public string Icon { get; set; } = "";
+
+    [Parameter]
+    public bool Value { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> ValueChanged { get; set; }
+} 
