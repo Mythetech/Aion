@@ -29,7 +29,7 @@
                                 <ChildContent>
                                     <MudMenuItem OnClick="@(() => OnTabChanged(query))" Icon="@AionIcons.OpenFile">Open</MudMenuItem>
                                     <MudMenuItem OnClick="@(() => CloneQuery(query))" Icon="@AionIcons.Copy">Clone</MudMenuItem>
-                                    <MudMenuItem Icon="@AionIcons.Edit">Rename</MudMenuItem>
+                                    <MudMenuItem OnClick="@(async () => await PromptRename(query))" Icon="@AionIcons.Edit">Rename</MudMenuItem>
                                     <MudMenuItem OnClick="@(async () => await CloseTab(query))" Icon="@AionIcons.Close">Close</MudMenuItem>
                                 </ChildContent>
                             </MudMenu>
@@ -233,6 +233,11 @@
             StateHasChanged();
             await OnTabChanged(State.Active);
         }
+    }
+
+    private async Task PromptRename(QueryModel query)
+    {
+        await Bus.PublishAsync(new PromptRenameQuery(query));
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
