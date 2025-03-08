@@ -158,6 +158,18 @@ public class QueryState : IConsumer<QueryChanged>
         }
     }
 
+    public void RenameActiveQuery(string name) => RenameQuery(Active, name); 
+    
+    public void RenameQuery(QueryModel? query, string name)
+    {
+        var q = Queries.FirstOrDefault(x => x.Id.Equals(query?.Id));
+        if (q == null) return;
+        
+        q.Name = name;
+        
+        OnStateChanged();
+    }
+
     private bool IsActive(QueryModel query)
     {
         return Active?.Id.Equals(query.Id) ?? false;

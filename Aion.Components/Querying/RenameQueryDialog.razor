@@ -1,0 +1,68 @@
+@using Aion.Components.Infrastructure.MessageBus
+@using Aion.Components.Querying.Commands
+@using Aion.Components.Shared
+
+<MudDialog Class="aion-transparent-dialog">
+    <DialogContent>
+        <MudForm Model="@Model" @ref="@_form">
+            <MudTextField @bind-Value="Model.Name"
+                          @ref="_input"
+                         Label="Query Name"
+                         Required="true"
+                         RequiredError="Name is required"
+                         Immediate="true"
+                         AutoFocus="true"/>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <PrimaryActionButton OnClick="Submit" Text="Rename" />
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public QueryModel Query { get; set; } = default!;
+    [Inject] private IMessageBus Bus { get; set; } = default!;
+    
+    private MudForm? _form;
+    private RenameQueryModel Model { get; set; } = new();
+    private MudTextField<string>? _input;
+    
+    private class RenameQueryModel
+    {
+        public string Name { get; set; } = "";
+    }
+
+    protected override void OnInitialized()
+    {
+        Model.Name = Query.Name;
+        base.OnInitialized();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Task.Delay(25);
+            if(_input != null)
+                await _input.FocusAsync();
+        }
+        
+    }
+
+    private async Task Submit()
+    {
+        if (_form != null)
+        {
+            await _form.Validate();
+            if (_form.IsValid)
+            {
+                await Bus.PublishAsync(new RenameQuery(Query, Model.Name));
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+        }
+    }
+    
+    private void Cancel() => MudDialog.Cancel();
+}

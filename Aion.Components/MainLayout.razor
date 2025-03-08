@@ -42,6 +42,7 @@
                 </MudMenu>
                 <MudMenu Variant="Variant.Text" Size="Size.Small" Dense="true" ActivationEvent="MouseEvent.MouseOver" Label="Edit">
                     <MudMenuItem Icon="@AionIcons.Copy" OnClick="@(async () => await Bus.PublishAsync(new CopyQueryToClipboard()))">Copy Query</MudMenuItem>
+                    <MudMenuItem Icon="@AionIcons.Edit" OnClick="@(async () => await Bus.PublishAsync(new PromptRenameActiveQuery()))">Rename Query</MudMenuItem>
                     <MudMenuItem Icon="@AionIcons.Format" OnClick="@(async () => await Bus.PublishAsync(new FormatQuery()))">Format</MudMenuItem>
                 </MudMenu>
             </MudStack>
