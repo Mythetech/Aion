@@ -144,6 +144,13 @@ public class ConnectionState
                     cancellationToken);
 
             query.SetResult(result);
+
+            if (!result.Success && (result?.Error?.Contains("Failed to connect") ?? false))
+            {
+                connection.Active = false;
+                OnConnectionStateChanged();
+            }
+            
             await _messageBus.PublishAsync(new QueryExecuted(query));
             return result;
         }
