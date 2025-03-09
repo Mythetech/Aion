@@ -4,10 +4,13 @@
 @using Aion.Components.Connections.Commands
 @using Aion.Components.Infrastructure.MessageBus
 @using Aion.Components.Querying
+@using Aion.Components.Querying.Commands
 @using Aion.Components.Theme
 @using Aion.Components.Shared
 @using Aion.Components.Shared.Dialogs
 @using Aion.Components.Shared.JsonTreeView
+@using Aion.Core.Queries
+@using Aion.Components.Shared.Loaders
 @using Aion.Core.Extensions
 @implements IDisposable
 <MudStack Class="h-100 w-100">
@@ -45,16 +48,7 @@
     
     @if (_openTab.Equals("Info", StringComparison.OrdinalIgnoreCase))
     {
-        @if(QueryState.Active.Result == null)
-        {
-            <MudStack>
-                <MudText>Select an active connection to query your data</MudText>
-            </MudStack>
-            }
-        else
-        {
-            <MudText>@QueryState.Active.Result.ExecutedAt</MudText>
-        }
+        <QueryInfoPanel Query="@QueryState.Active" />
     }
     
     @if (_openTab.Equals(JsonView))
