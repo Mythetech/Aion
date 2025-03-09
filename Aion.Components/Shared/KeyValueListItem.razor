@@ -2,10 +2,13 @@
     <MudText Class="mud-text-secondary">
         @Key
     </MudText>
-    <MudText>
-        @Value
-    </MudText>
+    <MudTooltip Text="@Value">
+        <MudText Class="text-truncate">
+            @Value
+        </MudText>
+    </MudTooltip>
 </MudStack>
+
 @code {
     [Parameter] public string Key { get; set; } = default!;
 

@@ -1,0 +1,136 @@
+@using System.Text.Json
+@using Aion.Components.Theme
+@using Aion.Components.Shared.JsonTreeView
+@using Aion.Core.Extensions
+@using BlazorMonaco.Editor
+
+<MudStack AlignItems="AlignItems.Center" Row="true" Spacing="3" Class="px-4">
+    @if (!string.IsNullOrEmpty(ColumnName))
+    {
+        <MudStack Spacing="0">
+            <MudText Typo="Typo.caption">Column</MudText>
+            <MudText Class="mud-text-secondary">@ColumnName</MudText>
+        </MudStack>
+        <MudSpacer/>
+    }
+    
+    <MudToggleGroup Value="@ViewMode" ValueChanged="OnViewModeChanged" T="string" Outlined="true" Color="Color.Primary" Delimiters="true" Size="Size.Small">
+        <MudToggleItem T="string" Value="@("pretty")">
+            <TooltipIcon Text="JSON (Tree)" Icon="@AionIcons.TreeJson" />
+        </MudToggleItem>
+        <MudToggleItem T="string" Value="@("formatted")">
+            <TooltipIcon Text="JSON (Formatted)" Icon="@AionIcons.PrettyJson" />
+        </MudToggleItem>
+        <MudToggleItem T="string" Value="@("raw")">
+            <TooltipIcon Text="JSON (Raw)" Icon="@AionIcons.RawJson" />
+        </MudToggleItem>
+    </MudToggleGroup>
+    
+    @if (ShowExpandButton)
+    {
+        <AionIconButton Class="mr-4" Tooltip="Expand" OnClick="OnExpand" Icon="@AionIcons.ExpandContent"/>
+    }
+</MudStack>
+
+<MudStack Class="pa-2 h-100 w-100">
+    @if (ViewMode.Equals("raw", StringComparison.OrdinalIgnoreCase))
+    {
+        <pre>
+            <code>
+                @Json
+            </code>
+        </pre>
+    }
+    else if (ViewMode.Equals("pretty", StringComparison.OrdinalIgnoreCase))
+    {
+        <JsonTreeView @ref="_tree" Json="@Json.ParseNestedJson()" Dense="true" Hover="true" />
+    }
+    else if (ViewMode.Equals("formatted", StringComparison.OrdinalIgnoreCase))
+    {
+        <StandaloneCodeEditor @ref="_editor" 
+                              Id="query-json"
+                              CssClass="h-100 w-100 flex-grow-1" 
+                             ConstructionOptions="EditorConstructionOptions"
+                             OnDidInit="HandleEditorInit" />
+    }
+</MudStack>
+
+@code {
+    private JsonTreeView.JsonTreeView? _tree;
+    private StandaloneCodeEditor? _editor;
+    private bool _editorInitialized;
+    
+    [Parameter] public string Json { get; set; } = "";
+    [Parameter] public string ViewMode { get; set; } = "pretty";
+    [Parameter] public string? ColumnName { get; set; }
+    [Parameter] public bool ShowExpandButton { get; set; } = true;
+    [Parameter] public EventCallback<string> ViewModeChanged { get; set; }
+    [Parameter] public EventCallback OnExpandClick { get; set; }
+
+    private StandaloneEditorConstructionOptions EditorConstructionOptions(StandaloneCodeEditor editor)
+    {
+        return new StandaloneEditorConstructionOptions
+        {
+            AutomaticLayout = true,
+            Language = "json",
+            ReadOnly = true,
+            RenderLineHighlight = "none",
+            Minimap = new EditorMinimapOptions { Enabled = false },
+            ScrollBeyondLastLine = false,
+            FontSize = 13,
+            LineNumbers = "off",
+            GlyphMargin = false,
+            Folding = true,
+            LineDecorationsWidth = 0,
+            LineNumbersMinChars = 0,
+        };
+    }
+
+    private async Task HandleEditorInit()
+    {
+        _editorInitialized = true;
+            await SetEditorJson();
+    }
+
+    private async Task SetEditorJson()
+    {
+        if (_editor != null)
+        {
+            var parsed = Json.ParseNestedJson();
+            var jsondoc = JsonDocument.Parse(parsed);
+            await _editor.SetValue(JsonSerializer.Serialize(jsondoc, new JsonSerializerOptions() {WriteIndented = true}));
+        }
+    }
+
+    private async Task OnViewModeChanged(string newMode)
+    {
+        ViewMode = newMode;
+        
+        if (newMode == "formatted" && _editorInitialized && _editor != null)
+        {
+            await SetEditorJson();
+        }
+        
+        await ViewModeChanged.InvokeAsync(newMode);
+    }
+
+    private async Task OnExpand()
+    {
+        await OnExpandClick.InvokeAsync();
+    }
+
+    public void ReInitializeTree()
+    {
+        if (_tree != null)
+            _tree.ReInitialize();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ViewMode == "formatted" && _editorInitialized && _editor != null)
+        {
+            await SetEditorJson();
+        }
+        await base.OnParametersSetAsync();
+    }
+} 

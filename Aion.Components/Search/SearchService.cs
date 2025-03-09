@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Aion.Components.AppContextPanel.Commands;
 using Aion.Components.Connections;
 using Aion.Components.Connections.Commands;
@@ -26,7 +27,7 @@ public class SearchService
         _bus = bus;
     }
 
-    public async IAsyncEnumerable<SearchModel> SearchAsync(string value, CancellationToken cancellationToken)
+    public async IAsyncEnumerable<SearchModel> SearchAsync(string value, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(value)) yield break;
         

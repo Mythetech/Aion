@@ -11,18 +11,11 @@
 <MudDialog Class="aion-transparent-dialog">
     <DialogContent>
         <MudStack Class="pa-4 h-100 w-100" Justify="Justify.Center">
-            @if (ViewMode.Equals("Raw", StringComparison.OrdinalIgnoreCase))
-            {
-            <pre>
-                <code>
-                    @Json
-                </code>
-            </pre>
-            }
-            else if (ViewMode.Equals("pretty", StringComparison.OrdinalIgnoreCase))
-            {
-              <JsonTreeView Json="@Json.ParseNestedJson()" Dense="true" Hover="true" />
-            }
+            <JsonViewer 
+                Json="@Json" 
+                ViewMode="@ViewMode" 
+                ShowExpandButton="false"
+                ViewModeChanged="@((mode) => { ViewMode = mode; StateHasChanged(); })" />
         </MudStack>
     </DialogContent>
     <DialogActions>
