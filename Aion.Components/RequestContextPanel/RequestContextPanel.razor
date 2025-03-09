@@ -53,37 +53,12 @@
     
     @if (_openTab.Equals(JsonView))
     {
-        <MudStack AlignItems="AlignItems.Center" Row="true" Spacing="3" Class="px-4">
-            
-            <MudStack Spacing="0">
-                <MudText Typo="Typo.caption">Column</MudText>
-                <MudText Class="mud-text-secondary">@_columnName</MudText>
-            </MudStack>
-            <MudSpacer/>
-            <MudToggleGroup Value="_jsonViewerSelection" ValueChanged="((s) => { _jsonViewerSelection = s; StateHasChanged(); })" T="string" Outlined="true" Color="Color.Primary" Delimiters="true" Size="Size.Small">
-                <MudToggleItem T="string" Value="@("pretty")">
-                    <TooltipIcon Text="JSON (Pretty)" Icon="@AionIcons.PrettyJson" />
-                </MudToggleItem>
-                <MudToggleItem T="string" Value="@("raw")">
-                    <TooltipIcon Text="JSON (Raw)" Icon="@AionIcons.RawJson" />
-                </MudToggleItem>
-            </MudToggleGroup>
-            <AionIconButton Class="mr-4" Tooltip="Expand" OnClick="OpenJsonViewerDialog" Icon="@AionIcons.ExpandContent"/>
-        </MudStack>
-        <MudStack Class="pa-2 h-100 w-100">
-            @if (_jsonViewerSelection.Equals("Raw", StringComparison.OrdinalIgnoreCase))
-            {
-                <pre>
-            <code>
-        @_code
-        </code>
-        </pre>
-            }
-            else if (_jsonViewerSelection.Equals("pretty"))
-            {
-                    <JsonTreeView @ref="_tree" Json="@_code.ParseNestedJson()" Dense="true" Hover="true" />
-            }
-        </MudStack>
+        <JsonViewer 
+            Json="@_code" 
+            ViewMode="@_jsonViewerSelection" 
+            ColumnName="@_columnName"
+            ViewModeChanged="@((mode) => { _jsonViewerSelection = mode; StateHasChanged(); })"
+            OnExpandClick="OpenJsonViewerDialog" />
     }
     
     @if (_openTab.Equals("Transactions") && QueryState.Active.Transaction.HasValue)

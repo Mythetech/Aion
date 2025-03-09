@@ -192,6 +192,7 @@ html {
 
 .monaco-editor {
     height: 100%!important;
+    width: 100%!important;
 }
 
 .primary-action-button {
