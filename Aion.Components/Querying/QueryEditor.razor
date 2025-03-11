@@ -19,10 +19,10 @@
             {
                 <MudTabPanel OnClick="@(() => OnTabChanged(query))">
                     <TabContent>
-                        <MudStack Row="true" AlignItems="AlignItems.Center">
-                            <MudMenu ActivationEvent="MouseEvent.RightClick">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Style="@(string.IsNullOrWhiteSpace(query.EmphasisColor) ? $"" : $"background:color-mix(in srgb, {query.EmphasisColor} 20%, transparent 80%)")">
+                            <MudMenu ActivationEvent="MouseEvent.RightClick" Dense="true">
                                 <ActivatorContent>
-                                    <MudText Class="px-2">
+                                    <MudText Class="px-2" >
                                         @query.Name
                                     </MudText>
                                 </ActivatorContent>
@@ -31,6 +31,8 @@
                                     <MudMenuItem OnClick="@(() => CloneQuery(query))" Icon="@AionIcons.Copy">Clone</MudMenuItem>
                                     <MudMenuItem OnClick="@(async () => await PromptRename(query))" Icon="@AionIcons.Edit">Rename</MudMenuItem>
                                     <MudMenuItem OnClick="@(async () => await CloseTab(query))" Icon="@AionIcons.Close">Close</MudMenuItem>
+                                    <MudDivider />
+                                    <QueryColorEmphasisPicker Query="@query" OnEmphasisColorPicked="(color) => UpdateEmphasisColor(query, color)" />
                                 </ChildContent>
                             </MudMenu>
                             <AionIconButton Size="Size.Small" Icon="@AionIcons.Close" Tooltip="Close" OnClick="@(async () => await CloseTab(query))"/>
@@ -320,5 +322,11 @@
         State.AddQuery(name); 
         ActiveTabIndex = State.Queries.Count - 1; 
         await _editor.SetValue(State.Active.Query);
+    }
+
+    private void UpdateEmphasisColor(QueryModel query, string color)
+    {
+        query.UpdateEmphasisColor(color);
+        StateHasChanged();
     }
 }

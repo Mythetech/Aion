@@ -71,7 +71,7 @@
             <MudDivider Class="pb-4 mt-4" DividerType="DividerType.Middle"/>
 
             <MudStack Row="true" Class="w-100">
-                <MudButton E Variant="Variant.Filled" Class="rounded-xl flex-grow-1" Color="Color.Error" OnClick="@(async () => await MessageBus.PublishAsync(new RollbackTransaction(QueryState.Active)))">Rollback</MudButton>
+                <MudButton Variant="Variant.Filled" Class="rounded-xl flex-grow-1" Color="Color.Error" OnClick="@(async () => await MessageBus.PublishAsync(new RollbackTransaction(QueryState.Active)))">Rollback</MudButton>
                 <MudButton Variant="Variant.Filled" Class="rounded-xl flex-grow-1" Color="Color.Success" OnClick="@(async () => await MessageBus.PublishAsync(new CommitTransaction(QueryState.Active)))">Commit</MudButton>
             </MudStack>
             </MudStack>

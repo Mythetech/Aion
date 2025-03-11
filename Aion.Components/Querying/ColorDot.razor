@@ -1,0 +1,16 @@
+<MudPaper 
+    Elevation="@(Active ? 1 : 0)" 
+    Class="rounded-xl hover-shadow cursor-pointer" 
+    Height="@($"{_size}px")" 
+    Width="@($"{_size}px")" 
+    Style="@($"background-color: {Color};{(Active ? "border:solid 1px var(--mud-palette-gray-light)" : "")}")" @onclick="async () => await OnClick.InvokeAsync()" />
+
+@code {
+    [Parameter] public string Color { get; set; } = default!;
+    
+    [Parameter] public bool Active { get; set; }
+    
+    [Parameter] public EventCallback OnClick { get; set; }
+
+    private int _size = 16;
+}

@@ -1,0 +1,27 @@
+<MudStack Row="true" Spacing="1" Class="pa-2">
+    @foreach (var color in Colors)
+    {
+        <ColorDot Color="@color" Active="@(Query?.EmphasisColor?.Equals(color) ?? false)" OnClick="@(async () => await OnEmphasisColorPicked.InvokeAsync(color))" />
+    }
+</MudStack>
+
+@code {
+    private string[] Colors { get; init; } = [
+        MudBlazor.Colors.Red.Default,
+        MudBlazor.Colors.Blue.Default,
+        MudBlazor.Colors.Green.Default,
+        MudBlazor.Colors.Amber.Default,
+        MudBlazor.Colors.Cyan.Default,
+        MudBlazor.Colors.Teal.Default,
+    ];
+
+    [Parameter] public QueryModel Query { get; set; } = default!;
+
+    [Parameter] public EventCallback<string> OnEmphasisColorPicked { get; set; } = default!;
+
+    private void SetEmphasisColor(string color)
+    {
+        Query.EmphasisColor = color;
+        
+    }
+}

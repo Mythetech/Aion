@@ -1,4 +1,5 @@
 using Aion.Core.Queries;
+using MudBlazor;
 
 namespace Aion.Components.Querying;
 
@@ -21,6 +22,19 @@ public class QueryModel
     public DateTimeOffset? ExecutionStartTime { get; private set; }
     public DateTimeOffset? ExecutionEndTime { get; private set; }
     public TimeSpan? ExecutionDuration => ExecutionEndTime - ExecutionStartTime;
+    
+    public string? EmphasisColor { get; set; }
+
+    public void UpdateEmphasisColor(string color)
+    {
+        if (color.Equals(EmphasisColor, StringComparison.OrdinalIgnoreCase))
+        {
+            EmphasisColor = null;
+            return;
+        }
+        
+        EmphasisColor = color;
+    }
 
     public void StartExecution()
     {
