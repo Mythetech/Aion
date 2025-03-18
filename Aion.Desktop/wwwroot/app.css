@@ -94,8 +94,8 @@ html {
 
 .app-context-panel {
     height: 100dvh;
-    min-width: 3.5em;
-    max-width: 3.5em;
+    min-width:var(--mud-drawer-width-mini-left);
+    max-width:var(--mud-drawer-width-mini-left);
     overflow: hidden;
     background: linear-gradient(360deg, var(--mud-palette-secondary) 1%, var(--mud-palette-surface) 10%);
     border-right: solid 1px var(--mud-palette-primary);
