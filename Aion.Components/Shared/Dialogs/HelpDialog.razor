@@ -1,0 +1,32 @@
+@using System.Reflection
+@using Aion.Components.Shared
+@using Aion.Components.Theme
+
+<MudDialog Class="aion-transparent-dialog about-aion-dialog">
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="6" Class="pt-8 pb-2">
+                <MudImage Class="aion-image" Src="/aion.png" Alt="Aion" Fluid="true" Style="border-radius: 10em"></MudImage>
+            </MudItem>
+            <MudItem xs="6">
+                <MudStack Class="w-100 h-100" Spacing="3" AlignItems="AlignItems.Center" Justify="Justify.Center">
+                    <MudText Class="app-header-font" Typo="Typo.h4">Aion</MudText>
+                    <MudText Typo="Typo.h5" Class="mud-text-secondary"></MudText>
+                    <MudText Typo="Typo.h6"></MudText>
+                </MudStack>
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudLink Href="https://wwww.mythetech.com" Class="app-header-font">Mythetech</MudLink>
+        <MudSpacer/>
+        <MudButton OnClick="Cancel">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; }
+    private void Cancel() => MudDialog.Cancel();
+
+
+}
