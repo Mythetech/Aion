@@ -48,7 +48,8 @@ public class AionTheme : MudTheme
         {
             DefaultBorderRadius = "0.5em",
             AppbarHeight = "2rem",
-            DrawerWidthLeft = "3.25em",
+            DrawerWidthLeft = "25vw",
+            DrawerMiniWidthLeft = "3.25em"
         };
     }
 }
