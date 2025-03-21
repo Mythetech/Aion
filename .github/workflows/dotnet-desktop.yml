@@ -63,6 +63,55 @@ jobs:
       env:
         Configuration: Release
 
+  publish:
+    needs: test
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        include:
+          - os: windows-latest
+            rid: win-x64
+            platform: Windows
+          - os: ubuntu-latest
+            rid: linux-x64
+            platform: Linux
+          - os: macos-latest
+            rid: osx-x64
+            platform: macOS
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 9.0.x
+        
+    - name: Install Velopack CLI
+      run: dotnet tool update -g vpk
+        
+    - name: Get Version
+      id: get_version
+      run: echo "VERSION=0.0.${{ github.run_number }}" >> $GITHUB_OUTPUT
+      shell: bash
+        
+    - name: Publish
+      run: dotnet publish Aion.Desktop/Aion.Desktop.csproj -c Release -r ${{ matrix.rid }} --self-contained -p:PublishSingleFile=true -p:PublishTrimmed=false -o publish/${{ matrix.rid }}
+        
+    - name: Create Velopack Release
+      run: vpk pack -u "Aion.Desktop" -v ${{ steps.get_version.outputs.VERSION }} -o "releases/${{ matrix.platform }}" -p "publish/${{ matrix.rid }}"
+      
+    - name: Upload Release Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: aion-${{ matrix.platform }}-${{ steps.get_version.outputs.VERSION }}
+        path: releases/${{ matrix.platform }}
+
 #  build-package:
 #    needs: test 
 #    runs-on: windows-latest

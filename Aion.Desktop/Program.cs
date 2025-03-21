@@ -5,6 +5,7 @@ using Aion.Components.Querying;
 using Microsoft.Extensions.DependencyInjection;
 using Photino.Blazor;
 using Aion.Desktop.Services;
+using Velopack;
 
 namespace Aion.Desktop
 {
@@ -13,6 +14,8 @@ namespace Aion.Desktop
         [STAThread]
         static void Main(string[] args)
         {
+            VelopackApp.Build().Run();
+            
             var appBuilder = PhotinoBlazorAppBuilder.CreateDefault(args);
 
             appBuilder.Services
