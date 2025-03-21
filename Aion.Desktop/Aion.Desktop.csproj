@@ -20,6 +20,7 @@
       <PackageReference Include="MudBlazor" Version="8.2.0" />
       <PackageReference Include="Npgsql" Version="9.0.2" />
       <PackageReference Include="Photino.Blazor" Version="4.0.13" />
+      <PackageReference Include="Velopack" Version="0.0.1053" />
     </ItemGroup>
 
     <ItemGroup>
