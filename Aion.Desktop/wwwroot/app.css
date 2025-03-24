@@ -340,3 +340,7 @@ html {
 .hover-shadow:hover {
     box-shadow: 0 0 0.2em 0.1em var(--mud-palette-gray-lighter);
 }
+
+.mud-treeview-group {
+    margin-left: 8px;
+}
