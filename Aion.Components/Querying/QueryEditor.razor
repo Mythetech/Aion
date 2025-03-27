@@ -193,13 +193,13 @@
     {
         if (_editor != null)
         {
-            await _editor.SetValue(State.Active.Query);
+            await _editor.SetValue(State?.Active?.Query ?? "");
         }
     }
 
     private async Task UpdateQuery(ModelContentChangedEvent evt)
     {
-        if (!_initialized) return;
+        if (!_initialized || State.Active == null) return;
         
         var text = await _editor.GetValue();
         State.Active.Query = text;
