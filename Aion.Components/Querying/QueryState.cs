@@ -102,7 +102,7 @@ public class QueryState : IConsumer<QueryChanged>
 
     public void SetActive(QueryModel query)
     {
-        Active = Queries.FirstOrDefault(x => x.Id.Equals(query.Id));
+        Active = Queries.FirstOrDefault(x => x.Id.Equals(query?.Id));
 
         if (Active == null) return;
 
