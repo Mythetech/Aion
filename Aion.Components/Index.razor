@@ -57,7 +57,7 @@
     
     private FluentMultiSplitter _primarySplitter = default!;
 
-    private FluentMultiSplitterPane _contextPanel = default!;
+    private FluentMultiSplitterPane? _contextPanel = default!;
     
     private bool _sidePanelClosed = true;
 
@@ -100,7 +100,7 @@
 
     public void Dispose()
     {
-        _contextPanel.Dispose();
+        _contextPanel?.Dispose();
         Bus.Unsubscribe<OpenRequestContextPanel>(this);
         Bus.Unsubscribe<OpenJsonDetailView>(this);
         QueryState.StateChanged -= StateHasChanged;
