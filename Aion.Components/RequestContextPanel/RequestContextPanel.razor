@@ -53,7 +53,8 @@
     
     @if (_openTab.Equals(JsonView))
     {
-        <JsonViewer 
+        <JsonViewer
+            @ref="_jsonViewer"
             Json="@_code" 
             ViewMode="@_jsonViewerSelection" 
             ColumnName="@_columnName"
@@ -100,7 +101,7 @@
 
     private MudToggleGroup<string> _toggle;
 
-    private JsonTreeView? _tree;
+    private JsonViewer? _jsonViewer;
 
     private string _queryName = "";
 
@@ -131,7 +132,7 @@
         StateHasChanged();
     }
 
-    public Task OpenJsonDetailView(QueryResponseJsonDetail columnDetail)
+    public async Task OpenJsonDetailView(QueryResponseJsonDetail columnDetail)
     {
         _openTab = JsonView;
 
@@ -140,12 +141,12 @@
         _columnName = columnDetail.Column;
         
         _code = JsonSerializer.Serialize(JsonSerializer.Deserialize<dynamic>(columnDetail.Json), new JsonSerializerOptions() { WriteIndented = true });
+
+        await Task.Yield();
         
-        if(_tree != null)
-            _tree.ReInitialize();
-    
+        _jsonViewer?.ReInitializeTree();
+
         StateHasChanged();
-        return Task.CompletedTask;
     }
 
     protected async Task OpenJsonViewerDialog()
