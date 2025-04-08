@@ -25,18 +25,18 @@
         </MudPaper>
     </MudStack>
     
-    <MudStack Row="true" Justify="Justify.Center">
-        <MudLink Color="@(_openTab.Equals("Info") ? Color.Primary : Color.Default)" OnClick="@(async () => await Open("Info"))">Info</MudLink>
+    <MudStack Row="true" Justify="Justify.Center" Class="pa-1 align-text-center rounded border-1 mx-4">
+        <RequestContextPanelLink Text="Info" IsActive="@(_openTab.Equals("Info"))" OnClick="@(async () => await Open("Info"))" />
+        
         @if (!string.IsNullOrWhiteSpace(_code))
         {
-            <MudLink Color="@(_openTab.Equals(JsonView) ? Color.Primary : Color.Default)" OnClick="@(async () => await Open(JsonView))">Json</MudLink>
+            <RequestContextPanelLink Text="Json" IsActive="@(_openTab.Equals(JsonView))" OnClick="@(async () => await Open(JsonView))" />
         }
         
         @if (QueryState?.Active?.Transaction.HasValue ?? false)
         {
-            <MudLink Color="@(_openTab.Equals("Transactions") ? Color.Primary : Color.Default)" OnClick="@(async () => await Open("Transactions"))">Transactions</MudLink>
+            <RequestContextPanelLink Text="Transactions" IsActive="@(_openTab.Equals("Transactions"))" OnClick="@(async () => await Open("Transactions"))" />
         }
-
     </MudStack>
   
     @if (string.IsNullOrWhiteSpace(_openTab))
