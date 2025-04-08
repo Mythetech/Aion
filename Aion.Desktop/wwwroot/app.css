@@ -344,3 +344,15 @@ html {
 .mud-treeview-group {
     margin-left: 8px;
 }
+
+.align-text-center {
+    text-align: center;
+}
+
+.border-1 {
+    border: 1px solid var(--mud-palette-primary);
+}
+
+.bg-primary-50 {
+    background-color: color-mix(in srgb, var(--mud-palette-primary) 50%, transparent 100%);
+}
