@@ -356,3 +356,7 @@ html {
 .bg-primary-50 {
     background-color: color-mix(in srgb, var(--mud-palette-primary) 50%, transparent 100%);
 }
+
+.mud-tabs-tabbar .mud-tabs-tabbar-inner{
+  min-height: auto;  
+}
