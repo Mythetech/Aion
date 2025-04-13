@@ -1,0 +1,29 @@
+@code {
+    [Parameter] public string Name { get; set; } = "";
+
+    [Parameter] public string Id { get; set; } = Guid.NewGuid().ToString();
+    
+    [Parameter] public bool IsActive { get; set; }
+    
+    [Parameter] public RenderFragment ChildContent { get; set; }
+    
+    [CascadingParameter] private AionTabs Parent { get; set; }
+    
+    protected override void OnInitialized()
+    {
+        if (Parent == null)
+            throw new InvalidOperationException($"{nameof(Tab)} must exist within an {nameof(AionTabs)}");
+            
+        Parent.AddTab(this);
+    }
+    
+    public void Dispose()
+    {
+        if (Parent != null)
+        {
+            Parent.RemoveTab(this);
+        }
+    }
+}
+
+@implements IDisposable

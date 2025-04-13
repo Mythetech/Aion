@@ -1,0 +1,81 @@
+@using Aion.Components.Shared.Tabs
+@using MudBlazor
+
+<CascadingValue Value="this">
+    @ChildContent
+</CascadingValue>
+
+<MudStack>
+    <MudStack Row="true" Justify="Justify.Center" Class="pa-1 align-text-center rounded border-1 mx-4">
+        @foreach (var tab in _tabs)
+        {
+            <MudLink Class="@($"flex-grow-1 rounded{(tab.IsActive ? " bg-primary-50" : "")}")"
+                     Color="@(tab.IsActive ? Color.Primary : Color.Default)"
+                     OnClick="@(() => SelectTab(tab))">
+                @tab.Name
+            </MudLink>
+        }
+    </MudStack>
+    
+    <div class="px-4">
+        @foreach (var tab in _tabs.Where(t => t.IsActive))
+        {
+            @tab.ChildContent
+        }
+    </div>
+</MudStack>
+
+@code {
+    [Parameter]
+    public RenderFragment ChildContent { get; set; }
+
+    private List<Tab> _tabs = new();
+
+    protected override void OnInitialized()
+    {
+        _tabs.Clear();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && _tabs.Count > 0 && !_tabs.Any(t => t.IsActive))
+        {
+            _tabs[0].IsActive = true;
+            StateHasChanged();
+        }
+    }
+
+    internal void AddTab(Tab tab)
+    {
+        if (!_tabs.Contains(tab))
+        {
+            _tabs.Add(tab);
+            StateHasChanged();
+        }
+    }
+
+    internal void RemoveTab(Tab tab)
+    {
+        if (_tabs.Contains(tab))
+        {
+            _tabs.Remove(tab);
+            
+            if (tab.IsActive && _tabs.Count > 0)
+            {
+                _tabs[0].IsActive = true;
+            }
+            
+            StateHasChanged();
+        }
+    }
+
+    private void SelectTab(Tab tab)
+    {
+        foreach (var t in _tabs)
+        {
+            t.IsActive = t == tab;
+        }
+        
+        StateHasChanged();
+    }
+}
