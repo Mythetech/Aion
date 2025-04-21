@@ -15,6 +15,7 @@ public class AionTheme : MudTheme
             BackgroundGray = "#FFF",
             Surface = "#EEE",
             ActionDefault = Colors.Indigo.Lighten2,
+            TableHover = Colors.Indigo.Lighten2 + "33",
         };
         PaletteDark = new PaletteDark()
         {
@@ -26,7 +27,8 @@ public class AionTheme : MudTheme
             Background = "#111",
             GrayDarker = "#222",
             ActionDefault = Colors.Indigo.Default,
-            BackgroundGray = "#222"
+            BackgroundGray = "#222",
+            TableHover = Colors.Indigo.Default + "33",
         };
         Typography = new Typography()
         {
