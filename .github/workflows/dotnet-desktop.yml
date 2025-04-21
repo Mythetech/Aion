@@ -72,12 +72,15 @@ jobs:
           - os: windows-latest
             rid: win-x64
             platform: Windows
+            icon: Aion.Desktop/wwwroot/aion.ico
           - os: ubuntu-latest
             rid: linux-x64
             platform: Linux
+            icon: Aion.Desktop/wwwroot/aion512.png
           - os: macos-latest
             rid: osx-x64
             platform: macOS
+            icon: Aion.Desktop/wwwroot/aion.icns
     
     runs-on: ${{ matrix.os }}
     
@@ -104,7 +107,7 @@ jobs:
       run: dotnet publish Aion.Desktop/Aion.Desktop.csproj -c Release -r ${{ matrix.rid }} --self-contained -p:PublishSingleFile=true -p:PublishTrimmed=false -o publish/${{ matrix.rid }}
         
     - name: Create Velopack Release
-      run: vpk pack -u "Aion.Desktop" -v ${{ steps.get_version.outputs.VERSION }} -o "releases/${{ matrix.platform }}" -p "publish/${{ matrix.rid }}"
+      run: vpk pack -u "Aion.Desktop" -v ${{ steps.get_version.outputs.VERSION }} -o "releases/${{ matrix.platform }}" -p "publish/${{ matrix.rid }}" --icon ${{ matrix.icon }}
       
     - name: Upload Release Artifacts
       uses: actions/upload-artifact@v4
