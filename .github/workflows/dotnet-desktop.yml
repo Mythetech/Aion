@@ -107,7 +107,7 @@ jobs:
       run: dotnet publish Aion.Desktop/Aion.Desktop.csproj -c Release -r ${{ matrix.rid }} --self-contained -p:PublishSingleFile=true -p:PublishTrimmed=false -o publish/${{ matrix.rid }}
         
     - name: Create Velopack Release
-      run: vpk pack -u "Aion.Desktop" -v ${{ steps.get_version.outputs.VERSION }} -o "releases/${{ matrix.platform }}" -p "publish/${{ matrix.rid }}" --icon ${{ matrix.icon }}
+      run: vpk pack -u "Aion" -v ${{ steps.get_version.outputs.VERSION }} -o "releases/${{ matrix.platform }}" -p "publish/${{ matrix.rid }}" --icon ${{ matrix.icon }}
       
     - name: Upload Release Artifacts
       uses: actions/upload-artifact@v4
