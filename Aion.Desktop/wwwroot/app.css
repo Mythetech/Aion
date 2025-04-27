@@ -107,7 +107,7 @@ html {
 }
 
 .mud-appbar {
-    background: linear-gradient(90deg, var(--mud-palette-surface), var(--mud-palette-primary));
+    background: linear-gradient(90deg, var(--mud-palette-surface), color-mix(in srgb, var(--mud-palette-primary) 30%, transparent));
 }
 
 .h-100 {

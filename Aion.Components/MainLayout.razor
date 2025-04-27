@@ -74,7 +74,7 @@
                 </MudAutocomplete>
                 </MudStack>
             <MudStack Row="true"  AlignItems="@AlignItems.Center" Spacing="0">
-                <AionIconButton Color="Color.Dark" Icon="@AionIcons.Help" Tooltip="Help" OnClick="@(async () => await Bus.PublishAsync(new ShowHelp()))"/>
+                <AionIconButton Icon="@AionIcons.Help" Tooltip="Help" OnClick="@(async () => await Bus.PublishAsync(new ShowHelp()))"/>
             </MudStack>
         </MudStack>
     </MudAppBar>
