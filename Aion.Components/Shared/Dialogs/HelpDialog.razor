@@ -1,6 +1,8 @@
 @using System.Reflection
+@using Aion.Components.Infrastructure
 @using Aion.Components.Shared
 @using Aion.Components.Theme
+@using Microsoft.JSInterop
 
 <MudDialog Class="aion-transparent-dialog about-aion-dialog">
     <DialogContent>
@@ -18,7 +20,9 @@
         </MudGrid>
     </DialogContent>
     <DialogActions>
-        <MudLink Href="https://wwww.mythetech.com" Class="app-header-font">Mythetech</MudLink>
+        <MudLink OnClick="OpenMythetech" Class="app-header-font">Mythetech</MudLink>
+        <MudLink OnClick="OpenGithub">GitHub</MudLink>
+        <AionIconButton OnClick="@OpenGithubIssues" Size="Size.Small" Color="Color.Error" Tooltip="Report Issue" Icon="@AionIcons.Round("bug_report")" />
         <MudSpacer/>
         <MudButton OnClick="Cancel">Close</MudButton>
     </DialogActions>
@@ -27,6 +31,25 @@
     [CascadingParameter]
     private IMudDialogInstance MudDialog { get; set; }
     private void Cancel() => MudDialog.Cancel();
+    private const string GitHubLink = "https://github.com/Mythetech/Aion/";
+    private const string GitHubIssuesLink = $"{GitHubLink}issues/new";
+    private const string MythetechLink = "https://www.mythetech.com";
 
+    private void OpenMythetech()
+    {
+        LinkOpenService.OpenUrl(MythetechLink);
+    }
+
+    private void OpenGithub()
+    {
+        LinkOpenService.OpenUrl(GitHubLink);
+    }
+    
+    private void OpenGithubIssues()
+    {
+        LinkOpenService.OpenUrl(GitHubIssuesLink);
+    }
+
+    [Inject] ILinkOpenService LinkOpenService { get; set; }
 
 }

@@ -34,6 +34,7 @@ namespace Aion.Desktop
 
             appBuilder.Services.AddSingleton<IPhotinoAppProvider, PhotinoAppProvider>();
             appBuilder.Services.AddTransient<IFileSaveService, PhotinoInteropFileSaveService>();
+            appBuilder.Services.AddTransient<ILinkOpenService, LinkOpenService>();
             
             var app = appBuilder.Build();
 
