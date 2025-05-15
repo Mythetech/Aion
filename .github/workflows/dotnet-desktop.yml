@@ -106,6 +106,12 @@ jobs:
       id: get_version
       run: echo "VERSION=0.0.${{ github.run_number }}" >> $GITHUB_OUTPUT
       shell: bash
+
+    - name: Add GitHub NuGet Source
+      id: add-nuget-source
+      run: |
+        dotnet nuget add source https://nuget.pkg.github.com/Mythetech/index.json -n github -u user -p ${{ secrets.GITHUB_TOKEN }} --store-password-in-clear-text
+      continue-on-error: true
         
     - name: Publish
       run: dotnet publish Aion.Desktop/Aion.Desktop.csproj -c Release -r ${{ matrix.rid }} --self-contained -p:PublishSingleFile=true -p:PublishTrimmed=false -o publish/${{ matrix.rid }}
