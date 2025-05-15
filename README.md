@@ -2,7 +2,7 @@
 
 Aion is a modern, cross-platform SQL client designed for developers and database administrators. Built with .NET, it provides a powerful yet intuitive interface for working with multiple database systems.
 
-<img width="1727" alt="image" src="https://github.com/user-attachments/assets/b26c040a-8599-4e8e-85b1-0ac78316cc97" />
+<img width="1728" alt="image" src="https://github.com/user-attachments/assets/fa6dd95c-a847-4971-82ba-3b0d97fe6d40" />
 
 ## Features
 
