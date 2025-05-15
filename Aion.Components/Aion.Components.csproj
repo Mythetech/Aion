@@ -15,7 +15,7 @@
       <PackageReference Include="ClosedXML" Version="0.104.2" />
       <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="9.0.2" />
       <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" Version="4.11.4" />
-      <PackageReference Include="MudBlazor" Version="8.2.0" />
+      <PackageReference Include="mythetech.components" Version="0.0.1" />
       <PackageReference Include="Z.Blazor.Diagrams" Version="3.0.3" />
     </ItemGroup>
 
