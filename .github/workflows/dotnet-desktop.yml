@@ -57,7 +57,11 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 9.0.x
-
+    - name: Add GitHub NuGet Source
+      id: add-nuget-source
+      run: |
+        dotnet nuget add source https://nuget.pkg.github.com/Mythetech/index.json -n github -u user -p ${{ secrets.GITHUB_TOKEN }} --store-password-in-clear-text
+      continue-on-error: true
     - name: Execute unit tests
       run: dotnet test
       env:
