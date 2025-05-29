@@ -34,6 +34,7 @@ Aion is a modern, cross-platform SQL client designed for developers and database
 - Query history tracking
 - Integrated transaction management
 - Query plan analysis
+- Multiple JSON formatting options and displays
 
 <img width="1728" alt="image" src="https://github.com/user-attachments/assets/f31b0fce-d0d5-4fd4-af45-741a2dff8055" />
 
