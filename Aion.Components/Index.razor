@@ -23,7 +23,7 @@
                     </MudPaper>
                 </FluentMultiSplitterPane>
                 <FluentMultiSplitterPane Size="50%" Min="150px" Collapsible="true">
-                        <QueryResponsePanel />
+                    <QueryResponsePanel />
                 </FluentMultiSplitterPane>
             </FluentMultiSplitter>
         </FluentMultiSplitterPane>
@@ -35,15 +35,38 @@
     </FluentMultiSplitter>
     @if (_sidePanelClosed)
     {
-    <MudStack Spacing="3" AlignItems="AlignItems.Center" Class="w-100" Style="max-width: 30px;">
-        <AionIconButton Class="py-4" Size="Size.Small" Tooltip="Info Panel" Icon="@AionIcons.Info" OnClick="@(() => ToggleSidePanel("Info"))" />
-        @if (QueryState?.Active?.Transaction.HasValue ?? false)
-        {
-            <AionIconButton Tooltip="Transactions" Icon="@AionIcons.Transaction" OnClick="@(() => ToggleSidePanel("Transactions"))"></AionIconButton>
-        }
-    </MudStack>
+        <MudStack Spacing="3" AlignItems="AlignItems.Center" Class="w-100" Style="max-width: 30px;">
+            <AionIconButton Class="py-4" Size="Size.Small" Tooltip="Info Panel" Icon="@AionIcons.Info" OnClick="@(() => ToggleSidePanel("Info"))" />
+            @if (QueryState?.Active?.Transaction.HasValue ?? false)
+            {
+                <AionIconButton Tooltip="Transactions" Icon="@AionIcons.Transaction" OnClick="@(() => ToggleSidePanel("Transactions"))"></AionIconButton>
+            }
+        </MudStack>
     }
 </MudStack>
+
+<script>
+    const resizer = document.querySelector('.resizer');
+    const drawer = document.querySelector('.mud-drawer');
+    const root = document.documentElement;
+
+    resizer.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+
+        const onMouseMove = (e) => {
+            const newWidth = e.clientX - drawer.getBoundingClientRect().left;
+            root.style.setProperty('--mud-drawer-width-left', `${newWidth}px`);
+        };
+
+        const onMouseUp = () => {
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+        };
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+    });
+</script>
 
 @code {
     [Inject]
