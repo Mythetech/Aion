@@ -7,8 +7,10 @@
 @using Aion.Components.RequestContextPanel.Commands
 @using Aion.Components.Shared
 @using Aion.Components.Theme
+@using Microsoft.JSInterop
 @using MudBlazor.Extensions
 @implements IDisposable
+@implements IAsyncDisposable
 @implements Aion.Components.Infrastructure.MessageBus.IConsumer<Aion.Components.RequestContextPanel.Commands.OpenRequestContextPanel>
 @implements Aion.Components.Infrastructure.MessageBus.IConsumer<Aion.Components.RequestContextPanel.Commands.OpenJsonDetailView>
 
@@ -23,7 +25,7 @@
                     </MudPaper>
                 </FluentMultiSplitterPane>
                 <FluentMultiSplitterPane Size="50%" Min="150px" Collapsible="true">
-                        <QueryResponsePanel />
+                    <QueryResponsePanel />
                 </FluentMultiSplitterPane>
             </FluentMultiSplitter>
         </FluentMultiSplitterPane>
@@ -35,15 +37,17 @@
     </FluentMultiSplitter>
     @if (_sidePanelClosed)
     {
-    <MudStack Spacing="3" AlignItems="AlignItems.Center" Class="w-100" Style="max-width: 30px;">
-        <AionIconButton Class="py-4" Size="Size.Small" Tooltip="Info Panel" Icon="@AionIcons.Info" OnClick="@(() => ToggleSidePanel("Info"))" />
-        @if (QueryState?.Active?.Transaction.HasValue ?? false)
-        {
-            <AionIconButton Tooltip="Transactions" Icon="@AionIcons.Transaction" OnClick="@(() => ToggleSidePanel("Transactions"))"></AionIconButton>
-        }
-    </MudStack>
+        <MudStack Spacing="3" AlignItems="AlignItems.Center" Class="w-100" Style="max-width: 30px;">
+            <AionIconButton Class="py-4" Size="Size.Small" Tooltip="Info Panel" Icon="@AionIcons.Info" OnClick="@(() => ToggleSidePanel("Info"))" />
+            @if (QueryState?.Active?.Transaction.HasValue ?? false)
+            {
+                <AionIconButton Tooltip="Transactions" Icon="@AionIcons.Transaction" OnClick="@(() => ToggleSidePanel("Transactions"))"></AionIconButton>
+            }
+        </MudStack>
     }
 </MudStack>
+
+
 
 @code {
     [Inject]
@@ -52,6 +56,8 @@
     [Inject] protected IMessageBus Bus { get; set; } = default!;
 
     [Inject] protected QueryState QueryState { get; set; } = default!;
+
+    [Inject] protected IJSRuntime JS { get; set; } = default!;
     
     private RequestContextPanel.RequestContextPanel _requestContextPanel = default!;
     
@@ -97,6 +103,17 @@
         Bus.Subscribe<OpenJsonDetailView>(this);
         QueryState.StateChanged += StateHasChanged;
     }
+    
+    private IJSObjectReference? module;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            module = await JS.InvokeAsync<IJSObjectReference>("import",
+                "./_content/Aion.Components/app.js");
+        }
+    }
 
     public void Dispose()
     {
@@ -124,4 +141,8 @@
         await _requestContextPanel.OpenJsonDetailView(message.ColumnDetail);
     }
 
+    public async ValueTask DisposeAsync()
+    {
+        if (module != null) await module.DisposeAsync();
+    }
 }
