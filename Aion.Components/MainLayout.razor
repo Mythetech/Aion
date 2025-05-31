@@ -83,7 +83,7 @@
                       DrawerBackgroundColor="@_backgroundColor"
                       DrawerToggled="@(() => AppState.ToggleSideBar())"
                       DarkModeToggled="@(() => AppState.IsDarkMode = !AppState.IsDarkMode)" />
-        <div class="resizer"></div>
+        <div class="@($"resizer {(!AppState.SideBarOpen ? "d-none" : "")}")"></div>
     </MudDrawer>
     <MudMainContent Class=" pl-2 pr-0" Style="max-height:100dvh;max-width:100vw;overflow:hidden;">
         <MudContainer Class="px-0 mud-width-full" MaxWidth="MaxWidth.ExtraLarge" Style="@($"height:94vh;overflow:hidden;")">

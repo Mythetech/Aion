@@ -59,6 +59,8 @@
 
     [Inject] protected IJSRuntime JS { get; set; } = default!;
     
+    private IJSObjectReference? _module;
+    
     private RequestContextPanel.RequestContextPanel _requestContextPanel = default!;
     
     private FluentMultiSplitter _primarySplitter = default!;
@@ -66,7 +68,6 @@
     private FluentMultiSplitterPane? _contextPanel = default!;
     
     private bool _sidePanelClosed = true;
-
     
     protected void HandleExpand(FluentMultiSplitterEventArgs args)
     {
@@ -104,13 +105,11 @@
         QueryState.StateChanged += StateHasChanged;
     }
     
-    private IJSObjectReference? module;
-
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            module = await JS.InvokeAsync<IJSObjectReference>("import",
+            _module = await JS.InvokeAsync<IJSObjectReference>("import",
                 "./_content/Aion.Components/app.js");
         }
     }
@@ -143,6 +142,6 @@
 
     public async ValueTask DisposeAsync()
     {
-        if (module != null) await module.DisposeAsync();
+        if (_module != null) await _module.DisposeAsync();
     }
 }
