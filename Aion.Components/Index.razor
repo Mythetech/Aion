@@ -7,8 +7,10 @@
 @using Aion.Components.RequestContextPanel.Commands
 @using Aion.Components.Shared
 @using Aion.Components.Theme
+@using Microsoft.JSInterop
 @using MudBlazor.Extensions
 @implements IDisposable
+@implements IAsyncDisposable
 @implements Aion.Components.Infrastructure.MessageBus.IConsumer<Aion.Components.RequestContextPanel.Commands.OpenRequestContextPanel>
 @implements Aion.Components.Infrastructure.MessageBus.IConsumer<Aion.Components.RequestContextPanel.Commands.OpenJsonDetailView>
 
@@ -45,28 +47,7 @@
     }
 </MudStack>
 
-<script>
-    const resizer = document.querySelector('.resizer');
-    const drawer = document.querySelector('.mud-drawer');
-    const root = document.documentElement;
 
-    resizer.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-
-        const onMouseMove = (e) => {
-            const newWidth = e.clientX - drawer.getBoundingClientRect().left;
-            root.style.setProperty('--mud-drawer-width-left', `${newWidth}px`);
-        };
-
-        const onMouseUp = () => {
-            window.removeEventListener('mousemove', onMouseMove);
-            window.removeEventListener('mouseup', onMouseUp);
-        };
-
-        window.addEventListener('mousemove', onMouseMove);
-        window.addEventListener('mouseup', onMouseUp);
-    });
-</script>
 
 @code {
     [Inject]
@@ -75,6 +56,8 @@
     [Inject] protected IMessageBus Bus { get; set; } = default!;
 
     [Inject] protected QueryState QueryState { get; set; } = default!;
+
+    [Inject] protected IJSRuntime JS { get; set; } = default!;
     
     private RequestContextPanel.RequestContextPanel _requestContextPanel = default!;
     
@@ -120,6 +103,17 @@
         Bus.Subscribe<OpenJsonDetailView>(this);
         QueryState.StateChanged += StateHasChanged;
     }
+    
+    private IJSObjectReference? module;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            module = await JS.InvokeAsync<IJSObjectReference>("import",
+                "./_content/Aion.Components/app.js");
+        }
+    }
 
     public void Dispose()
     {
@@ -147,4 +141,8 @@
         await _requestContextPanel.OpenJsonDetailView(message.ColumnDetail);
     }
 
+    public async ValueTask DisposeAsync()
+    {
+        if (module != null) await module.DisposeAsync();
+    }
 }
