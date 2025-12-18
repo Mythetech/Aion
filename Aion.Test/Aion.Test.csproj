@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
 
     <PropertyGroup>
-        <TargetFramework>net9.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
 
@@ -35,7 +35,6 @@
     <ItemGroup>
       <ProjectReference Include="..\Aion.Components\Aion.Components.csproj" />
       <ProjectReference Include="..\Aion.Core\Aion.Core.csproj" />
-      <ProjectReference Include="..\Aion.Desktop\Aion.Desktop.csproj" />
     </ItemGroup>
 
 </Project>
