@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net9.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
     </PropertyGroup>
@@ -13,13 +13,13 @@
 
     <ItemGroup>
       <PackageReference Include="BlazorMonaco" Version="3.3.0" />
-      <PackageReference Include="Microsoft.AspNetCore.Components.WebView" Version="9.0.2" />
-      <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.2" />
-        <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="9.0.2" />
-        <PackageReference Include="mythetech.components.desktop" Version="0.0.1" />
+      <PackageReference Include="Microsoft.AspNetCore.Components.WebView" Version="10.0.1" />
+      <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.1" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.1" />
+        <PackageReference Include="mythetech.components.desktop" Version="0.0.9" />
       <PackageReference Include="Npgsql" Version="9.0.2" />
       <PackageReference Include="Photino.Blazor" Version="4.0.13" />
-      <PackageReference Include="Velopack" Version="0.0.1053" />
+      <PackageReference Include="Velopack" Version="0.0.1298" />
     </ItemGroup>
 
     <ItemGroup>
