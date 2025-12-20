@@ -1,12 +1,11 @@
 using Bunit;
-using Aion.Components.Shared.Tabs;
 using AngleSharp.Dom;
 
 namespace Aion.Test.Components.Shared.Tabs;
 
-public class AionTabTests : TestContext
+public class SimpleTabTests : TestContext
 {
-    public AionTabTests()
+    public SimpleTabTests()
     {
         
     }

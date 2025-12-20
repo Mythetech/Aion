@@ -12,6 +12,7 @@
 @using Aion.Core.Queries
 @using Aion.Components.Shared.Loaders
 @using Aion.Core.Extensions
+@using Mythetech.Components.Components.SimpleTabs
 @implements IDisposable
 <MudStack Class="h-100 w-100">
     <MudStack Row="true" Class="w-100 pa-1" AlignItems="AlignItems.Center">
@@ -25,62 +26,49 @@
         </MudPaper>
     </MudStack>
     
-    <MudStack Row="true" Justify="Justify.Center" Class="pa-1 align-text-center rounded border-1 mx-4">
-        <RequestContextPanelLink Text="Info" IsActive="@(_openTab.Equals("Info"))" OnClick="@(async () => await Open("Info"))" />
+    <SimpleTabs>
+        <Tab Name="Info">
+            <QueryInfoPanel Query="@QueryState.Active" />
+        </Tab>
         
         @if (!string.IsNullOrWhiteSpace(_code))
         {
-            <RequestContextPanelLink Text="Json" IsActive="@(_openTab.Equals(JsonView))" OnClick="@(async () => await Open(JsonView))" />
+            <Tab Name="@JsonView">
+                <JsonViewer
+                    @ref="_jsonViewer"
+                    Json="@_code" 
+                    ViewMode="@_jsonViewerSelection" 
+                    ColumnName="@_columnName"
+                    ViewModeChanged="@((mode) => { _jsonViewerSelection = mode; StateHasChanged(); })"
+                    OnExpandClick="OpenJsonViewerDialog" />
+            </Tab>
         }
         
         @if (QueryState?.Active?.Transaction.HasValue ?? false)
         {
-            <RequestContextPanelLink Text="Transactions" IsActive="@(_openTab.Equals("Transactions"))" OnClick="@(async () => await Open("Transactions"))" />
+            <Tab Name="Transactions">
+                @if (QueryState.Active.Transaction.HasValue)
+                {
+                    <MudStack Class="pa-2 mr-4">
+                        <KeyValueListItem Key="Id" Value="@QueryState.Active.Transaction.Value.Id" />
+                        <KeyValueListItem Key="Status" Value="@QueryState.Active.Transaction.Value.Status.ToString()" />
+                        <KeyValueListItem Key="Start" Value="@QueryState.Active.Transaction.Value.StartTime.ToLocalTime().ToString("G")" />
+
+                        <MudDivider Class="pb-4 mt-4" DividerType="DividerType.Middle"/>
+
+                        <MudStack Row="true" Class="w-100">
+                            <MudButton Variant="Variant.Filled" Class="rounded-xl flex-grow-1" Color="Color.Error" OnClick="@(async () => await MessageBus.PublishAsync(new RollbackTransaction(QueryState.Active)))">Rollback</MudButton>
+                            <MudButton Variant="Variant.Filled" Class="rounded-xl flex-grow-1" Color="Color.Success" OnClick="@(async () => await MessageBus.PublishAsync(new CommitTransaction(QueryState.Active)))">Commit</MudButton>
+                        </MudStack>
+                    </MudStack>
+                }
+                else
+                {
+                    <MudText>No Active Transaction</MudText>
+                }
+            </Tab>
         }
-    </MudStack>
-  
-    @if (string.IsNullOrWhiteSpace(_openTab))
-    {
-        <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center">
-            <MudText>No context</MudText>
-        </MudStack>
-    }
-    
-    @if (_openTab.Equals("Info", StringComparison.OrdinalIgnoreCase))
-    {
-        <QueryInfoPanel Query="@QueryState.Active" />
-    }
-    
-    @if (_openTab.Equals(JsonView))
-    {
-        <JsonViewer
-            @ref="_jsonViewer"
-            Json="@_code" 
-            ViewMode="@_jsonViewerSelection" 
-            ColumnName="@_columnName"
-            ViewModeChanged="@((mode) => { _jsonViewerSelection = mode; StateHasChanged(); })"
-            OnExpandClick="OpenJsonViewerDialog" />
-    }
-    
-    @if (_openTab.Equals("Transactions") && QueryState.Active.Transaction.HasValue)
-    {
-        <MudStack Class="pa-2 mr-4">
-            <KeyValueListItem Key="Id" Value="@QueryState.Active.Transaction.Value.Id" />
-            <KeyValueListItem Key="Status" Value="@QueryState.Active.Transaction.Value.Status.ToString()" />
-            <KeyValueListItem Key="Start" Value="@QueryState.Active.Transaction.Value.StartTime.ToLocalTime().ToString("G")" />
-
-            <MudDivider Class="pb-4 mt-4" DividerType="DividerType.Middle"/>
-
-            <MudStack Row="true" Class="w-100">
-                <MudButton Variant="Variant.Filled" Class="rounded-xl flex-grow-1" Color="Color.Error" OnClick="@(async () => await MessageBus.PublishAsync(new RollbackTransaction(QueryState.Active)))">Rollback</MudButton>
-                <MudButton Variant="Variant.Filled" Class="rounded-xl flex-grow-1" Color="Color.Success" OnClick="@(async () => await MessageBus.PublishAsync(new CommitTransaction(QueryState.Active)))">Commit</MudButton>
-            </MudStack>
-            </MudStack>
-    }
-    else if (_openTab.Equals("Transactions"))
-    {
-        <MudText>No Active Transaction</MudText>
-    }
+    </SimpleTabs>
 
 </MudStack>
 @code {

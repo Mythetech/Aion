@@ -6,7 +6,7 @@
 @using Aion.Core.Connections
 @using Microsoft.AspNetCore.Components.Forms
 @using Aion.Components.Shared.Switch
-@using Aion.Components.Shared.Tabs
+@using Mythetech.Components.Components.SimpleTabs
 
 <MudDialog Class="aion-transparent-dialog">
     <DialogContent>
@@ -14,10 +14,7 @@
         {
         <MudAlert Severity="Severity.Error" Class="my-2">@ValidationError</MudAlert>
         }
-        @*<MudTabs Elevation="0" Border="false" Rounded="false" Centered="true"  ApplyEffectsToContainer="true" PanelClass="pa-1 ma-1 rounded" Color="Color.Inherit" ActiveTabClass="bg-primary-50" HideSlider="true" Ripple="false" MaxHeight="32" Style="min-height:32px;"  TabHeaderClass="flex-grow-1 w-100 border-1 pa-1 rounded">
-            <MudTabPanel Text="Basic" Class="d-flex flex-grow-1" ToolTip="@null">
-            *@
-        <AionTabs>
+        <SimpleTabs>
             <Tab Name="Basic">
                 <MudForm Model="@Model" @ref="@_form">
                     <MudStack>
@@ -95,15 +92,7 @@
 
                 </MudStack>
             </Tab>
-        </AionTabs>
-             @*   
-            </MudTabPanel>
-
-            <MudTabPanel Text="Connection String" Class="flex-grow-1">
-                
-            </MudTabPanel>
-        </MudTabs>
-        *@
+        </SimpleTabs>
         @if (Model.SaveCredentials)
         {
         <MudAlert Severity="Severity.Warning">
