@@ -11,6 +11,8 @@
 @using Aion.Components.Shared.Dialogs
 @using Aion.Components.Infrastructure
 @using Aion.Components.Shared.Dialogs.Commands
+@using Aion.Components.Infrastructure.KeyboardShortcuts
+@using Microsoft.FluentUI.AspNetCore.Components
 @implements IDisposable
 
 <MudThemeProvider @ref="_theme" @bind-IsDarkMode="@AppState.IsDarkMode" Theme="@Theme" />
@@ -19,7 +21,8 @@
 <MudSnackbarProvider />
 <GlobalCommandSnackbarProvider />
 <DialogCommandProvider />
-<JsApiCommandProvider  />
+<JsApiCommandProvider />
+<FluentKeyCodeProvider />
 
 <MudLayout>
     <MudAppBar Class="pl-4" Elevation="0">
@@ -27,66 +30,81 @@
             <MudStack Row="true" AlignItems="@AlignItems.Center" Spacing="0">
 
                 <MudText Class="app-header-font mud-text-secondary pr-4" Typo="Typo.h6">Aion</MudText>
-                <MudMenu Variant="Variant.Text" Size="Size.Small" Dense="true" ActivationEvent="MouseEvent.MouseOver" Label="File">
+                <MudMenu Variant="Variant.Text" Size="Size.Small" Dense="true" ActivationEvent="MouseEvent.MouseOver"
+                    Label="File">
                     <MudMenu Label="New">
-                        <MudMenuItem Icon="@AionIcons.Connection" OnClick="@(async () => await Bus.PublishAsync(new PromptCreateConnection()))">Connection</MudMenuItem>
-                        <MudMenuItem Icon="@AionIcons.Query" OnClick="@(async () => await Bus.PublishAsync(new CreateQuery()))">Query</MudMenuItem>
+                        <MudMenuItem Icon="@AionIcons.Connection"
+                            OnClick="@(async () => await Bus.PublishAsync(new PromptCreateConnection()))">Connection
+                        </MudMenuItem>
+                        <MudMenuItem Icon="@AionIcons.Query"
+                            OnClick="@(async () => await Bus.PublishAsync(new CreateQuery()))">Query</MudMenuItem>
                     </MudMenu>
-                    <MudMenuItem Icon="@AionIcons.Save" OnClick="@(async () => await Bus.PublishAsync(new SaveQuery()))">Save Query</MudMenuItem>
-                    <MudMenuItem Icon="@AionIcons.Save" OnClick="@(async () => await Bus.PublishAsync(new SaveAllQueries()))">Save All Queries</MudMenuItem>
-                    <MudMenuItem Icon="@AionIcons.SaveAs" OnClick="@(async () => await Bus.PublishAsync(new SaveQueryAs()))">Save Query as File</MudMenuItem>
+                    <MudMenuItem Icon="@AionIcons.Save"
+                        OnClick="@(async () => await Bus.PublishAsync(new SaveQuery()))">Save Query</MudMenuItem>
+                    <MudMenuItem Icon="@AionIcons.Save"
+                        OnClick="@(async () => await Bus.PublishAsync(new SaveAllQueries()))">Save All Queries
+                    </MudMenuItem>
+                    <MudMenuItem Icon="@AionIcons.SaveAs"
+                        OnClick="@(async () => await Bus.PublishAsync(new SaveQueryAs()))">Save Query as File
+                    </MudMenuItem>
                     <MudMenu Label="Export">
-                        <MudMenuItem Icon="@AionIcons.Json" OnClick="@(async () => await Bus.PublishAsync(new ExportResultsToJson()))">Export Results to Json</MudMenuItem>
-                        <MudMenuItem Icon="@AionIcons.Csv" OnClick="@(async () => await Bus.PublishAsync(new ExportResultsToCsv()))">Export Results to Csv</MudMenuItem>
-                        <MudMenuItem Icon="@AionIcons.Spreadsheet" OnClick="@(async () => await Bus.PublishAsync(new ExportResultsToExcel()))">Export Results to Excel</MudMenuItem>
+                        <MudMenuItem Icon="@AionIcons.Json"
+                            OnClick="@(async () => await Bus.PublishAsync(new ExportResultsToJson()))">Export Results to
+                            Json</MudMenuItem>
+                        <MudMenuItem Icon="@AionIcons.Csv"
+                            OnClick="@(async () => await Bus.PublishAsync(new ExportResultsToCsv()))">Export Results to
+                            Csv</MudMenuItem>
+                        <MudMenuItem Icon="@AionIcons.Spreadsheet"
+                            OnClick="@(async () => await Bus.PublishAsync(new ExportResultsToExcel()))">Export Results
+                            to Excel</MudMenuItem>
                     </MudMenu>
                 </MudMenu>
-                <MudMenu Variant="Variant.Text" Size="Size.Small" Dense="true" ActivationEvent="MouseEvent.MouseOver" Label="Edit">
-                    <MudMenuItem Icon="@AionIcons.Copy" OnClick="@(async () => await Bus.PublishAsync(new CopyQueryToClipboard()))">Copy Query</MudMenuItem>
-                    <MudMenuItem Icon="@AionIcons.Edit" OnClick="@(async () => await Bus.PublishAsync(new PromptRenameActiveQuery()))">Rename Query</MudMenuItem>
-                    <MudMenuItem Icon="@AionIcons.Format" OnClick="@(async () => await Bus.PublishAsync(new FormatQuery()))">Format</MudMenuItem>
+                <MudMenu Variant="Variant.Text" Size="Size.Small" Dense="true" ActivationEvent="MouseEvent.MouseOver"
+                    Label="Edit">
+                    <MudMenuItem Icon="@AionIcons.Copy"
+                        OnClick="@(async () => await Bus.PublishAsync(new CopyQueryToClipboard()))">Copy Query
+                    </MudMenuItem>
+                    <MudMenuItem Icon="@AionIcons.Edit"
+                        OnClick="@(async () => await Bus.PublishAsync(new PromptRenameActiveQuery()))">Rename Query
+                    </MudMenuItem>
+                    <MudMenuItem Icon="@AionIcons.Format"
+                        OnClick="@(async () => await Bus.PublishAsync(new FormatQuery()))">Format</MudMenuItem>
                 </MudMenu>
             </MudStack>
             <MudStack Row="true" Style="width:33%;margin-right: 12%;" AlignItems="@AlignItems.Center" Spacing="0">
 
-                <MudAutocomplete T="SearchModel"
-                                 Placeholder="Search..."
-                                 @bind-Value="_search"
-                                 SearchFunc="@SearchAsync"
-                                 @ref="_searchAutocomplete"
-                                 Variant="Variant.Outlined"
-                                 Dense="true"
-                                 ShowProgressIndicator="true"
-                                 Margin="Margin.Dense"
-                                 Clearable="true"
-                                 Class="rounded-xl aion-search"
-                                 OnAdornmentClick="@(async () => await HandleSearch(_search))"
-                                 InputClass="appbar-narrow-height"
-                                 AdornmentIcon="@AionIcons.Search" AdornmentColor="Color.Primary">
+                <MudAutocomplete T="SearchModel" Placeholder="Search..." @bind-Value="_search" SearchFunc="@SearchAsync"
+                    @ref="_searchAutocomplete" Variant="Variant.Outlined" Dense="true" ShowProgressIndicator="true"
+                    Margin="Margin.Dense" Clearable="true" Class="rounded-xl aion-search"
+                    OnAdornmentClick="@(async () => await HandleSearch(_search))" InputClass="appbar-narrow-height"
+                    AdornmentIcon="@AionIcons.Search" AdornmentColor="MudBlazor.Color.Primary">
                     <ItemTemplate>
-                        <MudStack Class="pa-1" Row="true" AlignItems="AlignItems.Center" onclick="@(async () => await HandleSearch(context))">
-                            <TooltipIcon Size="Size.Small" Text="@(context.Description ?? context.Kind.ToString())" Icon="@context.Icon"/>
-                            <MudText >
+                        <MudStack Class="pa-1" Row="true" AlignItems="AlignItems.Center"
+                            onclick="@(async () => await HandleSearch(context))">
+                            <TooltipIcon Size="Size.Small" Text="@(context.Description ?? context.Kind.ToString())"
+                                Icon="@context.Icon" />
+                            <MudText>
                                 @context
                             </MudText>
                         </MudStack>
                     </ItemTemplate>
                 </MudAutocomplete>
-                </MudStack>
-            <MudStack Row="true"  AlignItems="@AlignItems.Center" Spacing="0">
-                <AionIconButton Icon="@AionIcons.Help" Tooltip="Help" OnClick="@(async () => await Bus.PublishAsync(new ShowHelp()))"/>
+            </MudStack>
+            <MudStack Row="true" AlignItems="@AlignItems.Center" Spacing="0">
+                <AionIconButton Icon="@AionIcons.Help" Tooltip="Help"
+                    OnClick="@(async () => await Bus.PublishAsync(new ShowHelp()))" />
             </MudStack>
         </MudStack>
     </MudAppBar>
     <MudDrawer @bind-Open="@AppState.SideBarOpen" Variant="DrawerVariant.Mini" Style="overflow: hidden;">
-        <ContextPanel IsDarkMode="@AppState.IsDarkMode"
-                      DrawerBackgroundColor="@_backgroundColor"
-                      DrawerToggled="@(() => AppState.ToggleSideBar())"
-                      DarkModeToggled="@(() => AppState.IsDarkMode = !AppState.IsDarkMode)" />
+        <ContextPanel IsDarkMode="@AppState.IsDarkMode" DrawerBackgroundColor="@_backgroundColor"
+            DrawerToggled="@(() => AppState.ToggleSideBar())"
+            DarkModeToggled="@(() => AppState.IsDarkMode = !AppState.IsDarkMode)" />
         <div class="@($"resizer {(!AppState.SideBarOpen ? "d-none" : "")}")"></div>
     </MudDrawer>
     <MudMainContent Class=" pl-2 pr-0" Style="max-height:100dvh;max-width:100vw;overflow:hidden;">
-        <MudContainer Class="px-0 mud-width-full" MaxWidth="MaxWidth.ExtraLarge" Style="@($"height:94vh;overflow:hidden;")">
+        <MudContainer Class="px-0 mud-width-full" MaxWidth="MaxWidth.ExtraLarge"
+            Style="@($"height:94vh;overflow:hidden;")">
             @Body
         </MudContainer>
     </MudMainContent>
@@ -108,15 +126,16 @@
     private SearchModel _search = new();
 
     private MudAutocomplete<SearchModel>? _searchAutocomplete;
-    
+
     protected MudThemeProvider _theme { get; set; } = default!;
 
     public bool _isDarkMode = false;
 
-    private string _backgroundColor => (!AppState.IsDarkMode ? $"background-color:{_theme.Theme.PaletteLight.OverlayLight}" : $"background-color:{_theme.Theme.PaletteDark.Black}");
+    private string _backgroundColor => (!AppState.IsDarkMode ? $"background-color:{_theme.Theme.PaletteLight.OverlayLight}"
+    : $"background-color:{_theme.Theme.PaletteDark.Black}");
 
     private MudTheme Theme { get; } = new AionTheme();
-    
+
     protected override void OnInitialized()
     {
         AppState.OnDarkModeChanged += HandleDarkModeChange;
@@ -128,7 +147,7 @@
         {
             AppState.SetThemeProvider(_theme);
         }
-        
+
         base.OnAfterRender(firstRender);
     }
 
@@ -138,7 +157,7 @@
         {
             await AppState.SetSystemColorMode();
         }
-        
+
         await base.OnAfterRenderAsync(firstRender);
     }
 
@@ -152,13 +171,13 @@
     {
         AppState.OnDarkModeChanged -= HandleDarkModeChange;
     }
-    
+
     protected async Task<IEnumerable<SearchModel>> SearchAsync(string value, CancellationToken token)
     {
         if (string.IsNullOrWhiteSpace(value))
             return [];
 
-     List<SearchModel> results = [];
+        List<SearchModel> results = [];
 
         await foreach (var r in SearchService.SearchAsync(value, token))
         {
@@ -170,10 +189,10 @@
 
     private async Task HandleSearch(SearchModel result)
     {
-        if(result.SearchAction != null)
+        if (result.SearchAction != null)
             await result.SearchAction.Invoke();
 
-        if(_searchAutocomplete != null)
+        if (_searchAutocomplete != null)
             await _searchAutocomplete.ClearAsync();
     }
 

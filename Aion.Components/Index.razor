@@ -1,7 +1,10 @@
 @page "/"
+@using Aion.Components.Connections.Commands
 @using Aion.Components.Infrastructure.MessageBus
+@using Aion.Components.Infrastructure.KeyboardShortcuts
 @using MudBlazor
 @using Aion.Components.Querying
+@using Aion.Components.Querying.Commands
 @using Microsoft.FluentUI.AspNetCore.Components
 @using Aion.Components.RequestContextPanel
 @using Aion.Components.RequestContextPanel.Commands
@@ -58,6 +61,8 @@
     [Inject] protected QueryState QueryState { get; set; } = default!;
 
     [Inject] protected IJSRuntime JS { get; set; } = default!;
+
+    [Inject] protected IKeyCodeService KeyCodeService { get; set; } = default!;
     
     private IJSObjectReference? _module;
     
@@ -105,13 +110,14 @@
         QueryState.StateChanged += StateHasChanged;
     }
     
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            _module = await JS.InvokeAsync<IJSObjectReference>("import",
-                "./_content/Aion.Components/app.js");
+            var keyId = KeyCodeService.RegisterListener(HandleKeyDown);
         }
+
+        return Task.CompletedTask;
     }
 
     public void Dispose()
@@ -120,6 +126,7 @@
         Bus.Unsubscribe<OpenRequestContextPanel>(this);
         Bus.Unsubscribe<OpenJsonDetailView>(this);
         QueryState.StateChanged -= StateHasChanged;
+        KeyCodeService.UnregisterListener(HandleKeyDown);
     }
 
     public async Task Consume(OpenRequestContextPanel message)
@@ -143,5 +150,49 @@
     public async ValueTask DisposeAsync()
     {
         if (_module != null) await _module.DisposeAsync();
+    }
+    
+    private async Task HandleKeyDown(FluentKeyCodeEventArgs args)
+    {
+        if(!(args.CtrlKey || args.MetaKey)) return;  
+              
+        if ((args.CtrlKey || args.MetaKey) && args.Key == KeyCode.Enter)
+        {
+            await Bus.PublishAsync(new RunQuery());
+            return;
+        }
+
+        if ((args.CtrlKey || args.MetaKey) && args.Key == KeyCode.KeyT)
+        {
+            var isInputField = await IsInputFieldFocusedAsync();
+            if (!isInputField)
+            {
+                await Bus.PublishAsync(new CreateQuery());
+            }
+            return;
+        }
+
+        if ((args.CtrlKey || args.MetaKey) && args.Key == KeyCode.KeyN)
+        {
+            var isInputField = await IsInputFieldFocusedAsync();
+            if (!isInputField)
+            {
+                await Bus.PublishAsync(new PromptCreateConnection());
+            }
+            return;
+        }
+    }
+    
+    private async Task<bool> IsInputFieldFocusedAsync()
+    {
+        try
+        {
+            return await JS.InvokeAsync<bool>("eval", 
+                "document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.isContentEditable)");
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

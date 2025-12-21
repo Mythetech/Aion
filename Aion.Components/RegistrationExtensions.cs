@@ -1,5 +1,6 @@
 using Aion.Components.Connections;
 using Aion.Components.History;
+using Aion.Components.Infrastructure.KeyboardShortcuts;
 using Aion.Components.Querying;
 using Aion.Components.Search;
 using Aion.Components.Shared.Snackbar;
@@ -40,11 +41,11 @@ public static class RegistrationExtensions
         services.AddScoped<IDatabaseProvider, PostgreSqlProvider>();
         services.AddScoped<IDatabaseProvider, MySqlProvider>();
         services.AddScoped<IDatabaseProvider, SqlServerProvider>();
-        
+
         services.AddTransient<SearchService>();
-        
+
         services.AddFluentUIComponents();
-        
+
         return services;
     }
 }

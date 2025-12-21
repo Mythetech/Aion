@@ -10,6 +10,7 @@
 @implements IDisposable
 @implements Aion.Components.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.FocusQuery>
 @implements Aion.Components.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.CreateQuery>
+@implements Aion.Components.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.RunQuery>
 
 
 <MudStack Class="h-100">
@@ -159,6 +160,7 @@
         Connections.ConnectionStateChanged += StateHasChanged;
         Bus.Subscribe<FocusQuery>(this);
         Bus.Subscribe<CreateQuery>(this);
+        Bus.Subscribe<RunQuery>(this);
 
         base.OnInitialized();
     }
@@ -170,6 +172,7 @@
         Connections.ConnectionStateChanged -= StateHasChanged;
         Bus.Unsubscribe<FocusQuery>(this);
         Bus.Unsubscribe<CreateQuery>(this);
+        Bus.Unsubscribe<RunQuery>(this);
         _queryTokenSource?.Dispose();
     }
 
@@ -298,6 +301,11 @@
     public async Task Consume(CreateQuery message)
     {
         await AddQueryAsync(message.Name);
+    }
+
+    public async Task Consume(RunQuery message)
+    {
+        await RunQuery();
     }
 
     private Task CloneQuery(QueryModel query)
