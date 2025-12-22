@@ -1,6 +1,5 @@
 using Aion.Components.Connections;
 using Aion.Components.History;
-using Aion.Components.Infrastructure.KeyboardShortcuts;
 using Aion.Components.Querying;
 using Aion.Components.Search;
 using Aion.Components.Shared.Snackbar;
