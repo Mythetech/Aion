@@ -1,5 +1,5 @@
 using Aion.Components.Connections.Commands;
-using Aion.Components.Infrastructure.MessageBus;
+using Mythetech.Framework.Infrastructure.MessageBus;
 using Aion.Components.Querying.Events;
 using Aion.Core.Queries;
 

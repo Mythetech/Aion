@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 using Aion.Components.AppContextPanel.Commands;
 using Aion.Components.Connections;
 using Aion.Components.Connections.Commands;
-using Aion.Components.Infrastructure.MessageBus;
+using Mythetech.Framework.Infrastructure.MessageBus;
 using Aion.Components.Querying;
 using Aion.Components.Querying.Commands;
 using Aion.Components.Theme;

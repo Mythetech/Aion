@@ -3,9 +3,15 @@
 @using MudBlazor;
 @using Aion.Components.AppContextPanel
 @using Aion.Components.Connections.Commands
-@using Aion.Components.Infrastructure.MessageBus
+@using Mythetech.Framework.Infrastructure.MessageBus
+@using Mythetech.Framework.Infrastructure.Plugins
+@using Mythetech.Framework.Infrastructure.Plugins.Components
+@using Mythetech.Framework.Infrastructure.Secrets
+@using Mythetech.Framework.Components.Secrets
 @using Aion.Components.Querying.Commands
 @using Aion.Components.Search
+@using Aion.Components.Settings
+@using Aion.Components.History
 @using Aion.Components.Shared.Snackbar
 @using Aion.Components.Shared
 @using Aion.Components.Shared.Dialogs
@@ -69,6 +75,20 @@
                     <MudMenuItem Icon="@AionIcons.Format"
                         OnClick="@(async () => await Bus.PublishAsync(new FormatQuery()))">Format</MudMenuItem>
                 </MudMenu>
+                <MudMenu Variant="Variant.Text" Size="Size.Small" Dense="true" ActivationEvent="MouseEvent.MouseOver"
+                    Label="Tools">
+                    <MudMenu Label="History" Dense="true">
+                        <MudMenuItem Icon="@Icons.Material.Filled.DeleteSweep" OnClick="@HandleClearHistory">Clear
+                        </MudMenuItem>
+                    </MudMenu>
+                    <MudMenuItem Icon="@Icons.Material.Filled.Key" OnClick="@HandleOpenSecretManager">Secret Manager
+                    </MudMenuItem>
+                </MudMenu>
+                @if (Settings.PluginState)
+                {
+                    <StandardPluginMenu MenuText="Plugins" ListClass="pa-1" ItemClass="rounded"
+                        ButtonClass="text-transform-none" />
+                }
             </MudStack>
             <MudStack Row="true" Style="width:33%;margin-right: 12%;" AlignItems="@AlignItems.Center" Spacing="0">
 
@@ -122,6 +142,16 @@
 
     [Inject] protected SearchService SearchService { get; set; } = default!;
 
+    [Inject] protected SettingsState Settings { get; set; } = default!;
+
+    [Inject] protected HistoryState HistoryState { get; set; } = default!;
+
+    [Inject] protected MudBlazor.IDialogService DialogService { get; set; } = default!;
+
+    [Inject] protected IPluginAssetLoader AssetLoader { get; set; } = default!;
+
+    [Inject] protected PluginState Plugins { get; set; } = default!;
+
     private SearchModel _search = new();
 
     private MudAutocomplete<SearchModel>? _searchAutocomplete;
@@ -129,6 +159,8 @@
     protected MudThemeProvider _theme { get; set; } = default!;
 
     public bool _isDarkMode = false;
+
+    private bool _assetsLoaded = false;
 
     private string _backgroundColor => (!AppState.IsDarkMode ? $"background-color:{_theme.Theme.PaletteLight.OverlayLight}"
     : $"background-color:{_theme.Theme.PaletteDark.Black}");
@@ -138,7 +170,14 @@
     protected override void OnInitialized()
     {
         AppState.OnDarkModeChanged += HandleDarkModeChange;
+        Settings.SettingsChanged += HandleSettingsChanged;
+        Plugins.StateChanged += OnPluginStateChanged;
+        
+        Plugins.PluginsActive = false;
+
     }
+
+    private void HandleSettingsChanged(SettingsState s) => StateHasChanged();
 
     protected override void OnAfterRender(bool firstRender)
     {
@@ -157,6 +196,16 @@
             await AppState.SetSystemColorMode();
         }
 
+        if (Plugins.PluginsActive && !_assetsLoaded)
+        {
+            foreach (var plugin in Plugins.EnabledPlugins)
+            {
+                await AssetLoader.LoadPluginAssetsAsync(plugin);
+            }
+
+            _assetsLoaded = true;
+        }
+
         await base.OnAfterRenderAsync(firstRender);
     }
 
@@ -169,6 +218,28 @@
     public void Dispose()
     {
         AppState.OnDarkModeChanged -= HandleDarkModeChange;
+        Settings.SettingsChanged -= HandleSettingsChanged;
+        Plugins.StateChanged -= OnPluginStateChanged;
+    }
+
+    private async Task HandleClearHistory()
+    {
+        bool? result = await DialogService.ShowMessageBox(
+        "Clear History",
+        "Are you sure you want to clear all query history?",
+        yesText: "Clear", cancelText: "Cancel");
+
+        if (result == true)
+        {
+            HistoryState.ClearHistory();
+            Snackbar.Add("History cleared", Severity.Success);
+        }
+    }
+
+    private async Task HandleOpenSecretManager()
+    {
+        var options = AionDialogs.CreateDefaultOptions(MaxWidth.Large);
+        await DialogService.ShowAsync<SecretManagerDialog>("Secret Manager", options);
     }
 
     protected async Task<IEnumerable<SearchModel>> SearchAsync(string value, CancellationToken token)
@@ -193,6 +264,12 @@
 
         if (_searchAutocomplete != null)
             await _searchAutocomplete.ClearAsync();
+    }
+
+    private void OnPluginStateChanged(object? sender, EventArgs e)
+    {
+        _assetsLoaded = false;
+        InvokeAsync(StateHasChanged);
     }
 
 }

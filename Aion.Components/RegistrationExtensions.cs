@@ -2,6 +2,7 @@ using Aion.Components.Connections;
 using Aion.Components.History;
 using Aion.Components.Querying;
 using Aion.Components.Search;
+using Aion.Components.Settings;
 using Aion.Components.Shared.Snackbar;
 using Aion.Core.Database;
 using Aion.Core.Database.SqlServer;
@@ -34,6 +35,7 @@ public static class RegistrationExtensions
         services.AddSingleton<ConnectionState>();
         services.AddSingleton<QueryState>();
         services.AddSingleton<HistoryState>();
+        services.AddSingleton<SettingsState>();
 
         services.AddSingleton<IConnectionService, TConnectionService>();
         services.AddScoped<IDatabaseProviderFactory, DatabaseProviderFactory>();

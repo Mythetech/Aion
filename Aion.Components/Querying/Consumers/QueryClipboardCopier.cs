@@ -1,5 +1,5 @@
 using Aion.Components.Infrastructure.Commands;
-using Aion.Components.Infrastructure.MessageBus;
+using Mythetech.Framework.Infrastructure.MessageBus;
 using Aion.Components.Querying.Commands;
 using MudBlazor;
 

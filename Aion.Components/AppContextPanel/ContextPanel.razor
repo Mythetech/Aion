@@ -8,8 +8,11 @@
 @using Aion.Components.Connections.Commands
 @using Aion.Core.Connections
 @using Aion.Components.History
-@using Aion.Components.Infrastructure.MessageBus
+@using Mythetech.Framework.Infrastructure.MessageBus
 @using Aion.Components.Shared.Dialogs
+@using Mythetech.Framework.Infrastructure.Environment
+@using Mythetech.Framework.Infrastructure.Plugins
+@using Mythetech.Framework.Infrastructure.Plugins.Components
 <MudStack Spacing="0" Row="true" Class="mud-width-full">
 <MudStack Spacing="1" Class="app-context-panel mud-width-full" Style="" AlignItems="MudBlazor.AlignItems.Start">
     <AionIconButton Class="p-2 ml-1" Icon="aion-icon" OnClick="@OpenAboutAion" />
@@ -37,6 +40,25 @@
             <HistoryPanel />
         </PanelContent>
     </ContextPanelItem>
+
+    @if (Plugins.PluginsActive && Plugins.EnabledPlugins.Any(x => x.ContextPanelComponents.Count > 0))
+    {
+        <MudDivider DividerType="DividerType.Middle" Class="ml-3" Style="width:60%"/>
+        @foreach (var plugin in Plugins.EnabledPlugins.Where(x => x.ContextPanelComponents.Count > 0))
+        {
+            @foreach (var component in plugin.ContextPanelComponentsMetadata)
+            {
+                <ContextPanelItem Active="@(_activeItem?.Title == component.Title)" @ref="@_contextPanelItems[component.Title]"
+                                  Title="@component.Title" Icon="@(component.Icon)" ContextPanelItemClicked="HandleContextPanelItemClicked">
+                    <PanelContent>
+                        <PluginGuard Metadata="component" PluginInfo="plugin" ShowErrorDetails="@Env.IsDevelopment()">
+                            <DynamicComponent Type="component.ComponentType" />
+                        </PluginGuard>
+                    </PanelContent>
+                </ContextPanelItem>
+            }
+        }
+    }
     
     <MudSpacer />
     
@@ -96,6 +118,10 @@
     [Inject]
     protected IDialogService DialogService { get; set; } = default!;
 
+    [Inject] protected PluginState Plugins { get; set; } = default!;
+
+    [Inject] protected IRuntimeEnvironment Env { get; set; } = default!;
+
     [Parameter]
     public bool IsDarkMode { get; set; } = false;
 
@@ -134,12 +160,20 @@
         StateHasChanged();
     }
 
+
+    private void PluginStateHasChanged(object? sender, EventArgs args)
+    {
+        StateHasChanged();
+    }
+
     protected override void OnInitialized()
     {
         AppState.OnChange += SideBarChanged;
         ConnectionState.ConnectionStateChanged += HandleConnectionStateChanged;
+        Plugins.StateChanged += PluginStateHasChanged;
         Bus.Subscribe(this);
     }
+    
     protected void SideBarChanged()
     {
         if (AppState.SideBarOpen)
@@ -154,6 +188,7 @@
     {
         AppState.OnChange -= SideBarChanged;
         ConnectionState.ConnectionStateChanged -= HandleConnectionStateChanged;
+        Plugins.StateChanged -= PluginStateHasChanged;
         Bus.Unsubscribe(this);
     }
 

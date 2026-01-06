@@ -1,5 +1,5 @@
 using Aion.Components.Connections.Events;
-using Aion.Components.Infrastructure.MessageBus;
+using Mythetech.Framework.Infrastructure.MessageBus;
 
 namespace Aion.Components.Connections.Consumers;
 

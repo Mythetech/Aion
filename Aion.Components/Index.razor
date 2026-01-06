@@ -1,6 +1,6 @@
 @page "/"
 @using Aion.Components.Connections.Commands
-@using Aion.Components.Infrastructure.MessageBus
+@using Mythetech.Framework.Infrastructure.MessageBus
 @using MudBlazor
 @using Aion.Components.Querying
 @using Aion.Components.Querying.Commands
@@ -12,8 +12,8 @@
 @using Microsoft.JSInterop
 @implements IDisposable
 @implements IAsyncDisposable
-@implements Aion.Components.Infrastructure.MessageBus.IConsumer<Aion.Components.RequestContextPanel.Commands.OpenRequestContextPanel>
-@implements Aion.Components.Infrastructure.MessageBus.IConsumer<Aion.Components.RequestContextPanel.Commands.OpenJsonDetailView>
+@implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.RequestContextPanel.Commands.OpenRequestContextPanel>
+@implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.RequestContextPanel.Commands.OpenJsonDetailView>
 
 
 <MudStack Row="true" Class="w-100 h-100 ml-1" Spacing="0">

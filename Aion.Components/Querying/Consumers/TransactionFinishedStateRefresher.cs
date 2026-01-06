@@ -1,4 +1,4 @@
-using Aion.Components.Infrastructure.MessageBus;
+using Mythetech.Framework.Infrastructure.MessageBus;
 using Aion.Components.Querying.Events;
 
 namespace Aion.Components.Querying.Consumers;

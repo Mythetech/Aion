@@ -15,7 +15,7 @@
       <PackageReference Include="ClosedXML" />
       <PackageReference Include="Microsoft.AspNetCore.Components.Web" />
       <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" />
-      <PackageReference Include="mythetech.components" />
+      <PackageReference Include="Mythetech.Framework" />
       <PackageReference Include="Z.Blazor.Diagrams" />
     </ItemGroup>
 

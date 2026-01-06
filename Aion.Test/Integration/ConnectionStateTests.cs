@@ -1,7 +1,7 @@
 using Aion.Components.Connections;
 using Aion.Components.Connections.Commands;
 using Aion.Components.Connections.Consumers;
-using Aion.Components.Infrastructure.MessageBus;
+using Mythetech.Framework.Infrastructure.MessageBus;
 using Aion.Components.Querying;
 using Aion.Components.Querying.Events;
 using Aion.Core.Connections;
@@ -35,7 +35,11 @@ public abstract class ConnectionStateTestBase : TestContext, IAsyncLifetime
             builder
                 .SetMinimumLevel(LogLevel.Debug);
         });
-        MessageBus = new InMemoryMessageBus(base.Services, logFactory.CreateLogger<InMemoryMessageBus>());
+        MessageBus = new InMemoryMessageBus(
+            base.Services,
+            logFactory.CreateLogger<InMemoryMessageBus>(),
+            Enumerable.Empty<IMessagePipe>(),
+            Enumerable.Empty<IConsumerFilter>());
         var providerFactory = new DatabaseProviderFactory([Provider]);
         var logger = new Logger<ConnectionState>(logFactory);
         var service = new ConnectionServiceFake(providerFactory);

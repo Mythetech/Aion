@@ -1,5 +1,5 @@
 using Aion.Components.Connections.Commands;
-using Aion.Components.Infrastructure.MessageBus;
+using Mythetech.Framework.Infrastructure.MessageBus;
 using Aion.Components.Shared;
 using Aion.Components.Shared.Dialogs.Commands;
 using MudBlazor;

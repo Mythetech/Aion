@@ -16,7 +16,8 @@
       <PackageReference Include="Microsoft.AspNetCore.Components.WebView" />
       <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
       <PackageReference Include="Microsoft.AspNetCore.Components.Web" />
-      <PackageReference Include="mythetech.components.desktop" />
+      <PackageReference Include="Mythetech.Framework" />
+      <PackageReference Include="Mythetech.Framework.Desktop" />
       <PackageReference Include="Npgsql" />
       <PackageReference Include="Photino.Blazor" />
       <PackageReference Include="Velopack" />
