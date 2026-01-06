@@ -1,4 +1,4 @@
-using Aion.Components.Infrastructure.MessageBus;
+using Mythetech.Framework.Infrastructure.MessageBus;
 
 namespace Aion.Components.Shared.Dialogs.Commands;
 

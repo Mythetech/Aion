@@ -1,4 +1,4 @@
-using Aion.Components.Infrastructure.MessageBus;
+using Mythetech.Framework.Infrastructure.MessageBus;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -10,11 +10,15 @@ namespace Aion.Test.Components.Infrastructure.MessageBus;
 public class MessageBusTests : TestContext
 {
     private IMessageBus _bus;
-    
+
     public MessageBusTests()
     {
         Services.AddSingleton<TestConsumer>();
-        _bus = new InMemoryMessageBus(this.Services, Substitute.For<ILogger<InMemoryMessageBus>>());
+        _bus = new InMemoryMessageBus(
+            this.Services,
+            Substitute.For<ILogger<InMemoryMessageBus>>(),
+            Enumerable.Empty<IMessagePipe>(),
+            Enumerable.Empty<IConsumerFilter>());
         Services.AddSingleton<IMessageBus>(_bus);
     }
 

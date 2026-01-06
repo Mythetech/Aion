@@ -1,5 +1,5 @@
 using Aion.Components.Infrastructure;
-using Aion.Components.Infrastructure.MessageBus;
+using Mythetech.Framework.Infrastructure.MessageBus;
 using Aion.Components.Querying.Commands;
 using Aion.Components.Shared.Snackbar.Commands;
 using MudBlazor;

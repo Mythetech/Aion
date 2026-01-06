@@ -1,5 +1,5 @@
 using Aion.Components.Connections;
-using Aion.Components.Infrastructure.MessageBus;
+using Mythetech.Framework.Infrastructure.MessageBus;
 using Aion.Components.Querying;
 using Aion.Core.Database;
 using Bunit;
@@ -18,7 +18,7 @@ public class QueryEditorTests : TestContext
     private QueryState _state;
     private ConnectionState _connections;
     private IMessageBus _bus;
-    
+
     public QueryEditorTests()
     {
         Services.AddLogging();
@@ -32,8 +32,12 @@ public class QueryEditorTests : TestContext
         JSInterop.Setup<BoundingClientRect[]>("mudResizeObserver.connect", _ => true);
         JSInterop.SetupVoid("blazorMonaco.editor.setWasm", false);
         JSInterop.SetupVoid("mudElementRef.addOnBlurEvent", _ => true);
-        
-        _bus = new InMemoryMessageBus(this.Services, new NullLogger<InMemoryMessageBus>());
+
+        _bus = new InMemoryMessageBus(
+            this.Services,
+            new NullLogger<InMemoryMessageBus>(),
+            Enumerable.Empty<IMessagePipe>(),
+            Enumerable.Empty<IConsumerFilter>());
         _state = new(_bus, NSubstitute.Substitute.For<IQuerySaveService>());
         _connections = new ConnectionState(Substitute.For<IConnectionService>(), Substitute.For<IDatabaseProviderFactory>(), _bus, new NullLogger<ConnectionState>());
         Services.AddSingleton(_bus);

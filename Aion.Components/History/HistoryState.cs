@@ -14,4 +14,10 @@ public class HistoryState
         Queries.Add(new HistoryRecord<QueryModel>(query));
         RaiseHistoryStateChanged();
     }
+
+    public void ClearHistory()
+    {
+        Queries.Clear();
+        RaiseHistoryStateChanged();
+    }
 }

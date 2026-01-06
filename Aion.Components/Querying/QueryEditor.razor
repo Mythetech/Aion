@@ -1,6 +1,6 @@
 @using Aion.Components.Connections
 @using Aion.Components.Connections.Commands
-@using Aion.Components.Infrastructure.MessageBus
+@using Mythetech.Framework.Infrastructure.MessageBus
 @using Aion.Components.Querying.Commands
 @using BlazorMonaco.Editor
 @using Aion.Components.Shared
@@ -8,9 +8,9 @@
 @using Aion.Core.Connections
 @using Aion.Core.Queries
 @implements IDisposable
-@implements Aion.Components.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.FocusQuery>
-@implements Aion.Components.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.CreateQuery>
-@implements Aion.Components.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.RunQuery>
+@implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.FocusQuery>
+@implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.CreateQuery>
+@implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.RunQuery>
 
 
 <MudStack Class="h-100">
