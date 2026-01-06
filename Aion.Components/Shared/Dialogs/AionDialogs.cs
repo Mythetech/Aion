@@ -1,6 +1,6 @@
 using MudBlazor;
 
-namespace Aion.Components.Shared;
+namespace Aion.Components.Shared.Dialogs;
 
 public static class AionDialogs
 {
