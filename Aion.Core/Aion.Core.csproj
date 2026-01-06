@@ -7,10 +7,10 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="Hogimn.Sql.Formatter" Version="2.0.2" />
-      <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.3" />
-      <PackageReference Include="Npgsql" Version="9.0.2" />
-      <PackageReference Include="MySql.Data" Version="9.5.0" />
+      <PackageReference Include="Hogimn.Sql.Formatter" />
+      <PackageReference Include="Microsoft.Data.SqlClient" />
+      <PackageReference Include="Npgsql" />
+      <PackageReference Include="MySql.Data" />
     </ItemGroup>
 
 </Project>

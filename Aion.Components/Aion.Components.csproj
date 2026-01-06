@@ -11,12 +11,12 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="BlazorMonaco" Version="3.3.0" />
-      <PackageReference Include="ClosedXML" Version="0.105.0" />
-      <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.1" />
-      <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" Version="4.13.2" />
-      <PackageReference Include="mythetech.components" Version="0.0.9" />
-      <PackageReference Include="Z.Blazor.Diagrams" Version="3.0.3" />
+      <PackageReference Include="BlazorMonaco" />
+      <PackageReference Include="ClosedXML" />
+      <PackageReference Include="Microsoft.AspNetCore.Components.Web" />
+      <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" />
+      <PackageReference Include="mythetech.components" />
+      <PackageReference Include="Z.Blazor.Diagrams" />
     </ItemGroup>
 
     <ItemGroup>
