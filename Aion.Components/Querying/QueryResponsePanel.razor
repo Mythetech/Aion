@@ -15,13 +15,12 @@
     QueryResult queryResult = State.Active.Result;
     <MudStack Class="pa-4 h-100 w-100">
         <MudStack Row="true" Class="w-100">
-            <MudTabs Class="py-2 px-1" MinimumTabWidth="140px" >
+            <MudTabs Class="py-2 px-1" MinimumTabWidth="140px">
                 <MudTabPanel Text="Results" OnClick="() => _activeTab = Results" />
                 <MudTabPanel Text="Messages" OnClick="() => _activeTab = Messages" />
                 @if (State.Active.EstimatedPlan != null)
                 {
                     <MudTabPanel Text="Estimated Plan" OnClick="() => _activeTab = EstimatedPlan" />
-                    
                 }
                 @if (State.Active.ActualPlan != null)
                 {
@@ -29,53 +28,35 @@
                 }
             </MudTabs>
             <MudSpacer />
-            <MudTextField 
+            <MudTextField
                 T="string"
-                @bind-Value="@_search" 
-                Class="rounded-xl" 
-                Variant="Variant.Text" 
+                @bind-Value="@_search"
+                Class="rounded-xl"
+                Variant="Variant.Text"
                 Margin="Margin.Dense"
                 Clearable="true"
                 Immediate="true"
-                AdornmentIcon="@AionIcons.Filter" 
+                AdornmentIcon="@AionIcons.Filter"
                 Adornment="Adornment.End"
                 Placeholder="Find in results..." />
             <MudSpacer />
-            <AionIconButton Icon="@AionIcons.Json" Tooltip="Export to Json" OnClick="async () => await Bus.PublishAsync(new ExportResultsToJson(queryResult))"/>
-            <AionIconButton Icon="@AionIcons.Csv" Tooltip="Export to Csv" OnClick="async () => await Bus.PublishAsync(new ExportResultsToCsv(queryResult))"/>
-            <AionIconButton Icon="@AionIcons.Spreadsheet" Tooltip="Export to Excel" OnClick="async () => await Bus.PublishAsync(new ExportResultsToExcel(queryResult))"/>
+            @if (_selectionState.HasSelection)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">
+                    @_selectionState.SelectedCount selected
+                </MudChip>
+            }
+            <AionIconButton Icon="@AionIcons.Json" Tooltip="Export to Json" OnClick="async () => await Bus.PublishAsync(new ExportResultsToJson(queryResult))" />
+            <AionIconButton Icon="@AionIcons.Csv" Tooltip="Export to Csv" OnClick="async () => await Bus.PublishAsync(new ExportResultsToCsv(queryResult))" />
+            <AionIconButton Icon="@AionIcons.Spreadsheet" Tooltip="Export to Excel" OnClick="async () => await Bus.PublishAsync(new ExportResultsToExcel(queryResult))" />
         </MudStack>
         @if (_activeTab == Results)
         {
             <MudStack Class="h-100 w-100 overflow-auto flex-shrink-1">
-                <MudDataGrid T="Dictionary<string, object>"
-                             Items="@State.Active.Result.Rows"
-                             Dense="true"
-                             Hover="true"
-                             Filterable="true"
-                             QuickFilter="FilterResults"
-                             ColumnResizeMode="ResizeMode.Container">
-                    <Columns>
-                        @foreach (var col in State.Active.Result.Columns)
-                        {
-                            <TemplateColumn T="Dictionary<string, object>" Title="@col" Resizable="true">
-                                <CellTemplate>
-                                    @{
-                                        var value = context.Item.GetValueOrDefault(col);
-                                    }
-                                    @if (value != null && value.ToString().StartsWith('{') && value.ToString().EndsWith('}'))
-                                    {
-                                        <MudLink Class=" overflow-x-auto d-flex" OnClick="@(async () => await OpenJsonDetailView(State.Active.Name, col, value.ToString()))">@value</MudLink>
-                                    }
-                                    else
-                                    {
-                                        <MudText Class=" overflow-x-auto d-flex">@value</MudText>
-                                    }
-                                </CellTemplate>
-                            </TemplateColumn>
-                        }
-                    </Columns>
-                </MudDataGrid>
+                <QueryResultTable Result="@State.Active.Result"
+                                  QueryName="@State.Active.Name"
+                                  SearchFilter="@_search"
+                                  SelectionState="@_selectionState" />
             </MudStack>
         }
         else if (_activeTab == Messages)
@@ -94,8 +75,8 @@
             <MudText Typo="Typo.caption" Class="mud-text-secondary ml-4">
                 @(State?.Active?.Result?.RowCount ?? 0) Results
             </MudText>
-            <MudDivider Vertical="true" /> 
-            <QueryTimer StartTime="@State.Active.ExecutionStartTime" EndTime="@State.Active.ExecutionEndTime" Typo="Typo.caption"/>
+            <MudDivider Vertical="true" />
+            <QueryTimer StartTime="@State.Active.ExecutionStartTime" EndTime="@State.Active.ExecutionEndTime" Typo="Typo.caption" />
         </MudStack>
     </MudStack>
 }
@@ -113,7 +94,6 @@ else if (State?.Active?.IsExecuting ?? false)
 
 @code {
     [Inject] protected QueryState State { get; set; } = default!;
-
     [Inject] protected IMessageBus Bus { get; set; } = default!;
 
     private string? _search = "";
@@ -123,44 +103,27 @@ else if (State?.Active?.IsExecuting ?? false)
     private string ActualPlan => "actual";
 
     private string _activeTab = Results;
+    private RowSelectionState _selectionState = new();
 
     [Parameter] public QueryPlan? QueryPlan { get; set; }
 
     protected override void OnInitialized()
     {
-        State.StateChanged += StateHasChanged;
+        State.StateChanged += OnStateChanged;
+        _selectionState.SelectionChanged += StateHasChanged;
         base.OnInitialized();
+    }
+
+    private void OnStateChanged()
+    {
+        // Clear selection when switching queries or when results change
+        _selectionState.ClearSelection();
+        StateHasChanged();
     }
 
     public void Dispose()
     {
-        State.StateChanged -= StateHasChanged;
-    }
-
-    protected async Task OpenJsonDetailView(string queryName, string column, string json)
-    {
-        await Bus.PublishAsync(new OpenJsonDetailView(new QueryResponseJsonDetail(queryName, column, json)));
-    }
-
-    protected bool FilterResults(Dictionary<string, object> item)
-    {
-        if (string.IsNullOrEmpty(_search))
-            return true;
-        
-        foreach (object value in item.Values)
-        {
-            if (string.IsNullOrEmpty(value?.ToString())) continue;
-
-            try
-            {
-                if (((string)value).Contains(_search, StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-            catch{}
-        }
-
-        return false;
+        State.StateChanged -= OnStateChanged;
+        _selectionState.SelectionChanged -= StateHasChanged;
     }
 }

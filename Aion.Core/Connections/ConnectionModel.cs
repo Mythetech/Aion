@@ -12,5 +12,10 @@ public class ConnectionModel
     public bool Active { get; set; }
     public bool SaveCredentials { get; set; }
     public bool IsSavedConnection { get; set; }
+
+    // Health monitoring properties
+    public DateTime? LastActivityTime { get; set; }
+    public DateTime? LastHealthCheckTime { get; set; }
+    public ConnectionHealthStatus HealthStatus { get; set; } = ConnectionHealthStatus.Unknown;
 }
 

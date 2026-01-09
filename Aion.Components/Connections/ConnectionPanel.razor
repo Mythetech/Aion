@@ -2,6 +2,7 @@
 @using Aion.Components.Connections.Commands
 @using Aion.Components.Connections.Events
 @using Aion.Components.Connections.Models
+@using Aion.Components.Connections.Services
 @using Aion.Components.Querying
 @using Aion.Core.Connections
 @using Aion.Core.Database
@@ -14,19 +15,33 @@
 @using Aion.Core.Queries
 @implements IConsumer<Aion.Components.Connections.Commands.ExpandDatabase>
 @implements IConsumer<Aion.Components.Connections.Commands.ExpandTable>
+@implements IConsumer<Aion.Components.Connections.Events.ConnectionHealthChanged>
 
 @implements IDisposable
 
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="w-100" Spacing="0">
     <h3 class="text-truncate">@Connection.Name</h3>
     <MudSpacer />
-    @if (Connection.Active)
+    <AionIconButton Icon="@Icons.Material.Filled.Refresh"
+                    Tooltip="Refresh Connection"
+                    OnClick="RefreshConnection"
+                    Disabled="@_isRefreshing" />
+    @if (Connection.HealthStatus == ConnectionHealthStatus.Checking || _isRefreshing)
+    {
+        <MudChip Size="Size.Small" Variant="Variant.Text" T="string" Color="Color.Default">
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-1" Style="width: 12px; height: 12px;" />
+            Checking
+        </MudChip>
+    }
+    else if (Connection.Active)
     {
         <MudChip Size="Size.Small" Variant="Variant.Text" T="string" Color="Color.Success">Connected</MudChip>
     }
     else
     {
-        <MudChip Size="Size.Small" Variant="Variant.Text"  T="string" Color="Color.Error" OnClick="RefreshConnection">Disconnected</MudChip>
+        <MudTooltip Text="@GetConnectionErrorTooltip()">
+            <MudChip Size="Size.Small" Variant="Variant.Text" T="string" Color="Color.Error" OnClick="RefreshConnection">Disconnected</MudChip>
+        </MudTooltip>
     }
 </MudStack>
 
@@ -145,11 +160,13 @@
     [Inject] protected ISnackbar Snackbar { get; set; } = default!;
     [Inject] private IDialogService DialogService { get; set; } = default!;
     [Inject] private IMessageBus MessageBus { get; set; } = default!;
+    [Inject] private IConnectionHealthMonitor HealthMonitor { get; set; } = default!;
 
     private Dictionary<string, MudTreeViewItem<string>> _databases = new();
-
     private Dictionary<string, MudTreeViewItem<string>> _tables = new();
-    
+    private bool _isRefreshing;
+    private string? _lastError;
+
     private string GetIcon(DatabaseTreeItem item) => item?.ItemType switch
     {
         "database" => AionIcons.Connection,
@@ -159,16 +176,49 @@
         _ => AionIcons.Info
     };
 
+    private string GetConnectionErrorTooltip()
+    {
+        if (!string.IsNullOrEmpty(_lastError))
+            return _lastError;
+
+        return Connection.HealthStatus switch
+        {
+            ConnectionHealthStatus.Timeout => "Connection timed out",
+            ConnectionHealthStatus.Unhealthy => "Connection failed",
+            _ => "Click to reconnect"
+        };
+    }
+
     private async Task RefreshConnection()
     {
-        await ConnectionState.RefreshDatabaseAsync(Connection);
-        if (Connection.Active)
+        _isRefreshing = true;
+        StateHasChanged();
+
+        try
         {
-            Snackbar.AddAionNotification($"Reconnected to {Connection.Name}", Severity.Success);
+            var result = await HealthMonitor.CheckConnectionHealthAsync(Connection);
+
+            Connection.Active = result.IsHealthy;
+            Connection.HealthStatus = result.IsHealthy
+                ? ConnectionHealthStatus.Healthy
+                : ConnectionHealthStatus.Unhealthy;
+            Connection.LastHealthCheckTime = result.CheckTime;
+            _lastError = result.ErrorMessage;
+
+            if (result.IsHealthy)
+            {
+                await ConnectionState.RefreshDatabaseAsync(Connection);
+                Snackbar.AddAionNotification($"Reconnected to {Connection.Name}", Severity.Success);
+            }
+            else
+            {
+                Snackbar.AddAionNotification($"Failed to reconnect: {result.ErrorMessage}", Severity.Error);
+            }
         }
-        else
+        finally
         {
-            Snackbar.AddAionNotification("Failed to reconnect", Severity.Error);
+            _isRefreshing = false;
+            StateHasChanged();
         }
     }
 
@@ -231,7 +281,7 @@
 
     private async Task EditData(string databaseName, string tableName)
     {
-        // TODO: Implement table data editor
+        await MessageBus.PublishAsync(new OpenTableEditor(Connection.Id, databaseName, tableName));
     }
 
     private async Task RefreshDatabase(DatabaseModel database)
@@ -290,12 +340,26 @@
     {
         MessageBus.Subscribe<ExpandDatabase>(this);
         MessageBus.Subscribe<ExpandTable>(this);
+        MessageBus.Subscribe<ConnectionHealthChanged>(this);
     }
 
     public void Dispose()
     {
         MessageBus.Unsubscribe<ExpandDatabase>(this);
         MessageBus.Unsubscribe<ExpandTable>(this);
+        MessageBus.Unsubscribe<ConnectionHealthChanged>(this);
+    }
+
+    public async Task Consume(ConnectionHealthChanged message)
+    {
+        if (message.ConnectionId != Connection.Id)
+            return;
+
+        await InvokeAsync(() =>
+        {
+            _lastError = message.ErrorMessage;
+            StateHasChanged();
+        });
     }
 
     public async Task Consume(ExpandTable message)
