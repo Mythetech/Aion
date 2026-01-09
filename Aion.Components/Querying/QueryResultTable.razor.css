@@ -1,0 +1,35 @@
+.query-result-table .cell-content {
+    cursor: default;
+    user-select: text;
+    width: 100%;
+}
+
+.query-result-table .cell-content:hover {
+    background-color: rgba(var(--mud-palette-primary-rgb), 0.04);
+}
+
+/* Edit mode styles (for future use) */
+.cell-modified {
+    background-color: rgba(255, 193, 7, 0.2) !important; /* Yellow tint for modified */
+}
+
+.row-inserted {
+    background-color: rgba(76, 175, 80, 0.2) !important; /* Green tint for new rows */
+}
+
+.row-deleted {
+    background-color: rgba(244, 67, 54, 0.1) !important; /* Red tint for deleted */
+}
+
+.row-deleted .cell-content {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
+.cell-editing {
+    padding: 0 !important;
+}
+
+.cell-editing .mud-input {
+    margin: 0;
+}

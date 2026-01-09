@@ -1,0 +1,229 @@
+@using Aion.Components.Querying.Commands
+@using Aion.Components.Querying.Editing
+@using Aion.Core.Queries.Editing
+@using Mythetech.Framework.Infrastructure.MessageBus
+
+<MudPaper Class="pa-3" Elevation="1">
+    <MudStack Spacing="2">
+        <MudStack Row="true" AlignItems="AlignItems.Center">
+            <MudText Typo="Typo.subtitle1">Pending Changes</MudText>
+            <MudSpacer />
+            @if (EditState.InsertedRowCount > 0)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">
+                    @EditState.InsertedRowCount Insert@(EditState.InsertedRowCount != 1 ? "s" : "")
+                </MudChip>
+            }
+            @if (EditState.UpdatedRowCount > 0)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled">
+                    @EditState.UpdatedRowCount Update@(EditState.UpdatedRowCount != 1 ? "s" : "")
+                </MudChip>
+            }
+            @if (EditState.DeletedRowCount > 0)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled">
+                    @EditState.DeletedRowCount Delete@(EditState.DeletedRowCount != 1 ? "s" : "")
+                </MudChip>
+            }
+        </MudStack>
+
+        @if (_showPreview)
+        {
+            <MudDivider />
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">SQL Preview</MudText>
+            <MudPaper Class="pa-2" Style="background-color: var(--mud-palette-surface); font-family: monospace; white-space: pre-wrap; max-height: 200px; overflow-y: auto;">
+                @if (!string.IsNullOrEmpty(_previewError))
+                {
+                    <MudText Color="Color.Error">@_previewError</MudText>
+                }
+                else if (_previewStatements.Count == 0)
+                {
+                    <MudText Color="Color.Secondary">No SQL generated</MudText>
+                }
+                else
+                {
+                    @foreach (var statement in _previewStatements)
+                    {
+                        <MudText Style="margin-bottom: 8px;">@statement;</MudText>
+                    }
+                }
+            </MudPaper>
+        }
+
+        <MudStack Row="true" Justify="Justify.SpaceBetween">
+            <MudButton Variant="Variant.Text"
+                       Size="Size.Small"
+                       OnClick="@TogglePreview"
+                       StartIcon="@(_showPreview ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)">
+                @(_showPreview ? "Hide" : "Show") SQL
+            </MudButton>
+
+            <MudStack Row="true" Spacing="1">
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Default"
+                           Size="Size.Small"
+                           OnClick="@DiscardChanges"
+                           Disabled="@(!EditState.HasChanges)">
+                    Discard
+                </MudButton>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Size="Size.Small"
+                           OnClick="@ApplyChanges"
+                           Disabled="@(!EditState.HasChanges || _isApplying)">
+                    @if (_isApplying)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" Style="width: 16px; height: 16px;" />
+                    }
+                    Apply Changes
+                </MudButton>
+            </MudStack>
+        </MudStack>
+    </MudStack>
+</MudPaper>
+
+@code {
+    [Parameter] public required EditState EditState { get; set; }
+    [Parameter] public EditableQueryResult? EditableResult { get; set; }
+    [Parameter] public EventCallback OnApplyChanges { get; set; }
+    [Parameter] public EventCallback OnDiscardChanges { get; set; }
+
+    [Inject] protected IMessageBus Bus { get; set; } = default!;
+
+    private bool _showPreview;
+    private bool _isApplying;
+    private List<string> _previewStatements = [];
+    private string? _previewError;
+
+    protected override void OnInitialized()
+    {
+        EditState.StateChanged += OnEditStateChanged;
+    }
+
+    private void OnEditStateChanged()
+    {
+        if (_showPreview)
+        {
+            _ = GeneratePreviewAsync();
+        }
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task TogglePreview()
+    {
+        _showPreview = !_showPreview;
+
+        if (_showPreview)
+        {
+            await GeneratePreviewAsync();
+        }
+    }
+
+    private async Task GeneratePreviewAsync()
+    {
+        if (EditableResult == null || !EditState.HasChanges)
+        {
+            _previewStatements = [];
+            _previewError = null;
+            return;
+        }
+
+        try
+        {
+            var generator = new SqlChangeGenerator();
+            // Note: In a real implementation, you'd get the commands from the provider
+            // For preview, we'll just show a simplified version
+            _previewStatements = GenerateSimplePreview();
+            _previewError = null;
+        }
+        catch (Exception ex)
+        {
+            _previewError = ex.Message;
+            _previewStatements = [];
+        }
+
+        await Task.CompletedTask;
+    }
+
+    private List<string> GenerateSimplePreview()
+    {
+        var statements = new List<string>();
+
+        if (EditableResult == null) return statements;
+
+        foreach (var change in EditState.PendingChanges)
+        {
+            switch (change.Type)
+            {
+                case ChangeType.Insert:
+                    if (change.NewValues != null)
+                    {
+                        var insertCols = string.Join(", ", change.NewValues.Keys);
+                        var insertVals = string.Join(", ", change.NewValues.Values.Select(FormatValueForPreview));
+                        statements.Add($"INSERT INTO \"{EditableResult.SourceTable}\" ({insertCols}) VALUES ({insertVals})");
+                    }
+                    break;
+
+                case ChangeType.Update:
+                    var setClauses = change.GetModifiedColumns()
+                        .Select(col => $"\"{col}\" = {FormatValueForPreview(change.NewValues?.GetValueOrDefault(col))}");
+                    var updateWhere = GenerateWherePreview(change.OriginalValues, EditableResult.PrimaryKeyColumns);
+                    statements.Add($"UPDATE \"{EditableResult.SourceTable}\" SET {string.Join(", ", setClauses)} WHERE {updateWhere}");
+                    break;
+
+                case ChangeType.Delete:
+                    var deleteWhere = GenerateWherePreview(change.OriginalValues, EditableResult.PrimaryKeyColumns);
+                    statements.Add($"DELETE FROM \"{EditableResult.SourceTable}\" WHERE {deleteWhere}");
+                    break;
+            }
+        }
+
+        return statements;
+    }
+
+    private string GenerateWherePreview(Dictionary<string, object?> values, List<string> pkCols)
+    {
+        var conditions = pkCols
+            .Select(col => $"\"{col}\" = {FormatValueForPreview(values.GetValueOrDefault(col))}");
+        return string.Join(" AND ", conditions);
+    }
+
+    private static string FormatValueForPreview(object? value)
+    {
+        return value switch
+        {
+            null => "NULL",
+            string s => $"'{s.Replace("'", "''")}'",
+            bool b => b ? "TRUE" : "FALSE",
+            DateTime dt => $"'{dt:yyyy-MM-dd HH:mm:ss}'",
+            _ => value.ToString() ?? "NULL"
+        };
+    }
+
+    private async Task ApplyChanges()
+    {
+        _isApplying = true;
+        StateHasChanged();
+
+        try
+        {
+            await OnApplyChanges.InvokeAsync();
+        }
+        finally
+        {
+            _isApplying = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DiscardChanges()
+    {
+        await OnDiscardChanges.InvokeAsync();
+    }
+
+    public void Dispose()
+    {
+        EditState.StateChanged -= OnEditStateChanged;
+    }
+}

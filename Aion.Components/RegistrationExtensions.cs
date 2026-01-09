@@ -1,4 +1,5 @@
 using Aion.Components.Connections;
+using Aion.Components.Connections.Services;
 using Aion.Components.History;
 using Aion.Components.Querying;
 using Aion.Components.Search;
@@ -38,6 +39,7 @@ public static class RegistrationExtensions
         services.AddSingleton<SettingsState>();
 
         services.AddSingleton<IConnectionService, TConnectionService>();
+        services.AddSingleton<IConnectionHealthMonitor, ConnectionHealthMonitor>();
         services.AddScoped<IDatabaseProviderFactory, DatabaseProviderFactory>();
         services.AddScoped<IDatabaseProvider, PostgreSqlProvider>();
         services.AddScoped<IDatabaseProvider, MySqlProvider>();

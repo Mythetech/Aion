@@ -1,0 +1,254 @@
+@using Aion.Components.Querying.Commands
+@using Aion.Components.RequestContextPanel
+@using Aion.Components.RequestContextPanel.Commands
+@using Aion.Components.Shared
+@using Aion.Components.Theme
+@using Aion.Core.Queries
+@using Mythetech.Framework.Infrastructure.MessageBus
+
+<MudDataGrid T="Dictionary<string, object>"
+             @ref="_dataGrid"
+             Items="@Result.Rows"
+             Dense="true"
+             Hover="true"
+             Filterable="true"
+             QuickFilter="FilterResults"
+             ColumnResizeMode="ResizeMode.Container"
+             Class="query-result-table">
+    <Columns>
+        @* Selection column *@
+        <TemplateColumn T="Dictionary<string, object>"
+                        Title=""
+                        Sortable="false"
+                        Filterable="false"
+                        Resizable="false"
+                        CellStyle="width: 40px; min-width: 40px; max-width: 40px;">
+            <HeaderTemplate>
+                <MudCheckBox T="bool"
+                             Value="@SelectionState.SelectAllChecked"
+                             ValueChanged="@ToggleSelectAll"
+                             Size="Size.Small"
+                             Dense="true" />
+            </HeaderTemplate>
+            <CellTemplate>
+                @{
+                    var rowIndex = GetRowIndex(context.Item);
+                }
+                <MudCheckBox T="bool"
+                             Value="@SelectionState.IsSelected(rowIndex)"
+                             ValueChanged="@(v => HandleRowSelect(rowIndex, v))"
+                             Size="Size.Small"
+                             Dense="true" />
+            </CellTemplate>
+        </TemplateColumn>
+
+        @* Data columns *@
+        @foreach (var col in Result.Columns)
+        {
+            <TemplateColumn T="Dictionary<string, object>" Title="@col" Resizable="true">
+                <CellTemplate>
+                    @{
+                        var value = context.Item.GetValueOrDefault(col);
+                        var rowIndex = GetRowIndex(context.Item);
+                    }
+                    <div class="cell-content"
+                         @oncontextmenu="@(e => ShowContextMenu(e, context.Item, col, value))"
+                         @oncontextmenu:preventDefault="true"
+                         @onclick="@(e => HandleCellClick(rowIndex, e))">
+                        @if (value != null && value.ToString()!.StartsWith('{') && value.ToString()!.EndsWith('}'))
+                        {
+                            <MudLink Class="overflow-x-auto d-flex"
+                                     OnClick="@(async () => await OpenJsonDetailView(col, value.ToString()!))">
+                                @value
+                            </MudLink>
+                        }
+                        else
+                        {
+                            <MudText Class="overflow-x-auto d-flex">@value</MudText>
+                        }
+                    </div>
+                </CellTemplate>
+            </TemplateColumn>
+        }
+    </Columns>
+</MudDataGrid>
+
+@* Context Menu *@
+<MudMenu @ref="_contextMenu"
+         Dense="true"
+         AnchorOrigin="Origin.BottomLeft"
+         TransformOrigin="Origin.TopLeft"
+         PositionAtCursor="true">
+    <ChildContent>
+        <MudMenuItem OnClick="@CopyCellValue" Icon="@Icons.Material.Filled.ContentCopy">
+            Copy Cell
+        </MudMenuItem>
+        <MudMenuItem OnClick="@CopyRowAsJson" Icon="@AionIcons.Json">
+            Copy Row as JSON
+        </MudMenuItem>
+        <MudMenuItem OnClick="@CopyRowAsCsv" Icon="@AionIcons.Csv">
+            Copy Row as CSV
+        </MudMenuItem>
+
+        @if (SelectionState.HasSelection)
+        {
+            <MudDivider />
+            <MudMenuItem OnClick="@CopySelectedRows" Icon="@Icons.Material.Filled.ContentCopy">
+                Copy Selected (@SelectionState.SelectedCount rows)
+            </MudMenuItem>
+            <MudDivider />
+            <MudMenuItem OnClick="@ExportSelectedCsv" Icon="@AionIcons.Csv">
+                Export Selected to CSV
+            </MudMenuItem>
+            <MudMenuItem OnClick="@ExportSelectedJson" Icon="@AionIcons.Json">
+                Export Selected to JSON
+            </MudMenuItem>
+            <MudMenuItem OnClick="@ExportSelectedExcel" Icon="@AionIcons.Spreadsheet">
+                Export Selected to Excel
+            </MudMenuItem>
+        }
+    </ChildContent>
+</MudMenu>
+
+@code {
+    [Parameter] public required QueryResult Result { get; set; }
+    [Parameter] public required string QueryName { get; set; }
+    [Parameter] public string? SearchFilter { get; set; }
+    [Parameter] public RowSelectionState SelectionState { get; set; } = new();
+
+    [Inject] protected IMessageBus Bus { get; set; } = default!;
+
+    private MudDataGrid<Dictionary<string, object>>? _dataGrid;
+    private MudMenu? _contextMenu;
+
+    // Context menu state
+    private Dictionary<string, object>? _contextRow;
+    private string? _contextColumn;
+    private object? _contextValue;
+
+    private int GetRowIndex(Dictionary<string, object> row)
+    {
+        return Result.Rows.IndexOf(row);
+    }
+
+    private void HandleCellClick(int rowIndex, MouseEventArgs e)
+    {
+        SelectionState.ToggleSelection(rowIndex, e.CtrlKey, e.ShiftKey, Result.Rows.Count);
+        StateHasChanged();
+    }
+
+    private void HandleRowSelect(int rowIndex, bool selected)
+    {
+        if (selected)
+        {
+            SelectionState.ToggleSelection(rowIndex, ctrlKey: true, shiftKey: false, Result.Rows.Count);
+        }
+        else
+        {
+            SelectionState.SelectedIndices.Remove(rowIndex);
+        }
+        StateHasChanged();
+    }
+
+    private void ToggleSelectAll(bool selectAll)
+    {
+        if (selectAll)
+        {
+            SelectionState.SelectAll(Result.Rows.Count);
+        }
+        else
+        {
+            SelectionState.ClearSelection();
+        }
+        StateHasChanged();
+    }
+
+    private async Task ShowContextMenu(MouseEventArgs e, Dictionary<string, object> row, string column, object? value)
+    {
+        _contextRow = row;
+        _contextColumn = column;
+        _contextValue = value;
+
+        // Select the row if not already selected
+        var rowIndex = GetRowIndex(row);
+        if (!SelectionState.IsSelected(rowIndex))
+        {
+            SelectionState.ToggleSelection(rowIndex, ctrlKey: false, shiftKey: false, Result.Rows.Count);
+        }
+
+        if (_contextMenu != null)
+        {
+            await _contextMenu.OpenMenuAsync(e);
+        }
+        StateHasChanged();
+    }
+
+    private async Task CopyCellValue()
+    {
+        if (_contextValue == null) return;
+        await Bus.PublishAsync(new CopyCellToClipboard(_contextValue.ToString() ?? ""));
+    }
+
+    private async Task CopyRowAsJson()
+    {
+        if (_contextRow == null) return;
+        await Bus.PublishAsync(new CopyRowToClipboard(_contextRow, Result.Columns, "Json"));
+    }
+
+    private async Task CopyRowAsCsv()
+    {
+        if (_contextRow == null) return;
+        await Bus.PublishAsync(new CopyRowToClipboard(_contextRow, Result.Columns, "Csv"));
+    }
+
+    private async Task CopySelectedRows()
+    {
+        var selectedRows = SelectionState.GetSelectedRows(Result.Rows);
+        await Bus.PublishAsync(new CopySelectedRowsToClipboard(selectedRows, Result.Columns, "Csv"));
+    }
+
+    private async Task ExportSelectedCsv()
+    {
+        var selectedRows = SelectionState.GetSelectedRows(Result.Rows);
+        await Bus.PublishAsync(new ExportSelectedRows(selectedRows, Result.Columns, "Csv"));
+    }
+
+    private async Task ExportSelectedJson()
+    {
+        var selectedRows = SelectionState.GetSelectedRows(Result.Rows);
+        await Bus.PublishAsync(new ExportSelectedRows(selectedRows, Result.Columns, "Json"));
+    }
+
+    private async Task ExportSelectedExcel()
+    {
+        var selectedRows = SelectionState.GetSelectedRows(Result.Rows);
+        await Bus.PublishAsync(new ExportSelectedRows(selectedRows, Result.Columns, "Excel"));
+    }
+
+    protected async Task OpenJsonDetailView(string column, string json)
+    {
+        await Bus.PublishAsync(new OpenJsonDetailView(new QueryResponseJsonDetail(QueryName, column, json)));
+    }
+
+    protected bool FilterResults(Dictionary<string, object> item)
+    {
+        if (string.IsNullOrEmpty(SearchFilter))
+            return true;
+
+        foreach (var value in item.Values)
+        {
+            if (string.IsNullOrEmpty(value?.ToString())) continue;
+
+            try
+            {
+                if (value.ToString()!.Contains(SearchFilter, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            catch { }
+        }
+
+        return false;
+    }
+}
