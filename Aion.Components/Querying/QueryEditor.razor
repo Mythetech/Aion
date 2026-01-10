@@ -130,7 +130,9 @@
         get => State.Active?.DatabaseName;
         set
         {
-            if (State.Active != null)
+            // Only update if value is different and not null
+            // This prevents accidental clearing during re-renders
+            if (State.Active != null && value != null && value != State.Active.DatabaseName)
             {
                 State.UpdateQueryDatabase(State.Active, value);
             }
