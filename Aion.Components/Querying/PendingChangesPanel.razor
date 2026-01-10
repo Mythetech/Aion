@@ -60,11 +60,10 @@
             </MudButton>
 
             <MudStack Row="true" Spacing="1">
-                <MudButton Variant="Variant.Text"
+                <MudButton Variant="Variant.Outlined"
                            Color="Color.Default"
                            Size="Size.Small"
-                           OnClick="@DiscardChanges"
-                           Disabled="@(!EditState.HasChanges)">
+                           OnClick="@DiscardAndExit">
                     Discard
                 </MudButton>
                 <MudButton Variant="Variant.Filled"
@@ -88,6 +87,7 @@
     [Parameter] public EditableQueryResult? EditableResult { get; set; }
     [Parameter] public EventCallback OnApplyChanges { get; set; }
     [Parameter] public EventCallback OnDiscardChanges { get; set; }
+    [Parameter] public EventCallback OnExitEditMode { get; set; }
 
     [Inject] protected IMessageBus Bus { get; set; } = default!;
 
@@ -217,9 +217,10 @@
         }
     }
 
-    private async Task DiscardChanges()
+    private async Task DiscardAndExit()
     {
         await OnDiscardChanges.InvokeAsync();
+        await OnExitEditMode.InvokeAsync();
     }
 
     public void Dispose()

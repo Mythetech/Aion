@@ -1,3 +1,4 @@
+using Aion.Components.Querying.Editing;
 using Aion.Core.Queries.Editing;
 
 namespace Aion.Components.Querying.Commands;
@@ -35,7 +36,7 @@ public record UpdateCell(int RowIndex, string Column, object? NewValue);
 /// <summary>
 /// Apply all pending changes to the database.
 /// </summary>
-public record ApplyPendingChanges();
+public record ApplyPendingChanges(EditState EditState, EditableQueryResult EditableResult);
 
 /// <summary>
 /// Discard all pending changes.

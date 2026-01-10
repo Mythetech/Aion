@@ -51,7 +51,6 @@ public class TableEditorOpener : IConsumer<OpenTableEditor>
 
         try
         {
-            // Ensure columns are loaded for this table
             if (!database.LoadedColumnTables.Contains(message.TableName))
             {
                 await _connectionState.LoadColumnsAsync(connection, database, message.TableName);
@@ -59,7 +58,6 @@ public class TableEditorOpener : IConsumer<OpenTableEditor>
 
             var columns = database.TableColumns.GetValueOrDefault(message.TableName) ?? [];
 
-            // Check for primary key
             if (!columns.Any(c => c.IsPrimaryKey))
             {
                 await _bus.PublishAsync(new AddNotification(
@@ -67,13 +65,11 @@ public class TableEditorOpener : IConsumer<OpenTableEditor>
                     Severity.Warning));
             }
 
-            // Create the query
             var query = _queryState.AddQuery($"Edit - {message.TableName}");
             query.ConnectionId = connection.Id;
             query.DatabaseName = message.DatabaseName;
             query.Query = GenerateSelectQuery(message.TableName, connection.Type);
 
-            // Store metadata for edit mode
             query.EditMetadata = new QueryEditMetadata
             {
                 SourceTable = message.TableName,
@@ -82,8 +78,8 @@ public class TableEditorOpener : IConsumer<OpenTableEditor>
                 IsEditMode = true
             };
 
-            // Focus the query
             await _bus.PublishAsync(new FocusQuery(query));
+            await _bus.PublishAsync(new RunQuery());
 
             _logger.LogInformation("Opened table editor for {Table} in {Database}", message.TableName, message.DatabaseName);
         }
@@ -96,7 +92,6 @@ public class TableEditorOpener : IConsumer<OpenTableEditor>
 
     private static string GenerateSelectQuery(string tableName, DatabaseType dbType)
     {
-        // Use appropriate syntax for each database
         return dbType switch
         {
             DatabaseType.PostgreSQL => $"SELECT * FROM \"{tableName}\" LIMIT 1000",

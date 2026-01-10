@@ -65,19 +65,19 @@ ALTER TABLE ""{name}""
 
     public Task<string> GenerateInsertScript(string database, string table, IEnumerable<ColumnValue> values)
     {
-        var columns = values.Select(v => $"""{v.Column}""");
+        var columns = values.Select(v => $"\"{v.Column}\"");
         var vals = values.Select(v => v.Value == null ? "NULL" : $"'{v.Value}'");
 
         return Task.FromResult($@"
-INSERT INTO ""{table}"" 
+INSERT INTO ""{table}""
 ({string.Join(", ", columns)})
 VALUES ({string.Join(", ", vals)});");
     }
 
     public Task<string> GenerateUpdateScript(string database, string table, IEnumerable<ColumnValue> values, string whereClause)
     {
-        var setStatements = values.Select(v => 
-            $"""{v.Column}"" = {(v.Value == null ? "NULL" : $"'{v.Value}'")}")""");
+        var setStatements = values.Select(v =>
+            $"\"{v.Column}\" = {(v.Value == null ? "NULL" : $"'{v.Value}'")}");
 
         return Task.FromResult($@"
 UPDATE ""{table}""
