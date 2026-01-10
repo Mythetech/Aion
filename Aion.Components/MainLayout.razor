@@ -74,6 +74,9 @@
                     </MudMenuItem>
                     <MudMenuItem Icon="@AionIcons.Format"
                         OnClick="@(async () => await Bus.PublishAsync(new FormatQuery()))">Format</MudMenuItem>
+                    <MudDivider />
+                    <MudMenuItem Icon="@Icons.Material.Filled.Edit"
+                        OnClick="@(async () => await Bus.PublishAsync(new EnableEditModeFromQuery()))">Edit Mode</MudMenuItem>
                 </MudMenu>
                 <MudMenu Variant="Variant.Text" Size="Size.Small" Dense="true" ActivationEvent="MouseEvent.MouseOver"
                     Label="Tools">

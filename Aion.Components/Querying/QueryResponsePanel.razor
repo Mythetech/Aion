@@ -1,11 +1,14 @@
 @using System.Text.Json.Nodes
 @using Mythetech.Framework.Infrastructure.MessageBus
 @using Aion.Components.Querying.Commands
+@using Aion.Components.Querying.Consumers
+@using Aion.Components.Querying.Editing
 @using Aion.Components.RequestContextPanel
 @using Aion.Components.RequestContextPanel.Commands
 @using Aion.Components.Shared
 @using Aion.Components.Theme
 @using Aion.Core.Queries
+@using Aion.Core.Queries.Editing
 @using Aion.Components.Shared.Loaders
 @using Aion.Components.Querying
 @implements IDisposable
@@ -25,6 +28,10 @@
                 @if (State.Active.ActualPlan != null)
                 {
                     <MudTabPanel Text="Actual Plan" OnClick="() => _activeTab = ActualPlan" />
+                }
+                @if (State.Active.EditMetadata?.IsEditMode == true)
+                {
+                    <MudTabPanel Text="Edit" Icon="@Icons.Material.Filled.Edit" OnClick="() => _activeTab = Edit" />
                 }
             </MudTabs>
             <MudSpacer />
@@ -56,7 +63,9 @@
                 <QueryResultTable Result="@State.Active.Result"
                                   QueryName="@State.Active.Name"
                                   SearchFilter="@_search"
-                                  SelectionState="@_selectionState" />
+                                  SelectionState="@_selectionState"
+                                  EditState="@GetOrCreateEditState()"
+                                  EditMetadata="@State.Active.EditMetadata" />
             </MudStack>
         }
         else if (_activeTab == Messages)
@@ -70,6 +79,19 @@
         else if (_activeTab == ActualPlan)
         {
             <QueryPlanVisualizer Plan="@State.Active.ActualPlan" />
+        }
+        else if (_activeTab == Edit && State.Active.EditMetadata?.IsEditMode == true)
+        {
+            var editState = GetOrCreateEditState();
+            @if (editState != null)
+            {
+                <PendingChangesPanel
+                    EditState="@editState"
+                    EditableResult="@GetEditableResult()"
+                    OnApplyChanges="@ApplyChanges"
+                    OnDiscardChanges="@DiscardChanges"
+                    OnExitEditMode="@ExitEditMode" />
+            }
         }
         <MudStack Row="true" AlignItems="AlignItems.Center">
             <MudText Typo="Typo.caption" Class="mud-text-secondary ml-4">
@@ -98,12 +120,14 @@ else if (State?.Active?.IsExecuting ?? false)
 
     private string? _search = "";
     private const string Results = "results";
+    private const string Edit = "edit";
     private string Messages => "messages";
     private string EstimatedPlan => "estimated";
     private string ActualPlan => "actual";
 
     private string _activeTab = Results;
     private RowSelectionState _selectionState = new();
+    private Dictionary<Guid, EditState> _editStates = new();
 
     [Parameter] public QueryPlan? QueryPlan { get; set; }
 
@@ -118,6 +142,69 @@ else if (State?.Active?.IsExecuting ?? false)
     {
         // Clear selection when switching queries or when results change
         _selectionState.ClearSelection();
+        StateHasChanged();
+    }
+
+    // EditState management per query
+    private EditState? GetOrCreateEditState()
+    {
+        if (State.Active?.EditMetadata?.IsEditMode != true) return null;
+
+        var queryId = State.Active.Id;
+        if (!_editStates.TryGetValue(queryId, out var editState))
+        {
+            editState = new EditState { IsEditMode = true };
+            _editStates[queryId] = editState;
+        }
+        return editState;
+    }
+
+    private EditableQueryResult? GetEditableResult()
+    {
+        if (State.Active?.Result == null || State.Active.EditMetadata == null) return null;
+        return EditableQueryResult.FromQueryResult(
+            State.Active.Result,
+            State.Active.EditMetadata.SourceTable,
+            State.Active.EditMetadata.SourceDatabase,
+            State.Active.ConnectionId,
+            State.Active.EditMetadata.ColumnMetadata);
+    }
+
+    private async Task ApplyChanges()
+    {
+        var editState = GetOrCreateEditState();
+        var editableResult = GetEditableResult();
+        if (editState != null && editableResult != null)
+        {
+            await Bus.PublishAsync(new ApplyPendingChanges(editState, editableResult));
+
+            // If changes were cleared (success), exit edit mode
+            // The consumer clears changes on success
+            if (!editState.HasChanges)
+            {
+                ExitEditMode();
+            }
+        }
+    }
+
+    private void DiscardChanges()
+    {
+        GetOrCreateEditState()?.DiscardAllChanges();
+    }
+
+    private void ExitEditMode()
+    {
+        if (State.Active == null) return;
+
+        // Clear the edit state for this query
+        _editStates.Remove(State.Active.Id);
+
+        // Clear edit metadata to exit edit mode
+        State.Active.EditMetadata = null;
+
+        // Switch back to Results tab
+        _activeTab = Results;
+
         StateHasChanged();
     }
 

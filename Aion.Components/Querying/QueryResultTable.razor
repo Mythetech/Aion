@@ -1,10 +1,13 @@
 @using Aion.Components.Querying.Commands
+@using Aion.Components.Querying.Consumers
+@using Aion.Components.Querying.Editing
 @using Aion.Components.RequestContextPanel
 @using Aion.Components.RequestContextPanel.Commands
 @using Aion.Components.Shared
 @using Aion.Components.Theme
 @using Aion.Core.Queries
 @using Mythetech.Framework.Infrastructure.MessageBus
+@implements IDisposable
 
 <MudDataGrid T="Dictionary<string, object>"
              @ref="_dataGrid"
@@ -50,21 +53,37 @@
                     @{
                         var value = context.Item.GetValueOrDefault(col);
                         var rowIndex = GetRowIndex(context.Item);
+                        var effectiveValue = EditState?.GetEffectiveValue(rowIndex, col, context.Item) ?? value;
+                        var cellClass = GetCellClass(rowIndex, col);
+                        var rowClass = GetRowClass(rowIndex);
                     }
-                    <div class="cell-content"
+                    <div class="cell-content @cellClass @rowClass"
                          @oncontextmenu="@(e => ShowContextMenu(e, context.Item, col, value))"
                          @oncontextmenu:preventDefault="true"
                          @onclick="@(e => HandleCellClick(rowIndex, e))">
-                        @if (value != null && value.ToString()!.StartsWith('{') && value.ToString()!.EndsWith('}'))
+                        @if (EditMetadata?.IsEditMode == true && !IsRowDeleted(rowIndex))
+                        {
+                            <MudTextField T="string"
+                                          Value="@(effectiveValue?.ToString() ?? "")"
+                                          ValueChanged="@(newValue => OnCellValueChanged(rowIndex, col, newValue, context.Item))"
+                                          Variant="Variant.Text"
+                                          Margin="Margin.Dense"
+                                          Dense="true"
+                                          Immediate="false"
+                                          DisableUnderLine="true"
+                                          Disabled="@IsPrimaryKeyColumn(col)"
+                                          Class="cell-editing" />
+                        }
+                        else if (effectiveValue != null && effectiveValue.ToString()!.StartsWith('{') && effectiveValue.ToString()!.EndsWith('}'))
                         {
                             <MudLink Class="overflow-x-auto d-flex"
-                                     OnClick="@(async () => await OpenJsonDetailView(col, value.ToString()!))">
-                                @value
+                                     OnClick="@(async () => await OpenJsonDetailView(col, effectiveValue.ToString()!))">
+                                @effectiveValue
                             </MudLink>
                         }
                         else
                         {
-                            <MudText Class="overflow-x-auto d-flex">@value</MudText>
+                            <MudText Class="overflow-x-auto d-flex">@effectiveValue</MudText>
                         }
                     </div>
                 </CellTemplate>
@@ -107,6 +126,23 @@
                 Export Selected to Excel
             </MudMenuItem>
         }
+
+        @if (EditMetadata?.IsEditMode == true && _contextRow != null)
+        {
+            <MudDivider />
+            @if (IsRowDeleted(GetRowIndex(_contextRow)))
+            {
+                <MudMenuItem OnClick="@UndeleteContextRow" Icon="@Icons.Material.Filled.Undo" IconColor="Color.Success">
+                    Restore Row
+                </MudMenuItem>
+            }
+            else
+            {
+                <MudMenuItem OnClick="@DeleteContextRow" Icon="@Icons.Material.Filled.Delete" IconColor="Color.Error">
+                    Delete Row
+                </MudMenuItem>
+            }
+        }
     </ChildContent>
 </MudMenu>
 
@@ -115,6 +151,8 @@
     [Parameter] public required string QueryName { get; set; }
     [Parameter] public string? SearchFilter { get; set; }
     [Parameter] public RowSelectionState SelectionState { get; set; } = new();
+    [Parameter] public EditState? EditState { get; set; }
+    [Parameter] public QueryEditMetadata? EditMetadata { get; set; }
 
     [Inject] protected IMessageBus Bus { get; set; } = default!;
 
@@ -126,9 +164,80 @@
     private string? _contextColumn;
     private object? _contextValue;
 
+    protected override void OnInitialized()
+    {
+        if (EditState != null)
+        {
+            EditState.StateChanged += OnEditStateChanged;
+        }
+        base.OnInitialized();
+    }
+
+    protected override void OnParametersSet()
+    {
+        // Handle EditState changes between renders
+        base.OnParametersSet();
+    }
+
+    private void OnEditStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        if (EditState != null)
+        {
+            EditState.StateChanged -= OnEditStateChanged;
+        }
+    }
+
     private int GetRowIndex(Dictionary<string, object> row)
     {
         return Result.Rows.IndexOf(row);
+    }
+
+    // Edit mode helper methods
+    private bool IsPrimaryKeyColumn(string column) =>
+        EditMetadata?.ColumnMetadata.Any(c => c.Name == column && c.IsPrimaryKey) == true;
+
+    private bool IsRowDeleted(int rowIndex) =>
+        EditState?.IsRowDeleted(rowIndex) == true;
+
+    private string GetRowClass(int rowIndex)
+    {
+        if (EditState?.IsRowDeleted(rowIndex) == true) return "row-deleted";
+        if (EditState?.IsRowInserted(rowIndex) == true) return "row-inserted";
+        return "";
+    }
+
+    private string GetCellClass(int rowIndex, string column)
+    {
+        if (EditState?.IsCellModified(rowIndex, column) == true) return "cell-modified";
+        return "";
+    }
+
+    private void OnCellValueChanged(int rowIndex, string column, string? newValue, Dictionary<string, object> originalRow)
+    {
+        if (EditState == null) return;
+
+        // Convert empty string to null for nullable columns
+        object? valueToSet = string.IsNullOrEmpty(newValue) ? null : newValue;
+        EditState.UpdateCell(rowIndex, column, valueToSet, originalRow);
+    }
+
+    private void DeleteContextRow()
+    {
+        if (_contextRow == null || EditState == null) return;
+        var rowIndex = GetRowIndex(_contextRow);
+        EditState.DeleteRow(rowIndex, _contextRow);
+    }
+
+    private void UndeleteContextRow()
+    {
+        if (_contextRow == null || EditState == null) return;
+        var rowIndex = GetRowIndex(_contextRow);
+        EditState.UndeleteRow(rowIndex);
     }
 
     private void HandleCellClick(int rowIndex, MouseEventArgs e)

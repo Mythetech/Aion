@@ -1,3 +1,4 @@
+using Aion.Components.Querying.Editing;
 using Aion.Core.Queries.Editing;
 
 namespace Aion.Components.Querying.Commands;
@@ -35,7 +36,7 @@ public record UpdateCell(int RowIndex, string Column, object? NewValue);
 /// <summary>
 /// Apply all pending changes to the database.
 /// </summary>
-public record ApplyPendingChanges();
+public record ApplyPendingChanges(EditState EditState, EditableQueryResult EditableResult);
 
 /// <summary>
 /// Discard all pending changes.
@@ -46,3 +47,8 @@ public record DiscardPendingChanges();
 /// Open a table in edit mode from the connection panel.
 /// </summary>
 public record OpenTableEditor(Guid ConnectionId, string DatabaseName, string TableName);
+
+/// <summary>
+/// Enable edit mode on the active query by parsing the SQL to determine the table.
+/// </summary>
+public record EnableEditModeFromQuery();
