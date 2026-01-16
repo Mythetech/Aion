@@ -1,8 +1,10 @@
-﻿using Aion.Components;
+using Aion.Components;
 using Aion.Components.Infrastructure;
+using Aion.Components.Settings.Domains;
 using Mythetech.Framework.Desktop;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using Mythetech.Framework.Infrastructure.Plugins;
+using Mythetech.Framework.Infrastructure.Settings;
 using Aion.Components.Querying;
 using Microsoft.Extensions.DependencyInjection;
 using Photino.Blazor;
@@ -55,6 +57,9 @@ namespace Aion.Desktop
 
             appBuilder.Services.AddAionComponents<ConnectionService>();
 
+            // Settings storage for framework
+            appBuilder.Services.AddSettingsStorage<AionSettingsStorage>();
+
             appBuilder.Services.AddSingleton<IConnectionStorage, FileConnectionStorage>();
             appBuilder.Services.AddSingleton<IQuerySaveService, FileQuerySaveService>();
 
@@ -69,6 +74,17 @@ namespace Aion.Desktop
             appProvider.Instance = app;
 
             app.Services.UseMessageBus(typeof(Program).Assembly, typeof(Components.App).Assembly);
+
+            // Initialize settings framework
+            app.Services
+                .RegisterSettings<ConnectionSettings>()
+                .RegisterSettings<EditorSettings>()
+                .RegisterSettings<PluginSettings>()
+                .UseSettingsFramework();
+
+            // Load persisted settings
+            app.Services.LoadPersistedSettingsAsync().GetAwaiter().GetResult();
+
             app.Services.UsePlugins();
 
             app.MainWindow

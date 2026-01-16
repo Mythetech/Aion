@@ -1,4 +1,5 @@
 using Aion.Components.Connections.Events;
+using Aion.Components.Settings.Domains;
 using Aion.Core.Connections;
 using Microsoft.Extensions.Logging;
 using Mythetech.Framework.Infrastructure.MessageBus;
@@ -11,38 +12,39 @@ public class ConnectionHealthMonitor : IConnectionHealthMonitor
     private readonly ConnectionState _connectionState;
     private readonly IMessageBus _messageBus;
     private readonly ILogger<ConnectionHealthMonitor> _logger;
+    private readonly ConnectionSettings _settings;
 
     private PeriodicTimer? _timer;
     private CancellationTokenSource? _cancellationTokenSource;
     private Task? _monitoringTask;
     private bool _disposed;
 
-    public ConnectionHealthSettings Settings { get; } = new();
-
     public ConnectionHealthMonitor(
         IConnectionService connectionService,
         ConnectionState connectionState,
         IMessageBus messageBus,
+        ConnectionSettings settings,
         ILogger<ConnectionHealthMonitor> logger)
     {
         _connectionService = connectionService;
         _connectionState = connectionState;
         _messageBus = messageBus;
+        _settings = settings;
         _logger = logger;
     }
 
     public Task StartAsync()
     {
-        if (!Settings.EnableAutoHealthCheck)
+        if (!_settings.EnableAutoHealthCheck)
         {
             _logger.LogInformation("Auto health check is disabled");
             return Task.CompletedTask;
         }
 
-        _logger.LogInformation("Starting connection health monitor with poll interval: {PollInterval}", Settings.PollInterval);
+        _logger.LogInformation("Starting connection health monitor with poll interval: {PollInterval}", _settings.PollInterval);
 
         _cancellationTokenSource = new CancellationTokenSource();
-        _timer = new PeriodicTimer(Settings.PollInterval);
+        _timer = new PeriodicTimer(_settings.PollInterval);
         _monitoringTask = MonitorConnectionsAsync(_cancellationTokenSource.Token);
 
         return Task.CompletedTask;
@@ -112,7 +114,7 @@ public class ConnectionHealthMonitor : IConnectionHealthMonitor
         if (connection.LastActivityTime.HasValue)
         {
             var timeSinceActivity = now - connection.LastActivityTime.Value;
-            return timeSinceActivity <= Settings.ActivityThreshold;
+            return timeSinceActivity <= _settings.ActivityThreshold;
         }
 
         // If no activity recorded but connection is marked active, check it
@@ -143,7 +145,7 @@ public class ConnectionHealthMonitor : IConnectionHealthMonitor
 
         try
         {
-            using var timeoutCts = new CancellationTokenSource(Settings.ConnectionTimeout);
+            using var timeoutCts = new CancellationTokenSource(_settings.ConnectionTimeout);
 
             var databases = await _connectionService.GetDatabasesAsync(
                 connection.ConnectionString,
@@ -174,7 +176,7 @@ public class ConnectionHealthMonitor : IConnectionHealthMonitor
                 connection.Id,
                 false,
                 startTime,
-                Settings.ConnectionTimeout,
+                _settings.ConnectionTimeout,
                 "Connection timed out");
         }
         catch (Exception ex)

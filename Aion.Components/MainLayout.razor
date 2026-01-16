@@ -86,6 +86,10 @@
                     </MudMenu>
                     <MudMenuItem Icon="@Icons.Material.Filled.Key" OnClick="@HandleOpenSecretManager">Secret Manager
                     </MudMenuItem>
+                    <MudDivider />
+                    <MudMenuItem Icon="@AionIcons.Settings"
+                        OnClick="@HandleOpenSettings">Settings
+                    </MudMenuItem>
                 </MudMenu>
                 @if (Settings.PluginState)
                 {
@@ -243,6 +247,19 @@
     {
         var options = AionDialogs.CreateDefaultOptions(MaxWidth.Large);
         await DialogService.ShowAsync<SecretManagerDialog>("Secret Manager", options);
+    }
+
+    private async Task HandleOpenSettings()
+    {
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            BackgroundClass = "aion-dialog",
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true,
+            CloseButton = false
+        };
+        await DialogService.ShowAsync<Settings.SettingsDialog>("Settings", options);
     }
 
     protected async Task<IEnumerable<SearchModel>> SearchAsync(string value, CancellationToken token)

@@ -1,5 +1,6 @@
 using Bunit;
 using AngleSharp.Dom;
+using MudBlazor.Services;
 
 namespace Aion.Test.Components.Shared.Tabs;
 
@@ -7,7 +8,11 @@ public class SimpleTabTests : TestContext
 {
     public SimpleTabTests()
     {
-        
+        Services.AddMudServices(x =>
+        {
+            x.PopoverOptions.CheckForPopoverProvider = false;
+        });
+        JSInterop.Mode = JSRuntimeMode.Loose;
     }
 
     [Fact]

@@ -4,6 +4,7 @@ using Aion.Components.History;
 using Aion.Components.Querying;
 using Aion.Components.Search;
 using Aion.Components.Settings;
+using Aion.Components.Settings.Domains;
 using Aion.Components.Shared.Snackbar;
 using Aion.Core.Database;
 using Aion.Core.Database.SqlServer;
@@ -11,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FluentUI.AspNetCore.Components;
 using MudBlazor;
 using MudBlazor.Services;
+using Mythetech.Framework.Infrastructure.Settings;
 
 namespace Aion.Components;
 
@@ -36,7 +38,18 @@ public static class RegistrationExtensions
         services.AddSingleton<ConnectionState>();
         services.AddSingleton<QueryState>();
         services.AddSingleton<HistoryState>();
-        services.AddSingleton<SettingsState>();
+
+        // Settings framework
+        services.AddSettingsFramework();
+        services.AddSingleton<ConnectionSettings>();
+        services.AddSingleton<EditorSettings>();
+
+        // SettingsState adapter for backward compatibility
+        services.AddSingleton<SettingsState>(sp =>
+        {
+            var settingsProvider = sp.GetRequiredService<ISettingsProvider>();
+            return new SettingsState(settingsProvider);
+        });
 
         services.AddSingleton<IConnectionService, TConnectionService>();
         services.AddSingleton<IConnectionHealthMonitor, ConnectionHealthMonitor>();

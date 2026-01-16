@@ -23,9 +23,4 @@ public interface IConnectionHealthMonitor : IDisposable
     /// Update the last activity time for a connection, marking it as recently used.
     /// </summary>
     void RecordActivity(Guid connectionId);
-
-    /// <summary>
-    /// Current health monitoring settings.
-    /// </summary>
-    ConnectionHealthSettings Settings { get; }
 }

@@ -8,8 +8,8 @@
     <PackageVersion Include="ClosedXML" Version="0.105.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.0.1" />
     <PackageVersion Include="Microsoft.FluentUI.AspNetCore.Components" Version="4.13.2" />
-    <PackageVersion Include="Mythetech.Framework" Version="0.2.7" />
-    <PackageVersion Include="Mythetech.Framework.Desktop" Version="0.2.6" />
+    <PackageVersion Include="Mythetech.Framework" Version="0.6.1" />
+    <PackageVersion Include="Mythetech.Framework.Desktop" Version="0.6.0" />
     <PackageVersion Include="Z.Blazor.Diagrams" Version="3.0.3" />
     <!-- Aion.Core -->
     <PackageVersion Include="Hogimn.Sql.Formatter" Version="2.0.2" />

@@ -1,19 +1,55 @@
+using Mythetech.Framework.Infrastructure.Plugins;
+using Mythetech.Framework.Infrastructure.Settings;
+
 namespace Aion.Components.Settings;
 
+/// <summary>
+/// Adapter class that provides backward compatibility with existing code
+/// while delegating to the new framework settings infrastructure.
+/// </summary>
 public class SettingsState
 {
+    private readonly ISettingsProvider _provider;
+
+    // Cached reference for performance
+    private PluginSettings? _pluginSettings;
+
     public event Action<SettingsState>? SettingsChanged;
 
-    private bool _pluginState = false;
+    public SettingsState(ISettingsProvider provider)
+    {
+        _provider = provider;
+    }
 
+    private PluginSettings Plugins => _pluginSettings ??= _provider.GetSettings<PluginSettings>()!;
+
+    /// <summary>
+    /// Whether the plugin menu is enabled. Delegates to framework's PluginSettings.PluginsActive.
+    /// </summary>
     public bool PluginState
     {
-        get => _pluginState;
+        get => Plugins.PluginsActive;
         set
         {
-            if (_pluginState == value) return;
-            _pluginState = value;
+            if (Plugins.PluginsActive == value) return;
+            Plugins.PluginsActive = value;
+            Plugins.MarkDirty();
+            _ = _provider.NotifySettingsChangedAsync(Plugins);
             SettingsChanged?.Invoke(this);
         }
+    }
+
+    /// <summary>
+    /// Gets a specific settings model by type.
+    /// </summary>
+    public T? GetSettings<T>() where T : SettingsBase => _provider.GetSettings<T>();
+
+    /// <summary>
+    /// Notifies listeners that settings have changed.
+    /// Called after the settings dialog commits changes.
+    /// </summary>
+    public void NotifyChanged()
+    {
+        SettingsChanged?.Invoke(this);
     }
 }
