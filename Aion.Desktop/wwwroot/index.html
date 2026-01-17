@@ -28,5 +28,27 @@
 <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/loader.js"></script>
 <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/editor/editor.main.js"></script>
 <script src="_content/Z.Blazor.Diagrams/script.min.js"></script>
+<script>
+    // Fix AMD loader conflict for dynamically injected plugin scripts
+    // Hide define.amd temporarily when scripts are injected so UMD scripts use global fallback
+    (function() {
+        var originalAppendChild = Element.prototype.appendChild;
+        Element.prototype.appendChild = function(child) {
+            if (child.tagName === 'SCRIPT' && child.textContent && window.define && window.define.amd) {
+                var savedAmd = window.define.amd;
+                delete window.define.amd;
+                var result = originalAppendChild.call(this, child);
+                // Restore after a microtask to let the script execute
+                Promise.resolve().then(function() {
+                    if (window.define && !window.define.amd) {
+                        window.define.amd = savedAmd;
+                    }
+                });
+                return result;
+            }
+            return originalAppendChild.call(this, child);
+        };
+    })();
+</script>
 </body>
 </html>

@@ -1,5 +1,6 @@
 @implements IDisposable
 @implements IConsumer<Aion.Components.AppContextPanel.Commands.ActivatePanel>
+@implements IConsumer<Aion.Components.AppContextPanel.Commands.OpenHistoryPanel>
 @using Aion.Components.AppContextPanel.Commands
 @using Aion.Components.Theme
 @using MouseEvent = MudBlazor.MouseEvent
@@ -35,7 +36,7 @@
     
     <MudDivider DividerType="DividerType.Middle" Class="ml-3" Style="width:60%"/>
     
-    <ContextPanelItem ActiveId="@_activeItem?.Id" @ref="@_contextPanelItems["history"]" Title="History" Icon="@AionIcons.History" ContextPanelItemClicked="HandleContextPanelItemClicked">
+    <ContextPanelItem Id="@_historyPanelId" ActiveId="@_activeItem?.Id" @ref="@_contextPanelItems["history"]" Title="History" Icon="@AionIcons.History" ContextPanelItemClicked="HandleContextPanelItemClicked">
         <PanelContent>
             <HistoryPanel />
         </PanelContent>
@@ -48,7 +49,8 @@
         {
             @foreach (var component in plugin.ContextPanelComponentsMetadata)
             {
-                <ContextPanelItem Active="@(_activeItem?.Title == component.Title)" @ref="@_contextPanelItems[component.Title]"
+                var pluginId = GetOrCreatePluginPanelId(component.Title);
+                <ContextPanelItem Id="@pluginId" ActiveId="@_activeItem?.Id" @ref="@_contextPanelItems[component.Title]"
                                   Title="@component.Title" Icon="@(component.Icon)" ContextPanelItemClicked="HandleContextPanelItemClicked">
                     <PanelContent>
                         <PluginGuard Metadata="component" PluginInfo="plugin" ShowErrorDetails="@Env.IsDevelopment()">
@@ -142,6 +144,19 @@
 
     private Dictionary<string, ContextPanelItem> _contextPanelItems = new();
     private Dictionary<string, Guid> _connectionLookup = new();
+    private Dictionary<string, Guid> _pluginPanelIds = new();
+
+    private static readonly Guid _historyPanelId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+
+    private Guid GetOrCreatePluginPanelId(string title)
+    {
+        if (!_pluginPanelIds.TryGetValue(title, out var id))
+        {
+            id = Guid.NewGuid();
+            _pluginPanelIds[title] = id;
+        }
+        return id;
+    }
 
     protected async Task HandleColorModeChanged(string s)
     {
@@ -171,7 +186,8 @@
         AppState.OnChange += SideBarChanged;
         ConnectionState.ConnectionStateChanged += HandleConnectionStateChanged;
         Plugins.StateChanged += PluginStateHasChanged;
-        Bus.Subscribe(this);
+        Bus.Subscribe<ActivatePanel>(this);
+        Bus.Subscribe<OpenHistoryPanel>(this);
     }
     
     protected void SideBarChanged()
@@ -189,7 +205,8 @@
         AppState.OnChange -= SideBarChanged;
         ConnectionState.ConnectionStateChanged -= HandleConnectionStateChanged;
         Plugins.StateChanged -= PluginStateHasChanged;
-        Bus.Unsubscribe(this);
+        Bus.Unsubscribe<ActivatePanel>(this);
+        Bus.Unsubscribe<OpenHistoryPanel>(this);
     }
 
     protected void HandleConnectionStateChanged()
@@ -225,10 +242,15 @@
 
     protected async Task OpenSettingsDialog()
     {
-        var options = new DialogOptions { CloseOnEscapeKey = true, BackgroundClass = "aion-dialog", MaxWidth = MaxWidth.Medium };
-
-        //var dialog = await DialogService.ShowAsync<SettingsDialog>("Settings", options);
-        //var result = await dialog.Result;
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            BackgroundClass = "aion-dialog",
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true,
+            CloseButton = false
+        };
+        await DialogService.ShowAsync<Settings.SettingsDialog>("Settings", options);
     }
 
     protected async Task OpenAboutAion()
@@ -248,14 +270,21 @@
     {
         if (!Guid.TryParse(message.Id, out Guid result))
             return;
-        
+
         var panel = _contextPanelItems.Values.FirstOrDefault(x => x.Id == result);
 
         if (panel == null) return;
-        
+
         if(!panel.IsActive)
             await HandleContextPanelItemClicked(panel);
-        
+
+    }
+
+    public async Task Consume(OpenHistoryPanel message)
+    {
+        var historyPanel = _contextPanelItems["history"];
+        if (!historyPanel.IsActive)
+            await HandleContextPanelItemClicked(historyPanel);
     }
 }
 

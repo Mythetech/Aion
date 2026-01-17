@@ -2,10 +2,12 @@
 @using Aion.Components.Theme
 @using MudBlazor;
 @using Aion.Components.AppContextPanel
+@using Aion.Components.AppContextPanel.Commands
 @using Aion.Components.Connections.Commands
 @using Mythetech.Framework.Infrastructure.MessageBus
 @using Mythetech.Framework.Infrastructure.Plugins
 @using Mythetech.Framework.Infrastructure.Plugins.Components
+@using Mythetech.Framework.Infrastructure.Files
 @using Mythetech.Framework.Infrastructure.Secrets
 @using Mythetech.Framework.Components.Secrets
 @using Aion.Components.Querying.Commands
@@ -80,22 +82,54 @@
                 </MudMenu>
                 <MudMenu Variant="Variant.Text" Size="Size.Small" Dense="true" ActivationEvent="MouseEvent.MouseOver"
                     Label="Tools">
-                    <MudMenu Label="History" Dense="true">
+                    <MudMenu Label="History" StartIcon="@AionIcons.History" Dense="true">
+                        <MudMenuItem Icon="@AionIcons.History" OnClick="@HandleViewHistory">View History</MudMenuItem>
                         <MudMenuItem Icon="@Icons.Material.Filled.DeleteSweep" OnClick="@HandleClearHistory">Clear
                         </MudMenuItem>
                     </MudMenu>
                     <MudMenuItem Icon="@Icons.Material.Filled.Key" OnClick="@HandleOpenSecretManager">Secret Manager
                     </MudMenuItem>
+                    @if (Settings.PluginState)
+                    {
+                        <MudDivider />
+                        <MudMenu Label="Plugins" StartIcon="@PluginIcons.DefaultPluginIcon" Dense="true" ListClass="pa-1">
+                            @foreach (var plugin in Plugins.Plugins)
+                            {
+                                <MudMenu ActivationEvent="MouseEvent.MouseOver"
+                                         AnchorOrigin="Origin.TopRight"
+                                         TransformOrigin="Origin.TopLeft"
+                                         Dense="true"
+                                         Label="@plugin.Manifest?.Name"
+                                         StartIcon="@(plugin.Manifest?.Icon ?? PluginIcons.DefaultPluginIcon)"
+                                         ListClass="pa-1">
+                                    @foreach (var menuType in plugin.MenuComponents)
+                                    {
+                                        <PluginMenuItemsRenderer MenuType="@menuType" ItemClass="rounded" PluginContext="@PluginContext" />
+                                    }
+                                    @if (plugin.MenuComponents.Any())
+                                    {
+                                        <MudDivider />
+                                    }
+                                    <MudMenuItem Class="rounded" Icon="@Icons.Material.Filled.Info" OnClick="@(() => HandleAboutPlugin(plugin))">About...</MudMenuItem>
+                                    <MudMenuItem Class="rounded" Icon="@(plugin.IsEnabled ? Icons.Material.Filled.Block : Icons.Material.Filled.CheckCircle)" OnClick="@(() => HandleTogglePlugin(plugin))">@(plugin.IsEnabled ? "Disable" : "Enable")</MudMenuItem>
+                                </MudMenu>
+                            }
+                            @if (Plugins.Plugins.Any())
+                            {
+                                <MudDivider />
+                            }
+                            <MudMenuItem Class="rounded" Icon="@Icons.Material.Filled.Apps" OnClick="HandleViewPlugins">View Plugins</MudMenuItem>
+                            <MudMenuItem Class="rounded" Icon="@Icons.Custom.Uncategorized.FolderOpen" OnClick="HandleOpenPluginDirectory" Disabled="@(string.IsNullOrEmpty(Plugins.PluginDirectory))">Open Directory</MudMenuItem>
+                            <MudDivider />
+                            <MudMenuItem Class="rounded" Icon="@Icons.Material.Filled.FileUpload" OnClick="HandleImportPlugin">Import Plugin...</MudMenuItem>
+                            <MudMenuItem Class="rounded" Icon="@Icons.Material.Filled.Link" OnClick="HandleImportPluginFromUrl">Import from URL...</MudMenuItem>
+                        </MudMenu>
+                    }
                     <MudDivider />
                     <MudMenuItem Icon="@AionIcons.Settings"
                         OnClick="@HandleOpenSettings">Settings
                     </MudMenuItem>
                 </MudMenu>
-                @if (Settings.PluginState)
-                {
-                    <StandardPluginMenu MenuText="Plugins" ListClass="pa-1" ItemClass="rounded"
-                        ButtonClass="text-transform-none" />
-                }
             </MudStack>
             <MudStack Row="true" Style="width:33%;margin-right: 12%;" AlignItems="@AlignItems.Center" Spacing="0">
 
@@ -159,6 +193,14 @@
 
     [Inject] protected PluginState Plugins { get; set; } = default!;
 
+    [Inject] protected PluginLoader PluginLoader { get; set; } = default!;
+
+    [Inject] protected PluginContext PluginContext { get; set; } = default!;
+
+    [Inject] protected IFileOpenService FileOpenService { get; set; } = default!;
+
+    [Inject] protected IShowFileService ShowFileService { get; set; } = default!;
+
     private SearchModel _search = new();
 
     private MudAutocomplete<SearchModel>? _searchAutocomplete;
@@ -180,7 +222,7 @@
         Settings.SettingsChanged += HandleSettingsChanged;
         Plugins.StateChanged += OnPluginStateChanged;
         
-        Plugins.PluginsActive = false;
+        Plugins.PluginsActive = Settings.PluginState;
 
     }
 
@@ -203,14 +245,11 @@
             await AppState.SetSystemColorMode();
         }
 
-        if (Plugins.PluginsActive && !_assetsLoaded)
+        if (firstRender || !_assetsLoaded)
         {
-            foreach (var plugin in Plugins.EnabledPlugins)
-            {
-                await AssetLoader.LoadPluginAssetsAsync(plugin);
-            }
-
+            await LoadAllPluginAssetsAsync();
             _assetsLoaded = true;
+            StateHasChanged();
         }
 
         await base.OnAfterRenderAsync(firstRender);
@@ -227,6 +266,11 @@
         AppState.OnDarkModeChanged -= HandleDarkModeChange;
         Settings.SettingsChanged -= HandleSettingsChanged;
         Plugins.StateChanged -= OnPluginStateChanged;
+    }
+
+    private async Task HandleViewHistory()
+    {
+        await Bus.PublishAsync(new OpenHistoryPanel());
     }
 
     private async Task HandleClearHistory()
@@ -290,6 +334,96 @@
     {
         _assetsLoaded = false;
         InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadAllPluginAssetsAsync()
+    {
+        foreach (var plugin in Plugins.EnabledPlugins)
+        {
+            await AssetLoader.LoadPluginAssetsAsync(plugin);
+        }
+    }
+
+    private async Task HandleAboutPlugin(PluginInfo plugin)
+    {
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true,
+            CloseOnEscapeKey = true,
+            BackgroundClass = "aion-dialog"
+        };
+
+        var parameters = new MudBlazor.DialogParameters
+        {
+            { "Plugin", plugin }
+        };
+
+        await DialogService.ShowAsync<AboutPluginDialog>($"About {plugin.Manifest?.Name}", parameters, options);
+    }
+
+    private void HandleTogglePlugin(PluginInfo plugin)
+    {
+        if (plugin.IsEnabled)
+        {
+            Plugins.DisablePlugin(plugin.Manifest?.Id ?? "");
+        }
+        else
+        {
+            Plugins.EnablePlugin(plugin.Manifest?.Id ?? "");
+        }
+    }
+
+    private async Task HandleViewPlugins()
+    {
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true,
+            CloseOnEscapeKey = true,
+            BackgroundClass = "aion-dialog"
+        };
+
+        await DialogService.ShowAsync<PluginManagementDialog>("Plugin Management", options);
+    }
+
+    private async Task HandleOpenPluginDirectory()
+    {
+        if (!string.IsNullOrEmpty(Plugins.PluginDirectory))
+        {
+            await ShowFileService.ShowFolderAsync(Plugins.PluginDirectory);
+        }
+    }
+
+    private async Task HandleImportPlugin()
+    {
+        var files = await FileOpenService.OpenFileAsync(
+            title: "Select Plugin DLL",
+            filters: [new FileFilter("Plugin DLLs", ["*.dll"])]);
+
+        if (files.Length == 0) return;
+
+        foreach (var dllPath in files)
+        {
+            var pluginInfo = PluginLoader.LoadPlugin(dllPath);
+            if (pluginInfo is not null)
+            {
+                Plugins.RegisterPlugin(pluginInfo);
+            }
+        }
+    }
+
+    private async Task HandleImportPluginFromUrl()
+    {
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            CloseOnEscapeKey = true,
+            BackgroundClass = "aion-dialog"
+        };
+
+        await DialogService.ShowAsync<DefaultPluginUrlLoadDialog>("Import Plugin from URL", options);
     }
 
 }
