@@ -45,12 +45,12 @@ public class ConnectionState
         await _connectionService.InitializeAsync();
         var savedConnections = await _connectionService.GetSavedConnections();
         Connections = savedConnections.ToList();
-       
-        foreach (var connection in Connections)
+
+        foreach (var connection in Connections.ToList())
         {
             await RefreshDatabaseAsync(connection);
         }
-        
+
         OnConnectionStateChanged();
     }
 
@@ -59,8 +59,8 @@ public class ConnectionState
         try
         {
             var databases = await _connectionService.GetDatabasesAsync(connection.ConnectionString, connection.Type);
-            
-            connection.Databases = databases.Select(db => new DatabaseModel { Name = db }).ToList();
+
+            connection.Databases = databases?.Select(db => new DatabaseModel { Name = db }).ToList() ?? [];
             connection.Active = true;
             
             await _connectionService.AddConnection(connection);

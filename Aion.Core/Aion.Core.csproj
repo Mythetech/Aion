@@ -8,6 +8,7 @@
 
     <ItemGroup>
       <PackageReference Include="Hogimn.Sql.Formatter" />
+      <PackageReference Include="LiteDB" />
       <PackageReference Include="Microsoft.Data.SqlClient" />
       <PackageReference Include="Npgsql" />
       <PackageReference Include="MySql.Data" />
