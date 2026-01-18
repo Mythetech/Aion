@@ -32,10 +32,21 @@
                             }
                         </MudSelect>
 
-                        <MudTextField @bind-Value="Model.Host"
-                                      Label="@GetHostLabel()"
-                                      Required="true"
-                                      RequiredError="Host is required"/>
+                        @if (Model.Type == DatabaseType.LiteDB)
+                        {
+                            <MudTextField @bind-Value="Model.Host"
+                                          Label="Database File Path"
+                                          Required="true"
+                                          RequiredError="File path is required"
+                                          HelperText="Path to the .db file (will be created if it doesn't exist)"/>
+                        }
+                        else
+                        {
+                            <MudTextField @bind-Value="Model.Host"
+                                          Label="@GetHostLabel()"
+                                          Required="true"
+                                          RequiredError="Host is required"/>
+                        }
 
                         @if (Model.Type == DatabaseType.SQLServer)
                         {
@@ -44,11 +55,14 @@
                                           HelperText="Leave empty for default instance"/>
                         }
 
-                        <MudTextField @bind-Value="Model.Port"
-                                      Disabled="@(Model.Type == DatabaseType.SQLServer && !string.IsNullOrEmpty(Model.Instance))"
-                                      Label="Port"
-                                      Required="true"
-                                      RequiredError="Port is required"/>
+                        @if (Model.Type != DatabaseType.LiteDB)
+                        {
+                            <MudTextField @bind-Value="Model.Port"
+                                          Disabled="@(Model.Type == DatabaseType.SQLServer && !string.IsNullOrEmpty(Model.Instance))"
+                                          Label="Port"
+                                          Required="true"
+                                          RequiredError="Port is required"/>
+                        }
 
                         @if (Model.Type == DatabaseType.SQLServer)
                         {
@@ -57,7 +71,14 @@
                                        Label="Use Windows Authentication"/>
                         }
 
-                        @if (!Model.UseWindowsAuth)
+                        @if (Model.Type == DatabaseType.LiteDB)
+                        {
+                            <MudTextField @bind-Value="Model.Password"
+                                          Label="Encryption Password (optional)"
+                                          InputType="InputType.Password"
+                                          HelperText="Leave empty for unencrypted database"/>
+                        }
+                        else if (!Model.UseWindowsAuth)
                         {
                             <MudTextField @bind-Value="Model.Username"
                                           Label="Username"
@@ -194,13 +215,14 @@
             DatabaseType.SQLServer => BuildSqlServerConnectionString(),
             DatabaseType.MySQL => $"Server={Model.Host};Port={Model.Port};User={Model.Username};Password={Model.Password}",
             DatabaseType.SQLite => $"Data Source={Model.Host}",
+            DatabaseType.LiteDB => BuildLiteDBConnectionString(),
             _ => throw new ArgumentOutOfRangeException()
         };
     }
     
     private string BuildSqlServerConnectionString()
     {
-        var server = Model.Instance != null 
+        var server = Model.Instance != null
             ? $"{Model.Host}\\{Model.Instance}"
             : $"{Model.Host},{Model.Port}";
 
@@ -209,7 +231,19 @@
 
         return $"Server={server};User Id={Model.Username};Password={Model.Password}";
     }
-    
+
+    private string BuildLiteDBConnectionString()
+    {
+        var connectionString = $"Filename={Model.Host}";
+
+        if (!string.IsNullOrEmpty(Model.Password))
+        {
+            connectionString += $";Password={Model.Password}";
+        }
+
+        return connectionString;
+    }
+
     protected override void OnInitialized()
     {
         // Set default port when database type changes

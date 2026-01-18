@@ -7,6 +7,7 @@ using Aion.Components.Settings;
 using Aion.Components.Settings.Domains;
 using Aion.Components.Shared.Snackbar;
 using Aion.Core.Database;
+using Aion.Core.Database.LiteDB;
 using Aion.Core.Database.SqlServer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FluentUI.AspNetCore.Components;
@@ -57,6 +58,7 @@ public static class RegistrationExtensions
         services.AddScoped<IDatabaseProvider, PostgreSqlProvider>();
         services.AddScoped<IDatabaseProvider, MySqlProvider>();
         services.AddScoped<IDatabaseProvider, SqlServerProvider>();
+        services.AddScoped<IDatabaseProvider, LiteDBProvider>();
 
         services.AddTransient<SearchService>();
 
