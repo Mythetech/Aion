@@ -19,6 +19,8 @@ using Aion.Components.NativeMenu;
 using Aion.Desktop.NativeMenu;
 using Hermes.Abstractions;
 using Velopack;
+using Aion.Desktop.Configuration;
+using Mythetech.Framework.Desktop.Updates;
 
 namespace Aion.Desktop
 {
@@ -84,6 +86,19 @@ namespace Aion.Desktop
             appBuilder.Services.RegisterSettingsFromAssembly(typeof(ConnectionSettings).Assembly);
             appBuilder.Services.RegisterSettingsFromAssembly(typeof(PluginSettings).Assembly);
 
+            // Update service
+            appBuilder.Services.AddUpdateService(options =>
+            {
+                var platform = OperatingSystem.IsWindows() ? "windows"
+                    : OperatingSystem.IsMacOS() ? "macos"
+                    : "linux";
+                var channel = OperatingSystem.IsWindows() ? "win"
+                    : OperatingSystem.IsMacOS() ? "osx"
+                    : "linux";
+                options.UpdateUrl = $"{AionDownloadConfiguration.UpdateBaseUrl}/{platform}";
+                options.Channel = channel;
+            });
+
             // Async initialization
             appBuilder.Services.AddAsyncInitialization();
             appBuilder.Services.AddInitializationHook<SettingsInitializationHook>();
@@ -107,6 +122,7 @@ namespace Aion.Desktop
             app.Services.UseMessageBus(typeof(Program).Assembly, typeof(Components.App).Assembly);
             app.Services.UseSettingsFramework();
             app.Services.UsePluginFramework();
+            app.Services.UseUpdateService();
 
             AppDomain.CurrentDomain.UnhandledException += (sender, error) =>
             {

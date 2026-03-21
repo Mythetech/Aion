@@ -25,9 +25,9 @@
 
 <MudLayout Class="custom-title-bar-layout">
     <Hermes.Blazor.Components.HermesTitleBar Height="38">
-        <div class="aion-title-bar-content">
-            <MudText Class="app-header-font no-drag" Typo="Typo.h6">Aion</MudText>
-            <div class="no-drag" style="flex:1;min-width:0;">
+        <div class="aion-title-bar-content" data-hermes-drag>
+            <div class="aion-title-bar-spacer"></div>
+            <div class="no-drag hermes-no-drag aion-title-bar-search">
                 <MudAutocomplete T="SearchModel" Placeholder="Search..." @bind-Value="_search" SearchFunc="@SearchAsync"
                     @ref="_searchAutocomplete" Variant="Variant.Outlined" Dense="true" ShowProgressIndicator="true"
                     Margin="Margin.Dense" Clearable="true" Class="rounded-xl aion-search"
@@ -45,6 +45,7 @@
                     </ItemTemplate>
                 </MudAutocomplete>
             </div>
+            <div class="aion-title-bar-spacer"></div>
         </div>
     </Hermes.Blazor.Components.HermesTitleBar>
     <MudDrawer @bind-Open="@AppState.SideBarOpen" Variant="DrawerVariant.Mini" Style="overflow: hidden;">
