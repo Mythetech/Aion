@@ -1,5 +1,6 @@
 using Aion.Components.Connections;
 using Aion.Components.Connections.Services;
+using Aion.Components.ForeignKeys;
 using Aion.Components.History;
 using Aion.Components.Querying;
 using Aion.Components.Search;
@@ -59,6 +60,8 @@ public static class RegistrationExtensions
         services.AddScoped<IDatabaseProvider, MySqlProvider>();
         services.AddScoped<IDatabaseProvider, SqlServerProvider>();
         services.AddScoped<IDatabaseProvider, LiteDBProvider>();
+
+        services.AddScoped<IForeignKeyService, ForeignKeyService>();
 
         services.AddTransient<SearchService>();
 

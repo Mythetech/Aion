@@ -9,6 +9,7 @@ public interface IDatabaseProvider
     Task<List<string>?> GetDatabasesAsync(string connectionString);
     Task<List<string>> GetTablesAsync(string connectionString, string database);
     Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string table);
+    Task<List<ForeignKeyInfo>> GetForeignKeysAsync(string connectionString, string database, string table);
     Task<QueryResult> ExecuteQueryAsync(string connectionString, string query, CancellationToken cancellationToken);
     string UpdateConnectionString(string connectionString, string database);
     int GetDefaultPort();

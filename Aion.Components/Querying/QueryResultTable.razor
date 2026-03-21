@@ -5,6 +5,7 @@
 @using Aion.Components.RequestContextPanel.Commands
 @using Aion.Components.Shared
 @using Aion.Components.Theme
+@using Aion.Core.Database
 @using Aion.Core.Queries
 @using Mythetech.Framework.Infrastructure.MessageBus
 @implements IDisposable
@@ -81,6 +82,14 @@
                                 @effectiveValue
                             </MudLink>
                         }
+                        else if (IsForeignKeyColumn(col, out var fkInfo) && effectiveValue != null)
+                        {
+                            <MudLink Class="overflow-x-auto d-flex"
+                                     OnClick="@(async () => await OpenForeignKeyView(col, fkInfo!, effectiveValue, context.Item))">
+                                @effectiveValue
+                                <MudIcon Icon="@Icons.Material.Filled.Link" Size="Size.Small" Class="ml-1" />
+                            </MudLink>
+                        }
                         else
                         {
                             <MudText Class="overflow-x-auto d-flex">@effectiveValue</MudText>
@@ -153,6 +162,8 @@
     [Parameter] public RowSelectionState SelectionState { get; set; } = new();
     [Parameter] public EditState? EditState { get; set; }
     [Parameter] public QueryEditMetadata? EditMetadata { get; set; }
+    [Parameter] public Guid? ConnectionId { get; set; }
+    [Parameter] public string? DatabaseName { get; set; }
 
     [Inject] protected IMessageBus Bus { get; set; } = default!;
 
@@ -337,6 +348,38 @@
     protected async Task OpenJsonDetailView(string column, string json)
     {
         await Bus.PublishAsync(new OpenJsonDetailView(new QueryResponseJsonDetail(QueryName, column, json)));
+    }
+
+    private bool IsForeignKeyColumn(string column, out ForeignKeyInfo? fkInfo)
+    {
+        fkInfo = EditMetadata?.ColumnMetadata
+            .FirstOrDefault(c => c.Name == column && c.IsForeignKey)?.ForeignKey;
+        return fkInfo != null;
+    }
+
+    private List<ForeignKeyInfo> GetAllForeignKeys()
+    {
+        return EditMetadata?.ColumnMetadata
+            .Where(c => c.IsForeignKey && c.ForeignKey != null)
+            .Select(c => c.ForeignKey!)
+            .ToList() ?? new List<ForeignKeyInfo>();
+    }
+
+    protected async Task OpenForeignKeyView(string column, ForeignKeyInfo fkInfo, object value, Dictionary<string, object> row)
+    {
+        if (!ConnectionId.HasValue || string.IsNullOrEmpty(DatabaseName)) return;
+
+        var detail = new ForeignKeyDetail(
+            QueryName,
+            column,
+            fkInfo.ReferencedTable,
+            fkInfo.ReferencedColumn,
+            value,
+            ConnectionId.Value,
+            DatabaseName
+        );
+
+        await Bus.PublishAsync(new OpenForeignKeyView(detail));
     }
 
     protected bool FilterResults(Dictionary<string, object> item)

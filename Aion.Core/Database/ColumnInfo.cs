@@ -9,4 +9,6 @@ public class ColumnInfo
     public bool IsPrimaryKey { get; set; }
     public bool IsIdentity { get; set; }
     public int? MaxLength { get; set; }
+    public ForeignKeyInfo? ForeignKey { get; set; }
+    public bool IsForeignKey => ForeignKey != null;
 } 

@@ -257,7 +257,61 @@ public class PostgreSqlProvider : IDatabaseProvider
             });
         }
 
+        var foreignKeys = await GetForeignKeysAsync(connectionString, database, table);
+        foreach (var fk in foreignKeys)
+        {
+            var column = columns.FirstOrDefault(c => c.Name == fk.ColumnName);
+            if (column != null)
+            {
+                column.ForeignKey = fk;
+            }
+        }
+
         return columns;
+    }
+
+    public async Task<List<ForeignKeyInfo>> GetForeignKeysAsync(string connectionString, string database, string table)
+    {
+        var foreignKeys = new List<ForeignKeyInfo>();
+
+        using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync();
+
+        const string sql = @"
+            SELECT
+                tc.constraint_name,
+                kcu.column_name,
+                ccu.table_name AS referenced_table,
+                ccu.column_name AS referenced_column,
+                ccu.table_schema AS referenced_schema
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+                ON tc.constraint_name = kcu.constraint_name
+                AND tc.table_schema = kcu.table_schema
+            JOIN information_schema.constraint_column_usage ccu
+                ON ccu.constraint_name = tc.constraint_name
+                AND ccu.table_schema = tc.table_schema
+            WHERE tc.constraint_type = 'FOREIGN KEY'
+                AND tc.table_name = @table
+                AND tc.table_schema = 'public'";
+
+        using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@table", table);
+        using var reader = await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            foreignKeys.Add(new ForeignKeyInfo
+            {
+                ConstraintName = reader.GetString(0),
+                ColumnName = reader.GetString(1),
+                ReferencedTable = reader.GetString(2),
+                ReferencedColumn = reader.GetString(3),
+                ReferencedSchema = reader.IsDBNull(4) ? null : reader.GetString(4)
+            });
+        }
+
+        return foreignKeys;
     }
 
     public async Task<TransactionInfo> BeginTransactionAsync(string connectionString)

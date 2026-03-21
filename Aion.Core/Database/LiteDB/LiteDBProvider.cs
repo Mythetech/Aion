@@ -1,3 +1,4 @@
+using Aion.Core.Database;
 using Aion.Core.Queries;
 using LiteDB;
 
@@ -69,6 +70,12 @@ public class LiteDBProvider : IDatabaseProvider
         return Task.FromResult(columns.Values
             .OrderBy(c => c.Name == "_id" ? "" : c.Name)
             .ToList());
+    }
+
+    public Task<List<ForeignKeyInfo>> GetForeignKeysAsync(string connectionString, string database, string table)
+    {
+        // LiteDB is a document database without foreign key constraints
+        return Task.FromResult(new List<ForeignKeyInfo>());
     }
 
     private void InferSchemaFromDocument(BsonDocument doc, Dictionary<string, ColumnInfo> columns, string prefix)

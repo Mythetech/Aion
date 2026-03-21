@@ -1,5 +1,6 @@
 using Microsoft.Data.SqlClient;
 using System.Text;
+using Aion.Core.Database;
 using Aion.Core.Queries;
 using Microsoft.Extensions.Logging;
 
@@ -124,7 +125,57 @@ public class SqlServerProvider : IDatabaseProvider
             });
         }
 
+        var foreignKeys = await GetForeignKeysAsync(connectionString, database, table);
+        foreach (var fk in foreignKeys)
+        {
+            var column = columns.FirstOrDefault(c => c.Name == fk.ColumnName);
+            if (column != null)
+            {
+                column.ForeignKey = fk;
+            }
+        }
+
         return columns;
+    }
+
+    public async Task<List<ForeignKeyInfo>> GetForeignKeysAsync(string connectionString, string database, string table)
+    {
+        var foreignKeys = new List<ForeignKeyInfo>();
+
+        using var conn = new SqlConnection(connectionString);
+        await conn.OpenAsync();
+
+        const string sql = @"
+            SELECT
+                fk.name AS constraint_name,
+                COL_NAME(fkc.parent_object_id, fkc.parent_column_id) AS column_name,
+                OBJECT_NAME(fkc.referenced_object_id) AS referenced_table,
+                COL_NAME(fkc.referenced_object_id, fkc.referenced_column_id) AS referenced_column,
+                SCHEMA_NAME(rt.schema_id) AS referenced_schema
+            FROM sys.foreign_keys fk
+            INNER JOIN sys.foreign_key_columns fkc
+                ON fk.object_id = fkc.constraint_object_id
+            INNER JOIN sys.tables rt
+                ON fkc.referenced_object_id = rt.object_id
+            WHERE OBJECT_NAME(fk.parent_object_id) = @table";
+
+        using var cmd = new SqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@table", table);
+        using var reader = await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            foreignKeys.Add(new ForeignKeyInfo
+            {
+                ConstraintName = reader.GetString(0),
+                ColumnName = reader.GetString(1),
+                ReferencedTable = reader.GetString(2),
+                ReferencedColumn = reader.GetString(3),
+                ReferencedSchema = reader.IsDBNull(4) ? null : reader.GetString(4)
+            });
+        }
+
+        return foreignKeys;
     }
 
     public async Task<QueryResult> ExecuteQueryAsync(string connectionString, string query, CancellationToken cancellationToken)

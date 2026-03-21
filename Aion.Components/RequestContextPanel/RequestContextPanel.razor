@@ -10,6 +10,7 @@
 @using Aion.Components.Shared.Dialogs
 @using Aion.Components.Shared.JsonTreeView
 @using Aion.Core.Queries
+@using Aion.Core.Database
 @using Aion.Components.Shared.Loaders
 @using Aion.Core.Extensions
 @using Mythetech.Framework.Components.SimpleTabs
@@ -36,11 +37,23 @@
             <Tab Name="@JsonView">
                 <JsonViewer
                     @ref="_jsonViewer"
-                    Json="@_code" 
-                    ViewMode="@_jsonViewerSelection" 
+                    Json="@_code"
+                    ViewMode="@_jsonViewerSelection"
                     ColumnName="@_columnName"
                     ViewModeChanged="@((mode) => { _jsonViewerSelection = mode; StateHasChanged(); })"
                     OnExpandClick="OpenJsonViewerDialog" />
+            </Tab>
+        }
+
+        @if (_foreignKeyDetail != null)
+        {
+            <Tab Name="@ForeignKeyView">
+                <ForeignKeyViewer
+                    @ref="_fkViewer"
+                    Detail="@_foreignKeyDetail"
+                    AvailableForeignKeys="@_availableForeignKeys"
+                    OnExpandClick="OpenFkViewerDialog"
+                    OnForeignKeyChanged="OnForeignKeyChanged" />
             </Tab>
         }
         
@@ -90,18 +103,23 @@
     private MudToggleGroup<string> _toggle;
 
     private JsonViewer? _jsonViewer;
+    private ForeignKeyViewer? _fkViewer;
 
     private string _queryName = "";
 
     private string _openTab = "";
 
     private string JsonView => "JsonView";
+    private string ForeignKeyView => "ForeignKey";
 
     private string _code = "";
 
     private string _columnName = "";
 
     private string _jsonViewerSelection = "pretty";
+
+    private ForeignKeyDetail? _foreignKeyDetail;
+    private List<ForeignKeyInfo> _availableForeignKeys = new();
 
     protected override void OnInitialized()
     {
@@ -150,6 +168,33 @@
         await DialogService.ShowAsync<JsonDetailDialog>("Json Viewer", parameters, options);
     }
 
+    public async Task OpenForeignKeyDetailView(ForeignKeyDetail foreignKeyDetail, List<ForeignKeyInfo>? availableForeignKeys = null)
+    {
+        _openTab = ForeignKeyView;
+        _queryName = foreignKeyDetail.QueryName;
+        _foreignKeyDetail = foreignKeyDetail;
+        _availableForeignKeys = availableForeignKeys ?? new List<ForeignKeyInfo>();
+
+        await Task.Yield();
+
+        _fkViewer?.ReInitialize();
+
+        StateHasChanged();
+    }
+
+    private async Task OnForeignKeyChanged(ForeignKeyDetail newDetail)
+    {
+        _foreignKeyDetail = newDetail;
+        await _fkViewer?.RefreshData()!;
+        StateHasChanged();
+    }
+
+    protected async Task OpenFkViewerDialog()
+    {
+        // For now, just expand inline - could add a dialog similar to JsonDetailDialog
+        // if needed in the future
+    }
+
     public void Dispose()
     {
         QueryState.StateChanged -= StateHasChanged;
@@ -157,6 +202,8 @@
         _queryName = "";
         _columnName = "";
         _code = "";
+        _foreignKeyDetail = null;
+        _availableForeignKeys = new();
     }
 }
 

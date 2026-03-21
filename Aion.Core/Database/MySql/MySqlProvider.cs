@@ -297,6 +297,55 @@ public class MySqlProvider : IDatabaseProvider
             });
         }
 
+        var foreignKeys = await GetForeignKeysAsync(connectionString, database, table);
+        foreach (var fk in foreignKeys)
+        {
+            var column = columns.FirstOrDefault(c => c.Name == fk.ColumnName);
+            if (column != null)
+            {
+                column.ForeignKey = fk;
+            }
+        }
+
         return columns;
+    }
+
+    public async Task<List<ForeignKeyInfo>> GetForeignKeysAsync(string connectionString, string database, string table)
+    {
+        var foreignKeys = new List<ForeignKeyInfo>();
+
+        using var conn = new MySqlConnection(connectionString);
+        await conn.OpenAsync();
+
+        const string sql = @"
+            SELECT
+                kcu.CONSTRAINT_NAME,
+                kcu.COLUMN_NAME,
+                kcu.REFERENCED_TABLE_NAME,
+                kcu.REFERENCED_COLUMN_NAME,
+                kcu.REFERENCED_TABLE_SCHEMA
+            FROM information_schema.KEY_COLUMN_USAGE kcu
+            WHERE kcu.TABLE_SCHEMA = @database
+                AND kcu.TABLE_NAME = @table
+                AND kcu.REFERENCED_TABLE_NAME IS NOT NULL";
+
+        using var cmd = new MySqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@database", database);
+        cmd.Parameters.AddWithValue("@table", table);
+        using var reader = await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            foreignKeys.Add(new ForeignKeyInfo
+            {
+                ConstraintName = reader.GetString(0),
+                ColumnName = reader.GetString(1),
+                ReferencedTable = reader.GetString(2),
+                ReferencedColumn = reader.GetString(3),
+                ReferencedSchema = reader.IsDBNull(4) ? null : reader.GetString(4)
+            });
+        }
+
+        return foreignKeys;
     }
 } 

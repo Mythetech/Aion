@@ -1,0 +1,161 @@
+@using System.Text.Json
+@using Aion.Components.ForeignKeys
+@using Aion.Components.RequestContextPanel
+@using Aion.Components.Theme
+@using Aion.Core.Database
+
+<MudStack AlignItems="AlignItems.Center" Row="true" Spacing="3" Class="px-4 overflow-y-auto">
+    <MudStack Spacing="0">
+        <MudText Typo="Typo.caption">Foreign Key</MudText>
+        <MudText Class="mud-text-secondary">@Detail?.SourceColumn → @Detail?.ReferencedTable.@Detail?.ReferencedColumn</MudText>
+    </MudStack>
+    <MudSpacer/>
+    <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">@Detail?.ForeignKeyValue</MudChip>
+
+    @if (ShowExpandButton)
+    {
+        <AionIconButton Class="mr-4" Tooltip="Expand" OnClick="OnExpand" Icon="@AionIcons.ExpandContent"/>
+    }
+</MudStack>
+
+@if (AvailableForeignKeys.Count > 1)
+{
+    <MudStack Class="px-4 pt-2">
+        <MudSelect T="string"
+                   Value="@_selectedFkColumn"
+                   ValueChanged="OnFkColumnChanged"
+                   Label="Select Foreign Key"
+                   Dense="true"
+                   Margin="Margin.Dense"
+                   Variant="Variant.Outlined">
+            @foreach (var fk in AvailableForeignKeys)
+            {
+                <MudSelectItem Value="@fk.ColumnName">
+                    @fk.ColumnName → @fk.ReferencedTable
+                </MudSelectItem>
+            }
+        </MudSelect>
+    </MudStack>
+}
+
+<MudStack Class="pa-2 h-100 w-100">
+    @if (_isLoading)
+    {
+        <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Class="h-100">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">Loading referenced row...</MudText>
+        </MudStack>
+    }
+    else if (!string.IsNullOrEmpty(_error))
+    {
+        <MudAlert Severity="Severity.Error" Class="ma-2">@_error</MudAlert>
+    }
+    else if (!string.IsNullOrEmpty(_rowJson))
+    {
+        <JsonViewer @ref="_jsonViewer"
+                    Json="@_rowJson"
+                    ViewMode="@_viewMode"
+                    ColumnName="@Detail?.ReferencedTable"
+                    ShowExpandButton="false"
+                    ViewModeChanged="@((mode) => { _viewMode = mode; StateHasChanged(); })" />
+    }
+    else
+    {
+        <MudText Typo="Typo.body2" Class="mud-text-secondary pa-4">No data available</MudText>
+    }
+</MudStack>
+
+@code {
+    [Inject] private IForeignKeyService ForeignKeyService { get; set; } = default!;
+
+    [Parameter] public ForeignKeyDetail? Detail { get; set; }
+    [Parameter] public List<ForeignKeyInfo> AvailableForeignKeys { get; set; } = new();
+    [Parameter] public bool ShowExpandButton { get; set; } = true;
+    [Parameter] public EventCallback OnExpandClick { get; set; }
+    [Parameter] public EventCallback<ForeignKeyDetail> OnForeignKeyChanged { get; set; }
+
+    private JsonViewer? _jsonViewer;
+    private bool _isLoading;
+    private string? _error;
+    private string? _rowJson;
+    private string _viewMode = "pretty";
+    private string _selectedFkColumn = "";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Detail != null && _selectedFkColumn != Detail.SourceColumn)
+        {
+            _selectedFkColumn = Detail.SourceColumn;
+            await FetchReferencedRow();
+        }
+        await base.OnParametersSetAsync();
+    }
+
+    private async Task FetchReferencedRow()
+    {
+        if (Detail == null) return;
+
+        _isLoading = true;
+        _error = null;
+        _rowJson = null;
+        StateHasChanged();
+
+        try
+        {
+            var row = await ForeignKeyService.FetchReferencedRowAsync(
+                Detail.ConnectionId,
+                Detail.DatabaseName,
+                Detail.ReferencedTable,
+                Detail.ReferencedColumn,
+                Detail.ForeignKeyValue);
+
+            if (row != null)
+            {
+                _rowJson = JsonSerializer.Serialize(row, new JsonSerializerOptions { WriteIndented = true });
+            }
+            else
+            {
+                _error = $"No row found in {Detail.ReferencedTable} where {Detail.ReferencedColumn} = {Detail.ForeignKeyValue}";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to fetch referenced row: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnFkColumnChanged(string newColumn)
+    {
+        _selectedFkColumn = newColumn;
+        var selectedFk = AvailableForeignKeys.FirstOrDefault(fk => fk.ColumnName == newColumn);
+        if (selectedFk != null && Detail != null)
+        {
+            await OnForeignKeyChanged.InvokeAsync(Detail with
+            {
+                SourceColumn = selectedFk.ColumnName,
+                ReferencedTable = selectedFk.ReferencedTable,
+                ReferencedColumn = selectedFk.ReferencedColumn
+            });
+        }
+    }
+
+    private async Task OnExpand()
+    {
+        await OnExpandClick.InvokeAsync();
+    }
+
+    public void ReInitialize()
+    {
+        _jsonViewer?.ReInitializeTree();
+    }
+
+    public async Task RefreshData()
+    {
+        await FetchReferencedRow();
+    }
+}

@@ -65,7 +65,9 @@
                                   SearchFilter="@_search"
                                   SelectionState="@_selectionState"
                                   EditState="@GetOrCreateEditState()"
-                                  EditMetadata="@State.Active.EditMetadata" />
+                                  EditMetadata="@State.Active.EditMetadata"
+                                  ConnectionId="@State.Active.ConnectionId"
+                                  DatabaseName="@State.Active.DatabaseName" />
             </MudStack>
         }
         else if (_activeTab == Messages)

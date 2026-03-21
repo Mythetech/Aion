@@ -14,6 +14,7 @@
 @implements IAsyncDisposable
 @implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.RequestContextPanel.Commands.OpenRequestContextPanel>
 @implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.RequestContextPanel.Commands.OpenJsonDetailView>
+@implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.RequestContextPanel.Commands.OpenForeignKeyView>
 
 
 <MudStack Row="true" Class="w-100 h-100 ml-1" Spacing="0">
@@ -105,6 +106,7 @@
     {
         Bus.Subscribe<OpenRequestContextPanel>(this);
         Bus.Subscribe<OpenJsonDetailView>(this);
+        Bus.Subscribe<OpenForeignKeyView>(this);
         QueryState.StateChanged += StateHasChanged;
     }
     
@@ -123,6 +125,7 @@
         _contextPanel?.Dispose();
         Bus.Unsubscribe<OpenRequestContextPanel>(this);
         Bus.Unsubscribe<OpenJsonDetailView>(this);
+        Bus.Unsubscribe<OpenForeignKeyView>(this);
         QueryState.StateChanged -= StateHasChanged;
         KeyCodeService.UnregisterListener(HandleKeyDown);
     }
@@ -139,10 +142,19 @@
     public async Task Consume(OpenJsonDetailView message)
     {
         _sidePanelClosed = false;
-        
+
         StateHasChanged();
 
         await _requestContextPanel.OpenJsonDetailView(message.ColumnDetail);
+    }
+
+    public async Task Consume(OpenForeignKeyView message)
+    {
+        _sidePanelClosed = false;
+
+        StateHasChanged();
+
+        await _requestContextPanel.OpenForeignKeyDetailView(message.ForeignKeyDetail);
     }
 
     public async ValueTask DisposeAsync()
