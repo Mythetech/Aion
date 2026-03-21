@@ -6,6 +6,10 @@ name: Publish Desktop
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   publish:
     uses: mythetech/workflows/.github/workflows/desktop-publish.yml@main
