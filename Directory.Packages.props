@@ -20,6 +20,7 @@
     <!-- Aion.Desktop -->
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebView" Version="10.0.3" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.3" />
+    <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.3240.44" />
     <PackageVersion Include="Velopack" Version="0.0.1298" />
     <!-- Aion.Test -->
     <PackageVersion Include="bunit" Version="1.38.5" />

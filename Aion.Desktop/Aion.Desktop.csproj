@@ -25,7 +25,7 @@
 
     <!-- Explicit WebView2 reference for Windows to ensure assemblies are published with single-file apps -->
     <ItemGroup Condition="$(RuntimeIdentifier.StartsWith('win')) OR ($([MSBuild]::IsOSPlatform('Windows')) AND '$(RuntimeIdentifier)' == '')">
-      <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3240.44" />
+      <PackageReference Include="Microsoft.Web.WebView2" />
     </ItemGroup>
 
     <ItemGroup>
