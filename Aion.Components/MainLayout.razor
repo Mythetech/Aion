@@ -362,15 +362,15 @@
         await DialogService.ShowAsync<AboutPluginDialog>($"About {plugin.Manifest?.Name}", parameters, options);
     }
 
-    private void HandleTogglePlugin(PluginInfo plugin)
+    private async Task HandleTogglePlugin(PluginInfo plugin)
     {
         if (plugin.IsEnabled)
         {
-            Plugins.DisablePlugin(plugin.Manifest?.Id ?? "");
+            await Plugins.DisablePluginAsync(plugin.Manifest?.Id ?? "");
         }
         else
         {
-            Plugins.EnablePlugin(plugin.Manifest?.Id ?? "");
+            await Plugins.EnablePluginAsync(plugin.Manifest?.Id ?? "");
         }
     }
 
@@ -408,7 +408,7 @@
             var pluginInfo = PluginLoader.LoadPlugin(dllPath);
             if (pluginInfo is not null)
             {
-                Plugins.RegisterPlugin(pluginInfo);
+                await Plugins.RegisterPluginAsync(pluginInfo);
             }
         }
     }

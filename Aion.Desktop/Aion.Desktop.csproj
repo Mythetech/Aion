@@ -1,7 +1,7 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+<Project Sdk="Microsoft.NET.Sdk.Razor">
 
     <PropertyGroup>
-        <OutputType>Exe</OutputType>
+        <OutputType>WinExe</OutputType>
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
@@ -20,13 +20,24 @@
       <PackageReference Include="Mythetech.Framework" />
       <PackageReference Include="Mythetech.Framework.Desktop" />
       <PackageReference Include="Npgsql" />
-      <PackageReference Include="Photino.Blazor" />
       <PackageReference Include="Velopack" />
+    </ItemGroup>
+
+    <!-- Explicit WebView2 reference for Windows to ensure assemblies are published with single-file apps -->
+    <ItemGroup Condition="$(RuntimeIdentifier.StartsWith('win')) OR ($([MSBuild]::IsOSPlatform('Windows')) AND '$(RuntimeIdentifier)' == '')">
+      <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3240.44" />
     </ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\Aion.Components\Aion.Components.csproj" />
     </ItemGroup>
+
+    <!-- Remove duplicate static web assets from Aion.Components to prevent conflict -->
+    <Target Name="RemoveDuplicateWebViewAssets" AfterTargets="ResolveCoreStaticWebAssets" BeforeTargets="MergeStaticWebAssets">
+        <ItemGroup>
+            <StaticWebAsset Remove="@(StaticWebAsset)" Condition="'%(SourceId)' == 'Aion.Components' AND $([System.String]::Copy('%(RelativePath)').Contains('blazor.webview'))" />
+        </ItemGroup>
+    </Target>
 
     <ItemGroup>
       <Content Update="wwwroot\**">
@@ -37,5 +48,5 @@
     <ItemGroup>
       <Folder Include="Database\" />
     </ItemGroup>
-    
+
 </Project>

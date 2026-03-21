@@ -1,17 +1,21 @@
 using Aion.Components;
 using Aion.Components.Infrastructure;
 using Aion.Components.Settings.Domains;
+using Hermes;
+using Hermes.Blazor;
 using Mythetech.Framework.Desktop;
+using Mythetech.Framework.Desktop.Hermes;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using Mythetech.Framework.Infrastructure.Plugins;
 using Mythetech.Framework.Infrastructure.Settings;
+using Mythetech.Framework.Infrastructure.Initialization;
 using Aion.Components.Querying;
-using Microsoft.Extensions.DependencyInjection;
-using Photino.Blazor;
 using Aion.Desktop.Services;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Mythetech.Framework.Desktop.Environment;
+using Hermes.Abstractions;
 using Velopack;
 
 namespace Aion.Desktop
@@ -21,14 +25,33 @@ namespace Aion.Desktop
         [STAThread]
         static void Main(string[] args)
         {
-            VelopackApp.Build().Run();
-            
+            try
+            {
+                VelopackApp.Build().Run();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Velopack initialization failed: {ex.Message}");
+            }
+
+            HermesWindow.Prewarm();
+
             var isProd = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")?.Equals("Production", StringComparison.OrdinalIgnoreCase) ?? false;
 
-            var appBuilder = PhotinoBlazorAppBuilder.CreateDefault(args);
-            
+            var appBuilder = HermesBlazorAppBuilder.CreateDefault(args);
+
+            appBuilder.ConfigureWindow(options =>
+            {
+                options.Title = "Aion";
+                options.Width = 1920;
+                options.Height = 1080;
+                options.CenterOnScreen = true;
+                options.DevToolsEnabled = true;
+                options.CustomTitleBar = true;
+            });
+
             var configuration = new ConfigurationBuilder()
-                .SetBasePath(Directory.GetCurrentDirectory())
+                .SetBasePath(AppContext.BaseDirectory)
                 .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
                 .Build();
 
@@ -39,15 +62,12 @@ namespace Aion.Desktop
                     builder.AddConsole();
                 });
 
-            appBuilder.Services
-                .AddLogging();
-
             appBuilder.Services.AddHttpClient();
 
-            appBuilder.RootComponents.Add<Components.App>("app");
+            appBuilder.RootComponents.Add<Components.App>("#app");
 
             // Framework services
-            appBuilder.Services.AddDesktopServices();
+            appBuilder.Services.AddDesktopServices(DesktopHost.Hermes);
             appBuilder.Services.AddPluginFramework();
             appBuilder.Services.AddDesktopAssetLoader();
             appBuilder.Services.AddNativeSecretManager("aion");
@@ -57,52 +77,40 @@ namespace Aion.Desktop
 
             appBuilder.Services.AddAionComponents<ConnectionService>();
 
-            // Settings storage for framework
+            // Settings
             appBuilder.Services.AddSettingsStorage<AionSettingsStorage>();
+            appBuilder.Services.RegisterSettingsFromAssembly(typeof(ConnectionSettings).Assembly);
+            appBuilder.Services.RegisterSettingsFromAssembly(typeof(PluginSettings).Assembly);
+
+            // Async initialization
+            appBuilder.Services.AddAsyncInitialization();
+            appBuilder.Services.AddInitializationHook<SettingsInitializationHook>();
 
             appBuilder.Services.AddSingleton<IConnectionStorage, FileConnectionStorage>();
             appBuilder.Services.AddSingleton<IQuerySaveService, FileQuerySaveService>();
 
-            appBuilder.Services.AddSingleton<IPhotinoAppProvider, PhotinoAppProvider>();
-            appBuilder.Services.AddTransient<IFileSaveService, PhotinoInteropFileSaveService>();
             appBuilder.Services.AddTransient<ILinkOpenService, LinkOpenService>();
 
             var app = appBuilder.Build();
 
-            var appProvider = ((PhotinoAppProvider)app.Services.GetRequiredService<IPhotinoAppProvider>());
-
-            appProvider.Instance = app;
+            app.RegisterHermesProvider();
 
             app.Services.UseMessageBus(typeof(Program).Assembly, typeof(Components.App).Assembly);
+            app.Services.UseSettingsFramework();
+            app.Services.UsePluginFramework();
 
-            // Initialize settings framework
-            app.Services
-                .RegisterSettings<ConnectionSettings>()
-                .RegisterSettings<EditorSettings>()
-                .RegisterSettings<PluginSettings>()
-                .UseSettingsFramework();
-
-            // Load persisted settings
-            app.Services.LoadPersistedSettingsAsync().GetAwaiter().GetResult();
-
-            app.Services.UsePlugins();
-
-            app.MainWindow
-                .SetSize(1920, 1080)
-                .SetUseOsDefaultSize(false)
-                .SetFullScreen(false)
-                .SetLogVerbosity(0)
-                .SetSmoothScrollingEnabled(true)
-                .SetJavascriptClipboardAccessEnabled(true)
-                .SetTransparent(true)
-                .SetTitle("Aion Desktop");
-            
             AppDomain.CurrentDomain.UnhandledException += (sender, error) =>
             {
-                app.MainWindow.ShowMessage("Fatal exception", error.ExceptionObject.ToString());
+                app.MainWindow.Dialogs.ShowMessage(
+                    "Fatal exception",
+                    error.ExceptionObject.ToString(),
+                    DialogButtons.Ok,
+                    DialogIcon.Error);
             };
-            
+
             app.Run();
+
+            app.DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
     }
 }
