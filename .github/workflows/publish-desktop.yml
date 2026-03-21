@@ -24,4 +24,21 @@ jobs:
       storage_account: "stmythetechglobal"
       storage_container: "preview"
       versioning: "run_number"
-    secrets: inherit
+    secrets:
+      # Windows Signing (org-level)
+      AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+      AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
+      AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME }}
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+      # macOS Signing (org-level)
+      BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+      INSTALLER_CERTIFICATE_BASE64: ${{ secrets.INSTALLER_CERTIFICATE_BASE64 }}
+      P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+      APPLE_USERNAME_ID: ${{ secrets.APPLE_USERNAME_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      MACOS_SIGN_APP_IDENTITY: ${{ secrets.MACOS_SIGN_APP_IDENTITY }}
+      MACOS_SIGN_INSTALL_IDENTITY: ${{ secrets.MACOS_SIGN_INSTALL_IDENTITY }}
+      # App-specific secrets
+      APPLE_APP_ID_PASSWORD: ${{ secrets.APPLE_AION_ID_PASSWORD }}
+      BLOB_SAS_TOKEN: ${{ secrets.MYTHETECH_GLOBAL_BLOB_SAS_TOKEN }}

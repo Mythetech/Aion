@@ -1,0 +1,31 @@
+@implements IAsyncDisposable
+
+@* Invisible component that reads menu clicks from channel and dispatches async commands *@
+
+@code {
+    [Inject] private INativeMenuCommandDispatcher Dispatcher { get; set; } = default!;
+    [Inject] private INativeMenuService MenuService { get; set; } = default!;
+
+    private CancellationTokenSource _cts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await foreach (var itemId in MenuService.MenuItemClicks.ReadAllAsync(_cts.Token))
+            {
+                await Dispatcher.HandleMenuItemClickAsync(itemId);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected during disposal
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _cts.CancelAsync();
+        _cts.Dispose();
+    }
+}

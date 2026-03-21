@@ -15,6 +15,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Mythetech.Framework.Desktop.Environment;
+using Aion.Components.NativeMenu;
+using Aion.Desktop.NativeMenu;
 using Hermes.Abstractions;
 using Velopack;
 
@@ -91,9 +93,16 @@ namespace Aion.Desktop
 
             appBuilder.Services.AddTransient<ILinkOpenService, LinkOpenService>();
 
+            // Native menu services
+            appBuilder.Services.AddSingleton<INativeMenuService, Desktop.NativeMenu.NativeMenuService>();
+            appBuilder.Services.AddSingleton<INativeMenuCommandDispatcher, NativeMenuCommandDispatcher>();
+
             var app = appBuilder.Build();
 
             app.RegisterHermesProvider();
+
+            var menuService = app.Services.GetRequiredService<INativeMenuService>();
+            menuService.Initialize(app.MainWindow.MenuBar);
 
             app.Services.UseMessageBus(typeof(Program).Assembly, typeof(Components.App).Assembly);
             app.Services.UseSettingsFramework();

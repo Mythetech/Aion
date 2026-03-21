@@ -1,0 +1,124 @@
+@using Mythetech.Framework.Infrastructure.MessageBus
+@using Mythetech.Framework.Infrastructure.Plugins
+@using Mythetech.Framework.Infrastructure.Plugins.Components
+@using Mythetech.Framework.Infrastructure.Files
+@using Aion.Components.History
+@using Aion.Components.Shared.Dialogs
+@using MudBlazor
+@implements IDisposable
+@implements IConsumer<ClearHistory>
+@implements IConsumer<OpenPluginDirectory>
+@implements IConsumer<ImportPlugin>
+@implements IConsumer<ShowAboutPlugin>
+@implements IConsumer<TogglePlugin>
+
+@code {
+    [Inject] private IMessageBus Bus { get; set; } = default!;
+    [Inject] private ISnackbar Snackbar { get; set; } = default!;
+    [Inject] private IDialogService DialogService { get; set; } = default!;
+    [Inject] private HistoryState HistoryState { get; set; } = default!;
+    [Inject] private PluginState Plugins { get; set; } = default!;
+    [Inject] private PluginLoader PluginLoader { get; set; } = default!;
+    [Inject] private IShowFileService ShowFileService { get; set; } = default!;
+    [Inject] private IFileOpenService FileOpenService { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        Bus.Subscribe<ClearHistory>(this);
+        Bus.Subscribe<OpenPluginDirectory>(this);
+        Bus.Subscribe<ImportPlugin>(this);
+        Bus.Subscribe<ShowAboutPlugin>(this);
+        Bus.Subscribe<TogglePlugin>(this);
+    }
+
+    public async Task Consume(ClearHistory message)
+    {
+        await InvokeAsync(async () =>
+        {
+            bool? result = await DialogService.ShowMessageBox(
+                "Clear History",
+                "Are you sure you want to clear all query history?",
+                yesText: "Clear", cancelText: "Cancel");
+
+            if (result == true)
+            {
+                HistoryState.ClearHistory();
+                Snackbar.Add("History cleared", Severity.Success);
+            }
+        });
+    }
+
+    public async Task Consume(OpenPluginDirectory message)
+    {
+        if (!string.IsNullOrEmpty(Plugins.PluginDirectory))
+        {
+            await ShowFileService.ShowFolderAsync(Plugins.PluginDirectory);
+        }
+    }
+
+    public async Task Consume(ImportPlugin message)
+    {
+        var files = await FileOpenService.OpenFileAsync(
+            title: "Select Plugin DLL",
+            filters: [new FileFilter("Plugin DLLs", ["*.dll"])]);
+
+        if (files.Length == 0) return;
+
+        foreach (var dllPath in files)
+        {
+            var pluginInfo = PluginLoader.LoadPlugin(dllPath);
+            if (pluginInfo is not null)
+            {
+                await Plugins.RegisterPluginAsync(pluginInfo);
+            }
+        }
+    }
+
+    public async Task Consume(ShowAboutPlugin message)
+    {
+        var plugin = Plugins.Plugins.FirstOrDefault(p => p.Manifest?.Id == message.PluginId);
+        if (plugin is null) return;
+
+        await InvokeAsync(async () =>
+        {
+            var options = new DialogOptions
+            {
+                MaxWidth = MaxWidth.Medium,
+                FullWidth = true,
+                CloseOnEscapeKey = true,
+                BackgroundClass = "aion-dialog"
+            };
+
+            var parameters = new DialogParameters
+            {
+                { "Plugin", plugin }
+            };
+
+            await DialogService.ShowAsync<AboutPluginDialog>($"About {plugin.Manifest?.Name}", parameters, options);
+        });
+    }
+
+    public async Task Consume(TogglePlugin message)
+    {
+        var plugin = Plugins.Plugins.FirstOrDefault(p => p.Manifest?.Id == message.PluginId);
+        if (plugin is null) return;
+
+        if (plugin.IsEnabled)
+        {
+            await Plugins.DisablePluginAsync(message.PluginId);
+        }
+        else
+        {
+            await Plugins.EnablePluginAsync(message.PluginId);
+        }
+    }
+
+    public void Dispose()
+    {
+        Bus.Unsubscribe<ClearHistory>(this);
+        Bus.Unsubscribe<OpenPluginDirectory>(this);
+        Bus.Unsubscribe<ImportPlugin>(this);
+        Bus.Unsubscribe<ShowAboutPlugin>(this);
+        Bus.Unsubscribe<TogglePlugin>(this);
+    }
+}
