@@ -13,8 +13,8 @@
 @implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.RunQuery>
 
 
-<MudStack Class="h-100">
-    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mt-2">
+<MudStack Class="h-100" Spacing="0">
+    <MudStack Row="true" AlignItems="AlignItems.Center">
         <MudTabs Class="mud-width-full flex-grow-1" @bind-ActivePanelIndex="ActiveTabIndex" PanelClass="pa-1" MinimumTabWidth="auto">
             @foreach (var query in State.Queries)
             {
