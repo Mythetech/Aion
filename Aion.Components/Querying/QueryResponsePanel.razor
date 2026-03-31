@@ -106,7 +106,7 @@
 }
 else if (State?.Active?.IsExecuting ?? false)
 {
-    <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Spacing="3" Class="h-100">
+    <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Spacing="3" Class="h-100" Style="position:relative;overflow:hidden;">
         <MudSkeleton Width="100%" Height="97%" SkeletonType="SkeletonType.Rectangle" Style="position:absolute;" Class="ml-8" Animation="Animation.Wave"/>
         <WaveLoader />
         <LoadingText Text="Running Query" />
