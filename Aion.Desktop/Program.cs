@@ -83,8 +83,10 @@ namespace Aion.Desktop
 
             // Settings
             appBuilder.Services.AddSettingsStorage<AionSettingsStorage>();
-            appBuilder.Services.RegisterSettingsFromAssembly(typeof(ConnectionSettings).Assembly);
-            appBuilder.Services.RegisterSettingsFromAssembly(typeof(PluginSettings).Assembly);
+            appBuilder.Services.RegisterSettingsFromAssemblies(
+                typeof(ConnectionSettings).Assembly,
+                typeof(PluginSettings).Assembly,
+                typeof(UpdateSettings).Assembly);
 
             // Update service
             appBuilder.Services.AddUpdateService(options =>
