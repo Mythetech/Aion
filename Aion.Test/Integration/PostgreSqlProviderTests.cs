@@ -54,7 +54,7 @@ public class PostgreSqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
 
         // Assert
         tables.ShouldNotBeNull();
-        tables.ShouldContain(TestTable);
+        tables.ShouldContain(t => t.Schema == "public" && t.Name == TestTable);
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public class PostgreSqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         var dbConnectionString = Provider.UpdateConnectionString(ConnectionString, TestDatabase);
 
         // Act
-        var columns = await Provider.GetColumnsAsync(dbConnectionString, TestDatabase, TestTable);
+        var columns = await Provider.GetColumnsAsync(dbConnectionString, TestDatabase, "public", TestTable);
 
         // Assert
         columns.ShouldNotBeNull();
@@ -91,6 +91,7 @@ public class PostgreSqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         var dbConnectionString = Provider.UpdateConnectionString(ConnectionString, TestDatabase);
         var insertScript = await Provider.Commands.GenerateInsertScript(
             TestDatabase,
+            "public",
             TestTable,
             new[]
             {

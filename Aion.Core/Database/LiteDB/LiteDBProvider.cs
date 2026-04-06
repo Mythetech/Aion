@@ -10,6 +10,7 @@ public class LiteDBProvider : IDatabaseProvider
 
     public IStandardDatabaseCommands Commands { get; } = new LiteDBCommands();
     public DatabaseType DatabaseType => DatabaseType.LiteDB;
+    public IReadOnlyList<string> SystemSchemas { get; } = [];
 
     public Task<List<string>?> GetDatabasesAsync(string connectionString)
     {
@@ -18,9 +19,9 @@ public class LiteDBProvider : IDatabaseProvider
         return Task.FromResult<List<string>?>(new List<string> { filename });
     }
 
-    public Task<List<string>> GetTablesAsync(string connectionString, string database)
+    public Task<List<TableInfo>> GetTablesAsync(string connectionString, string database)
     {
-        var collections = new List<string>();
+        var collections = new List<TableInfo>();
 
         try
         {
@@ -30,7 +31,7 @@ public class LiteDBProvider : IDatabaseProvider
             {
                 if (!name.StartsWith('$'))
                 {
-                    collections.Add(name);
+                    collections.Add(new TableInfo("", name));
                 }
             }
         }
@@ -40,10 +41,10 @@ public class LiteDBProvider : IDatabaseProvider
             throw;
         }
 
-        return Task.FromResult(collections.OrderBy(c => c).ToList());
+        return Task.FromResult(collections.OrderBy(c => c.Name).ToList());
     }
 
-    public Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string collection)
+    public Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string schema, string collection)
     {
         var columns = new Dictionary<string, ColumnInfo>();
 
@@ -72,7 +73,7 @@ public class LiteDBProvider : IDatabaseProvider
             .ToList());
     }
 
-    public Task<List<ForeignKeyInfo>> GetForeignKeysAsync(string connectionString, string database, string table)
+    public Task<List<ForeignKeyInfo>> GetForeignKeysAsync(string connectionString, string database, string schema, string table)
     {
         // LiteDB is a document database without foreign key constraints
         return Task.FromResult(new List<ForeignKeyInfo>());

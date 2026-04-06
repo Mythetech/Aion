@@ -85,11 +85,11 @@
                 {
                     @foreach (var table in database.Tables)
                     {
-                        <MudTreeViewItem @ref="@_tables[database.Name + "|" + table]"  Text="@table" Value="@table" Icon="@AionIcons.Table">
+                        <MudTreeViewItem @ref="@_tables[database.Name + "|" + table.DisplayName]"  Text="@table.DisplayName" Value="@table.DisplayName" Icon="@AionIcons.Table">
                             <BodyContent Context="ctx">
                                 <div class="d-flex align-center justify-space-between w-100">
                                     <div class="d-flex align-center">
-                                        <MudText>@table</MudText>
+                                        <MudText>@table.DisplayName</MudText>
                                     </div>
                                     <div>
                                         <MudMenu Dense="true" AnchorOrigin="Origin.BottomRight">
@@ -105,13 +105,13 @@
                                     </div>
                                 </div>
                             </BodyContent>
-                            
+
                             @* Columns level *@
                             <ChildContent>
                             <MudTreeViewItem Text="Columns" Icon="@AionIcons.Column" ExpandedChanged="@(() => LoadColumns(database, table))">
-                                @if (database.LoadedColumnTables.Contains(table))
+                                @if (database.LoadedColumnTables.Contains(table.DisplayName))
                                 {
-                                    @foreach (var column in database.TableColumns[table])
+                                    @foreach (var column in database.TableColumns[table.DisplayName])
                                     {
                                         <MudTreeViewItem Icon="@(column.IsPrimaryKey ? Icons.Material.Filled.Key : AionIcons.Column)">
                                             <BodyContent Context="ctx">
@@ -254,9 +254,10 @@
     {
         var provider = ConnectionState.GetProvider(Connection.Type);
         var script = await provider.Commands.GenerateCreateTableScript(
-            database.Name, 
-            "NewTable", 
-            new[] { 
+            database.Name,
+            "public",
+            "NewTable",
+            new[] {
                 new ColumnDefinition("Id", "INTEGER", false, "SERIAL"),
                 new ColumnDefinition("Name", "VARCHAR(100)", false)
             });
@@ -269,19 +270,22 @@
         }, new CancellationToken());
     }
 
-    private async Task SelectTop1000(string databaseName, string tableName)
+    private async Task SelectTop1000(string databaseName, TableInfo table)
     {
-        var query = QueryState.AddQuery($"Select Top 1000 - {tableName}");
+        var provider = ConnectionState.GetProvider(Connection.Type);
+        var selectSql = await provider.Commands.GenerateSelectTopScript(databaseName, table.Schema, table.Name, 1000);
+
+        var query = QueryState.AddQuery($"Select Top 1000 - {table.DisplayName}");
         query.ConnectionId = Connection.Id;
         query.DatabaseName = databaseName;
-        query.Query = $"SELECT * FROM \"{tableName}\" LIMIT 1000";
+        query.Query = selectSql.Trim();
 
         await MessageBus.PublishAsync(new FocusQuery(query));
     }
 
-    private async Task EditData(string databaseName, string tableName)
+    private async Task EditData(string databaseName, TableInfo table)
     {
-        await MessageBus.PublishAsync(new OpenTableEditor(Connection.Id, databaseName, tableName));
+        await MessageBus.PublishAsync(new OpenTableEditor(Connection.Id, databaseName, table.Schema, table.Name));
     }
 
     private async Task RefreshDatabase(DatabaseModel database)
@@ -306,14 +310,14 @@
         await RefreshTreeView();
     }
 
-    private async Task LoadColumns(DatabaseModel? database, string table)
+    private async Task LoadColumns(DatabaseModel? database, TableInfo table)
     {
-        if (database == null || string.IsNullOrWhiteSpace(table))
+        if (database == null)
             return;
-        
-        if (!database.LoadedColumnTables.Contains(table))
+
+        if (!database.LoadedColumnTables.Contains(table.DisplayName))
         {
-            await ConnectionState.LoadColumnsAsync(Connection, database, table);
+            await ConnectionState.LoadColumnsAsync(Connection, database, table.Schema, table.Name);
             await RefreshTreeView();
         }
     }
@@ -371,7 +375,7 @@
             await treeview.ReloadAsync();
         }
         
-        if(_tables.TryGetValue(message.Database.Name + "|" + message.TableName, out var tableTree))
+        if(_tables.TryGetValue(message.Database.Name + "|" + message.TableDisplayName, out var tableTree))
         {
             await tableTree.ExpandAllAsync();
             await tableTree.ReloadAsync();

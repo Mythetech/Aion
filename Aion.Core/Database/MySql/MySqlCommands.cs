@@ -22,32 +22,32 @@ DROP DATABASE IF EXISTS `{name}`;");
 mysqldump `{name}` > ""{location}"";");
     }
 
-    public Task<string> GenerateCreateTableScript(string database, string name, IEnumerable<ColumnDefinition> columns)
+    public Task<string> GenerateCreateTableScript(string database, string schema, string name, IEnumerable<ColumnDefinition> columns)
     {
-        var columnDefs = columns.Select(c => 
+        var columnDefs = columns.Select(c =>
             $"`{c.Name}` {c.DataType} {(c.IsNullable ? "NULL" : "NOT NULL")} {(c.DefaultValue != null ? $"DEFAULT {c.DefaultValue}" : "")}");
-            
+
         return Task.FromResult($@"
 CREATE TABLE `{name}` (
     {string.Join(",\n    ", columnDefs)}
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
     }
 
-    public Task<string> GenerateDropTableScript(string database, string name)
+    public Task<string> GenerateDropTableScript(string database, string schema, string name)
     {
         return Task.FromResult($@"
 DROP TABLE IF EXISTS `{name}`;");
     }
 
-    public Task<string> GenerateAlterTableScript(string database, string name, IEnumerable<TableModification> modifications)
+    public Task<string> GenerateAlterTableScript(string database, string schema, string name, IEnumerable<TableModification> modifications)
     {
         var alterStatements = modifications.Select(mod => mod.Type switch
         {
-            ModificationType.AddColumn => 
+            ModificationType.AddColumn =>
                 $"ADD COLUMN `{mod.NewColumn!.Name}` {mod.NewColumn.DataType} {(mod.NewColumn.IsNullable ? "NULL" : "NOT NULL")} {(mod.NewColumn.DefaultValue != null ? $"DEFAULT {mod.NewColumn.DefaultValue}" : "")}",
-            ModificationType.DropColumn => 
+            ModificationType.DropColumn =>
                 $"DROP COLUMN `{mod.ColumnName}`",
-            ModificationType.AlterColumn => 
+            ModificationType.AlterColumn =>
                 $"MODIFY COLUMN `{mod.ColumnName}` {mod.NewColumn!.DataType} {(mod.NewColumn.IsNullable ? "NULL" : "NOT NULL")}",
             _ => throw new ArgumentOutOfRangeException()
         });
@@ -57,20 +57,20 @@ ALTER TABLE `{name}`
 {string.Join(",\n", alterStatements)};");
     }
 
-    public Task<string> GenerateInsertScript(string database, string table, IEnumerable<ColumnValue> values)
+    public Task<string> GenerateInsertScript(string database, string schema, string table, IEnumerable<ColumnValue> values)
     {
         var columns = values.Select(v => $"`{v.Column}`");
         var vals = values.Select(v => v.Value == null ? "NULL" : $"'{v.Value}'");
 
         return Task.FromResult($@"
-INSERT INTO `{table}` 
+INSERT INTO `{table}`
 ({string.Join(", ", columns)})
 VALUES ({string.Join(", ", vals)});");
     }
 
-    public Task<string> GenerateUpdateScript(string database, string table, IEnumerable<ColumnValue> values, string whereClause)
+    public Task<string> GenerateUpdateScript(string database, string schema, string table, IEnumerable<ColumnValue> values, string whereClause)
     {
-        var setStatements = values.Select(v => 
+        var setStatements = values.Select(v =>
             $"`{v.Column}` = {(v.Value == null ? "NULL" : $"'{v.Value}'")}");
 
         return Task.FromResult($@"
@@ -79,23 +79,23 @@ SET {string.Join(",\n    ", setStatements)}
 WHERE {whereClause};");
     }
 
-    public Task<string> GenerateDeleteScript(string database, string table, string whereClause)
+    public Task<string> GenerateDeleteScript(string database, string schema, string table, string whereClause)
     {
         return Task.FromResult($@"
 DELETE FROM `{table}`
 WHERE {whereClause};");
     }
 
-    public Task<string> GenerateSelectTopScript(string database, string table, int count)
+    public Task<string> GenerateSelectTopScript(string database, string schema, string table, int count)
     {
         return Task.FromResult($@"
 SELECT * FROM `{table}`
 LIMIT {count};");
     }
 
-    public Task<string> GenerateCountScript(string database, string table)
+    public Task<string> GenerateCountScript(string database, string schema, string table)
     {
         return Task.FromResult($@"
 SELECT COUNT(*) FROM `{table}`;");
     }
-} 
+}

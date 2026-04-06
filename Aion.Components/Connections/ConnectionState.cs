@@ -86,11 +86,11 @@ public class ConnectionState
             var connectionString = connection.ConnectionString;
             var provider = GetProvider(connection.Type);
             connectionString = provider.UpdateConnectionString(connectionString, database.Name);
-            
+
             var tables = await _connectionService.GetTablesAsync(connectionString, database.Name, connection.Type);
             database.Tables = tables;
             database.TablesLoaded = true;
-            
+
             OnConnectionStateChanged();
         }
         catch (Exception ex)
@@ -196,25 +196,26 @@ public class ConnectionState
         }
     }
 
-    public async Task LoadColumnsAsync(ConnectionModel connection, DatabaseModel database, string table)
+    public async Task LoadColumnsAsync(ConnectionModel connection, DatabaseModel database, string schema, string table)
     {
-        if (database.LoadedColumnTables.Contains(table)) return;
+        var key = string.IsNullOrEmpty(schema) ? table : $"{schema}.{table}";
+        if (database.LoadedColumnTables.Contains(key)) return;
 
         try
         {
             var connectionString = connection.ConnectionString;
             var provider = GetProvider(connection.Type);
             connectionString = provider.UpdateConnectionString(connectionString, database.Name);
-            
-            var columns = await provider.GetColumnsAsync(connectionString, database.Name, table);
-            database.TableColumns[table] = columns;
-            database.LoadedColumnTables.Add(table);
-            
+
+            var columns = await provider.GetColumnsAsync(connectionString, database.Name, schema, table);
+            database.TableColumns[key] = columns;
+            database.LoadedColumnTables.Add(key);
+
             OnConnectionStateChanged();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, $"Failed to load columns for table {table}: {ex.Message}");
+            _logger.LogError(ex, $"Failed to load columns for table {key}: {ex.Message}");
             throw;
         }
     }

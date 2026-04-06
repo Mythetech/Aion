@@ -95,6 +95,7 @@ public class SqlChangeGenerator : ISqlChangeGenerator
 
         return await commands.GenerateInsertScript(
             result.SourceDatabase!,
+            result.SourceSchema ?? "",
             result.SourceTable!,
             valuesToInsert);
     }
@@ -141,6 +142,7 @@ public class SqlChangeGenerator : ISqlChangeGenerator
 
         return await commands.GenerateUpdateScript(
             result.SourceDatabase!,
+            result.SourceSchema ?? "",
             result.SourceTable!,
             valuesToUpdate,
             whereClause);
@@ -162,6 +164,7 @@ public class SqlChangeGenerator : ISqlChangeGenerator
 
         return await commands.GenerateDeleteScript(
             result.SourceDatabase!,
+            result.SourceSchema ?? "",
             result.SourceTable!,
             whereClause);
     }

@@ -208,8 +208,16 @@ public abstract class ConnectionStateTestBase : TestContext, IAsyncLifetime
             await Task.Delay(1000);
         }
 
+        var defaultSchema = Provider.DatabaseType switch
+        {
+            DatabaseType.SQLServer => "dbo",
+            DatabaseType.PostgreSQL => "public",
+            _ => ""
+        };
+
         var createTableScript = await Provider.Commands.GenerateCreateTableScript(
             TestDatabase,
+            defaultSchema,
             TestTable,
             new[]
             {

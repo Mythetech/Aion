@@ -12,7 +12,9 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
 {
     private readonly MsSqlContainer _container;
     
-    public SqlServerProviderTests() 
+    protected override string TestSchema => "dbo";
+
+    public SqlServerProviderTests()
         : base(new SqlServerProvider(new Logger<SqlServerProvider>(new LoggerFactory())), string.Empty)
     {
         _container = new MsSqlBuilder()
@@ -72,7 +74,7 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
 
         // Assert
         tables.ShouldNotBeNull();
-        tables.ShouldContain(TestTable);
+        tables.ShouldContain(t => t.Name == TestTable);
     }
 
     [Fact(Skip = "Setup error")]
@@ -82,7 +84,7 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         var dbConnectionString = Provider.UpdateConnectionString(ConnectionString, "master");
 
         // Act
-        var columns = await Provider.GetColumnsAsync(dbConnectionString, TestDatabase, TestTable);
+        var columns = await Provider.GetColumnsAsync(dbConnectionString, TestDatabase, "dbo", TestTable);
 
         // Assert
         columns.ShouldNotBeNull();
@@ -109,6 +111,7 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         var dbConnectionString = Provider.UpdateConnectionString(ConnectionString, TestDatabase);
         var insertScript = await Provider.Commands.GenerateInsertScript(
             TestDatabase,
+            "dbo",
             TestTable,
             new[]
             {

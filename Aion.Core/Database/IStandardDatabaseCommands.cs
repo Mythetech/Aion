@@ -4,24 +4,24 @@ public interface IStandardDatabaseCommands
     Task<string> GenerateCreateDatabaseScript(string name);
     Task<string> GenerateDropDatabaseScript(string name);
     Task<string> GenerateBackupDatabaseScript(string name, string location);
-    
+
     // Table operations
-    Task<string> GenerateCreateTableScript(string database, string name, IEnumerable<ColumnDefinition> columns);
-    Task<string> GenerateDropTableScript(string database, string name);
-    Task<string> GenerateAlterTableScript(string database, string name, IEnumerable<TableModification> modifications);
-    
+    Task<string> GenerateCreateTableScript(string database, string schema, string name, IEnumerable<ColumnDefinition> columns);
+    Task<string> GenerateDropTableScript(string database, string schema, string name);
+    Task<string> GenerateAlterTableScript(string database, string schema, string name, IEnumerable<TableModification> modifications);
+
     // Data operations
-    Task<string> GenerateInsertScript(string database, string table, IEnumerable<ColumnValue> values);
-    Task<string> GenerateUpdateScript(string database, string table, IEnumerable<ColumnValue> values, string whereClause);
-    Task<string> GenerateDeleteScript(string database, string table, string whereClause);
-    
+    Task<string> GenerateInsertScript(string database, string schema, string table, IEnumerable<ColumnValue> values);
+    Task<string> GenerateUpdateScript(string database, string schema, string table, IEnumerable<ColumnValue> values, string whereClause);
+    Task<string> GenerateDeleteScript(string database, string schema, string table, string whereClause);
+
     // Query templates
-    Task<string> GenerateSelectTopScript(string database, string table, int count);
-    Task<string> GenerateCountScript(string database, string table);
+    Task<string> GenerateSelectTopScript(string database, string schema, string table, int count);
+    Task<string> GenerateCountScript(string database, string schema, string table);
 }
 
 public record ColumnDefinition(
-    string Name, 
+    string Name,
     string DataType,
     bool IsNullable,
     string? DefaultValue = null
@@ -43,4 +43,4 @@ public enum ModificationType
     AddColumn,
     DropColumn,
     AlterColumn
-} 
+}
