@@ -24,9 +24,17 @@
 
 <script src="_framework/blazor.webview.js"></script>
 <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+<script src="_content/Mythetech.Framework/js-guard.js"></script>
 <script src="_content/BlazorMonaco/jsInterop.js"></script>
 <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/loader.js"></script>
 <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/editor/editor.main.js"></script>
+<script>
+    // On Linux/WebKitGTK, editor.main.js AMD modules don't resolve synchronously.
+    if (typeof monaco === 'undefined' && typeof require === 'function') {
+        require(['vs/editor/editor.main'], function() {});
+    }
+    registerJsGuard("monaco", function() { return typeof monaco !== 'undefined'; });
+</script>
 <script src="_content/Z.Blazor.Diagrams/script.min.js"></script>
 <script>
     // Fix AMD loader conflict for dynamically injected plugin scripts

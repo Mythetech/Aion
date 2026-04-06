@@ -3,6 +3,7 @@
 @using Aion.Components.Shared.JsonTreeView
 @using Aion.Core.Extensions
 @using BlazorMonaco.Editor
+@using Mythetech.Framework.Infrastructure.Guards
 
 <MudStack AlignItems="AlignItems.Center" Row="true" Spacing="3" Class="px-4 overflow-y-auto">
     @if (!string.IsNullOrEmpty(ColumnName))
@@ -47,11 +48,13 @@
     }
     else if (ViewMode.Equals("formatted", StringComparison.OrdinalIgnoreCase))
     {
-        <StandaloneCodeEditor @ref="_editor" 
-                              Id="query-json"
-                              CssClass="h-100 w-100 flex-grow-1" 
-                             ConstructionOptions="EditorConstructionOptions"
-                             OnDidInit="HandleEditorInit" />
+        <JsGuard Name="monaco">
+            <StandaloneCodeEditor @ref="_editor"
+                                  Id="query-json"
+                                  CssClass="h-100 w-100 flex-grow-1"
+                                 ConstructionOptions="EditorConstructionOptions"
+                                 OnDidInit="HandleEditorInit" />
+        </JsGuard>
     }
 </MudStack>
 

@@ -21,6 +21,7 @@ using Hermes.Abstractions;
 using Velopack;
 using Aion.Desktop.Configuration;
 using Mythetech.Framework.Desktop.Updates;
+using Mythetech.Framework.Infrastructure.Guards;
 
 namespace Aion.Desktop
 {
@@ -72,6 +73,7 @@ namespace Aion.Desktop
 
             // Framework services
             appBuilder.Services.AddDesktopServices(DesktopHost.Hermes);
+            appBuilder.Services.AddJsGuards();
             appBuilder.Services.AddPluginFramework();
             appBuilder.Services.AddDesktopAssetLoader();
             appBuilder.Services.AddNativeSecretManager("aion");

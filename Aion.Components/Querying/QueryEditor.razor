@@ -7,6 +7,7 @@
 @using Aion.Components.Theme
 @using Aion.Core.Connections
 @using Aion.Core.Queries
+@using Mythetech.Framework.Infrastructure.Guards
 @implements IDisposable
 @implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.FocusQuery>
 @implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.CreateQuery>
@@ -103,7 +104,9 @@
         <MudAlert Severity="Severity.Error" Class="my-2">@State.Active.Result.Error</MudAlert>
     }
 
-    <StandaloneCodeEditor CssClass="h-100 flex-grow-1" @ref="_editor" ConstructionOptions="DefaultOptions" OnDidInit="HandleInit" OnDidChangeModelContent="UpdateQuery"/>
+    <JsGuard Name="monaco">
+        <StandaloneCodeEditor CssClass="h-100 flex-grow-1" @ref="_editor" ConstructionOptions="DefaultOptions" OnDidInit="HandleInit" OnDidChangeModelContent="UpdateQuery"/>
+    </JsGuard>
 </MudStack>
 @code {
     [Inject] protected QueryState State { get; set; } = default!;
