@@ -51,7 +51,6 @@ public class PostgreSqlProvider : IDatabaseProvider
             SELECT table_schema, table_name
             FROM information_schema.tables
             WHERE table_type = 'BASE TABLE'
-            AND table_schema NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
             AND table_schema NOT LIKE 'pg_temp_%'
             AND table_schema NOT LIKE 'pg_toast_temp_%'
             ORDER BY table_schema, table_name";

@@ -12,6 +12,7 @@
 @using Mythetech.Framework.Infrastructure.MessageBus
 @using Aion.Components.Querying.Commands
 @using Aion.Components.Shared.Dialogs
+@using Aion.Components.Settings.Domains
 @using Aion.Core.Queries
 @implements IConsumer<Aion.Components.Connections.Commands.ExpandDatabase>
 @implements IConsumer<Aion.Components.Connections.Commands.ExpandTable>
@@ -83,7 +84,7 @@
             <MudTreeViewItem  Text="Tables" Icon="@AionIcons.Table" ExpandedChanged="@(() => LoadTables(database))">
                 @if (database.TablesLoaded)
                 {
-                    @foreach (var table in database.Tables)
+                    @foreach (var table in GetVisibleTables(database))
                     {
                         <MudTreeViewItem @ref="@_tables[database.Name + "|" + table.DisplayName]"  Text="@table.DisplayName" Value="@table.DisplayName" Icon="@AionIcons.Table">
                             <BodyContent Context="ctx">
@@ -161,11 +162,26 @@
     [Inject] private IDialogService DialogService { get; set; } = default!;
     [Inject] private IMessageBus MessageBus { get; set; } = default!;
     [Inject] private IConnectionHealthMonitor HealthMonitor { get; set; } = default!;
+    [Inject] private BrowserSettings BrowserSettings { get; set; } = default!;
 
     private Dictionary<string, MudTreeViewItem<string>> _databases = new();
     private Dictionary<string, MudTreeViewItem<string>> _tables = new();
     private bool _isRefreshing;
     private string? _lastError;
+
+    private IEnumerable<TableInfo> GetVisibleTables(DatabaseModel database)
+    {
+        if (BrowserSettings.ShowSystemTables)
+            return database.Tables;
+
+        var provider = ConnectionState.GetProvider(Connection.Type);
+        var systemSchemas = provider.SystemSchemas;
+
+        if (systemSchemas.Count == 0)
+            return database.Tables;
+
+        return database.Tables.Where(t => !systemSchemas.Contains(t.Schema, StringComparer.OrdinalIgnoreCase));
+    }
 
     private string GetIcon(DatabaseTreeItem item) => item?.ItemType switch
     {

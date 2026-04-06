@@ -65,7 +65,6 @@ public class SqlServerProvider : IDatabaseProvider
             SELECT TABLE_SCHEMA, TABLE_NAME
             FROM INFORMATION_SCHEMA.TABLES
             WHERE TABLE_TYPE = 'BASE TABLE'
-            AND TABLE_SCHEMA NOT IN ('sys', 'INFORMATION_SCHEMA', 'guest')
             ORDER BY TABLE_SCHEMA, TABLE_NAME";
 
         using var cmd = new SqlCommand(sql, conn);
