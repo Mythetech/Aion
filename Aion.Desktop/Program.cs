@@ -18,6 +18,7 @@ using Mythetech.Framework.Desktop.Environment;
 using Aion.Components.NativeMenu;
 using Aion.Desktop.NativeMenu;
 using Hermes.Abstractions;
+using Mythetech.Platform.Sdk;
 using Velopack;
 using Aion.Desktop.Configuration;
 using Mythetech.Framework.Desktop.Updates;
@@ -68,6 +69,7 @@ namespace Aion.Desktop
                 });
 
             appBuilder.Services.AddHttpClient();
+            appBuilder.Services.AddPlatformDiagnostics();
 
             appBuilder.RootComponents.Add<Components.App>("#app");
 
@@ -127,6 +129,14 @@ namespace Aion.Desktop
             app.Services.UseSettingsFramework();
             app.Services.UsePluginFramework();
             app.Services.UseUpdateService();
+
+            // TODO: Enable crash reporting after adding opt-in/opt-out setting
+            // var crashReporter = app.Services.GetRequiredService<ICrashReportingService>();
+            // HermesCrashInterceptor.ProductName = "Aion";
+            // HermesCrashInterceptor.ProductVersion = typeof(Program).Assembly
+            //     .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
+            // HermesCrashInterceptor.OnCrash = ctx => crashReporter.ReportCrash(ctx);
+            // HermesCrashInterceptor.Enable();
 
             AppDomain.CurrentDomain.UnhandledException += (sender, error) =>
             {
