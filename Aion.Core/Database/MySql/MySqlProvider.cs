@@ -17,6 +17,7 @@ public class MySqlProvider : IDatabaseProvider
     
     public IStandardDatabaseCommands Commands { get; } = new MySqlCommands();
     public DatabaseType DatabaseType => DatabaseType.MySQL;
+    public IReadOnlyList<string> SystemSchemas { get; } = [];
     
     public async Task<List<string>?> GetDatabasesAsync(string connectionString)
     {
@@ -51,27 +52,27 @@ public class MySqlProvider : IDatabaseProvider
         return databases;
     }
 
-    public async Task<List<string>> GetTablesAsync(string connectionString, string database)
+    public async Task<List<TableInfo>> GetTablesAsync(string connectionString, string database)
     {
-        var tables = new List<string>();
-        
-        using var conn = new MySqlConnection(connectionString);    
+        var tables = new List<TableInfo>();
+
+        using var conn = new MySqlConnection(connectionString);
         await conn.OpenAsync();
-        
+
         const string sql = @"
-            SELECT table_name 
-            FROM information_schema.tables 
-            WHERE table_schema = @database 
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = @database
             AND table_type = 'BASE TABLE'
             ORDER BY table_name";
-            
+
         using var cmd = new MySqlCommand(sql, conn);
         cmd.Parameters.AddWithValue("@database", database);
         using var reader = await cmd.ExecuteReaderAsync();
 
         while (await reader.ReadAsync())
         {
-            tables.Add(reader.GetString(0));
+            tables.Add(new TableInfo("", reader.GetString(0)));
         }
 
         return tables;
@@ -257,7 +258,7 @@ public class MySqlProvider : IDatabaseProvider
         throw new NotImplementedException();
     }
 
-    public async Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string table)
+    public async Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string schema, string table)
     {
         var columns = new List<ColumnInfo>();
         
@@ -297,7 +298,7 @@ public class MySqlProvider : IDatabaseProvider
             });
         }
 
-        var foreignKeys = await GetForeignKeysAsync(connectionString, database, table);
+        var foreignKeys = await GetForeignKeysAsync(connectionString, database, schema, table);
         foreach (var fk in foreignKeys)
         {
             var column = columns.FirstOrDefault(c => c.Name == fk.ColumnName);
@@ -310,7 +311,7 @@ public class MySqlProvider : IDatabaseProvider
         return columns;
     }
 
-    public async Task<List<ForeignKeyInfo>> GetForeignKeysAsync(string connectionString, string database, string table)
+    public async Task<List<ForeignKeyInfo>> GetForeignKeysAsync(string connectionString, string database, string schema, string table)
     {
         var foreignKeys = new List<ForeignKeyInfo>();
 

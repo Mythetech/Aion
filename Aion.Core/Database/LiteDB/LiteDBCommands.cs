@@ -20,7 +20,7 @@ public class LiteDBCommands : IStandardDatabaseCommands
 -- Ensure the database is not in use when copying");
     }
 
-    public Task<string> GenerateCreateTableScript(string database, string collection, IEnumerable<ColumnDefinition> columns)
+    public Task<string> GenerateCreateTableScript(string database, string schema, string collection, IEnumerable<ColumnDefinition> columns)
     {
         var fields = columns.Select(c => $"    {c.Name}: <{c.DataType}>");
 
@@ -33,12 +33,12 @@ public class LiteDBCommands : IStandardDatabaseCommands
 INSERT INTO {collection} VALUES {{ _id: OBJECTID() }}");
     }
 
-    public Task<string> GenerateDropTableScript(string database, string collection)
+    public Task<string> GenerateDropTableScript(string database, string schema, string collection)
     {
         return Task.FromResult($"DROP COLLECTION {collection}");
     }
 
-    public Task<string> GenerateAlterTableScript(string database, string name, IEnumerable<TableModification> modifications)
+    public Task<string> GenerateAlterTableScript(string database, string schema, string name, IEnumerable<TableModification> modifications)
     {
         return Task.FromResult($@"-- LiteDB is schemaless - documents can have any structure
 -- To add/modify fields, simply insert/update documents with the new structure
@@ -48,7 +48,7 @@ INSERT INTO {collection} VALUES {{ _id: OBJECTID() }}");
 UPDATE {name} SET newField = 'default value'");
     }
 
-    public Task<string> GenerateInsertScript(string database, string collection, IEnumerable<ColumnValue> values)
+    public Task<string> GenerateInsertScript(string database, string schema, string collection, IEnumerable<ColumnValue> values)
     {
         var fields = values.Select(v => $"    {v.Column}: {FormatBsonValue(v.Value)}");
 
@@ -57,7 +57,7 @@ UPDATE {name} SET newField = 'default value'");
 }}");
     }
 
-    public Task<string> GenerateUpdateScript(string database, string collection, IEnumerable<ColumnValue> values, string whereClause)
+    public Task<string> GenerateUpdateScript(string database, string schema, string collection, IEnumerable<ColumnValue> values, string whereClause)
     {
         var setStatements = values.Select(v => $"{v.Column} = {FormatBsonValue(v.Value)}");
 
@@ -66,17 +66,17 @@ SET {string.Join(", ", setStatements)}
 WHERE {whereClause}");
     }
 
-    public Task<string> GenerateDeleteScript(string database, string collection, string whereClause)
+    public Task<string> GenerateDeleteScript(string database, string schema, string collection, string whereClause)
     {
         return Task.FromResult($"DELETE {collection} WHERE {whereClause}");
     }
 
-    public Task<string> GenerateSelectTopScript(string database, string collection, int count)
+    public Task<string> GenerateSelectTopScript(string database, string schema, string collection, int count)
     {
         return Task.FromResult($"SELECT $ FROM {collection} LIMIT {count}");
     }
 
-    public Task<string> GenerateCountScript(string database, string collection)
+    public Task<string> GenerateCountScript(string database, string schema, string collection)
     {
         return Task.FromResult($"SELECT COUNT(*) FROM {collection}");
     }

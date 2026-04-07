@@ -76,8 +76,8 @@ public partial class QueryEditModeEnabler : IConsumer<EnableEditModeFromQuery>
             return;
         }
 
-        // Parse the SQL to extract the table name
-        var tableName = ExtractTableName(query.Query, connection.Type);
+        // Parse the SQL to extract the table name (and optional schema)
+        var (schema, tableName) = ExtractTableName(query.Query, connection.Type);
         if (string.IsNullOrEmpty(tableName))
         {
             await _bus.PublishAsync(new AddNotification(
@@ -94,9 +94,10 @@ public partial class QueryEditModeEnabler : IConsumer<EnableEditModeFromQuery>
                 await _connectionState.LoadTablesAsync(connection, database);
             }
 
-            // Verify table exists (case-insensitive match)
+            // Find matching table (case-insensitive)
             var matchedTable = database.Tables.FirstOrDefault(t =>
-                t.Equals(tableName, StringComparison.OrdinalIgnoreCase));
+                t.Name.Equals(tableName, StringComparison.OrdinalIgnoreCase) &&
+                (string.IsNullOrEmpty(schema) || t.Schema.Equals(schema, StringComparison.OrdinalIgnoreCase)));
 
             if (matchedTable == null)
             {
@@ -105,19 +106,20 @@ public partial class QueryEditModeEnabler : IConsumer<EnableEditModeFromQuery>
                 return;
             }
 
-            tableName = matchedTable;
+            var displayName = matchedTable.DisplayName;
+
             // Load column metadata if needed
-            if (!database.LoadedColumnTables.Contains(tableName))
+            if (!database.LoadedColumnTables.Contains(displayName))
             {
-                await _connectionState.LoadColumnsAsync(connection, database, tableName);
+                await _connectionState.LoadColumnsAsync(connection, database, matchedTable.Schema, matchedTable.Name);
             }
 
-            var columns = database.TableColumns.GetValueOrDefault(tableName) ?? [];
+            var columns = database.TableColumns.GetValueOrDefault(displayName) ?? [];
 
             if (!columns.Any(c => c.IsPrimaryKey))
             {
                 await _bus.PublishAsync(new AddNotification(
-                    $"Table '{tableName}' has no primary key. Edit mode requires a primary key.",
+                    $"Table '{displayName}' has no primary key. Edit mode requires a primary key.",
                     Severity.Warning));
                 return;
             }
@@ -125,7 +127,8 @@ public partial class QueryEditModeEnabler : IConsumer<EnableEditModeFromQuery>
             // Enable edit mode on the current query
             query.EditMetadata = new QueryEditMetadata
             {
-                SourceTable = tableName,
+                SourceTable = matchedTable.Name,
+                SourceSchema = matchedTable.Schema,
                 SourceDatabase = databaseName,
                 ColumnMetadata = columns.ToList(),
                 IsEditMode = true
@@ -134,9 +137,9 @@ public partial class QueryEditModeEnabler : IConsumer<EnableEditModeFromQuery>
             // Re-run the query to refresh results with edit mode enabled
             await _bus.PublishAsync(new RunQuery());
 
-            _logger.LogInformation("Enabled edit mode for table {Table} from query", tableName);
+            _logger.LogInformation("Enabled edit mode for table {Table} from query", displayName);
             await _bus.PublishAsync(new AddNotification(
-                $"Edit mode enabled for table '{tableName}'", Severity.Success));
+                $"Edit mode enabled for table '{displayName}'", Severity.Success));
         }
         catch (Exception ex)
         {
@@ -147,37 +150,45 @@ public partial class QueryEditModeEnabler : IConsumer<EnableEditModeFromQuery>
     }
 
     /// <summary>
-    /// Extracts the table name from a SELECT query.
-    /// Supports simple SELECT * FROM table or SELECT columns FROM table patterns.
+    /// Extracts the schema and table name from a SELECT query.
+    /// Supports simple SELECT * FROM schema.table or SELECT columns FROM table patterns.
     /// </summary>
-    private static string? ExtractTableName(string sql, DatabaseType dbType)
+    private static (string? Schema, string? Table) ExtractTableName(string sql, DatabaseType dbType)
     {
         if (string.IsNullOrWhiteSpace(sql))
-            return null;
+            return (null, null);
 
         // Normalize whitespace
         sql = sql.Trim();
 
         // Check it's a SELECT statement (not INSERT, UPDATE, DELETE, etc.)
         if (!sql.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase))
-            return null;
+            return (null, null);
 
-        // Pattern to match: FROM "table" or FROM `table` or FROM [table] or FROM table
-        // Handles quoted identifiers for different database types
+        // Pattern to match: FROM "schema"."table" or FROM schema.table or FROM "table"
         var pattern = dbType switch
         {
-            DatabaseType.PostgreSQL => @"FROM\s+""?(\w+)""?",
-            DatabaseType.MySQL => @"FROM\s+`?(\w+)`?",
-            DatabaseType.SQLServer => @"FROM\s+\[?(\w+)\]?",
-            _ => @"FROM\s+[""'`\[]?(\w+)[""'`\]]?"
+            DatabaseType.PostgreSQL => @"FROM\s+""?(\w+)""?\.""?(\w+)""?|FROM\s+""?(\w+)""?",
+            DatabaseType.MySQL => @"FROM\s+`?(\w+)`?\.`?(\w+)`?|FROM\s+`?(\w+)`?",
+            DatabaseType.SQLServer => @"FROM\s+\[?(\w+)\]?\.\[?(\w+)\]?|FROM\s+\[?(\w+)\]?",
+            _ => @"FROM\s+[""'`\[]?(\w+)[""'`\]]?\.[""'`\[]?(\w+)[""'`\]]?|FROM\s+[""'`\[]?(\w+)[""'`\]]?"
         };
 
         var match = Regex.Match(sql, pattern, RegexOptions.IgnoreCase);
-        if (match.Success && match.Groups.Count > 1)
+        if (match.Success)
         {
-            return match.Groups[1].Value;
+            // Schema-qualified: groups 1 and 2
+            if (match.Groups[1].Success && match.Groups[2].Success)
+            {
+                return (match.Groups[1].Value, match.Groups[2].Value);
+            }
+            // Unqualified: group 3
+            if (match.Groups[3].Success)
+            {
+                return (null, match.Groups[3].Value);
+            }
         }
 
-        return null;
+        return (null, null);
     }
 }

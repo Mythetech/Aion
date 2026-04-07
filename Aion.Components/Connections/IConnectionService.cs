@@ -10,6 +10,6 @@ public interface IConnectionService
     Task<IEnumerable<ConnectionModel>> GetSavedConnections();
     Task AddConnection(ConnectionModel connection);
     Task<List<string>?> GetDatabasesAsync(string connectionString, DatabaseType type);
-    Task<List<string>> GetTablesAsync(string connectionString, string database, DatabaseType type);
+    Task<List<TableInfo>> GetTablesAsync(string connectionString, string database, DatabaseType type);
     Task<QueryResult> ExecuteQueryAsync(string connectionString, string query, DatabaseType type, CancellationToken cancellationToken);
 }

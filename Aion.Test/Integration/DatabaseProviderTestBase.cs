@@ -12,6 +12,7 @@ public abstract class DatabaseProviderTestBase : IAsyncLifetime
     protected string ConnectionString;
     protected const string TestDatabase = "aion_test_db";
     protected const string TestTable = "test_table";
+    protected virtual string TestSchema => "public";
 
     protected DatabaseProviderTestBase(IDatabaseProvider provider, string connectionString)
     {
@@ -28,6 +29,7 @@ public abstract class DatabaseProviderTestBase : IAsyncLifetime
 
         var createTableScript = await Provider.Commands.GenerateCreateTableScript(
             TestDatabase,
+            TestSchema,
             TestTable,
             new[]
             {

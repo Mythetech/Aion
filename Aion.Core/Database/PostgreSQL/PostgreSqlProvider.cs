@@ -10,24 +10,25 @@ public class PostgreSqlProvider : IDatabaseProvider
     private readonly Dictionary<string, NpgsqlTransaction> _activeTransactions = new();
     public IStandardDatabaseCommands Commands { get; } = new PostgreSqlCommands();
     public DatabaseType DatabaseType => DatabaseType.PostgreSQL;
+    public IReadOnlyList<string> SystemSchemas { get; } = ["pg_catalog", "information_schema", "pg_toast"];
 
     public async Task<List<string>> GetDatabasesAsync(string connectionString)
     {
         var databases = new List<string>();
-        
+
         var builder = new NpgsqlConnectionStringBuilder(connectionString);
-        builder.Database = "postgres"; 
-        
-        using var conn = new NpgsqlConnection(builder.ConnectionString);    
+        builder.Database = "postgres";
+
+        using var conn = new NpgsqlConnection(builder.ConnectionString);
         await conn.OpenAsync();
-        
+
         const string sql = @"
-            SELECT datname 
-            FROM pg_database 
-            WHERE datistemplate = false 
+            SELECT datname
+            FROM pg_database
+            WHERE datistemplate = false
             AND datname NOT IN ('postgres')
             ORDER BY datname";
-            
+
         using var cmd = new NpgsqlCommand(sql, conn);
         using var reader = await cmd.ExecuteReaderAsync();
 
@@ -39,26 +40,27 @@ public class PostgreSqlProvider : IDatabaseProvider
         return databases;
     }
 
-    public async Task<List<string>> GetTablesAsync(string connectionString, string database)
+    public async Task<List<TableInfo>> GetTablesAsync(string connectionString, string database)
     {
-        var tables = new List<string>();
-        
-        using var conn = new NpgsqlConnection(connectionString);    
+        var tables = new List<TableInfo>();
+
+        using var conn = new NpgsqlConnection(connectionString);
         await conn.OpenAsync();
-        
+
         const string sql = @"
-            SELECT table_name 
-            FROM information_schema.tables 
-            WHERE table_schema = 'public' 
-            AND table_type = 'BASE TABLE'
-            ORDER BY table_name";
-            
+            SELECT table_schema, table_name
+            FROM information_schema.tables
+            WHERE table_type = 'BASE TABLE'
+            AND table_schema NOT LIKE 'pg_temp_%'
+            AND table_schema NOT LIKE 'pg_toast_temp_%'
+            ORDER BY table_schema, table_name";
+
         using var cmd = new NpgsqlCommand(sql, conn);
         using var reader = await cmd.ExecuteReaderAsync();
 
         while (await reader.ReadAsync())
         {
-            tables.Add(reader.GetString(0));
+            tables.Add(new TableInfo(reader.GetString(0), reader.GetString(1)));
         }
 
         return tables;
@@ -67,8 +69,8 @@ public class PostgreSqlProvider : IDatabaseProvider
     public async Task<QueryResult> ExecuteQueryAsync(string connectionString, string query, CancellationToken cancellationToken)
     {
         var result = new QueryResult();
-        
-        try 
+
+        try
         {
             var builder = new NpgsqlConnectionStringBuilder(connectionString);
             if (query.TrimStart().StartsWith("CREATE DATABASE", StringComparison.OrdinalIgnoreCase))
@@ -76,10 +78,10 @@ public class PostgreSqlProvider : IDatabaseProvider
                 builder.Database = "postgres";
                 connectionString = builder.ConnectionString;
             }
-            
-            using var conn = new NpgsqlConnection(connectionString);    
+
+            using var conn = new NpgsqlConnection(connectionString);
             await conn.OpenAsync(cancellationToken);
-            
+
             using var cmd = new NpgsqlCommand(query, conn);
             using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
@@ -124,19 +126,19 @@ public class PostgreSqlProvider : IDatabaseProvider
         try
         {
             var builder = new NpgsqlConnectionStringBuilder(connectionString);
-            
+
             if (string.IsNullOrEmpty(builder.Host))
             {
                 error = "Host is required";
                 return false;
             }
-            
+
             if (string.IsNullOrEmpty(builder.Username))
             {
                 error = "Username is required";
                 return false;
             }
-            
+
             error = null;
             return true;
         }
@@ -159,7 +161,7 @@ public class PostgreSqlProvider : IDatabaseProvider
         {
             using var conn = new NpgsqlConnection(connectionString);
             await conn.OpenAsync();
-            
+
             using var cmd = new NpgsqlCommand($"EXPLAIN {query}", conn);
             using var reader = await cmd.ExecuteReaderAsync();
 
@@ -191,7 +193,7 @@ public class PostgreSqlProvider : IDatabaseProvider
         {
             using var conn = new NpgsqlConnection(connectionString);
             await conn.OpenAsync();
-            
+
             using var cmd = new NpgsqlCommand($"EXPLAIN ANALYZE {query}", conn);
             using var reader = await cmd.ExecuteReaderAsync();
 
@@ -211,15 +213,15 @@ public class PostgreSqlProvider : IDatabaseProvider
         }
     }
 
-    public async Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string table)
+    public async Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string schema, string table)
     {
         var columns = new List<ColumnInfo>();
-        
-        using var conn = new NpgsqlConnection(connectionString);    
+
+        using var conn = new NpgsqlConnection(connectionString);
         await conn.OpenAsync();
-        
+
         const string sql = @"
-            SELECT 
+            SELECT
                 c.column_name,
                 c.data_type,
                 c.is_nullable = 'YES' as is_nullable,
@@ -235,12 +237,15 @@ public class PostgreSqlProvider : IDatabaseProvider
                     ON tc.constraint_name = ku.constraint_name
                 WHERE tc.constraint_type = 'PRIMARY KEY'
                     AND ku.table_name = @table
+                    AND ku.table_schema = @schema
             ) pk ON c.column_name = pk.column_name
             WHERE c.table_name = @table
+            AND c.table_schema = @schema
             ORDER BY c.ordinal_position";
-            
+
         using var cmd = new NpgsqlCommand(sql, conn);
         cmd.Parameters.AddWithValue("@table", table);
+        cmd.Parameters.AddWithValue("@schema", schema);
         using var reader = await cmd.ExecuteReaderAsync();
 
         while (await reader.ReadAsync())
@@ -257,7 +262,7 @@ public class PostgreSqlProvider : IDatabaseProvider
             });
         }
 
-        var foreignKeys = await GetForeignKeysAsync(connectionString, database, table);
+        var foreignKeys = await GetForeignKeysAsync(connectionString, database, schema, table);
         foreach (var fk in foreignKeys)
         {
             var column = columns.FirstOrDefault(c => c.Name == fk.ColumnName);
@@ -270,7 +275,7 @@ public class PostgreSqlProvider : IDatabaseProvider
         return columns;
     }
 
-    public async Task<List<ForeignKeyInfo>> GetForeignKeysAsync(string connectionString, string database, string table)
+    public async Task<List<ForeignKeyInfo>> GetForeignKeysAsync(string connectionString, string database, string schema, string table)
     {
         var foreignKeys = new List<ForeignKeyInfo>();
 
@@ -293,10 +298,11 @@ public class PostgreSqlProvider : IDatabaseProvider
                 AND ccu.table_schema = tc.table_schema
             WHERE tc.constraint_type = 'FOREIGN KEY'
                 AND tc.table_name = @table
-                AND tc.table_schema = 'public'";
+                AND tc.table_schema = @schema";
 
         using var cmd = new NpgsqlCommand(sql, conn);
         cmd.Parameters.AddWithValue("@table", table);
+        cmd.Parameters.AddWithValue("@schema", schema);
         using var reader = await cmd.ExecuteReaderAsync();
 
         while (await reader.ReadAsync())
@@ -317,13 +323,13 @@ public class PostgreSqlProvider : IDatabaseProvider
     public async Task<TransactionInfo> BeginTransactionAsync(string connectionString)
     {
         var transaction = new TransactionInfo();
-        
+
         var conn = new NpgsqlConnection(connectionString);
         await conn.OpenAsync();
         var dbTransaction = await conn.BeginTransactionAsync();
-        
+
         _activeTransactions[transaction.Id] = dbTransaction;
-        
+
         return transaction;
     }
 
@@ -355,7 +361,7 @@ public class PostgreSqlProvider : IDatabaseProvider
         }
 
         var result = new QueryResult();
-        try 
+        try
         {
             using var cmd = new NpgsqlCommand(query, transaction.Connection, transaction);
             using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
@@ -384,4 +390,4 @@ public class PostgreSqlProvider : IDatabaseProvider
             return result;
         }
     }
-} 
+}

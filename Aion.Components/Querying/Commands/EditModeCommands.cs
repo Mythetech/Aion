@@ -46,7 +46,7 @@ public record DiscardPendingChanges();
 /// <summary>
 /// Open a table in edit mode from the connection panel.
 /// </summary>
-public record OpenTableEditor(Guid ConnectionId, string DatabaseName, string TableName);
+public record OpenTableEditor(Guid ConnectionId, string DatabaseName, string Schema, string TableName);
 
 /// <summary>
 /// Enable edit mode on the active query by parsing the SQL to determine the table.

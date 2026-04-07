@@ -43,7 +43,7 @@ public class ConnectionService : IConnectionService
         return await provider.GetDatabasesAsync(connectionString);
     }
 
-    public async Task<List<string>> GetTablesAsync(string connectionString, string database, DatabaseType type)
+    public async Task<List<TableInfo>> GetTablesAsync(string connectionString, string database, DatabaseType type)
     {
         var provider = _providerFactory.GetProvider(type);
         return await provider.GetTablesAsync(connectionString, database);

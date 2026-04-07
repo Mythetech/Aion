@@ -11,7 +11,9 @@ public class MySqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
 {
     private readonly MySqlContainer _container;
     
-    public MySqlProviderTests() 
+    protected override string TestSchema => "";
+
+    public MySqlProviderTests()
         : base(new MySqlProvider(new Logger<MySqlProvider>(new LoggerFactory())), string.Empty)
     {
         _container = new MySqlBuilder()
@@ -71,7 +73,7 @@ public class MySqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
 
         // Assert
         tables.ShouldNotBeNull();
-        tables.ShouldContain(TestTable);
+        tables.ShouldContain(t => t.Name == TestTable);
     }
 
     [Fact]
@@ -81,7 +83,7 @@ public class MySqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         var dbConnectionString = Provider.UpdateConnectionString(ConnectionString, TestDatabase);
 
         // Act
-        var columns = await Provider.GetColumnsAsync(dbConnectionString, TestDatabase, TestTable);
+        var columns = await Provider.GetColumnsAsync(dbConnectionString, TestDatabase, "", TestTable);
 
         // Assert
         columns.ShouldNotBeNull();
@@ -108,6 +110,7 @@ public class MySqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         var dbConnectionString = Provider.UpdateConnectionString(ConnectionString, TestDatabase);
         var insertScript = await Provider.Commands.GenerateInsertScript(
             TestDatabase,
+            "",
             TestTable,
             new[]
             {

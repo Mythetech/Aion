@@ -13,6 +13,11 @@ public class EditableQueryResult : QueryResult
     public string? SourceTable { get; set; }
 
     /// <summary>
+    /// The source schema name.
+    /// </summary>
+    public string? SourceSchema { get; set; }
+
+    /// <summary>
     /// The source database name.
     /// </summary>
     public string? SourceDatabase { get; set; }
@@ -60,6 +65,7 @@ public class EditableQueryResult : QueryResult
     public static EditableQueryResult FromQueryResult(
         QueryResult result,
         string? sourceTable = null,
+        string? sourceSchema = null,
         string? sourceDatabase = null,
         Guid? connectionId = null,
         List<ColumnInfo>? columnMetadata = null)
@@ -72,6 +78,7 @@ public class EditableQueryResult : QueryResult
             Error = result.Error,
             Cancelled = result.Cancelled,
             SourceTable = sourceTable,
+            SourceSchema = sourceSchema,
             SourceDatabase = sourceDatabase,
             ConnectionId = connectionId,
             ColumnMetadata = columnMetadata ?? []

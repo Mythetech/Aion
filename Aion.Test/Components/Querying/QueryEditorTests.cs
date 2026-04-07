@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using MudBlazor.Interop;
 using MudBlazor.Services;
+using Mythetech.Framework.Infrastructure.Guards;
 using NSubstitute;
 using Shouldly;
 
@@ -43,6 +44,7 @@ public class QueryEditorTests : TestContext
         Services.AddSingleton(_bus);
         Services.AddSingleton(_state);
         Services.AddSingleton(_connections);
+        Services.AddSingleton(Substitute.For<IJsGuardService>());
     }
 
     [Fact]

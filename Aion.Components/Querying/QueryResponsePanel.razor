@@ -167,6 +167,7 @@ else if (State?.Active?.IsExecuting ?? false)
         return EditableQueryResult.FromQueryResult(
             State.Active.Result,
             State.Active.EditMetadata.SourceTable,
+            State.Active.EditMetadata.SourceSchema,
             State.Active.EditMetadata.SourceDatabase,
             State.Active.ConnectionId,
             State.Active.EditMetadata.ColumnMetadata);

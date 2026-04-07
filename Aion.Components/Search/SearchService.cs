@@ -70,38 +70,38 @@ public class SearchService
                     foreach (var table in database.Tables)
                     {
                         if (cancellationToken.IsCancellationRequested) yield break;
-                        
-                        if (table.ToLowerInvariant().Contains(value))
+
+                        if (table.DisplayName.ToLowerInvariant().Contains(value))
                         {
                             yield return new SearchModel
                             {
-                                Name = $"{table}",
+                                Name = $"{table.DisplayName}",
                                 Description = $"{connection.Name} > {database.Name}",
                                 Icon = AionIcons.Table,
                                 Kind = ResultKind.Table,
-                                SearchAction = () => TableAction(connection, database, table)
+                                SearchAction = () => TableAction(connection, database, table.DisplayName)
                             };
                         }
                     }
                 }
                 else
                 {
-                   
+
                         await _connections.LoadTablesAsync(connection, database);
-                        
+
                         foreach (var table in database.Tables)
                         {
                             if (cancellationToken.IsCancellationRequested) yield break;
-                            
-                            if (table.ToLowerInvariant().Contains(value))
+
+                            if (table.DisplayName.ToLowerInvariant().Contains(value))
                             {
                                 yield return new SearchModel
                                 {
-                                    Name = $"{table}",
+                                    Name = $"{table.DisplayName}",
                                     Description = $"{connection.Name} > {database.Name}",
                                     Icon = AionIcons.Table,
                                     Kind = ResultKind.Table,
-                                    SearchAction = () => TableAction(connection, database, table)
+                                    SearchAction = () => TableAction(connection, database, table.DisplayName)
                                 };
                             }
                         }
@@ -140,13 +140,13 @@ public class SearchService
         await _bus.PublishAsync(new ExpandDatabase(connection, databaseName));
     }
     
-    private async Task TableAction(ConnectionModel connection, DatabaseModel database, string tableName)
+    private async Task TableAction(ConnectionModel connection, DatabaseModel database, string tableDisplayName)
     {
         await _bus.PublishAsync(new ActivatePanel(connection.Id.ToString()));
         await Task.Delay(25);
         await _bus.PublishAsync(new ExpandDatabase(connection, database.Name));
         await Task.Delay(25);
-        await _bus.PublishAsync(new ExpandTable(connection, database, tableName));
+        await _bus.PublishAsync(new ExpandTable(connection, database, tableDisplayName));
     }
 
     private async Task QueryAction(QueryModel query)
