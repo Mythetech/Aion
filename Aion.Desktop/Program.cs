@@ -110,6 +110,7 @@ namespace Aion.Desktop
             appBuilder.Services.AddAsyncInitialization();
             appBuilder.Services.AddInitializationHook<SettingsInitializationHook>();
             appBuilder.Services.AddInitializationHook<CrashReportingHook>();
+            appBuilder.Services.AddInitializationHook<ErrorReportingHook>();
 
             appBuilder.Services.AddSingleton<IConnectionStorage, FileConnectionStorage>();
             appBuilder.Services.AddSingleton<IQuerySaveService, FileQuerySaveService>();
