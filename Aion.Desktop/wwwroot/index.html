@@ -15,9 +15,113 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Gotu&display=swap" rel="stylesheet">
     <title>Aion</title>
+    <style>
+        #aion-splash {
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0d0d1a 0%, #1a1030 50%, #0d0d1a 100%);
+            transition: opacity 0.4s ease-out;
+        }
+
+        #aion-splash.fade-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .splash-logo {
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            animation: rotateGlow 3s linear infinite;
+        }
+
+        .splash-title {
+            margin-top: 20px;
+            font-family: 'Gotu', serif;
+            font-size: 2rem;
+            color: #e0e0e0;
+            letter-spacing: 0.1em;
+        }
+
+        .splash-dots {
+            display: flex;
+            gap: 6px;
+            margin-top: 24px;
+        }
+
+        .splash-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #7c4dff;
+            animation: dotPulse 1.2s ease-in-out infinite;
+        }
+
+        .splash-dot:nth-child(2) { animation-delay: 0.15s; }
+        .splash-dot:nth-child(3) { animation-delay: 0.3s; }
+        .splash-dot:nth-child(4) { animation-delay: 0.45s; }
+
+        @keyframes rotateGlow {
+            0% {
+                box-shadow:
+                    0.15em 0.15em 0.5em 0.15em #312651,
+                    -0.15em 0.15em 0.5em 0.15em #9a57a7,
+                    0.15em -0.15em 0.5em 0.15em #76a0ff,
+                    -0.15em -0.15em 0.5em 0.15em #a6b3e5;
+            }
+            25% {
+                box-shadow:
+                    -0.15em -0.15em 0.5em 0.15em #312651,
+                    0.15em -0.15em 0.5em 0.15em #9a57a7,
+                    -0.15em 0.15em 0.5em 0.15em #76a0ff,
+                    0.15em 0.15em 0.5em 0.15em #a6b3e5;
+            }
+            50% {
+                box-shadow:
+                    -0.15em -0.15em 0.5em 0.15em #a6b3e5,
+                    0.15em -0.15em 0.5em 0.15em #312651,
+                    -0.15em 0.15em 0.5em 0.15em #9a57a7,
+                    0.15em 0.15em 0.5em 0.15em #76a0ff;
+            }
+            75% {
+                box-shadow:
+                    0.15em 0.15em 0.5em 0.15em #76a0ff,
+                    -0.15em -0.15em 0.5em 0.15em #a6b3e5,
+                    0.15em -0.15em 0.5em 0.15em #312651,
+                    -0.15em 0.15em 0.5em 0.15em #9a57a7;
+            }
+            100% {
+                box-shadow:
+                    0.15em 0.15em 0.5em 0.15em #312651,
+                    -0.15em 0.15em 0.5em 0.15em #9a57a7,
+                    0.15em -0.15em 0.5em 0.15em #76a0ff,
+                    -0.15em -0.15em 0.5em 0.15em #a6b3e5;
+            }
+        }
+
+        @keyframes dotPulse {
+            0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+            40% { opacity: 1; transform: scale(1.2); }
+        }
+    </style>
 </head>
 <body>
-<div id="app" style="overflow:hidden;">Loading...</div>
+<div id="aion-splash">
+    <img class="splash-logo" src="aion.png" alt="Aion" />
+    <div class="splash-title">Aion</div>
+    <div class="splash-dots">
+        <div class="splash-dot"></div>
+        <div class="splash-dot"></div>
+        <div class="splash-dot"></div>
+        <div class="splash-dot"></div>
+    </div>
+</div>
+<div id="app" style="overflow:hidden;"></div>
 
 <script src="_content/Microsoft.FluentUI.AspNetCore.Components/Microsoft.FluentUI.AspNetCore.Components.lib.module.js"
         type="module" async></script>
@@ -57,6 +161,17 @@
             return originalAppendChild.call(this, child);
         };
     })();
+</script>
+<script>
+    window.aionSplash = {
+        hide: function() {
+            var splash = document.getElementById('aion-splash');
+            if (splash) {
+                splash.classList.add('fade-out');
+                setTimeout(function() { splash.remove(); }, 400);
+            }
+        }
+    };
 </script>
 </body>
 </html>

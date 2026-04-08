@@ -10,6 +10,7 @@
 @using Aion.Components.Infrastructure
 @using Aion.Components.Settings
 @using Microsoft.FluentUI.AspNetCore.Components
+@using Microsoft.JSInterop
 @using Mythetech.Framework.Infrastructure.Plugins
 @using Mythetech.Framework.Infrastructure.Settings
 @implements IDisposable
@@ -29,15 +30,15 @@
             <div class="aion-title-bar-spacer"></div>
             <div class="no-drag hermes-no-drag aion-title-bar-search">
                 <MudAutocomplete T="SearchModel" Placeholder="Search..." @bind-Value="_search" SearchFunc="@SearchAsync"
-                    @ref="_searchAutocomplete" Variant="Variant.Outlined" Dense="true" ShowProgressIndicator="true"
-                    Margin="Margin.Dense" Clearable="true" Class="rounded-xl aion-search"
-                    OnAdornmentClick="@(async () => await HandleSearch(_search))" InputClass="appbar-narrow-height"
-                    AdornmentIcon="@AionIcons.Search" AdornmentColor="MudBlazor.Color.Primary">
+                                 @ref="_searchAutocomplete" Variant="Variant.Outlined" Dense="true" ShowProgressIndicator="true"
+                                 Margin="Margin.Dense" Clearable="true" Class="rounded-xl aion-search"
+                                 OnAdornmentClick="@(async () => await HandleSearch(_search))" InputClass="appbar-narrow-height"
+                                 AdornmentIcon="@AionIcons.Search" AdornmentColor="MudBlazor.Color.Primary">
                     <ItemTemplate>
                         <MudStack Class="pa-1" Row="true" AlignItems="AlignItems.Center"
-                            onclick="@(async () => await HandleSearch(context))">
+                                  onclick="@(async () => await HandleSearch(context))">
                             <TooltipIcon Size="Size.Small" Text="@(context.Description ?? context.Kind.ToString())"
-                                Icon="@context.Icon" />
+                                         Icon="@context.Icon" />
                             <MudText>
                                 @context
                             </MudText>
@@ -50,13 +51,12 @@
     </Hermes.Blazor.Components.HermesTitleBar>
     <MudDrawer @bind-Open="@AppState.SideBarOpen" Variant="DrawerVariant.Mini" Style="overflow: hidden;">
         <ContextPanel IsDarkMode="@AppState.IsDarkMode" DrawerBackgroundColor="@_backgroundColor"
-            DrawerToggled="@(() => AppState.ToggleSideBar())"
-            DarkModeToggled="@(() => AppState.IsDarkMode = !AppState.IsDarkMode)" />
+                      DrawerToggled="@(() => AppState.ToggleSideBar())"
+                      DarkModeToggled="@(() => AppState.IsDarkMode = !AppState.IsDarkMode)" />
         <div class="@($"resizer {(!AppState.SideBarOpen ? "d-none" : "")}")"></div>
     </MudDrawer>
     <MudMainContent Class="pl-2 pr-0" Style="max-height:100dvh;max-width:100vw;overflow:hidden;">
-        <MudContainer Class="px-0 mud-width-full" MaxWidth="MaxWidth.ExtraLarge"
-            Style="height:100%;overflow:hidden;">
+        <MudContainer Class="px-0 mud-width-full" MaxWidth="MaxWidth.ExtraLarge" Style="height:100%;overflow:hidden;">
             @Body
         </MudContainer>
     </MudMainContent>
@@ -120,13 +120,18 @@
         {
             await AppState.SetSystemColorMode();
 
-}
+        }
 
         if (firstRender || !_assetsLoaded)
         {
             await LoadAllPluginAssetsAsync();
             _assetsLoaded = true;
             StateHasChanged();
+        }
+
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("aionSplash.hide");
         }
 
         await base.OnAfterRenderAsync(firstRender);
