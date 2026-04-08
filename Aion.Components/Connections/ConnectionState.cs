@@ -192,7 +192,7 @@ public class ConnectionState
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, $"Failed to refresh databases for connection {connection.Name}: {ex.Message}");
+            _logger.LogWarning(ex, $"Failed to refresh databases for connection {connection.Name}: {ex.Message}");
         }
     }
 

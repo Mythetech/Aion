@@ -80,7 +80,7 @@ public class ConnectionHealthMonitor : IConnectionHealthMonitor
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                _logger.LogError(ex, "Error during connection health check cycle");
+                _logger.LogWarning(ex, "Error during connection health check cycle");
             }
         }
     }

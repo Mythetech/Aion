@@ -33,7 +33,7 @@ public class SqlServerProvider : IDatabaseProvider
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to connect to SQL Server");
+            _logger.LogWarning(ex, "Failed to connect to SQL Server");
             return null;
         }
 

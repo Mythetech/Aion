@@ -14,18 +14,18 @@ public class MySqlProvider : IDatabaseProvider
     {
         _logger = logger;
     }
-    
+
     public IStandardDatabaseCommands Commands { get; } = new MySqlCommands();
     public DatabaseType DatabaseType => DatabaseType.MySQL;
     public IReadOnlyList<string> SystemSchemas { get; } = [];
-    
+
     public async Task<List<string>?> GetDatabasesAsync(string connectionString)
     {
         var databases = new List<string>();
-        
+
         var builder = new MySqlConnectionStringBuilder(connectionString);
-        builder.Database = null; 
-        
+        builder.Database = null;
+
         using var conn = new MySqlConnection(builder.ConnectionString);
         try
         {
@@ -33,14 +33,14 @@ public class MySqlProvider : IDatabaseProvider
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex.Message);
+            _logger.LogWarning(ex.Message);
             return null;
         }
 
         const string sql = @"
             SHOW DATABASES 
             WHERE `Database` NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys');";
-            
+
         using var cmd = new MySqlCommand(sql, conn);
         using var reader = await cmd.ExecuteReaderAsync();
 
@@ -81,8 +81,8 @@ public class MySqlProvider : IDatabaseProvider
     public async Task<QueryResult> ExecuteQueryAsync(string connectionString, string query, CancellationToken cancellationToken)
     {
         var result = new QueryResult();
-        
-        try 
+
+        try
         {
             // For CREATE DATABASE, we need to connect without a database specified
             var builder = new MySqlConnectionStringBuilder(connectionString);
@@ -90,10 +90,10 @@ public class MySqlProvider : IDatabaseProvider
             {
                 builder.Database = null;
             }
-            
-            using var conn = new MySqlConnection(builder.ConnectionString);    
+
+            using var conn = new MySqlConnection(builder.ConnectionString);
             await conn.OpenAsync(cancellationToken);
-            
+
             using var cmd = new MySqlCommand(query, conn);
             using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
@@ -140,14 +140,14 @@ public class MySqlProvider : IDatabaseProvider
         try
         {
             var builder = new MySqlConnectionStringBuilder(connectionString);
-            
+
             // Check required parameters
             if (string.IsNullOrEmpty(builder.Server))
             {
                 error = "Server is required";
                 return false;
             }
-            
+
             if (string.IsNullOrEmpty(builder.UserID))
             {
                 error = "User ID is required";
@@ -159,7 +159,7 @@ public class MySqlProvider : IDatabaseProvider
             {
                 builder.AllowPublicKeyRetrieval = true;
             }
-            
+
             error = null;
             return true;
         }
@@ -182,7 +182,7 @@ public class MySqlProvider : IDatabaseProvider
         {
             using var conn = new MySqlConnection(connectionString);
             await conn.OpenAsync();
-            
+
             using var cmd = new MySqlCommand($"EXPLAIN FORMAT=JSON {query}", conn);
             var result = await cmd.ExecuteScalarAsync();
 
@@ -209,7 +209,7 @@ public class MySqlProvider : IDatabaseProvider
         {
             using var conn = new MySqlConnection(connectionString);
             await conn.OpenAsync();
-            
+
             // MySQL 8.0+ supports EXPLAIN ANALYZE
             using var cmd = new MySqlCommand($"EXPLAIN ANALYZE {query}", conn);
             using var reader = await cmd.ExecuteReaderAsync();
@@ -261,10 +261,10 @@ public class MySqlProvider : IDatabaseProvider
     public async Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string schema, string table)
     {
         var columns = new List<ColumnInfo>();
-        
-        using var conn = new MySqlConnection(connectionString);    
+
+        using var conn = new MySqlConnection(connectionString);
         await conn.OpenAsync();
-        
+
         const string sql = @"
             SELECT 
                 c.COLUMN_NAME,
@@ -278,7 +278,7 @@ public class MySqlProvider : IDatabaseProvider
             WHERE c.TABLE_SCHEMA = @database
             AND c.TABLE_NAME = @table
             ORDER BY c.ORDINAL_POSITION";
-            
+
         using var cmd = new MySqlCommand(sql, conn);
         cmd.Parameters.AddWithValue("@database", database);
         cmd.Parameters.AddWithValue("@table", table);
@@ -349,4 +349,4 @@ public class MySqlProvider : IDatabaseProvider
 
         return foreignKeys;
     }
-} 
+}
