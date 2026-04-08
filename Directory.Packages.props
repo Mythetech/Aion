@@ -8,8 +8,8 @@
     <PackageVersion Include="ClosedXML" Version="0.105.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.0.5" />
     <PackageVersion Include="Microsoft.FluentUI.AspNetCore.Components" Version="4.13.2" />
-    <PackageVersion Include="Mythetech.Framework" Version="0.12.2" />
-    <PackageVersion Include="Mythetech.Framework.Desktop" Version="0.12.6" />
+    <PackageVersion Include="Mythetech.Framework" Version="0.12.8" />
+    <PackageVersion Include="Mythetech.Framework.Desktop" Version="0.12.7" />
     <PackageVersion Include="Z.Blazor.Diagrams" Version="3.0.3" />
     <!-- Aion.Core -->
     <PackageVersion Include="Hogimn.Sql.Formatter" Version="2.0.2" />
@@ -18,7 +18,7 @@
     <PackageVersion Include="MySql.Data" Version="9.5.0" />
     <PackageVersion Include="Npgsql" Version="9.0.2" />
     <!-- Aion.Desktop -->
-    <PackageVersion Include="Mythetech.Platform.Sdk" Version="0.0.0-preview.1" />
+    <PackageVersion Include="Mythetech.Platform.Sdk" Version="0.0.0-preview.4" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebView" Version="10.0.5" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
     <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.3240.44" />

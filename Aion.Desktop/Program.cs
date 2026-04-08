@@ -66,6 +66,7 @@ namespace Aion.Desktop
                 {
                     builder.AddConfiguration(configuration.GetSection("Logging"));
                     builder.AddConsole();
+                    builder.AddPlatformErrorReporting();
                 });
 
             appBuilder.Services.AddHttpClient();
@@ -108,6 +109,7 @@ namespace Aion.Desktop
             // Async initialization
             appBuilder.Services.AddAsyncInitialization();
             appBuilder.Services.AddInitializationHook<SettingsInitializationHook>();
+            appBuilder.Services.AddInitializationHook<CrashReportingHook>();
 
             appBuilder.Services.AddSingleton<IConnectionStorage, FileConnectionStorage>();
             appBuilder.Services.AddSingleton<IQuerySaveService, FileQuerySaveService>();
@@ -129,14 +131,6 @@ namespace Aion.Desktop
             app.Services.UseSettingsFramework();
             app.Services.UsePluginFramework();
             app.Services.UseUpdateService();
-
-            // TODO: Enable crash reporting after adding opt-in/opt-out setting
-            // var crashReporter = app.Services.GetRequiredService<ICrashReportingService>();
-            // HermesCrashInterceptor.ProductName = "Aion";
-            // HermesCrashInterceptor.ProductVersion = typeof(Program).Assembly
-            //     .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
-            // HermesCrashInterceptor.OnCrash = ctx => crashReporter.ReportCrash(ctx);
-            // HermesCrashInterceptor.Enable();
 
             AppDomain.CurrentDomain.UnhandledException += (sender, error) =>
             {
