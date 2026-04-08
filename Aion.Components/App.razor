@@ -1,6 +1,10 @@
 @using Aion.Components.Connections
 @using Aion.Components.Connections.Services
 @using Aion.Components.Querying
+@using MudBlazor
+@using Mythetech.Framework.Infrastructure.Initialization
+@using Mythetech.Framework.Infrastructure.Privacy
+@using Mythetech.Framework.Infrastructure.Settings
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -31,11 +35,37 @@
 
     [Inject] protected IConnectionHealthMonitor HealthMonitor { get; set; } = default!;
 
+    [Inject] protected IAsyncInitializationHost InitHost { get; set; } = default!;
+
+    [Inject] protected ISettingsProvider SettingsProvider { get; set; } = default!;
+
+    [Inject] protected IDialogService DialogService { get; set; } = default!;
+
     protected override async Task OnInitializedAsync()
     {
+        await InitHost.InitializeAsync();
         await ConnectionState.InitializeAsync();
         await QueryState.InitializeAsync();
         await HealthMonitor.StartAsync();
+
+        if (!SettingsProvider.HasSeenPrivacyDialog())
+        {
+            var parameters = new DialogParameters<PrivacyConsentDialog>
+            {
+                { x => x.AppName, "Aion" }
+            };
+            var options = new DialogOptions
+            {
+                CloseOnEscapeKey = false,
+                BackdropClick = false,
+                CloseButton = false,
+                MaxWidth = MaxWidth.Small,
+                FullWidth = true,
+            };
+            var dialog = await DialogService.ShowAsync<PrivacyConsentDialog>("Privacy", parameters, options);
+            await dialog.Result;
+        }
+
         await base.OnInitializedAsync();
     }
 

@@ -19,6 +19,7 @@
       <PackageReference Include="Microsoft.AspNetCore.Components.Web" />
       <PackageReference Include="Mythetech.Framework" />
       <PackageReference Include="Mythetech.Framework.Desktop" />
+      <PackageReference Include="Mythetech.Platform.Sdk" />
       <PackageReference Include="Npgsql" />
       <PackageReference Include="Velopack" />
     </ItemGroup>

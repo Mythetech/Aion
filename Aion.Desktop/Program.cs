@@ -18,6 +18,7 @@ using Mythetech.Framework.Desktop.Environment;
 using Aion.Components.NativeMenu;
 using Aion.Desktop.NativeMenu;
 using Hermes.Abstractions;
+using Mythetech.Platform.Sdk;
 using Velopack;
 using Aion.Desktop.Configuration;
 using Mythetech.Framework.Desktop.Updates;
@@ -65,9 +66,11 @@ namespace Aion.Desktop
                 {
                     builder.AddConfiguration(configuration.GetSection("Logging"));
                     builder.AddConsole();
+                    builder.AddPlatformErrorReporting();
                 });
 
             appBuilder.Services.AddHttpClient();
+            appBuilder.Services.AddPlatformDiagnostics();
 
             appBuilder.RootComponents.Add<Components.App>("#app");
 
@@ -106,6 +109,7 @@ namespace Aion.Desktop
             // Async initialization
             appBuilder.Services.AddAsyncInitialization();
             appBuilder.Services.AddInitializationHook<SettingsInitializationHook>();
+            appBuilder.Services.AddInitializationHook<CrashReportingHook>();
 
             appBuilder.Services.AddSingleton<IConnectionStorage, FileConnectionStorage>();
             appBuilder.Services.AddSingleton<IQuerySaveService, FileQuerySaveService>();

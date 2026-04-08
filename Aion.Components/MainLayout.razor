@@ -79,6 +79,7 @@
 
     [Inject] protected IPluginAssetLoader AssetLoader { get; set; } = default!;
 
+
     private SearchModel _search = new();
 
     private MudAutocomplete<SearchModel>? _searchAutocomplete;
@@ -118,7 +119,8 @@
         if (firstRender)
         {
             await AppState.SetSystemColorMode();
-        }
+
+}
 
         if (firstRender || !_assetsLoaded)
         {
