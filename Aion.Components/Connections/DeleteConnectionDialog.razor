@@ -1,0 +1,28 @@
+@using Aion.Components.Theme
+
+<MudDialog Class="aion-transparent-dialog">
+    <DialogContent>
+        <MudText>Are you sure you want to delete "@ConnectionName"? This cannot be undone.</MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton OnClick="Delete" Color="Color.Error" Variant="Variant.Filled">Delete</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Inject] private ConnectionState ConnectionState { get; set; } = default!;
+
+    [Parameter] public string ConnectionName { get; set; } = "";
+    [Parameter] public Guid ConnectionId { get; set; }
+
+    private async Task Delete()
+    {
+        await ConnectionState.RemoveConnection(ConnectionId);
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

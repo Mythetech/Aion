@@ -14,4 +14,5 @@ public class ConnectionDialogModel
     public string? Instance { get; set; }
     public bool UseWindowsAuth { get; set; }
     public bool SaveCredentials { get; set; }
+    public Guid? EditingConnectionId { get; set; }
 } 

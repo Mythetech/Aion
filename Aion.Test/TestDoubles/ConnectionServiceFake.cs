@@ -26,6 +26,20 @@ public class ConnectionServiceFake : IConnectionService
         return Task.CompletedTask;
     }
 
+    public Task RemoveConnection(Guid id)
+    {
+        _connections.RemoveAll(c => c.Id == id);
+        return Task.CompletedTask;
+    }
+
+    public Task UpdateConnection(ConnectionModel connection)
+    {
+        var index = _connections.FindIndex(c => c.Id == connection.Id);
+        if (index >= 0)
+            _connections[index] = connection;
+        return Task.CompletedTask;
+    }
+
     public async Task<List<string>?> GetDatabasesAsync(string connectionString, DatabaseType type)
     {
         var provider = _providerFactory.GetProvider(type);

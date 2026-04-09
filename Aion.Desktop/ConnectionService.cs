@@ -32,9 +32,25 @@ public class ConnectionService : IConnectionService
     public async Task AddConnection(ConnectionModel connection)
     {
         _connections.Add(connection);
-        
+
         if (connection.SaveCredentials)
             await _storage.SaveConnectionsAsync(_connections);
+    }
+
+    public async Task RemoveConnection(Guid id)
+    {
+        _connections.RemoveAll(c => c.Id == id);
+        await _storage.SaveConnectionsAsync(_connections);
+    }
+
+    public async Task UpdateConnection(ConnectionModel connection)
+    {
+        var index = _connections.FindIndex(c => c.Id == connection.Id);
+        if (index >= 0)
+        {
+            _connections[index] = connection;
+            await _storage.SaveConnectionsAsync(_connections);
+        }
     }
 
     public async Task<List<string>?> GetDatabasesAsync(string connectionString, DatabaseType type)

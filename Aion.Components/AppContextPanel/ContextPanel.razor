@@ -9,6 +9,8 @@
 @using Aion.Components.Connections.Commands
 @using Aion.Core.Connections
 @using Aion.Components.History
+@using Aion.Components.Querying
+@using Aion.Components.Querying.Commands
 @using Mythetech.Framework.Infrastructure.MessageBus
 @using Aion.Components.Shared.Dialogs
 @using Mythetech.Framework.Infrastructure.Environment
@@ -21,17 +23,20 @@
     @*Side bar Panel*@
     @foreach (var connection in ConnectionState.Connections)
     {
-        <MudBadge Dot="true" Color="@(connection.Active ? Color.Success : Color.Error)" Overlap="true" Class="context-panel-badge-dot" BadgeAriaLabel="@(connection.Active ? "Connected" : "Disconnected")" title="@(connection.Active ? "Connected" : "Disconnected")">
-            @{
-                var id = connection.Id;
-                _connectionLookup[connection?.ConnectionString ?? connection?.Name] = id;
-            }
-            <ContextPanelItem Id="@id" ActiveId="@_activeItem?.Id" @ref="@_contextPanelItems[id.ToString()]" Title="@connection?.Name" Icon="@AionIcons.Connection" ContextPanelItemClicked="HandleContextPanelItemClicked">
-                <PanelContent>
-                    <ConnectionPanel Connection="@connection"/>
-                </PanelContent>
-            </ContextPanelItem>
-        </MudBadge>
+        <div @oncontextmenu="@(e => ShowConnectionContextMenu(e, connection))"
+             @oncontextmenu:preventDefault="true">
+            <MudBadge Dot="true" Color="@(connection.Active ? Color.Success : Color.Error)" Overlap="true" Class="context-panel-badge-dot" BadgeAriaLabel="@(connection.Active ? "Connected" : "Disconnected")" title="@(connection.Active ? "Connected" : "Disconnected")">
+                @{
+                    var id = connection.Id;
+                    _connectionLookup[connection?.ConnectionString ?? connection?.Name] = id;
+                }
+                <ContextPanelItem Id="@id" ActiveId="@_activeItem?.Id" @ref="@_contextPanelItems[id.ToString()]" Title="@connection?.Name" Icon="@AionIcons.Connection" ContextPanelItemClicked="HandleContextPanelItemClicked">
+                    <PanelContent>
+                        <ConnectionPanel Connection="@connection"/>
+                    </PanelContent>
+                </ContextPanelItem>
+            </MudBadge>
+        </div>
     }
     
     <MudDivider DividerType="DividerType.Middle" Class="ml-3" Style="width:60%"/>
@@ -62,8 +67,23 @@
         }
     }
     
+    <MudMenu @ref="_connectionContextMenu"
+             Dense="true"
+             AnchorOrigin="Origin.BottomLeft"
+             TransformOrigin="Origin.TopLeft"
+             PositionAtCursor="true">
+        <ChildContent>
+            <MudMenuItem Icon="@AionIcons.Query" OnClick="ContextMenu_NewQuery">New Query</MudMenuItem>
+            <MudMenuItem Icon="@AionIcons.Edit" OnClick="ContextMenu_EditConnection">Edit Connection</MudMenuItem>
+            <MudDivider />
+            <MudMenuItem Icon="@AionIcons.Delete" IconColor="Color.Error" OnClick="ContextMenu_DeleteConnection">
+                <MudText Color="Color.Error">Delete Connection</MudText>
+            </MudMenuItem>
+        </ChildContent>
+    </MudMenu>
+
     <MudSpacer />
-    
+
     <MudMenu ActivationEvent="MouseEvent.MouseOver" AnchorOrigin="Origin.TopRight">
         <ActivatorContent>
             <MudTooltip Text="Color Mode">
@@ -146,6 +166,11 @@
     private Dictionary<string, Guid> _connectionLookup = new();
     private Dictionary<string, Guid> _pluginPanelIds = new();
 
+    private MudMenu? _connectionContextMenu;
+    private ConnectionModel? _contextMenuConnection;
+
+    [Inject] protected QueryState QueryState { get; set; } = default!;
+
     private static readonly Guid _historyPanelId = Guid.Parse("00000000-0000-0000-0000-000000000001");
 
     private Guid GetOrCreatePluginPanelId(string title)
@@ -211,6 +236,12 @@
 
     protected void HandleConnectionStateChanged()
     {
+        // If the active panel's connection was deleted, close the panel
+        if (_activeItem != null && !ConnectionState.Connections.Any(c => c.Id == _activeItem.Id))
+        {
+            _activeItem = null;
+        }
+
         StateHasChanged();
     }
 
@@ -264,6 +295,43 @@
     protected async Task AddConnection()
     {
         await Bus.PublishAsync(new PromptCreateConnection());
+    }
+
+    private async Task ShowConnectionContextMenu(MouseEventArgs e, ConnectionModel connection)
+    {
+        _contextMenuConnection = connection;
+        if (_connectionContextMenu != null)
+        {
+            await _connectionContextMenu.OpenMenuAsync(e);
+        }
+    }
+
+    private async Task ContextMenu_NewQuery()
+    {
+        if (_contextMenuConnection == null) return;
+        var query = QueryState.AddQuery("Untitled");
+        query.ConnectionId = _contextMenuConnection.Id;
+        await Bus.PublishAsync(new FocusQuery(query));
+    }
+
+    private async Task ContextMenu_EditConnection()
+    {
+        if (_contextMenuConnection == null) return;
+        var model = new ConnectionDialogModel
+        {
+            EditingConnectionId = _contextMenuConnection.Id,
+            Name = _contextMenuConnection.Name,
+            Type = _contextMenuConnection.Type,
+            ConnectionString = _contextMenuConnection.ConnectionString,
+            SaveCredentials = _contextMenuConnection.SaveCredentials
+        };
+        await Bus.PublishAsync(new PromptCreateConnection(model));
+    }
+
+    private async Task ContextMenu_DeleteConnection()
+    {
+        if (_contextMenuConnection == null) return;
+        await Bus.PublishAsync(new Connections.Commands.DeleteConnection(_contextMenuConnection.Id));
     }
 
     public async Task Consume(ActivatePanel message)

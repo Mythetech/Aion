@@ -25,7 +25,8 @@
                                    @bind-Value="Model.Type"
                                    Label="Database Type"
                                    Required="true"
-                                   RequiredError="Database type is required">
+                                   RequiredError="Database type is required"
+                                   Disabled="@IsEditMode">
                             @foreach (var type in ProviderFactory.SupportedDatabases)
                             {
                                 <MudSelectItem Value="@type">@type.ToString()</MudSelectItem>
@@ -126,10 +127,10 @@
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel" Disabled="@_isConnecting">Cancel</MudButton>
-        <PrimaryActionButton OnClick="Submit" 
-                             Text="Connect"
+        <PrimaryActionButton OnClick="Submit"
+                             Text="@(IsEditMode ? "Save" : "Connect")"
                              Loading="@_isConnecting"
-                             LoadingText="Connecting"/>
+                             LoadingText="@(IsEditMode ? "Saving" : "Connecting")"/>
     </DialogActions>
 </MudDialog>
 
@@ -138,6 +139,8 @@
     [Inject] private IDatabaseProviderFactory ProviderFactory { get; set; } = default!;
     [Inject] private ConnectionState ConnectionState { get; set; } = default!;
     
+    [Parameter] public ConnectionDialogModel? InitialValues { get; set; }
+
     private MudForm? _form;
     private ConnectionDialogModel Model { get; set; } = new();
     private string? ValidationError { get; set; }
@@ -162,14 +165,14 @@
             await _form.Validate();
             if (_form.IsValid)
             {
-                try 
+                try
                 {
                     _isConnecting = true;
                     StateHasChanged();
 
                     var connectionString = BuildConnectionString();
                     var provider = ProviderFactory.GetProvider(Model.Type);
-                
+
                     if (!provider.ValidateConnectionString(connectionString, out var error))
                     {
                         ValidationError = error;
@@ -177,17 +180,34 @@
                     }
 
                     string name = Model.Name ?? connectionString.Split(";")[0].Split("=")[1];
-                    var connection = new ConnectionModel
-                    {
-                        Name = name,
-                        ConnectionString = connectionString,
-                        Type = Model.Type,
-                        Active = false,
-                        SaveCredentials = Model.SaveCredentials
-                    };
 
-                    await ConnectionState.ConnectAsync(connection);
-                    MudDialog.Close(DialogResult.Ok(connection));
+                    if (IsEditMode)
+                    {
+                        var updated = new ConnectionModel
+                        {
+                            Name = name,
+                            ConnectionString = connectionString,
+                            Type = Model.Type,
+                            SaveCredentials = Model.SaveCredentials
+                        };
+
+                        await ConnectionState.UpdateConnection(Model.EditingConnectionId!.Value, updated);
+                        MudDialog.Close(DialogResult.Ok(updated));
+                    }
+                    else
+                    {
+                        var connection = new ConnectionModel
+                        {
+                            Name = name,
+                            ConnectionString = connectionString,
+                            Type = Model.Type,
+                            Active = false,
+                            SaveCredentials = Model.SaveCredentials
+                        };
+
+                        await ConnectionState.ConnectAsync(connection);
+                        MudDialog.Close(DialogResult.Ok(connection));
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -244,10 +264,20 @@
         return connectionString;
     }
 
+    private bool IsEditMode => Model.EditingConnectionId.HasValue;
+
     protected override void OnInitialized()
     {
-        // Set default port when database type changes
-        Model.Port = GetDefaultPort();
+        if (InitialValues != null)
+        {
+            Model = InitialValues;
+        }
+
+        if (string.IsNullOrEmpty(Model.Port))
+        {
+            Model.Port = GetDefaultPort();
+        }
+
         base.OnInitialized();
     }
 } 

@@ -220,5 +220,49 @@ public class ConnectionState
         }
     }
 
+    public async Task RemoveConnection(Guid id)
+    {
+        var connection = Connections.FirstOrDefault(c => c.Id == id);
+        if (connection == null) return;
+
+        Connections.Remove(connection);
+        await _connectionService.RemoveConnection(id);
+        OnConnectionStateChanged();
+    }
+
+    public async Task UpdateConnection(Guid id, ConnectionModel updated)
+    {
+        var connection = Connections.FirstOrDefault(c => c.Id == id);
+        if (connection == null) return;
+
+        connection.Name = updated.Name;
+        connection.ConnectionString = updated.ConnectionString;
+        connection.SaveCredentials = updated.SaveCredentials;
+
+        // Disconnect and reconnect with new settings
+        connection.Active = false;
+        connection.Databases = [];
+
+        try
+        {
+            var provider = _providerFactory.GetProvider(connection.Type);
+            var databases = await provider.GetDatabasesAsync(connection.ConnectionString);
+            if (databases != null)
+            {
+                connection.Databases = databases.Select(db => new DatabaseModel { Name = db }).ToList();
+                connection.Active = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to reconnect after updating connection {Name}", connection.Name);
+            await _messageBus.PublishAsync(new AddNotification(
+                $"Updated {connection.Name} but failed to reconnect: {ex.Message}", Severity.Warning));
+        }
+
+        await _connectionService.UpdateConnection(connection);
+        OnConnectionStateChanged();
+    }
+
     public IDatabaseProvider GetProvider(DatabaseType type) => _providerFactory.GetProvider(type);
 }

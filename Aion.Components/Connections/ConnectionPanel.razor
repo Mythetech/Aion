@@ -23,10 +23,6 @@
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="w-100" Spacing="0">
     <h3 class="text-truncate">@Connection.Name</h3>
     <MudSpacer />
-    <AionIconButton Icon="@Icons.Material.Filled.Refresh"
-                    Tooltip="Refresh Connection"
-                    OnClick="RefreshConnection"
-                    Disabled="@_isRefreshing" />
     @if (Connection.HealthStatus == ConnectionHealthStatus.Checking || _isRefreshing)
     {
         <MudChip Size="Size.Small" Variant="Variant.Text" T="string" Color="Color.Default">
@@ -44,6 +40,14 @@
             <MudChip Size="Size.Small" Variant="Variant.Text" T="string" Color="Color.Error" OnClick="RefreshConnection">Disconnected</MudChip>
         </MudTooltip>
     }
+</MudStack>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="w-100" Spacing="0" Style="border-bottom: 1px solid var(--mud-palette-divider);">
+    <MudSpacer />
+    <AionIconButton Icon="@AionIcons.Query" Tooltip="New Query" Size="Size.Small" OnClick="NewQuery" />
+    <AionIconButton Icon="@AionIcons.Edit" Tooltip="Edit Connection" Size="Size.Small" OnClick="EditConnection" />
+    <AionIconButton Icon="@AionIcons.Refresh" Tooltip="Refresh Connection" Size="Size.Small" OnClick="RefreshConnection" Disabled="@_isRefreshing" />
+    <AionIconButton Icon="@AionIcons.Delete" Tooltip="Delete Connection" Size="Size.Small" Color="Color.Error" OnClick="DeleteConnection" />
 </MudStack>
 
 <MudStack Row="true" AlignItems="AlignItems.Center"> 
@@ -236,6 +240,32 @@
             _isRefreshing = false;
             StateHasChanged();
         }
+    }
+
+    private async Task NewQuery()
+    {
+        var query = QueryState.AddQuery("Untitled");
+        query.ConnectionId = Connection.Id;
+        await MessageBus.PublishAsync(new FocusQuery(query));
+    }
+
+    private async Task EditConnection()
+    {
+        var model = new ConnectionDialogModel
+        {
+            EditingConnectionId = Connection.Id,
+            Name = Connection.Name,
+            Type = Connection.Type,
+            ConnectionString = Connection.ConnectionString,
+            SaveCredentials = Connection.SaveCredentials
+        };
+
+        await MessageBus.PublishAsync(new PromptCreateConnection(model));
+    }
+
+    private async Task DeleteConnection()
+    {
+        await MessageBus.PublishAsync(new Commands.DeleteConnection(Connection.Id));
     }
 
     private async Task AddDatabase()
