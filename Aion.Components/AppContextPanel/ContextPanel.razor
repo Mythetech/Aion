@@ -86,9 +86,11 @@
 
     <MudMenu ActivationEvent="MouseEvent.MouseOver" AnchorOrigin="Origin.TopRight">
         <ActivatorContent>
-            <MudTooltip Text="Color Mode">
-                <MudIconButton Class="ml-1" Icon="@(AppState.IsDarkMode ? AionIcons.DarkMode : AionIcons.LightMode)" Color="Color.Primary" Variant="Variant.Text" OnClick="@DarkModeToggled"/>
-            </MudTooltip>
+            <div @onpointerenter="@context.OpenAsync" @onpointerleave="@context.CloseAsync">
+                <MudTooltip Text="Color Mode">
+                    <MudIconButton Class="ml-1" Icon="@(AppState.IsDarkMode ? AionIcons.DarkMode : AionIcons.LightMode)" Color="Color.Primary" Variant="Variant.Text" OnClick="@DarkModeToggled"/>
+                </MudTooltip>
+            </div>
         </ActivatorContent>
         <ChildContent>
             <MudToggleGroup T="string" Size="Size.Small" Value="@SelectedColorMode" ValueChanged="HandleColorModeChanged" Style="align-items: center">
