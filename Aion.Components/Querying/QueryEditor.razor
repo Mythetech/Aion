@@ -24,9 +24,11 @@
                         <MudStack Row="true" AlignItems="AlignItems.Center" Style="@(string.IsNullOrWhiteSpace(query.EmphasisColor) ? $"" : $"background:color-mix(in srgb, {query.EmphasisColor} 20%, transparent 80%)")">
                             <MudMenu ActivationEvent="MouseEvent.RightClick" Dense="true">
                                 <ActivatorContent>
-                                    <MudText Class="px-2" >
-                                        @query.Name
-                                    </MudText>
+                                    <div @oncontextmenu="@context.ToggleAsync" @oncontextmenu:preventDefault="true">
+                                        <MudText Class="px-2" >
+                                            @query.Name
+                                        </MudText>
+                                    </div>
                                 </ActivatorContent>
                                 <ChildContent>
                                     <MudMenuItem OnClick="@(() => OnTabChanged(query))" Icon="@AionIcons.OpenFile">Open</MudMenuItem>
@@ -51,6 +53,7 @@
                    Label="Connection"
                    Value="@SelectedConnection"
                    ValueChanged="@OnConnectionChanged"
+                   ToStringFunc="@(c => c?.Name ?? string.Empty)"
                    Margin="Margin.Dense">
             @foreach (var connection in Connections.Connections)
             {

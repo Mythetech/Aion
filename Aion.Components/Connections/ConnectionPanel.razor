@@ -72,7 +72,7 @@
                     <div>
                         <MudMenu Dense="true" AnchorOrigin="Origin.BottomRight">
                             <ActivatorContent>
-                                <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.MoreVert" />
+                                <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.MoreVert" OnClick="@context.ToggleAsync" />
                             </ActivatorContent>
                             <ChildContent>
                                 <MudMenuItem OnClick="@(() => CreateTable(database))">Create Table</MudMenuItem>
@@ -99,7 +99,7 @@
                                     <div>
                                         <MudMenu Dense="true" AnchorOrigin="Origin.BottomRight">
                                             <ActivatorContent>
-                                                <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.MoreVert" />
+                                                <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.MoreVert" OnClick="@context.ToggleAsync" />
                                             </ActivatorContent>
                                             <ChildContent>
                                                 <MudMenuItem OnClick="@(() => SelectTop1000(database.Name, table))">Select Top 1000</MudMenuItem>

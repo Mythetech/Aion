@@ -59,6 +59,6 @@ public class GlobalAppState
             if (_themeProvider == null)
                 return;
 
-            IsDarkMode = await _themeProvider.GetSystemPreference();
+            IsDarkMode = await _themeProvider.GetSystemDarkModeAsync();
         }
     }

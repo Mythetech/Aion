@@ -31,6 +31,7 @@ public class QueryEditorTests : TestContext
         JSInterop.SetupVoid("mudPopover.connect", _ => true);
         JSInterop.SetupVoid("mudKeyInterceptor.connect", _ => true);
         JSInterop.Setup<BoundingClientRect[]>("mudResizeObserver.connect", _ => true);
+        JSInterop.Setup<BoundingClientRect>("mudElementRef.getBoundingClientRect", _ => true);
         JSInterop.SetupVoid("blazorMonaco.editor.setWasm", false);
         JSInterop.SetupVoid("mudElementRef.addOnBlurEvent", _ => true);
 

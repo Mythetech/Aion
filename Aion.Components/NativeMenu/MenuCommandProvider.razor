@@ -35,7 +35,7 @@
     {
         await InvokeAsync(async () =>
         {
-            bool? result = await DialogService.ShowMessageBox(
+            bool? result = await DialogService.ShowMessageBoxAsync(
                 "Clear History",
                 "Are you sure you want to clear all query history?",
                 yesText: "Clear", cancelText: "Cancel");
