@@ -403,3 +403,6 @@ FodyWeavers.xsd
 
 # Internal
 *.internal
+
+# Superpowers brainstorming artifacts
+.superpowers/

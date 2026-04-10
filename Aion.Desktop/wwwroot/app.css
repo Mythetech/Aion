@@ -1,3 +1,8 @@
+@font-face {
+    font-family: "Gotu";
+    src: url(fonts/Gotu-Regular.ttf) format('truetype');
+}
+
 html {
     overflow-x: hidden;
 }
