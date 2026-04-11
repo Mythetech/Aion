@@ -5,7 +5,7 @@ using System.Text;
 
 namespace Aion.Core.Database;
 
-public class PostgreSqlProvider : IDatabaseProvider
+public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider
 {
     private readonly Dictionary<string, NpgsqlTransaction> _activeTransactions = new();
     public IStandardDatabaseCommands Commands { get; } = new PostgreSqlCommands();
@@ -318,6 +318,112 @@ public class PostgreSqlProvider : IDatabaseProvider
         }
 
         return foreignKeys;
+    }
+
+    public async Task<List<IndexInfo>> GetIndexesAsync(string connectionString, string database)
+    {
+        var indexes = new List<IndexInfo>();
+
+        using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync();
+
+        const string sql = @"
+            SELECT
+                n.nspname       AS schema_name,
+                t.relname       AS table_name,
+                i.relname       AS index_name,
+                ix.indisunique  AS is_unique,
+                ix.indisprimary AS is_primary,
+                array_agg(a.attname ORDER BY k.ord) AS columns
+            FROM pg_class t
+            JOIN pg_index ix       ON t.oid = ix.indrelid
+            JOIN pg_class i        ON i.oid = ix.indexrelid
+            JOIN pg_namespace n    ON n.oid = t.relnamespace
+            JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY AS k(attnum, ord) ON TRUE
+            JOIN pg_attribute a    ON a.attrelid = t.oid AND a.attnum = k.attnum
+            WHERE t.relkind = 'r'
+              AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+              AND n.nspname NOT LIKE 'pg_toast%'
+              AND n.nspname NOT LIKE 'pg_temp_%'
+            GROUP BY n.nspname, t.relname, i.relname, ix.indisunique, ix.indisprimary
+            ORDER BY n.nspname, t.relname, i.relname";
+
+        using var cmd = new NpgsqlCommand(sql, conn);
+        using var reader = await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            var schema = reader.GetString(0);
+            var tableName = reader.GetString(1);
+            var indexName = reader.GetString(2);
+            var isUnique = reader.GetBoolean(3);
+            var isPrimary = reader.GetBoolean(4);
+            var columns = (string[])reader.GetValue(5);
+
+            indexes.Add(new IndexInfo(
+                Schema: schema,
+                TableSchema: schema,
+                TableName: tableName,
+                Name: indexName,
+                IsUnique: isUnique,
+                IsPrimary: isPrimary,
+                Columns: columns));
+        }
+
+        return indexes;
+    }
+
+    public async Task<List<RoutineInfo>> GetRoutinesAsync(string connectionString, string database)
+    {
+        var routines = new List<RoutineInfo>();
+
+        using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync();
+
+        const string sql = @"
+            SELECT
+                n.nspname AS schema_name,
+                p.proname AS routine_name,
+                CASE p.prokind
+                    WHEN 'p' THEN 'PROCEDURE'
+                    ELSE 'FUNCTION'
+                END AS routine_kind,
+                CASE WHEN p.prokind = 'p' THEN NULL
+                     ELSE pg_catalog.pg_get_function_result(p.oid)
+                END AS return_type,
+                pg_catalog.pg_get_function_arguments(p.oid) AS argument_signature,
+                l.lanname AS language
+            FROM pg_proc p
+            JOIN pg_namespace n ON n.oid = p.pronamespace
+            JOIN pg_language l  ON l.oid = p.prolang
+            WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
+              AND p.prokind IN ('f', 'p')
+            ORDER BY n.nspname, p.proname";
+
+        using var cmd = new NpgsqlCommand(sql, conn);
+        using var reader = await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            var schema = reader.GetString(0);
+            var name = reader.GetString(1);
+            var kindText = reader.GetString(2);
+            var returnType = reader.IsDBNull(3) ? null : reader.GetString(3);
+            var args = reader.IsDBNull(4) ? null : reader.GetString(4);
+            var language = reader.IsDBNull(5) ? null : reader.GetString(5);
+
+            var kind = kindText == "PROCEDURE" ? RoutineKind.Procedure : RoutineKind.Function;
+
+            routines.Add(new RoutineInfo(
+                Schema: schema,
+                Name: name,
+                Kind: kind,
+                ReturnType: returnType,
+                ArgumentSignature: string.IsNullOrEmpty(args) ? "()" : $"({args})",
+                Language: language));
+        }
+
+        return routines;
     }
 
     public async Task<TransactionInfo> BeginTransactionAsync(string connectionString)

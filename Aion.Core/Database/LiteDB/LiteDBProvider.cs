@@ -4,7 +4,7 @@ using LiteDB;
 
 namespace Aion.Core.Database.LiteDB;
 
-public class LiteDBProvider : IDatabaseProvider
+public class LiteDBProvider : IDatabaseProvider, IDatabaseIndexProvider
 {
     private readonly Dictionary<string, (LiteDatabase Db, bool InTransaction)> _activeTransactions = new();
 
@@ -77,6 +77,54 @@ public class LiteDBProvider : IDatabaseProvider
     {
         // LiteDB is a document database without foreign key constraints
         return Task.FromResult(new List<ForeignKeyInfo>());
+    }
+
+    public Task<List<IndexInfo>> GetIndexesAsync(string connectionString, string database)
+    {
+        var indexes = new List<IndexInfo>();
+
+        try
+        {
+            using var db = new LiteDatabase(connectionString);
+
+            // LiteDB exposes all indexes via the $indexes virtual system collection.
+            // Each row has: collection, name, expression, unique, type
+            var reader = db.Execute("SELECT * FROM $indexes");
+
+            foreach (var value in reader.ToEnumerable())
+            {
+                if (!value.IsDocument) continue;
+                var doc = value.AsDocument;
+
+                var collection = doc.ContainsKey("collection") ? doc["collection"].AsString : "";
+                if (collection.StartsWith('$')) continue; // skip internal system collections
+
+                var name = doc.ContainsKey("name") ? doc["name"].AsString : "";
+                var expression = doc.ContainsKey("expression") ? doc["expression"].AsString : "";
+                var unique = doc.ContainsKey("unique") && doc["unique"].AsBoolean;
+                // LiteDB's _id index is always unique and is effectively the primary key
+                var isPrimary = string.Equals(name, "_id", StringComparison.OrdinalIgnoreCase);
+
+                indexes.Add(new IndexInfo(
+                    Schema: "",
+                    TableSchema: "",
+                    TableName: collection,
+                    Name: name,
+                    IsUnique: unique || isPrimary,
+                    IsPrimary: isPrimary,
+                    Columns: string.IsNullOrEmpty(expression) ? Array.Empty<string>() : new[] { expression }));
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"LiteDB GetIndexesAsync error: {ex.Message}");
+            throw;
+        }
+
+        return Task.FromResult(indexes
+            .OrderBy(i => i.TableName)
+            .ThenBy(i => i.Name)
+            .ToList());
     }
 
     private void InferSchemaFromDocument(BsonDocument doc, Dictionary<string, ColumnInfo> columns, string prefix)

@@ -72,6 +72,8 @@ public static class AionIcons
     public static string Column => Round("view_column"); 
     public static string Index => Round("sort");
 
+    public static string Function => Round("function");
+
     public static string Key => Round("key");
 
     public static string Json => Round("file_json");

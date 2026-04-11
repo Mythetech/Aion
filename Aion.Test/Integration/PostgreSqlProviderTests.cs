@@ -152,4 +152,66 @@ public class PostgreSqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
     {
         Provider.GetDefaultPort().ShouldBe(5432);
     }
-} 
+
+    [Fact]
+    public async Task GetIndexes_ShouldReturnCreatedIndex()
+    {
+        // Arrange
+        var dbConnectionString = Provider.UpdateConnectionString(ConnectionString, TestDatabase);
+        var createIndex = await Provider.ExecuteQueryAsync(
+            dbConnectionString,
+            $"CREATE UNIQUE INDEX IF NOT EXISTS ix_{TestTable}_name ON {TestTable} (name)",
+            CancellationToken.None);
+        createIndex.Error.ShouldBeNull();
+
+        // Act
+        var indexProvider = (IDatabaseIndexProvider)Provider;
+        var indexes = await indexProvider.GetIndexesAsync(dbConnectionString, TestDatabase);
+
+        // Assert
+        indexes.ShouldNotBeNull();
+        var created = indexes.FirstOrDefault(i => i.Name == $"ix_{TestTable}_name");
+        created.ShouldNotBeNull();
+        created!.TableName.ShouldBe(TestTable);
+        created.TableSchema.ShouldBe("public");
+        created.IsUnique.ShouldBeTrue();
+        created.IsPrimary.ShouldBeFalse();
+        created.Columns.ShouldContain("name");
+    }
+
+    [Fact]
+    public async Task GetRoutines_ShouldReturnCreatedFunctionAndProcedure()
+    {
+        // Arrange
+        var dbConnectionString = Provider.UpdateConnectionString(ConnectionString, TestDatabase);
+
+        var createFn = await Provider.ExecuteQueryAsync(
+            dbConnectionString,
+            "CREATE OR REPLACE FUNCTION aion_test_fn(x integer) RETURNS integer AS $$ BEGIN RETURN x + 1; END; $$ LANGUAGE plpgsql;",
+            CancellationToken.None);
+        createFn.Error.ShouldBeNull();
+
+        var createProc = await Provider.ExecuteQueryAsync(
+            dbConnectionString,
+            "CREATE OR REPLACE PROCEDURE aion_test_proc() AS $$ BEGIN PERFORM 1; END; $$ LANGUAGE plpgsql;",
+            CancellationToken.None);
+        createProc.Error.ShouldBeNull();
+
+        // Act
+        var routineProvider = (IDatabaseRoutineProvider)Provider;
+        var routines = await routineProvider.GetRoutinesAsync(dbConnectionString, TestDatabase);
+
+        // Assert
+        routines.ShouldNotBeNull();
+        var fn = routines.FirstOrDefault(r => r.Name == "aion_test_fn");
+        fn.ShouldNotBeNull();
+        fn!.Kind.ShouldBe(RoutineKind.Function);
+        fn.ReturnType.ShouldNotBeNullOrEmpty();
+        fn.ArgumentSignature!.ShouldContain("integer");
+
+        var proc = routines.FirstOrDefault(r => r.Name == "aion_test_proc");
+        proc.ShouldNotBeNull();
+        proc!.Kind.ShouldBe(RoutineKind.Procedure);
+        proc.ReturnType.ShouldBeNull();
+    }
+}

@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Aion.Core.Database.SqlServer;
 
-public class SqlServerProvider : IDatabaseProvider
+public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider
 {
     private readonly ILogger<SqlServerProvider> _logger;
 
@@ -183,6 +183,106 @@ public class SqlServerProvider : IDatabaseProvider
         }
 
         return foreignKeys;
+    }
+
+    public async Task<List<IndexInfo>> GetIndexesAsync(string connectionString, string database)
+    {
+        var rows = new List<(string Schema, string Table, string IndexName, bool IsUnique, bool IsPrimary, string Column, int KeyOrdinal)>();
+
+        using var conn = new SqlConnection(connectionString);
+        await conn.OpenAsync();
+
+        const string sql = @"
+            SELECT
+                s.name            AS schema_name,
+                t.name            AS table_name,
+                i.name            AS index_name,
+                i.is_unique,
+                i.is_primary_key,
+                c.name            AS column_name,
+                ic.key_ordinal
+            FROM sys.indexes i
+            INNER JOIN sys.tables t         ON i.object_id = t.object_id
+            INNER JOIN sys.schemas s        ON t.schema_id = s.schema_id
+            INNER JOIN sys.index_columns ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id
+            INNER JOIN sys.columns c        ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+            WHERE i.type > 0
+              AND i.name IS NOT NULL
+              AND s.name NOT IN ('sys', 'INFORMATION_SCHEMA', 'guest')
+              AND ic.is_included_column = 0
+            ORDER BY s.name, t.name, i.name, ic.key_ordinal";
+
+        using var cmd = new SqlCommand(sql, conn);
+        using var reader = await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            rows.Add((
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.GetBoolean(3),
+                reader.GetBoolean(4),
+                reader.GetString(5),
+                reader.GetByte(6)));
+        }
+
+        return rows
+            .GroupBy(r => new { r.Schema, r.Table, r.IndexName, r.IsUnique, r.IsPrimary })
+            .Select(g => new IndexInfo(
+                Schema: g.Key.Schema,
+                TableSchema: g.Key.Schema,
+                TableName: g.Key.Table,
+                Name: g.Key.IndexName,
+                IsUnique: g.Key.IsUnique,
+                IsPrimary: g.Key.IsPrimary,
+                Columns: g.OrderBy(r => r.KeyOrdinal).Select(r => r.Column).ToList()))
+            .OrderBy(i => i.TableSchema)
+            .ThenBy(i => i.TableName)
+            .ThenBy(i => i.Name)
+            .ToList();
+    }
+
+    public async Task<List<RoutineInfo>> GetRoutinesAsync(string connectionString, string database)
+    {
+        var routines = new List<RoutineInfo>();
+
+        using var conn = new SqlConnection(connectionString);
+        await conn.OpenAsync();
+
+        // sys.objects.type: FN = scalar fn, IF = inline TVF, TF = multi-statement TVF, P = stored procedure
+        const string sql = @"
+            SELECT
+                s.name        AS schema_name,
+                o.name        AS routine_name,
+                o.type        AS routine_type
+            FROM sys.objects o
+            INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
+            WHERE o.type IN ('FN', 'IF', 'TF', 'P')
+              AND s.name NOT IN ('sys', 'INFORMATION_SCHEMA', 'guest')
+            ORDER BY s.name, o.name";
+
+        using var cmd = new SqlCommand(sql, conn);
+        using var reader = await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            var schema = reader.GetString(0);
+            var name = reader.GetString(1);
+            var type = reader.GetString(2).Trim();
+
+            var kind = type == "P" ? RoutineKind.Procedure : RoutineKind.Function;
+
+            routines.Add(new RoutineInfo(
+                Schema: schema,
+                Name: name,
+                Kind: kind,
+                ReturnType: null,
+                ArgumentSignature: null,
+                Language: "T-SQL"));
+        }
+
+        return routines;
     }
 
     public async Task<QueryResult> ExecuteQueryAsync(string connectionString, string query, CancellationToken cancellationToken)

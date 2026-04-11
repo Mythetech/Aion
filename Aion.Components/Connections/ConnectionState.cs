@@ -196,6 +196,61 @@ public class ConnectionState
         }
     }
 
+    public bool SupportsIndexes(DatabaseType type) => _providerFactory.GetProvider(type) is IDatabaseIndexProvider;
+
+    public bool SupportsRoutines(DatabaseType type) => _providerFactory.GetProvider(type) is IDatabaseRoutineProvider;
+
+    public async Task LoadIndexesAsync(ConnectionModel connection, DatabaseModel database)
+    {
+        if (database.IndexesLoaded) return;
+
+        var provider = GetProvider(connection.Type);
+        if (provider is not IDatabaseIndexProvider indexProvider)
+        {
+            // Mark loaded so the UI doesn't spin forever on a provider that doesn't support indexes.
+            database.IndexesLoaded = true;
+            OnConnectionStateChanged();
+            return;
+        }
+
+        try
+        {
+            var connectionString = provider.UpdateConnectionString(connection.ConnectionString, database.Name);
+            database.Indexes = await indexProvider.GetIndexesAsync(connectionString, database.Name);
+            database.IndexesLoaded = true;
+            OnConnectionStateChanged();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load indexes for database {Database}", database.Name);
+        }
+    }
+
+    public async Task LoadRoutinesAsync(ConnectionModel connection, DatabaseModel database)
+    {
+        if (database.RoutinesLoaded) return;
+
+        var provider = GetProvider(connection.Type);
+        if (provider is not IDatabaseRoutineProvider routineProvider)
+        {
+            database.RoutinesLoaded = true;
+            OnConnectionStateChanged();
+            return;
+        }
+
+        try
+        {
+            var connectionString = provider.UpdateConnectionString(connection.ConnectionString, database.Name);
+            database.Routines = await routineProvider.GetRoutinesAsync(connectionString, database.Name);
+            database.RoutinesLoaded = true;
+            OnConnectionStateChanged();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load routines for database {Database}", database.Name);
+        }
+    }
+
     public async Task LoadColumnsAsync(ConnectionModel connection, DatabaseModel database, string schema, string table)
     {
         var key = string.IsNullOrEmpty(schema) ? table : $"{schema}.{table}";

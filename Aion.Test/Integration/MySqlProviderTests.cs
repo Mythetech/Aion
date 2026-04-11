@@ -171,4 +171,64 @@ public class MySqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
     {
         Provider.GetDefaultPort().ShouldBe(3306);
     }
-} 
+
+    [Fact]
+    public async Task GetIndexes_ShouldReturnCreatedIndex()
+    {
+        // Arrange
+        var dbConnectionString = Provider.UpdateConnectionString(ConnectionString, TestDatabase);
+        var createIndex = await Provider.ExecuteQueryAsync(
+            dbConnectionString,
+            $"CREATE UNIQUE INDEX ix_{TestTable}_name ON {TestTable} (name)",
+            CancellationToken.None);
+        createIndex.Error.ShouldBeNull();
+
+        // Act
+        var indexProvider = (IDatabaseIndexProvider)Provider;
+        var indexes = await indexProvider.GetIndexesAsync(dbConnectionString, TestDatabase);
+
+        // Assert
+        indexes.ShouldNotBeNull();
+        var created = indexes.FirstOrDefault(i => i.Name == $"ix_{TestTable}_name");
+        created.ShouldNotBeNull();
+        created!.TableName.ShouldBe(TestTable);
+        created.IsUnique.ShouldBeTrue();
+        created.IsPrimary.ShouldBeFalse();
+        created.Columns.ShouldContain("name");
+    }
+
+    [Fact]
+    public async Task GetRoutines_ShouldReturnCreatedFunctionAndProcedure()
+    {
+        // Arrange
+        var dbConnectionString = Provider.UpdateConnectionString(ConnectionString, TestDatabase);
+
+        var createFn = await Provider.ExecuteQueryAsync(
+            dbConnectionString,
+            "CREATE FUNCTION aion_test_fn(x INT) RETURNS INT DETERMINISTIC RETURN x + 1;",
+            CancellationToken.None);
+        createFn.Error.ShouldBeNull();
+
+        var createProc = await Provider.ExecuteQueryAsync(
+            dbConnectionString,
+            "CREATE PROCEDURE aion_test_proc() BEGIN SELECT 1; END",
+            CancellationToken.None);
+        createProc.Error.ShouldBeNull();
+
+        // Act
+        var routineProvider = (IDatabaseRoutineProvider)Provider;
+        var routines = await routineProvider.GetRoutinesAsync(dbConnectionString, TestDatabase);
+
+        // Assert
+        routines.ShouldNotBeNull();
+        var fn = routines.FirstOrDefault(r => r.Name == "aion_test_fn");
+        fn.ShouldNotBeNull();
+        fn!.Kind.ShouldBe(RoutineKind.Function);
+        fn.ReturnType.ShouldNotBeNullOrEmpty();
+
+        var proc = routines.FirstOrDefault(r => r.Name == "aion_test_proc");
+        proc.ShouldNotBeNull();
+        proc!.Kind.ShouldBe(RoutineKind.Procedure);
+        proc.ReturnType.ShouldBeNull();
+    }
+}

@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Aion.Core.Database;
 
-public class MySqlProvider : IDatabaseProvider
+public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider
 {
     private readonly ILogger<MySqlProvider> _logger;
 
@@ -309,6 +309,130 @@ public class MySqlProvider : IDatabaseProvider
         }
 
         return columns;
+    }
+
+    public async Task<List<IndexInfo>> GetIndexesAsync(string connectionString, string database)
+    {
+        var rows = new List<(string TableName, string IndexName, bool NonUnique, string ColumnName, int SeqInIndex)>();
+
+        using var conn = new MySqlConnection(connectionString);
+        await conn.OpenAsync();
+
+        const string sql = @"
+            SELECT table_name, index_name, non_unique, column_name, seq_in_index
+            FROM information_schema.statistics
+            WHERE table_schema = @database
+            ORDER BY table_name, index_name, seq_in_index";
+
+        using var cmd = new MySqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@database", database);
+        using var reader = await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            rows.Add((
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.GetInt64(2) != 0,
+                reader.GetString(3),
+                reader.GetInt32(4)));
+        }
+
+        return rows
+            .GroupBy(r => new { r.TableName, r.IndexName })
+            .Select(g =>
+            {
+                var ordered = g.OrderBy(r => r.SeqInIndex).ToList();
+                var isUnique = !ordered[0].NonUnique;
+                var isPrimary = string.Equals(g.Key.IndexName, "PRIMARY", StringComparison.OrdinalIgnoreCase);
+                return new IndexInfo(
+                    Schema: database,
+                    TableSchema: database,
+                    TableName: g.Key.TableName,
+                    Name: g.Key.IndexName,
+                    IsUnique: isUnique,
+                    IsPrimary: isPrimary,
+                    Columns: ordered.Select(r => r.ColumnName).ToList());
+            })
+            .OrderBy(i => i.TableName)
+            .ThenBy(i => i.Name)
+            .ToList();
+    }
+
+    public async Task<List<RoutineInfo>> GetRoutinesAsync(string connectionString, string database)
+    {
+        using var conn = new MySqlConnection(connectionString);
+        await conn.OpenAsync();
+
+        // Pull routine metadata + parameters in a single query, then group client-side so we
+        // only open one reader against the connection (MySQL client doesn't support MARS).
+        const string sql = @"
+            SELECT
+                r.routine_schema,
+                r.routine_name,
+                r.routine_type,
+                r.data_type,
+                r.external_language,
+                p.ordinal_position,
+                p.parameter_mode,
+                p.parameter_name,
+                p.dtd_identifier
+            FROM information_schema.routines r
+            LEFT JOIN information_schema.parameters p
+                ON p.specific_schema = r.routine_schema
+                AND p.specific_name   = r.routine_name
+                AND p.parameter_mode IS NOT NULL
+            WHERE r.routine_schema = @database
+            ORDER BY r.routine_name, p.ordinal_position";
+
+        using var cmd = new MySqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@database", database);
+
+        var rows = new List<(string Schema, string Name, string Type, string? DataType, string? Language,
+            int? Ord, string? ParamName, string? ParamType)>();
+
+        using (var reader = await cmd.ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                rows.Add((
+                    reader.GetString(0),
+                    reader.GetString(1),
+                    reader.GetString(2),
+                    reader.IsDBNull(3) ? null : reader.GetString(3),
+                    reader.IsDBNull(4) ? null : reader.GetString(4),
+                    reader.IsDBNull(5) ? (int?)null : Convert.ToInt32(reader.GetValue(5)),
+                    reader.IsDBNull(7) ? null : reader.GetString(7),
+                    reader.IsDBNull(8) ? null : reader.GetString(8)));
+            }
+        }
+
+        return rows
+            .GroupBy(r => new { r.Schema, r.Name, r.Type, r.DataType, r.Language })
+            .Select(g =>
+            {
+                var kind = string.Equals(g.Key.Type, "PROCEDURE", StringComparison.OrdinalIgnoreCase)
+                    ? RoutineKind.Procedure
+                    : RoutineKind.Function;
+
+                var parameters = g
+                    .Where(r => r.Ord.HasValue)
+                    .OrderBy(r => r.Ord!.Value)
+                    .Select(r => string.IsNullOrEmpty(r.ParamName)
+                        ? r.ParamType ?? ""
+                        : $"{r.ParamName} {r.ParamType}")
+                    .ToList();
+
+                return new RoutineInfo(
+                    Schema: g.Key.Schema,
+                    Name: g.Key.Name,
+                    Kind: kind,
+                    ReturnType: kind == RoutineKind.Procedure ? null : g.Key.DataType,
+                    ArgumentSignature: $"({string.Join(", ", parameters)})",
+                    Language: g.Key.Language ?? "SQL");
+            })
+            .OrderBy(r => r.Name)
+            .ToList();
     }
 
     public async Task<List<ForeignKeyInfo>> GetForeignKeysAsync(string connectionString, string database, string schema, string table)

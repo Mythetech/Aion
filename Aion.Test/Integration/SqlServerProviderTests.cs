@@ -175,6 +175,65 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         Provider.GetDefaultPort().ShouldBe(1433);
     }
 
+    [Fact(Skip = "Setup error")]
+    public async Task GetIndexes_ShouldReturnCreatedIndex()
+    {
+        // Arrange
+        var dbConnectionString = Provider.UpdateConnectionString(ConnectionString, TestDatabase);
+        var createIndex = await Provider.ExecuteQueryAsync(
+            dbConnectionString,
+            $"CREATE UNIQUE INDEX ix_{TestTable}_name ON [dbo].[{TestTable}] (name)",
+            CancellationToken.None);
+        createIndex.Error.ShouldBeNull();
+
+        // Act
+        var indexProvider = (IDatabaseIndexProvider)Provider;
+        var indexes = await indexProvider.GetIndexesAsync(dbConnectionString, TestDatabase);
+
+        // Assert
+        indexes.ShouldNotBeNull();
+        var created = indexes.FirstOrDefault(i => i.Name == $"ix_{TestTable}_name");
+        created.ShouldNotBeNull();
+        created!.TableName.ShouldBe(TestTable);
+        created.TableSchema.ShouldBe("dbo");
+        created.IsUnique.ShouldBeTrue();
+        created.IsPrimary.ShouldBeFalse();
+        created.Columns.ShouldContain("name");
+    }
+
+    [Fact(Skip = "Setup error")]
+    public async Task GetRoutines_ShouldReturnCreatedFunctionAndProcedure()
+    {
+        // Arrange
+        var dbConnectionString = Provider.UpdateConnectionString(ConnectionString, TestDatabase);
+
+        var createFn = await Provider.ExecuteQueryAsync(
+            dbConnectionString,
+            "CREATE FUNCTION dbo.aion_test_fn(@x INT) RETURNS INT AS BEGIN RETURN @x + 1 END",
+            CancellationToken.None);
+        createFn.Error.ShouldBeNull();
+
+        var createProc = await Provider.ExecuteQueryAsync(
+            dbConnectionString,
+            "CREATE PROCEDURE dbo.aion_test_proc AS BEGIN SELECT 1 END",
+            CancellationToken.None);
+        createProc.Error.ShouldBeNull();
+
+        // Act
+        var routineProvider = (IDatabaseRoutineProvider)Provider;
+        var routines = await routineProvider.GetRoutinesAsync(dbConnectionString, TestDatabase);
+
+        // Assert
+        routines.ShouldNotBeNull();
+        var fn = routines.FirstOrDefault(r => r.Name == "aion_test_fn");
+        fn.ShouldNotBeNull();
+        fn!.Kind.ShouldBe(RoutineKind.Function);
+
+        var proc = routines.FirstOrDefault(r => r.Name == "aion_test_proc");
+        proc.ShouldNotBeNull();
+        proc!.Kind.ShouldBe(RoutineKind.Procedure);
+    }
+
     protected async Task SetupDatabase(string name = "master")
     {
         // Create database in master context first

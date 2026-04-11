@@ -85,7 +85,7 @@
             
             @* Tables level *@
             <ChildContent>
-            <MudTreeViewItem  Text="Tables" Icon="@AionIcons.Table" ExpandedChanged="@(() => LoadTables(database))">
+            <MudTreeViewItem Text="Tables" Icon="@AionIcons.Table" ExpandedChanged="@(() => LoadTables(database))">
                 @if (database.TablesLoaded)
                 {
                     @foreach (var table in GetVisibleTables(database))
@@ -153,6 +153,83 @@
                     <MudProgressCircular Indeterminate="true" Size="Size.Small" />
                 }
             </MudTreeViewItem>
+
+            @* Indexes level *@
+            @if (ConnectionState.SupportsIndexes(Connection.Type))
+            {
+                <MudTreeViewItem Text="Indexes" Icon="@AionIcons.Index" ExpandedChanged="@(() => LoadIndexes(database))">
+                    @if (database.IndexesLoaded)
+                    {
+                        @foreach (var idx in database.Indexes)
+                        {
+                            <MudTreeViewItem Icon="@(idx.IsPrimary ? AionIcons.Key : AionIcons.Index)">
+                                <BodyContent Context="ctx">
+                                    <div class="d-flex align-center">
+                                        <MudText>@idx.DisplayName</MudText>
+                                        <MudText Class="ml-2 mud-text-secondary" Style="font-size: 0.8em;">
+                                            @if (idx.Columns.Count > 0)
+                                            {
+                                                <span>(@string.Join(", ", idx.Columns))</span>
+                                            }
+                                            @if (idx.IsPrimary)
+                                            {
+                                                <span class="ml-1">PRIMARY</span>
+                                            }
+                                            else if (idx.IsUnique)
+                                            {
+                                                <span class="ml-1">UNIQUE</span>
+                                            }
+                                        </MudText>
+                                    </div>
+                                </BodyContent>
+                            </MudTreeViewItem>
+                        }
+                    }
+                    else
+                    {
+                        <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+                    }
+                </MudTreeViewItem>
+            }
+
+            @* Functions level *@
+            @if (ConnectionState.SupportsRoutines(Connection.Type))
+            {
+                <MudTreeViewItem Text="Functions" Icon="@AionIcons.Function" ExpandedChanged="@(() => LoadRoutines(database))">
+                    @if (database.RoutinesLoaded)
+                    {
+                        @foreach (var routine in database.Routines)
+                        {
+                            <MudTreeViewItem Icon="@AionIcons.Function">
+                                <BodyContent Context="ctx">
+                                    <div class="d-flex align-center">
+                                        <MudText>@routine.DisplayName</MudText>
+                                        <MudText Class="ml-2 mud-text-secondary" Style="font-size: 0.8em;">
+                                            @if (!string.IsNullOrEmpty(routine.ArgumentSignature))
+                                            {
+                                                <span>@routine.ArgumentSignature</span>
+                                            }
+                                            @if (!string.IsNullOrEmpty(routine.ReturnType))
+                                            {
+                                                <span class="ml-1">→ @routine.ReturnType</span>
+                                            }
+                                        </MudText>
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
+                                                 Color="@(routine.Kind == RoutineKind.Function ? Color.Info : Color.Warning)"
+                                                 Class="ml-2">
+                                            @routine.Kind.ToString().ToUpperInvariant()
+                                        </MudChip>
+                                    </div>
+                                </BodyContent>
+                            </MudTreeViewItem>
+                        }
+                    }
+                    else
+                    {
+                        <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+                    }
+                </MudTreeViewItem>
+            }
             </ChildContent>
         </MudTreeViewItem>
     }
@@ -353,6 +430,24 @@
             return;
         
         await ConnectionState.LoadTablesAsync(Connection, database);
+        await RefreshTreeView();
+    }
+
+    private async Task LoadIndexes(DatabaseModel? database)
+    {
+        if (database == null || database.IndexesLoaded)
+            return;
+
+        await ConnectionState.LoadIndexesAsync(Connection, database);
+        await RefreshTreeView();
+    }
+
+    private async Task LoadRoutines(DatabaseModel? database)
+    {
+        if (database == null || database.RoutinesLoaded)
+            return;
+
+        await ConnectionState.LoadRoutinesAsync(Connection, database);
         await RefreshTreeView();
     }
 
