@@ -85,12 +85,12 @@
             
             @* Tables level *@
             <ChildContent>
-            <MudTreeViewItem Text="Tables" Icon="@AionIcons.Table" ExpandedChanged="@(() => LoadTables(database))">
+            <MudTreeViewItem Text="Tables" Value="@($"{database.Name}/Tables")" Icon="@AionIcons.Table" ExpandedChanged="@(() => LoadTables(database))">
                 @if (database.TablesLoaded)
                 {
                     @foreach (var table in GetVisibleTables(database))
                     {
-                        <MudTreeViewItem @ref="@_tables[database.Name + "|" + table.DisplayName]"  Text="@table.DisplayName" Value="@table.DisplayName" Icon="@AionIcons.Table">
+                        <MudTreeViewItem @ref="@_tables[database.Name + "|" + table.DisplayName]"  Text="@table.DisplayName" Value="@($"{database.Name}|{table.DisplayName}")" Icon="@AionIcons.Table">
                             <BodyContent Context="ctx">
                                 <div class="d-flex align-center justify-space-between w-100">
                                     <div class="d-flex align-center">
@@ -113,12 +113,12 @@
 
                             @* Columns level *@
                             <ChildContent>
-                            <MudTreeViewItem Text="Columns" Icon="@AionIcons.Column" ExpandedChanged="@(() => LoadColumns(database, table))">
+                            <MudTreeViewItem Text="Columns" Value="@($"{database.Name}|{table.DisplayName}/Columns")" Icon="@AionIcons.Column" ExpandedChanged="@(() => LoadColumns(database, table))">
                                 @if (database.LoadedColumnTables.Contains(table.DisplayName))
                                 {
                                     @foreach (var column in database.TableColumns[table.DisplayName])
                                     {
-                                        <MudTreeViewItem Icon="@(column.IsPrimaryKey ? Icons.Material.Filled.Key : AionIcons.Column)">
+                                        <MudTreeViewItem Value="@($"{database.Name}|{table.DisplayName}/Columns/{column.Name}")" Icon="@(column.IsPrimaryKey ? Icons.Material.Filled.Key : AionIcons.Column)">
                                             <BodyContent Context="ctx">
                                                 <div class="d-flex align-center">
                                                     <MudText>@column.Name</MudText>
@@ -157,12 +157,12 @@
             @* Indexes level *@
             @if (ConnectionState.SupportsIndexes(Connection.Type))
             {
-                <MudTreeViewItem Text="Indexes" Icon="@AionIcons.Index" ExpandedChanged="@(() => LoadIndexes(database))">
+                <MudTreeViewItem Text="Indexes" Value="@($"{database.Name}/Indexes")" Icon="@AionIcons.Index" ExpandedChanged="@(() => LoadIndexes(database))">
                     @if (database.IndexesLoaded)
                     {
                         @foreach (var idx in database.Indexes)
                         {
-                            <MudTreeViewItem Icon="@(idx.IsPrimary ? AionIcons.Key : AionIcons.Index)">
+                            <MudTreeViewItem Value="@($"{database.Name}/Indexes/{idx.DisplayName}")" Icon="@(idx.IsPrimary ? AionIcons.Key : AionIcons.Index)">
                                 <BodyContent Context="ctx">
                                     <div class="d-flex align-center">
                                         <MudText>@idx.DisplayName</MudText>
@@ -195,12 +195,12 @@
             @* Functions level *@
             @if (ConnectionState.SupportsRoutines(Connection.Type))
             {
-                <MudTreeViewItem Text="Functions" Icon="@AionIcons.Function" ExpandedChanged="@(() => LoadRoutines(database))">
+                <MudTreeViewItem Text="Functions" Value="@($"{database.Name}/Functions")" Icon="@AionIcons.Function" ExpandedChanged="@(() => LoadRoutines(database))">
                     @if (database.RoutinesLoaded)
                     {
                         @foreach (var routine in database.Routines)
                         {
-                            <MudTreeViewItem Icon="@AionIcons.Function">
+                            <MudTreeViewItem Value="@($"{database.Name}/Functions/{routine.DisplayName}{routine.ArgumentSignature}")" Icon="@AionIcons.Function">
                                 <BodyContent Context="ctx">
                                     <div class="d-flex align-center">
                                         <MudText>@routine.DisplayName</MudText>
