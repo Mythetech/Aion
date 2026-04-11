@@ -3,6 +3,7 @@ using Aion.Components.Infrastructure;
 using Aion.Components.Settings.Domains;
 using Hermes;
 using Hermes.Blazor;
+using Hermes.Diagnostics;
 using Mythetech.Framework.Desktop;
 using Mythetech.Framework.Desktop.Hermes;
 using Mythetech.Framework.Infrastructure.MessageBus;
@@ -66,7 +67,7 @@ namespace Aion.Desktop
                 {
                     builder.AddConfiguration(configuration.GetSection("Logging"));
                     builder.AddConsole();
-                    builder.AddPlatformErrorReporting();
+                    builder.AddPlatformErrorReporting(o => o.AnonymousSessionId = HermesSession.AnonymousSessionId);
                 });
 
             appBuilder.Services.AddHttpClient();
