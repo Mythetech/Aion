@@ -88,6 +88,8 @@
 
     private bool _assetsLoaded = false;
 
+    private IJSObjectReference? _resizerModule;
+
     private string _backgroundColor => (!AppState.IsDarkMode ? $"background-color:{_theme.Theme.PaletteLight.OverlayLight}"
     : $"background-color:{_theme.Theme.PaletteDark.Black}");
 
@@ -132,6 +134,23 @@
         if (firstRender)
         {
             await JS.InvokeVoidAsync("aionSplash.hide");
+
+            try
+            {
+                _resizerModule = await JS.InvokeAsync<IJSObjectReference>(
+                    "import", "./_content/Mythetech.Framework/mythetech.js");
+
+                await _resizerModule.InvokeVoidAsync(
+                    "initializeDrawerResizer",
+                    ".resizer",
+                    ".mud-drawer",
+                    200,
+                    800);
+            }
+            catch
+            {
+                // JS interop may fail during prerendering or teardown
+            }
         }
 
         await base.OnAfterRenderAsync(firstRender);
@@ -148,6 +167,19 @@
         AppState.OnDarkModeChanged -= HandleDarkModeChange;
         Settings.SettingsChanged -= HandleSettingsChanged;
         Plugins.StateChanged -= OnPluginStateChanged;
+
+        if (_resizerModule != null)
+        {
+            try
+            {
+                _ = _resizerModule.InvokeVoidAsync("teardownDrawerResizer");
+                _ = _resizerModule.DisposeAsync();
+            }
+            catch
+            {
+                // Ignore disposal errors
+            }
+        }
     }
 
     protected async Task<IEnumerable<SearchModel>> SearchAsync(string value, CancellationToken token)
