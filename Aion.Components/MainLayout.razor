@@ -11,6 +11,7 @@
 @using Aion.Components.Settings
 @using Microsoft.FluentUI.AspNetCore.Components
 @using Microsoft.JSInterop
+@using Mythetech.Framework.Infrastructure.Initialization
 @using Mythetech.Framework.Infrastructure.Plugins
 @using Mythetech.Framework.Infrastructure.Settings
 @implements IDisposable
@@ -79,6 +80,8 @@
 
     [Inject] protected IPluginAssetLoader AssetLoader { get; set; } = default!;
 
+    [Inject] protected IAsyncInitializationHost AppInitializer { get; set; } = default!;
+
 
     private SearchModel _search = new();
 
@@ -89,6 +92,8 @@
     private bool _assetsLoaded = false;
 
     private IJSObjectReference? _resizerModule;
+
+    private bool _aionInitialized = false;
 
     private string _backgroundColor => (!AppState.IsDarkMode ? $"background-color:{_theme.Theme.PaletteLight.OverlayLight}"
     : $"background-color:{_theme.Theme.PaletteDark.Black}");
@@ -120,10 +125,9 @@
     {
         if (firstRender)
         {
-            await AppState.SetSystemColorMode();
-
+            await AppInitializer.InitializeAsync();
         }
-
+        
         if (firstRender || !_assetsLoaded)
         {
             await LoadAllPluginAssetsAsync();
@@ -131,12 +135,14 @@
             StateHasChanged();
         }
 
-        if (firstRender)
+        if (firstRender || !_aionInitialized)
         {
-            await JS.InvokeVoidAsync("aionSplash.hide");
-
             try
             {
+                await AppState.SetSystemColorMode();
+
+                await JS.InvokeVoidAsync("aionSplash.hide");
+                
                 _resizerModule = await JS.InvokeAsync<IJSObjectReference>(
                     "import", "./_content/Mythetech.Framework/mythetech.js");
 
@@ -146,6 +152,8 @@
                     ".mud-drawer",
                     200,
                     800);
+
+                _aionInitialized = true;
             }
             catch
             {
@@ -158,8 +166,16 @@
 
     protected async void HandleDarkModeChange(bool isDarkMode)
     {
-        await BlazorMonaco.Editor.Global.SetTheme(JS, isDarkMode ? "vs-dark" : "vs");
-        StateHasChanged();
+        await Task.Yield();
+
+        try
+        {
+            await BlazorMonaco.Editor.Global.SetTheme(JS, isDarkMode ? "vs-dark" : "vs");
+            StateHasChanged();
+        }
+        catch
+        {
+        }
     }
 
     public void Dispose()

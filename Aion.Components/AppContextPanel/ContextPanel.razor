@@ -16,6 +16,7 @@
 @using Mythetech.Framework.Infrastructure.Environment
 @using Mythetech.Framework.Infrastructure.Plugins
 @using Mythetech.Framework.Infrastructure.Plugins.Components
+@using Mythetech.Framework.Components.Buttons
 <MudStack Spacing="0" Row="true" Class="mud-width-full">
     <MudStack Spacing="1" Class="app-context-panel mud-width-full" Style="" AlignItems="MudBlazor.AlignItems.Start">
         <AionIconButton Class="p-2 ml-1" Icon="aion-icon" OnClick="@OpenAboutAion" />
@@ -87,10 +88,8 @@
 
         <MudMenu ActivationEvent="MouseEvent.MouseOver" AnchorOrigin="Origin.TopRight">
             <ActivatorContent>
-                <MudTooltip Text="Color Mode">
                     <MudIconButton Class="ml-1" Icon="@(AppState.IsDarkMode? AionIcons.DarkMode: AionIcons.LightMode)"
                                    Color="Color.Primary" Variant="Variant.Text" OnClick="@DarkModeToggled" />
-                </MudTooltip>
             </ActivatorContent>
             <ChildContent>
                 <MudToggleGroup T="string" Size="Size.Small" Value="@SelectedColorMode"
@@ -101,9 +100,7 @@
                 </MudToggleGroup>
             </ChildContent>
         </MudMenu>
-        <MudTooltip Text="Settings">
-            <MudIconButton Class="ml-1" Color="Color.Primary" Icon="@AionIcons.Settings" OnClick="OpenSettingsDialog" />
-        </MudTooltip>
+            <IconButton Class="ml-1" Color="Color.Primary" Icon="@AionIcons.Settings" OnClick="OpenSettingsDialog" Tooltip="Settings" TooltipPlacement="Placement.Right" />
 
         <MudIconButton Class="ml-1" Icon="@(AppState.SideBarOpen? AionIcons.CollapseLeft: AionIcons.ExpandRight)"
                        Color="Color.Inherit" OnClick="@DrawerToggled" />

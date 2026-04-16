@@ -1,8 +1,7 @@
+@using Mythetech.Framework.Components.Buttons
 @if (!Active && !ActiveFunc(Id))
 {
-    <MudTooltip Text="@Title">
-        <MudNavLink IconColor="@Color.Surface" Icon="@Icon" OnClick="@(async () => await ContextPanelItemClicked.InvokeAsync(this))" />
-    </MudTooltip>
+    <IconButton IconColor="@Color.Surface" Icon="@Icon" OnClick="@(async () => await ContextPanelItemClicked.InvokeAsync(this))" Tooltip="@Title" TooltipPlacement="Placement.Right" />
 }
 else
 {

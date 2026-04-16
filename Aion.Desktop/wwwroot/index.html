@@ -125,29 +125,37 @@
 
 <script src="_framework/blazor.webview.js"></script>
 <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+<script src="_content/Mythetech.Framework/mythetech.js" type="module"></script>
 <script src="_content/Mythetech.Framework/js-guard.js"></script>
 <script>
     // Fix AMD loader conflict for dynamically injected plugin scripts
     // Hide define.amd temporarily when scripts are injected so UMD scripts use global fallback
     (function() {
-        var originalAppendChild = Element.prototype.appendChild;
-        Element.prototype.appendChild = function(child) {
-            if (child.tagName === 'SCRIPT' && child.textContent && window.define && window.define.amd) {
-                var savedAmd = window.define.amd;
-                delete window.define.amd;
-                var result = originalAppendChild.call(this, child);
-                // Restore after a microtask to let the script execute
-                Promise.resolve().then(function() {
-                    if (window.define && !window.define.amd) {
-                        window.define.amd = savedAmd;
-                    }
-                });
-                return result;
-            }
-            return originalAppendChild.call(this, child);
-        };
-    })();
+        var origCreateElement = document.createElement;
+            document.createElement = function() {
+                var el = origCreateElement.apply(this, arguments);
+                if (arguments[0] && arguments[0].toLowerCase() === 'script') {
+                    var origSrcSetter = Object.getOwnPropertyDescriptor(HTMLScriptElement.prototype, 'src').set;
+                    var patchSrc = function(val) {
+                        if (val && typeof define !== 'undefined' && define.amd) {
+                            var savedAmd = define.amd;
+                            define.amd = false;
+                            el.addEventListener('load', function() { define.amd = savedAmd; }, { once: true });
+                            el.addEventListener('error', function() { define.amd = savedAmd; }, { once: true });
+                        }
+                        origSrcSetter.call(el, val);
+                    };
+                    Object.defineProperty(el, 'src', {
+                        set: patchSrc,
+                        get: Object.getOwnPropertyDescriptor(HTMLScriptElement.prototype, 'src').get,
+                        configurable: true
+                    });
+                }
+                return el;
+            };
+        })();
 </script>
+<script src="_content/Z.Blazor.Diagrams/script.min.js"></script>
 <script src="_content/BlazorMonaco/jsInterop.js"></script>
 <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/loader.js"></script>
 <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/editor/editor.main.js"></script>
@@ -169,6 +177,5 @@
         }
     };
 </script>
-<script src="_content/Z.Blazor.Diagrams/script.min.js"></script>
 </body>
 </html>

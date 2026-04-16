@@ -34,6 +34,7 @@ public static class RegistrationExtensions
             config.SnackbarConfiguration.VisibleStateDuration = 3000;
             config.SnackbarConfiguration.HideTransitionDuration = 200;
             config.SnackbarConfiguration.ShowTransitionDuration = 100;
+            config.PopoverOptions.OverflowBehavior = OverflowBehavior.FlipNever;
         });
 
         services.AddSingleton<GlobalAppState>();
