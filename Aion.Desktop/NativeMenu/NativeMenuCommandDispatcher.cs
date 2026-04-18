@@ -5,7 +5,7 @@ using Mythetech.Framework.Infrastructure.MessageBus;
 using Mythetech.Framework.Infrastructure.Plugins.Components;
 using Mythetech.Framework.Components.Secrets;
 using Aion.Components.NativeMenu;
-using Aion.Components.AppContextPanel.Commands;
+using Mythetech.Framework.Components.AppContextDrawer.Commands;
 using Aion.Components.Connections.Commands;
 using Aion.Components.Querying.Commands;
 using Aion.Components.History;
@@ -52,7 +52,7 @@ public class NativeMenuCommandDispatcher : INativeMenuCommandDispatcher
             [MenuItemIds.EditMode] = () => _messageBus.PublishAsync(new EnableEditModeFromQuery()),
 
             // Tools menu
-            [MenuItemIds.ToolsHistoryView] = () => _messageBus.PublishAsync(new OpenHistoryPanel()),
+            [MenuItemIds.ToolsHistoryView] = () => _messageBus.PublishAsync(new ActivatePanel("history")),
             [MenuItemIds.ToolsHistoryClear] = () => _messageBus.PublishAsync(new ClearHistory()),
             [MenuItemIds.ToolsSecrets] = () => ShowDialog<SecretManagerDialog>("Secret Manager", MaxWidth.Large, fullWidth: true),
 
