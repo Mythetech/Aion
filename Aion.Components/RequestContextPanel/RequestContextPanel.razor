@@ -27,7 +27,7 @@
         </MudPaper>
     </MudStack>
     
-    <SimpleTabs>
+    <SimpleTabs @ref="_simpleTabs">
         <Tab Name="Info">
             <QueryInfoPanel Query="@QueryState.Active" />
         </Tab>
@@ -102,12 +102,11 @@
 
     private MudToggleGroup<string> _toggle;
 
+    private SimpleTabs? _simpleTabs;
     private JsonViewer? _jsonViewer;
     private ForeignKeyViewer? _fkViewer;
 
     private string _queryName = "";
-
-    private string _openTab = "";
 
     private string JsonView => "JsonView";
     private string ForeignKeyView => "ForeignKey";
@@ -128,31 +127,28 @@
 
     public async Task Open(string tab, string? args = default)
     {
-        _openTab = tab;
-
         if (tab.Equals(JsonView) && !string.IsNullOrWhiteSpace(args))
         {
             _code = JsonSerializer.Serialize(JsonSerializer.Deserialize<dynamic>(args), new JsonSerializerOptions() { WriteIndented = true });
         }
-        
+
         StateHasChanged();
+        await Task.Yield();
+
+        _simpleTabs?.SelectTab(tab);
     }
 
     public async Task OpenJsonDetailView(QueryResponseJsonDetail columnDetail)
     {
-        _openTab = JsonView;
-
         _queryName = columnDetail.QueryName;
-
         _columnName = columnDetail.Column;
-        
         _code = JsonSerializer.Serialize(JsonSerializer.Deserialize<dynamic>(columnDetail.Json), new JsonSerializerOptions() { WriteIndented = true });
 
-        await Task.Yield();
-        
-        _jsonViewer?.ReInitializeTree();
-
         StateHasChanged();
+        await Task.Yield();
+
+        _simpleTabs?.SelectTab(JsonView);
+        _jsonViewer?.ReInitializeTree();
     }
 
     protected async Task OpenJsonViewerDialog()
@@ -170,16 +166,15 @@
 
     public async Task OpenForeignKeyDetailView(ForeignKeyDetail foreignKeyDetail, List<ForeignKeyInfo>? availableForeignKeys = null)
     {
-        _openTab = ForeignKeyView;
         _queryName = foreignKeyDetail.QueryName;
         _foreignKeyDetail = foreignKeyDetail;
         _availableForeignKeys = availableForeignKeys ?? new List<ForeignKeyInfo>();
 
+        StateHasChanged();
         await Task.Yield();
 
+        _simpleTabs?.SelectTab(ForeignKeyView);
         _fkViewer?.ReInitialize();
-
-        StateHasChanged();
     }
 
     private async Task OnForeignKeyChanged(ForeignKeyDetail newDetail)
@@ -198,7 +193,6 @@
     public void Dispose()
     {
         QueryState.StateChanged -= StateHasChanged;
-        _openTab = "";
         _queryName = "";
         _columnName = "";
         _code = "";
