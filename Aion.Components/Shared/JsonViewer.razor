@@ -5,7 +5,16 @@
 @using BlazorMonaco.Editor
 @using Mythetech.Framework.Infrastructure.Guards
 
-<MudStack AlignItems="AlignItems.Center" Row="true" Spacing="3" Class="px-4 overflow-y-auto">
+<MudStack AlignItems="AlignItems.Center" Row="true" Spacing="3" Class="px-4 overflow-y-auto mud-width-full">
+    <MudSpacer />
+    <AionIconButton Tooltip="Copy" OnClick="CopyJsonToClipboardAsync" Icon="@AionIcons.Copy"></AionIconButton>
+    @if (ShowExpandButton)
+    {
+        <AionIconButton Tooltip="Expand" OnClick="OnExpand" Icon="@AionIcons.ExpandContent"/>
+    }
+</MudStack>
+
+<MudStack AlignItems="AlignItems.Center" Row="true" Spacing="3" Class="px-4 overflow-y-auto mud-width-full">
     @if (!string.IsNullOrEmpty(ColumnName))
     {
         <MudStack Spacing="0">
@@ -26,11 +35,6 @@
             <TooltipIcon Text="JSON (Raw)" Icon="@AionIcons.RawJson" />
         </MudToggleItem>
     </MudToggleGroup>
-    
-    @if (ShowExpandButton)
-    {
-        <AionIconButton Class="mr-4" Tooltip="Expand" OnClick="OnExpand" Icon="@AionIcons.ExpandContent"/>
-    }
 </MudStack>
 
 <MudStack Class="pa-2 h-100 w-100">
@@ -69,6 +73,7 @@
     [Parameter] public bool ShowExpandButton { get; set; } = true;
     [Parameter] public EventCallback<string> ViewModeChanged { get; set; }
     [Parameter] public EventCallback OnExpandClick { get; set; }
+    [Inject] public IJsApiService JsApiService { get; set; } = default!;
 
     private StandaloneEditorConstructionOptions EditorConstructionOptions(StandaloneCodeEditor editor)
     {
@@ -103,6 +108,17 @@
             var jsondoc = JsonDocument.Parse(parsed);
             await _editor.SetValue(JsonSerializer.Serialize(jsondoc, new JsonSerializerOptions() {WriteIndented = true}));
         }
+    }
+
+    private async Task CopyJsonToClipboardAsync()
+    {
+        string? text = null;
+        if (_editor != null)
+        {
+            text = await _editor.GetValue();
+        }
+        
+        await JsApiService.CopyToClipboardAsync(text ?? Json);
     }
 
     private async Task OnViewModeChanged(string newMode)
