@@ -115,6 +115,8 @@
 
     private string _columnName = "";
 
+    private string? _pendingTab;
+
     private string _jsonViewerSelection = "pretty";
 
     private ForeignKeyDetail? _foreignKeyDetail;
@@ -125,30 +127,41 @@
         QueryState.StateChanged += StateHasChanged;
     }
 
-    public async Task Open(string tab, string? args = default)
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (_pendingTab is not null)
+        {
+            var tab = _pendingTab;
+            _pendingTab = null;
+
+            _simpleTabs?.SelectTab(tab);
+
+            if (tab == JsonView)
+                _jsonViewer?.ReInitializeTree();
+            else if (tab == ForeignKeyView)
+                _fkViewer?.ReInitialize();
+        }
+    }
+
+    public void Open(string tab, string? args = default)
     {
         if (tab.Equals(JsonView) && !string.IsNullOrWhiteSpace(args))
         {
             _code = JsonSerializer.Serialize(JsonSerializer.Deserialize<dynamic>(args), new JsonSerializerOptions() { WriteIndented = true });
         }
 
+        _pendingTab = tab;
         StateHasChanged();
-        await Task.Yield();
-
-        _simpleTabs?.SelectTab(tab);
     }
 
-    public async Task OpenJsonDetailView(QueryResponseJsonDetail columnDetail)
+    public void OpenJsonDetailView(QueryResponseJsonDetail columnDetail)
     {
         _queryName = columnDetail.QueryName;
         _columnName = columnDetail.Column;
         _code = JsonSerializer.Serialize(JsonSerializer.Deserialize<dynamic>(columnDetail.Json), new JsonSerializerOptions() { WriteIndented = true });
 
+        _pendingTab = JsonView;
         StateHasChanged();
-        await Task.Yield();
-
-        _simpleTabs?.SelectTab(JsonView);
-        _jsonViewer?.ReInitializeTree();
     }
 
     protected async Task OpenJsonViewerDialog()
@@ -164,17 +177,14 @@
         await DialogService.ShowAsync<JsonDetailDialog>("Json Viewer", parameters, options);
     }
 
-    public async Task OpenForeignKeyDetailView(ForeignKeyDetail foreignKeyDetail, List<ForeignKeyInfo>? availableForeignKeys = null)
+    public void OpenForeignKeyDetailView(ForeignKeyDetail foreignKeyDetail, List<ForeignKeyInfo>? availableForeignKeys = null)
     {
         _queryName = foreignKeyDetail.QueryName;
         _foreignKeyDetail = foreignKeyDetail;
         _availableForeignKeys = availableForeignKeys ?? new List<ForeignKeyInfo>();
 
+        _pendingTab = ForeignKeyView;
         StateHasChanged();
-        await Task.Yield();
-
-        _simpleTabs?.SelectTab(ForeignKeyView);
-        _fkViewer?.ReInitialize();
     }
 
     private async Task OnForeignKeyChanged(ForeignKeyDetail newDetail)

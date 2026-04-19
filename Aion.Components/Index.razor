@@ -90,14 +90,12 @@
             StateHasChanged();
         }
     }
-    protected async Task ToggleSidePanel(string selectedTab = "")
+    protected void ToggleSidePanel(string selectedTab = "")
     {
         _sidePanelClosed = !_sidePanelClosed;
-        
-        StateHasChanged();
 
         if (!string.IsNullOrWhiteSpace(selectedTab))
-            await _requestContextPanel.Open(selectedTab);
+            _requestContextPanel.Open(selectedTab);
 
         StateHasChanged();
     }
@@ -130,31 +128,28 @@
         KeyCodeService.UnregisterListener(HandleKeyDown);
     }
 
-    public async Task Consume(OpenRequestContextPanel message)
+    public Task Consume(OpenRequestContextPanel message)
     {
         _sidePanelClosed = false;
-        
+        _requestContextPanel.Open(message.View, message.Args);
         StateHasChanged();
-
-        await _requestContextPanel.Open(message.View, message.Args);
+        return Task.CompletedTask;
     }
 
-    public async Task Consume(OpenJsonDetailView message)
+    public Task Consume(OpenJsonDetailView message)
     {
         _sidePanelClosed = false;
-
+        _requestContextPanel.OpenJsonDetailView(message.ColumnDetail);
         StateHasChanged();
-
-        await _requestContextPanel.OpenJsonDetailView(message.ColumnDetail);
+        return Task.CompletedTask;
     }
 
-    public async Task Consume(OpenForeignKeyView message)
+    public Task Consume(OpenForeignKeyView message)
     {
         _sidePanelClosed = false;
-
+        _requestContextPanel.OpenForeignKeyDetailView(message.ForeignKeyDetail);
         StateHasChanged();
-
-        await _requestContextPanel.OpenForeignKeyDetailView(message.ForeignKeyDetail);
+        return Task.CompletedTask;
     }
 
     public async ValueTask DisposeAsync()
