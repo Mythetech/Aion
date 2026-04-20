@@ -1,0 +1,143 @@
+@using Aion.Components.Shared
+@using Aion.Components.Theme
+
+<div class="aion-tab-item @(IsActive ? "active" : "") @(Query.IsDirty ? "dirty" : "")"
+     draggable="true"
+     @onclick="HandleClick"
+     @onmouseup="HandleMouseUp"
+     @oncontextmenu="OpenContextMenu"
+     @oncontextmenu:preventDefault="true"
+     data-has-color="@(!string.IsNullOrWhiteSpace(Query.EmphasisColor) ? "true" : null)"
+     style="@(!string.IsNullOrWhiteSpace(Query.EmphasisColor) ? $"--tab-color: {Query.EmphasisColor}" : "")">
+
+    <span class="tab-name">@Query.Name</span>
+
+    <AionIconButton Icon="@AionIcons.Close"
+                    Size="Size.Small"
+                    Class="close-btn"
+                    OnClick="HandleClose" />
+</div>
+
+<MudPopover Open="@_menuOpen" AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft" Class="pa-0">
+    <MudList T="string" Style="min-width: 180px;" Dense="true">
+        <MudListItem T="string" OnClick="HandleClick" Icon="@AionIcons.OpenFile">Open</MudListItem>
+        <MudListItem T="string" OnClick="HandleClone" Icon="@AionIcons.Copy">Clone</MudListItem>
+        <MudListItem T="string" OnClick="HandleRename" Icon="@AionIcons.Edit">Rename</MudListItem>
+        <MudListItem T="string" OnClick="HandleClose" Icon="@AionIcons.Close">Close</MudListItem>
+        <MudDivider Class="my-1" />
+        <MudListItem T="string" OnClick="HandleCloseOthers">Close Others</MudListItem>
+        <MudListItem T="string" OnClick="HandleCloseAll">Close All</MudListItem>
+        <MudListItem T="string" OnClick="HandleCloseRight">Close to Right</MudListItem>
+        <MudDivider Class="my-1" />
+        <QueryColorEmphasisPicker Query="@Query" OnEmphasisColorPicked="HandleEmphasisColor" />
+    </MudList>
+</MudPopover>
+<MudOverlay Visible="@_menuOpen" OnClick="CloseMenu" LockScroll="false" />
+
+@code {
+    [Parameter]
+    public required QueryModel Query { get; set; }
+
+    [Parameter]
+    public bool IsActive { get; set; }
+
+    [Parameter]
+    public EventCallback<QueryModel> OnClick { get; set; }
+
+    [Parameter]
+    public EventCallback<QueryModel> OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback<QueryModel> OnCloseOthers { get; set; }
+
+    [Parameter]
+    public EventCallback<QueryModel> OnCloseRight { get; set; }
+
+    [Parameter]
+    public EventCallback OnCloseAll { get; set; }
+
+    [Parameter]
+    public EventCallback<QueryModel> OnClone { get; set; }
+
+    [Parameter]
+    public EventCallback<QueryModel> OnRename { get; set; }
+
+    [Parameter]
+    public EventCallback<(QueryModel Query, string Color)> OnEmphasisColorChanged { get; set; }
+
+    private bool _menuOpen;
+
+    private void OpenContextMenu()
+    {
+        _menuOpen = true;
+    }
+
+    private void CloseMenu()
+    {
+        _menuOpen = false;
+    }
+
+    private async Task HandleClick()
+    {
+        CloseMenu();
+        if (OnClick.HasDelegate)
+            await OnClick.InvokeAsync(Query);
+    }
+
+    private async Task HandleMouseUp(MouseEventArgs e)
+    {
+        if (e.Button == 1)
+        {
+            await HandleClose();
+        }
+    }
+
+    private async Task HandleClose()
+    {
+        CloseMenu();
+        if (OnClose.HasDelegate)
+            await OnClose.InvokeAsync(Query);
+    }
+
+    private async Task HandleCloseOthers()
+    {
+        CloseMenu();
+        if (OnCloseOthers.HasDelegate)
+            await OnCloseOthers.InvokeAsync(Query);
+    }
+
+    private async Task HandleCloseRight()
+    {
+        CloseMenu();
+        if (OnCloseRight.HasDelegate)
+            await OnCloseRight.InvokeAsync(Query);
+    }
+
+    private async Task HandleCloseAll()
+    {
+        CloseMenu();
+        if (OnCloseAll.HasDelegate)
+            await OnCloseAll.InvokeAsync();
+    }
+
+    private async Task HandleClone()
+    {
+        CloseMenu();
+        if (OnClone.HasDelegate)
+            await OnClone.InvokeAsync(Query);
+    }
+
+    private async Task HandleRename()
+    {
+        CloseMenu();
+        if (OnRename.HasDelegate)
+            await OnRename.InvokeAsync(Query);
+    }
+
+    private async Task HandleEmphasisColor(string color)
+    {
+        CloseMenu();
+        if (OnEmphasisColorChanged.HasDelegate)
+            await OnEmphasisColorChanged.InvokeAsync((Query, color));
+    }
+}

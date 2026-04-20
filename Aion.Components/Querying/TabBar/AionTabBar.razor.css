@@ -1,0 +1,54 @@
+.aion-tab-bar {
+    display: flex;
+    width: 100%;
+    min-height: 32px;
+    flex-shrink: 0;
+    padding: 0;
+    gap: 0;
+    align-items: center;
+    background: linear-gradient(180deg,
+        var(--mud-palette-background) 0%,
+        color-mix(in srgb, var(--mud-palette-surface) 50%, var(--mud-palette-background)) 100%);
+}
+
+::deep .tab-scroll-container {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+::deep .aion-tab-drop-container {
+    display: flex;
+    width: max-content;
+    height: 100%;
+    flex-direction: row;
+    align-items: stretch;
+}
+
+::deep .aion-tab-dropzone {
+    display: flex;
+    align-items: stretch;
+    min-width: fit-content;
+}
+
+::deep .aion-tab-end-dropzone {
+    flex: 1;
+    min-width: 40px;
+    display: flex;
+    align-items: stretch;
+}
+
+::deep .aion-tab-dropzone.tab-drop-target,
+::deep .aion-tab-end-dropzone.tab-drop-target {
+    background: color-mix(in srgb, var(--mud-palette-primary) 20%, transparent);
+}
+
+::deep .mud-drop-item {
+    display: flex;
+    align-items: stretch;
+}
+
+::deep .mud-drop-item-preview {
+    opacity: 0.5;
+}

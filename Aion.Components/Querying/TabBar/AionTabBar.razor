@@ -1,0 +1,185 @@
+@using Aion.Components.Shared
+@using Aion.Components.Theme
+@using Aion.Components.Querying.Commands
+@using Mythetech.Framework.Infrastructure.MessageBus
+@implements IDisposable
+
+<div class="aion-tab-bar">
+    <div class="tab-scroll-container">
+        <MudDropContainer T="QueryModel"
+                          @ref="_dropContainer"
+                          @key="@_dropContainerKey"
+                          Items="@OrderedQueries"
+                          ItemsSelector="ItemsSelector"
+                          ItemDropped="HandleDropped"
+                          ApplyDropClassesOnDragStarted="true"
+                          CanDropClass="tab-drop-target"
+                          Class="aion-tab-drop-container">
+            <ChildContent>
+                @foreach (var query in OrderedQueries)
+                {
+                    <MudDropZone T="QueryModel"
+                                 Identifier="@($"tab-{query.Id}")"
+                                 Class="aion-tab-dropzone" />
+                }
+                <MudDropZone T="QueryModel"
+                             Identifier="end-zone"
+                             Class="aion-tab-end-dropzone" />
+            </ChildContent>
+            <ItemRenderer>
+                <AionTabItem Query="@context"
+                             IsActive="@(context.Id == State.Active?.Id)"
+                             OnClick="HandleTabClick"
+                             OnClose="HandleTabClose"
+                             OnCloseOthers="HandleCloseOthers"
+                             OnCloseRight="HandleCloseRight"
+                             OnCloseAll="HandleCloseAll"
+                             OnClone="HandleClone"
+                             OnRename="HandleRename"
+                             OnEmphasisColorChanged="HandleEmphasisColor" />
+            </ItemRenderer>
+        </MudDropContainer>
+    </div>
+    <AionIconButton Icon="@AionIcons.Add" Tooltip="New Query" Size="Size.Small" OnClick="HandleAdd" />
+</div>
+
+@code {
+    [Inject]
+    protected QueryState State { get; set; } = default!;
+
+    [Inject]
+    protected IMessageBus Bus { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<QueryModel> OnTabActivated { get; set; }
+
+    [Parameter]
+    public EventCallback OnAddQuery { get; set; }
+
+    private MudDropContainer<QueryModel>? _dropContainer;
+    private int _dropContainerKey;
+
+    private IEnumerable<QueryModel> OrderedQueries => State.Queries.OrderBy(q => q.Order);
+
+    protected override void OnInitialized()
+    {
+        State.StateChanged += HandleStateChanged;
+    }
+
+    private void HandleStateChanged()
+    {
+        InvokeAsync(() =>
+        {
+            _dropContainer?.Refresh();
+            StateHasChanged();
+        });
+    }
+
+    private bool ItemsSelector(QueryModel item, string zone)
+    {
+        if (zone == "end-zone")
+            return false;
+
+        if (zone.StartsWith("tab-"))
+        {
+            var tabIdStr = zone.Replace("tab-", "");
+            if (Guid.TryParse(tabIdStr, out var tabId))
+            {
+                return item.Id == tabId;
+            }
+        }
+
+        return false;
+    }
+
+    private async Task HandleDropped(MudItemDropInfo<QueryModel> dropInfo)
+    {
+        var droppedQuery = dropInfo.Item;
+        if (droppedQuery == null) return;
+
+        var targetZone = dropInfo.DropzoneIdentifier;
+
+        if (targetZone == "end-zone")
+        {
+            State.ReorderQuery(droppedQuery.Id, int.MaxValue);
+        }
+        else if (targetZone.StartsWith("tab-"))
+        {
+            var tabIdStr = targetZone.Replace("tab-", "");
+            if (Guid.TryParse(tabIdStr, out var targetTabId))
+            {
+                var targetQuery = State.Queries.FirstOrDefault(q => q.Id == targetTabId);
+                if (targetQuery != null)
+                {
+                    State.ReorderQuery(droppedQuery.Id, targetQuery.Order);
+                }
+            }
+        }
+
+        _dropContainerKey++;
+    }
+
+    private async Task HandleTabClick(QueryModel query)
+    {
+        State.SetActive(query);
+        if (OnTabActivated.HasDelegate)
+            await OnTabActivated.InvokeAsync(query);
+    }
+
+    private async Task HandleTabClose(QueryModel query)
+    {
+        bool wasActive = query.Id == State.Active?.Id;
+        await State.Remove(query);
+
+        if (wasActive && OnTabActivated.HasDelegate && State.Active != null)
+        {
+            await OnTabActivated.InvokeAsync(State.Active);
+        }
+    }
+
+    private async Task HandleCloseOthers(QueryModel query)
+    {
+        await State.CloseOthers(query);
+        if (OnTabActivated.HasDelegate)
+            await OnTabActivated.InvokeAsync(query);
+    }
+
+    private async Task HandleCloseRight(QueryModel query)
+    {
+        await State.CloseToRight(query);
+    }
+
+    private async Task HandleCloseAll()
+    {
+        await State.CloseAllTabs();
+        if (OnTabActivated.HasDelegate && State.Active != null)
+            await OnTabActivated.InvokeAsync(State.Active);
+    }
+
+    private void HandleClone(QueryModel query)
+    {
+        State.Clone(query);
+    }
+
+    private async Task HandleRename(QueryModel query)
+    {
+        await Bus.PublishAsync(new PromptRenameQuery(query));
+    }
+
+    private void HandleEmphasisColor((QueryModel Query, string Color) args)
+    {
+        args.Query.UpdateEmphasisColor(args.Color);
+        StateHasChanged();
+    }
+
+    private async Task HandleAdd()
+    {
+        if (OnAddQuery.HasDelegate)
+            await OnAddQuery.InvokeAsync();
+    }
+
+    public void Dispose()
+    {
+        State.StateChanged -= HandleStateChanged;
+    }
+}

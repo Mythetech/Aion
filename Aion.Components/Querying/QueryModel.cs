@@ -24,6 +24,9 @@ public class QueryModel
     public DateTimeOffset? ExecutionEndTime { get; private set; }
     public TimeSpan? ExecutionDuration => ExecutionEndTime - ExecutionStartTime;
 
+    public int Order { get; set; }
+    public string? SavedQuery { get; set; }
+    public bool IsDirty => Query != (SavedQuery ?? "");
     public string? EmphasisColor { get; set; }
 
     /// <summary>
@@ -74,7 +77,10 @@ public class QueryModel
             UseTransaction = UseTransaction,
             Transaction = Transaction,
             ExecutionStartTime = ExecutionStartTime,
-            ExecutionEndTime = ExecutionEndTime
+            ExecutionEndTime = ExecutionEndTime,
+            Order = Order,
+            SavedQuery = SavedQuery,
+            EmphasisColor = EmphasisColor
         };
     }
 }

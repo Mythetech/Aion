@@ -15,39 +15,7 @@
 
 
 <MudStack Class="h-100" Spacing="0">
-    <MudStack Row="true" AlignItems="AlignItems.Center">
-        <MudTabs Class="mud-width-full flex-grow-1" @bind-ActivePanelIndex="ActiveTabIndex" PanelClass="pa-1" MinimumTabWidth="auto">
-            @foreach (var query in State.Queries)
-            {
-                <MudTabPanel OnClick="@(() => OnTabChanged(query))">
-                    <TabContent>
-                        <MudStack Row="true" AlignItems="AlignItems.Center" Style="@(string.IsNullOrWhiteSpace(query.EmphasisColor) ? $"" : $"background:color-mix(in srgb, {query.EmphasisColor} 20%, transparent 80%)")">
-                            <MudMenu ActivationEvent="MouseEvent.RightClick" Dense="true">
-                                <ActivatorContent>
-                                    <div @oncontextmenu="@context.ToggleAsync" @oncontextmenu:preventDefault="true">
-                                        <MudText Class="px-2" >
-                                            @query.Name
-                                        </MudText>
-                                    </div>
-                                </ActivatorContent>
-                                <ChildContent>
-                                    <MudMenuItem OnClick="@(() => OnTabChanged(query))" Icon="@AionIcons.OpenFile">Open</MudMenuItem>
-                                    <MudMenuItem OnClick="@(() => CloneQuery(query))" Icon="@AionIcons.Copy">Clone</MudMenuItem>
-                                    <MudMenuItem OnClick="@(async () => await PromptRename(query))" Icon="@AionIcons.Edit">Rename</MudMenuItem>
-                                    <MudMenuItem OnClick="@(async () => await CloseTab(query))" Icon="@AionIcons.Close">Close</MudMenuItem>
-                                    <MudDivider />
-                                    <QueryColorEmphasisPicker Query="@query" OnEmphasisColorPicked="(color) => UpdateEmphasisColor(query, color)" />
-                                </ChildContent>
-                            </MudMenu>
-                            <AionIconButton Size="Size.Small" Icon="@AionIcons.Close" Tooltip="Close" OnClick="@(async () => await CloseTab(query))"/>
-                        </MudStack>
-                    </TabContent>
-                </MudTabPanel>
-            }
-        </MudTabs>
-        <MudSpacer />
-        <AionIconButton Class="mt-n4" Icon="@AionIcons.Add" Tooltip="New Query" OnClick="@(QueryAddClicked)" />
-    </MudStack>
+    <Aion.Components.Querying.TabBar.AionTabBar OnTabActivated="OnTabChanged" OnAddQuery="QueryAddClicked" />
     <MudStack Row="true" AlignItems="AlignItems.Center" Class="pa-2">
         <MudSelect T="ConnectionModel"
                    Label="Connection"
@@ -148,8 +116,6 @@
     private bool CanExecuteQuery => SelectedConnection != null;
     
     private StandaloneCodeEditor? _editor;
-    
-    private int ActiveTabIndex { get; set; }
 
     private StandaloneEditorConstructionOptions DefaultOptions(StandaloneCodeEditor editor)
     {
@@ -227,40 +193,10 @@
 
     private async Task OnTabChanged(QueryModel query)
     {
-        State.SetActive(query);
-        ActiveTabIndex = State.Queries.FindIndex(q => q.Id == State.Active?.Id);
         if (_editor != null)
         {
             await _editor.SetValue(query.Query);
         }
-    }
-
-    private async Task CloseTab(QueryModel query)
-    {
-        bool wasActive = query.Id == State.Active.Id;
-        
-        await State.Remove(query);
-
-        if (wasActive)
-        {
-            StateHasChanged();
-            await OnTabChanged(State.Active);
-        }
-    }
-
-    private async Task PromptRename(QueryModel query)
-    {
-        await Bus.PublishAsync(new PromptRenameQuery(query));
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            ActiveTabIndex = State.Queries.FindIndex(q => q.Id == State.Active?.Id);
-            StateHasChanged();
-        }
-        await base.OnAfterRenderAsync(firstRender);
     }
 
     private async Task RunQuery()
@@ -300,7 +236,6 @@
 
     public async Task Consume(FocusQuery message)
     {
-        ActiveTabIndex = State.Queries.FindIndex(q => q.Id == message.Query.Id);
         State.SetActive(message.Query);
         await _editor.SetValue(message.Query.Query);
         StateHasChanged();
@@ -308,7 +243,11 @@
     
     public async Task Consume(CreateQuery message)
     {
-        await AddQueryAsync(message.Name);
+        State.AddQuery(message.Name);
+        if (_editor != null && State.Active != null)
+        {
+            await _editor.SetValue(State.Active.Query);
+        }
     }
 
     public async Task Consume(RunQuery message)
@@ -316,33 +255,12 @@
         await RunQuery();
     }
 
-    private Task CloneQuery(QueryModel query)
-    {
-        State.Clone(query);
-        StateHasChanged();
-        return Task.CompletedTask;
-    }
-
-    private Task RenameQuery(QueryModel query)
-    {
-        return Task.CompletedTask;
-    }
-
     private async Task QueryAddClicked()
     {
-        await AddQueryAsync();
-    }
-
-    private async Task AddQueryAsync(string name = "Untitled")
-    {
-        State.AddQuery(name); 
-        ActiveTabIndex = State.Queries.Count - 1; 
-        await _editor.SetValue(State.Active.Query);
-    }
-
-    private void UpdateEmphasisColor(QueryModel query, string color)
-    {
-        query.UpdateEmphasisColor(color);
-        StateHasChanged();
+        State.AddQuery();
+        if (_editor != null && State.Active != null)
+        {
+            await _editor.SetValue(State.Active.Query);
+        }
     }
 }
