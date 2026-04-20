@@ -40,6 +40,11 @@ public class QueryState : IConsumer<QueryChanged>
         if (queries?.Count() >= 1)
         {
             Queries = [..queries];
+            NormalizeOrder();
+            foreach (var q in Queries)
+            {
+                q.SavedQuery = q.Query;
+            }
             SetActive(Queries.First());
         }
         
@@ -49,6 +54,7 @@ public class QueryState : IConsumer<QueryChanged>
     
     private QueryModel AddQueryInternal(QueryModel query)
     {
+        query.Order = Queries.Count;
         Queries.Add(query);
         SetActive(query);
         OnStateChanged();
@@ -61,8 +67,9 @@ public class QueryState : IConsumer<QueryChanged>
         var query = new QueryModel
         {
             Name = name,
+            SavedQuery = "",
         };
-        
+
         return AddQueryInternal(query);
     }
 
@@ -168,6 +175,77 @@ public class QueryState : IConsumer<QueryChanged>
         q.Name = name;
         
         OnStateChanged();
+    }
+
+    public void ReorderQuery(Guid queryId, int newIndex)
+    {
+        var query = Queries.FirstOrDefault(q => q.Id == queryId);
+        if (query == null) return;
+
+        Queries.Remove(query);
+        Queries.Insert(Math.Clamp(newIndex, 0, Queries.Count), query);
+        NormalizeOrder();
+        OnStateChanged();
+    }
+
+    public async Task CloseOthers(QueryModel query)
+    {
+        var toRemove = Queries.Where(q => q.Id != query.Id).ToList();
+        foreach (var q in toRemove)
+        {
+            await _messageBus.PublishAsync(new DeleteQuery(q));
+        }
+
+        Queries.RemoveAll(q => q.Id != query.Id);
+        SetActive(query);
+        NormalizeOrder();
+        OnStateChanged();
+    }
+
+    public async Task CloseAllTabs()
+    {
+        foreach (var q in Queries.ToList())
+        {
+            await _messageBus.PublishAsync(new DeleteQuery(q));
+        }
+
+        Queries.Clear();
+        AddQuery();
+    }
+
+    public async Task CloseToRight(QueryModel query)
+    {
+        var toRemove = Queries.Where(q => q.Order > query.Order).ToList();
+        foreach (var q in toRemove)
+        {
+            await _messageBus.PublishAsync(new DeleteQuery(q));
+            Queries.Remove(q);
+        }
+
+        if (Active != null && !Queries.Contains(Active))
+        {
+            SetActive(query);
+        }
+
+        NormalizeOrder();
+        OnStateChanged();
+    }
+
+    public void MarkSaved(QueryModel query)
+    {
+        var q = Queries.FirstOrDefault(x => x.Id == query.Id);
+        if (q == null) return;
+
+        q.SavedQuery = q.Query;
+        OnStateChanged();
+    }
+
+    private void NormalizeOrder()
+    {
+        for (int i = 0; i < Queries.Count; i++)
+        {
+            Queries[i].Order = i;
+        }
     }
 
     private bool IsActive(QueryModel query)

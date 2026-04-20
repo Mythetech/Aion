@@ -202,4 +202,164 @@ public class QueryStateTests
         // Assert
         query.Result.ShouldBe(result);
     }
+
+    [Fact]
+    public void Should_Reorder_Query()
+    {
+        // Arrange
+        var q1 = _state.Queries[0];
+        var q2 = _state.AddQuery("Query 2");
+        var q3 = _state.AddQuery("Query 3");
+
+        // Act - move q3 to position 0
+        _state.ReorderQuery(q3.Id, 0);
+
+        // Assert
+        _state.Queries[0].ShouldBe(q3);
+        _state.Queries[1].ShouldBe(q1);
+        _state.Queries[2].ShouldBe(q2);
+        _state.Queries[0].Order.ShouldBe(0);
+        _state.Queries[1].Order.ShouldBe(1);
+        _state.Queries[2].Order.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Should_Close_Others()
+    {
+        // Arrange
+        var q1 = _state.Queries[0];
+        var q2 = _state.AddQuery("Query 2");
+        var q3 = _state.AddQuery("Query 3");
+
+        // Act
+        await _state.CloseOthers(q2);
+
+        // Assert
+        _state.Queries.Count.ShouldBe(1);
+        _state.Queries[0].ShouldBe(q2);
+        _state.Active.ShouldBe(q2);
+        await _messageBus.Received().PublishAsync(Arg.Is<DeleteQuery>(cmd => cmd.Query == q1));
+        await _messageBus.Received().PublishAsync(Arg.Is<DeleteQuery>(cmd => cmd.Query == q3));
+    }
+
+    [Fact]
+    public async Task Should_Close_All_Tabs_And_Add_Default()
+    {
+        // Arrange
+        var q1 = _state.Queries[0];
+        _state.AddQuery("Query 2");
+
+        // Act
+        await _state.CloseAllTabs();
+
+        // Assert
+        _state.Queries.Count.ShouldBe(1);
+        _state.Queries[0].Id.ShouldNotBe(q1.Id);
+        _state.Active.ShouldBe(_state.Queries[0]);
+    }
+
+    [Fact]
+    public async Task Should_Close_To_Right()
+    {
+        // Arrange
+        var q1 = _state.Queries[0];
+        var q2 = _state.AddQuery("Query 2");
+        var q3 = _state.AddQuery("Query 3");
+
+        // Act
+        await _state.CloseToRight(q1);
+
+        // Assert
+        _state.Queries.Count.ShouldBe(1);
+        _state.Queries[0].ShouldBe(q1);
+        await _messageBus.Received().PublishAsync(Arg.Is<DeleteQuery>(cmd => cmd.Query == q2));
+        await _messageBus.Received().PublishAsync(Arg.Is<DeleteQuery>(cmd => cmd.Query == q3));
+    }
+
+    [Fact]
+    public void Should_Track_Dirty_State()
+    {
+        // Arrange
+        var query = _state.AddQuery("Test");
+
+        // Assert - initially clean
+        query.IsDirty.ShouldBeFalse();
+
+        // Act - modify query text
+        query.Query = "SELECT 1";
+
+        // Assert - now dirty
+        query.IsDirty.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Should_Mark_Saved_Clears_Dirty()
+    {
+        // Arrange
+        var query = _state.AddQuery("Test");
+        query.Query = "SELECT 1";
+        query.IsDirty.ShouldBeTrue();
+
+        // Act
+        _state.MarkSaved(query);
+
+        // Assert
+        query.IsDirty.ShouldBeFalse();
+        query.SavedQuery.ShouldBe("SELECT 1");
+    }
+
+    [Fact]
+    public void Should_Assign_Order_On_Add()
+    {
+        // Arrange - default query already at index 0
+        var q1 = _state.Queries[0];
+
+        // Act
+        var q2 = _state.AddQuery("Query 2");
+        var q3 = _state.AddQuery("Query 3");
+
+        // Assert
+        q1.Order.ShouldBe(0);
+        q2.Order.ShouldBe(1);
+        q3.Order.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Should_Normalize_Order_After_Initialize()
+    {
+        // Arrange
+        var savedQueries = new List<QueryModel>
+        {
+            new() { Name = "A", Order = 5 },
+            new() { Name = "B", Order = 10 },
+            new() { Name = "C", Order = 15 }
+        };
+        _saveService.LoadQueriesAsync().Returns(savedQueries);
+
+        // Act
+        await _state.InitializeAsync();
+
+        // Assert
+        _state.Queries[0].Order.ShouldBe(0);
+        _state.Queries[1].Order.ShouldBe(1);
+        _state.Queries[2].Order.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Should_Set_SavedQuery_On_Initialize()
+    {
+        // Arrange
+        var savedQueries = new List<QueryModel>
+        {
+            new() { Name = "A", Query = "SELECT 1" }
+        };
+        _saveService.LoadQueriesAsync().Returns(savedQueries);
+
+        // Act
+        await _state.InitializeAsync();
+
+        // Assert
+        _state.Queries[0].SavedQuery.ShouldBe("SELECT 1");
+        _state.Queries[0].IsDirty.ShouldBeFalse();
+    }
 }

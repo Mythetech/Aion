@@ -34,6 +34,8 @@ public class QueryEditorTests : TestContext
         JSInterop.Setup<BoundingClientRect>("mudElementRef.getBoundingClientRect", _ => true);
         JSInterop.SetupVoid("blazorMonaco.editor.setWasm", false);
         JSInterop.SetupVoid("mudElementRef.addOnBlurEvent", _ => true);
+        JSInterop.SetupVoid("mudDragAndDrop.initDropZone", _ => true);
+        JSInterop.SetupVoid("mudDragAndDrop.connect", _ => true);
 
         _bus = new InMemoryMessageBus(
             this.Services,
