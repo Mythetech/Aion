@@ -407,4 +407,7 @@ FodyWeavers.xsd
 # Superpowers brainstorming artifacts
 .superpowers/
 
+# Git worktrees
+.worktrees/
+
 *.claude/
