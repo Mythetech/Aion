@@ -2,6 +2,8 @@ using Aion.Components;
 using Aion.Components.Infrastructure;
 using Aion.Components.NativeMenu;
 using Aion.Components.Querying;
+using Aion.Contracts.Database;
+using Aion.Web.Providers;
 using Aion.Web.Services;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
@@ -22,6 +24,11 @@ builder.Services.AddSettingsStorage<InMemorySettingsStorage>();
 builder.Services.AddSingleton<IQuerySaveService, InMemoryQuerySaveService>();
 builder.Services.AddTransient<ILinkOpenService, BrowserLinkOpenService>();
 builder.Services.AddSingleton<INativeMenuService, NoOpNativeMenuService>();
+
+builder.Services.AddSingleton<SqliteWasmProvider>();
+builder.Services.AddSingleton<IDatabaseProvider>(sp => sp.GetRequiredService<SqliteWasmProvider>());
+builder.Services.AddSingleton<PGliteProvider>();
+builder.Services.AddSingleton<IDatabaseProvider>(sp => sp.GetRequiredService<PGliteProvider>());
 
 builder.Services.AddMessageBus(typeof(WebApp).Assembly, typeof(ComponentsApp).Assembly);
 
