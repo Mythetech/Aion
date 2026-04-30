@@ -111,6 +111,8 @@
                                                             1000</MudMenuItem>
                                                             <MudMenuItem OnClick="@(() => EditData(database.Name, table))">Edit Data
                                                             </MudMenuItem>
+                                                            <MudMenuItem OnClick="@(() => GenerateData(database, table))">Generate Data
+                                                            </MudMenuItem>
                                                             <MudMenuItem OnClick="@(() => RefreshTable(database))">Refresh</MudMenuItem>
                                                         </ChildContent>
                                                     </MudMenu>
@@ -423,6 +425,46 @@
     private async Task EditData(string databaseName, TableInfo table)
     {
         await MessageBus.PublishAsync(new OpenTableEditor(Connection.Id, databaseName, table.Schema, table.Name));
+    }
+
+    private async Task GenerateData(DatabaseModel database, TableInfo table)
+    {
+        if (!database.LoadedColumnTables.Contains(table.DisplayName))
+            await ConnectionState.LoadColumnsAsync(Connection, database, table.Schema, table.Name);
+
+        var columns = database.TableColumns.GetValueOrDefault(table.DisplayName) ?? [];
+        if (columns.Count == 0)
+        {
+            Snackbar.Add("No columns found for table", MudBlazor.Severity.Warning);
+            return;
+        }
+
+        var provider = ConnectionState.GetProvider(Connection.Type);
+        var connString = provider.UpdateConnectionString(Connection.ConnectionString, database.Name);
+
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            BackgroundClass = "aion-dialog",
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true,
+            CloseButton = false
+        };
+        var parameters = new DialogParameters<Scaffolding.DataGeneration.DataGenerationDialog>
+        {
+            { x => x.TableName, table.Name },
+            { x => x.Schema, table.Schema },
+            { x => x.Database, database.Name },
+            { x => x.Columns, columns },
+            { x => x.Provider, provider },
+            { x => x.ConnectionString, connString }
+        };
+        var dialog = await DialogService.ShowAsync<Scaffolding.DataGeneration.DataGenerationDialog>(
+            "Generate Data", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: true })
+            await RefreshTable(database);
     }
 
     private async Task RefreshDatabase(DatabaseModel database)

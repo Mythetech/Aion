@@ -1,0 +1,290 @@
+@using Aion.Components.Theme
+@using Aion.Contracts.Database
+
+<MudDialog Class="data-generation-dialog">
+    <TitleContent>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@AionIcons.Add" />
+            <MudText Typo="Typo.h6">Generate Data: @TableName</MudText>
+        </MudStack>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudNumericField @bind-Value="_model.RowCount"
+                             Label="Number of Rows"
+                             Variant="Variant.Outlined"
+                             Min="1"
+                             Max="10000" />
+
+            <MudText Typo="Typo.subtitle2">Column Generators</MudText>
+
+            <MudSimpleTable Dense="true" Hover="true" Bordered="true">
+                <thead>
+                    <tr>
+                        <th>Column</th>
+                        <th>Type</th>
+                        <th>Generator</th>
+                        <th>Options</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var binding in _model.ColumnGenerators)
+                    {
+                        <tr class="@(binding.Column.IsIdentity ? "mud-text-disabled" : "")">
+                            <td>
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                    @if (binding.Column.IsPrimaryKey)
+                                    {
+                                        <MudIcon Icon="@AionIcons.Key" Size="Size.Small" Color="Color.Warning" />
+                                    }
+                                    <MudText Typo="Typo.body2">@binding.Column.Name</MudText>
+                                </MudStack>
+                            </td>
+                            <td>
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary">@binding.Column.DataType</MudText>
+                            </td>
+                            <td>
+                                @if (binding.Column.IsIdentity)
+                                {
+                                    <MudText Typo="Typo.body2" Class="mud-text-secondary">Auto (identity)</MudText>
+                                }
+                                else
+                                {
+                                    <MudSelect @bind-Value="binding.Generator"
+                                               Variant="Variant.Outlined"
+                                               Margin="Margin.Dense"
+                                               Dense="true"
+                                               Style="min-width: 160px;">
+                                        @foreach (var gen in GetCompatibleGenerators(binding.Column.DataType))
+                                        {
+                                            <MudSelectItem Value="@gen">@gen.Name</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                }
+                            </td>
+                            <td>
+                                @if (binding.Generator is not null && !binding.Column.IsIdentity)
+                                {
+                                    @RenderGeneratorOptions(binding)
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+
+            @if (_generating)
+            {
+                <MudStack Spacing="1">
+                    <MudProgressLinear Value="@_progress" Max="@_model.RowCount" Color="Color.Primary" />
+                    <MudText Typo="Typo.caption" Align="Align.Center">
+                        @_progress / @_model.RowCount rows
+                    </MudText>
+                </MudStack>
+            }
+
+            @if (_error is not null)
+            {
+                <MudAlert Severity="Severity.Error" Dense="true">@_error</MudAlert>
+            }
+
+            @if (_success)
+            {
+                <MudAlert Severity="Severity.Success" Dense="true">
+                    Successfully generated @_model.RowCount rows
+                </MudAlert>
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="@_generating">Cancel</MudButton>
+        <MudSpacer />
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   Disabled="@(_generating || !HasActiveGenerators)"
+                   OnClick="GenerateAsync">
+            @if (_generating)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            Generate
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string TableName { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Schema { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Database { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public List<ColumnInfo> Columns { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public IDatabaseProvider Provider { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string ConnectionString { get; set; } = string.Empty;
+
+    private readonly DataGenerationModel _model = new();
+    private readonly DataGenerationService _service = new();
+    private bool _generating;
+    private int _progress;
+    private string? _error;
+    private bool _success;
+
+    protected override void OnInitialized()
+    {
+        _model.TableName = TableName;
+        _model.Schema = Schema;
+        _model.Database = Database;
+
+        foreach (var column in Columns)
+        {
+            var binding = new ColumnGeneratorBinding
+            {
+                Column = column,
+                Generator = DataGenerators.SuggestGenerator(column.Name, column.DataType, column.IsIdentity),
+                Options = new DataGeneratorOptions()
+            };
+            _model.ColumnGenerators.Add(binding);
+        }
+    }
+
+    private bool HasActiveGenerators =>
+        _model.ColumnGenerators.Any(cg => cg.Generator is not null && !cg.Column.IsIdentity);
+
+    private IReadOnlyList<IDataGenerator> GetCompatibleGenerators(string dataType)
+        => DataGenerators.All.Where(g => g.SupportsType(dataType)).ToList();
+
+    private async Task GenerateAsync()
+    {
+        _generating = true;
+        _error = null;
+        _success = false;
+        _progress = 0;
+        StateHasChanged();
+
+        try
+        {
+            var progressReporter = new Progress<int>(count =>
+            {
+                _progress = count;
+                InvokeAsync(StateHasChanged);
+            });
+
+            await _service.GenerateAsync(_model, Provider, ConnectionString, Database,
+                progressReporter, CancellationToken.None);
+
+            _success = true;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _generating = false;
+            StateHasChanged();
+        }
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Close(DialogResult.Ok(_success));
+    }
+
+    private RenderFragment RenderGeneratorOptions(ColumnGeneratorBinding binding) => builder =>
+    {
+        switch (binding.Generator)
+        {
+            case AutoIncrementGenerator:
+                builder.OpenComponent<MudNumericField<int?>>(0);
+                builder.AddAttribute(1, "Value", binding.Options.StartValue);
+                builder.AddAttribute(2, "ValueChanged",
+                    EventCallback.Factory.Create<int?>(this, v => binding.Options.StartValue = v));
+                builder.AddAttribute(3, "Label", "Start");
+                builder.AddAttribute(4, "Variant", Variant.Outlined);
+                builder.AddAttribute(5, "Margin", Margin.Dense);
+                builder.AddAttribute(6, "Style", "max-width: 100px;");
+                builder.CloseComponent();
+                break;
+
+            case RandomIntGenerator:
+                builder.OpenComponent<MudStack>(0);
+                builder.AddAttribute(1, "Row", true);
+                builder.AddAttribute(2, "Spacing", 1);
+                builder.AddAttribute(3, "ChildContent", (RenderFragment)(inner =>
+                {
+                    inner.OpenComponent<MudNumericField<int?>>(0);
+                    inner.AddAttribute(1, "Value", binding.Options.MinValue);
+                    inner.AddAttribute(2, "ValueChanged",
+                        EventCallback.Factory.Create<int?>(this, v => binding.Options.MinValue = v));
+                    inner.AddAttribute(3, "Label", "Min");
+                    inner.AddAttribute(4, "Variant", Variant.Outlined);
+                    inner.AddAttribute(5, "Margin", Margin.Dense);
+                    inner.AddAttribute(6, "Style", "max-width: 80px;");
+                    inner.CloseComponent();
+
+                    inner.OpenComponent<MudNumericField<int?>>(7);
+                    inner.AddAttribute(8, "Value", binding.Options.MaxValue);
+                    inner.AddAttribute(9, "ValueChanged",
+                        EventCallback.Factory.Create<int?>(this, v => binding.Options.MaxValue = v));
+                    inner.AddAttribute(10, "Label", "Max");
+                    inner.AddAttribute(11, "Variant", Variant.Outlined);
+                    inner.AddAttribute(12, "Margin", Margin.Dense);
+                    inner.AddAttribute(13, "Style", "max-width: 80px;");
+                    inner.CloseComponent();
+                }));
+                builder.CloseComponent();
+                break;
+
+            case DateRangeGenerator:
+                builder.OpenComponent<MudStack>(0);
+                builder.AddAttribute(1, "Row", true);
+                builder.AddAttribute(2, "Spacing", 1);
+                builder.AddAttribute(3, "ChildContent", (RenderFragment)(inner =>
+                {
+                    inner.OpenComponent<MudDatePicker>(0);
+                    inner.AddAttribute(1, "Date", binding.Options.MinDate);
+                    inner.AddAttribute(2, "DateChanged",
+                        EventCallback.Factory.Create<DateTime?>(this, v => binding.Options.MinDate = v));
+                    inner.AddAttribute(3, "Label", "From");
+                    inner.AddAttribute(4, "Variant", Variant.Outlined);
+                    inner.AddAttribute(5, "Margin", Margin.Dense);
+                    inner.CloseComponent();
+
+                    inner.OpenComponent<MudDatePicker>(6);
+                    inner.AddAttribute(7, "Date", binding.Options.MaxDate);
+                    inner.AddAttribute(8, "DateChanged",
+                        EventCallback.Factory.Create<DateTime?>(this, v => binding.Options.MaxDate = v));
+                    inner.AddAttribute(9, "Label", "To");
+                    inner.AddAttribute(10, "Variant", Variant.Outlined);
+                    inner.AddAttribute(11, "Margin", Margin.Dense);
+                    inner.CloseComponent();
+                }));
+                builder.CloseComponent();
+                break;
+
+            case CustomListGenerator:
+                builder.OpenComponent<MudTextField<string>>(0);
+                builder.AddAttribute(1, "Value", binding.Options.CustomValues);
+                builder.AddAttribute(2, "ValueChanged",
+                    EventCallback.Factory.Create<string?>(this, v => binding.Options.CustomValues = v));
+                builder.AddAttribute(3, "Label", "Values (comma-separated)");
+                builder.AddAttribute(4, "Variant", Variant.Outlined);
+                builder.AddAttribute(5, "Margin", Margin.Dense);
+                builder.AddAttribute(6, "Style", "min-width: 200px;");
+                builder.CloseComponent();
+                break;
+        }
+    };
+}
