@@ -1,6 +1,7 @@
-using Aion.Components.Connections;
-using Aion.Core.Connections;
 using Aion.Core.Database;
+using Aion.Components.Connections;
+using Aion.Contracts.Connections;
+using Aion.Contracts.Database;
 using Aion.Test.TestDoubles;
 using Microsoft.Extensions.Logging;
 using Mythetech.Framework.Infrastructure.MessageBus;

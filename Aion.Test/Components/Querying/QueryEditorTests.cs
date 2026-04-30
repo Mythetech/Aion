@@ -1,7 +1,8 @@
+using Aion.Core.Database;
 using Aion.Components.Connections;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using Aion.Components.Querying;
-using Aion.Core.Database;
+using Aion.Contracts.Database;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

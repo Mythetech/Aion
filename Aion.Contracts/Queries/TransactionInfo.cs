@@ -1,4 +1,4 @@
-namespace Aion.Core.Queries;
+namespace Aion.Contracts.Queries;
 
 public readonly struct TransactionInfo
 {
@@ -13,7 +13,7 @@ public readonly struct TransactionInfo
         Status = TransactionStatus.Active;
     }
 
-    public TransactionInfo WithStatus(TransactionStatus newStatus) => 
+    public TransactionInfo WithStatus(TransactionStatus newStatus) =>
         new() { Id = Id, StartTime = StartTime, Status = newStatus };
 }
 
@@ -22,4 +22,4 @@ public enum TransactionStatus
     Active,
     Committed,
     RolledBack
-} 
+}

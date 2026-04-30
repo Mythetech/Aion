@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace Aion.Core.Extensions;
+namespace Aion.Contracts.Extensions;
 
 public static class JsonExtensions
 {
@@ -29,7 +29,7 @@ public static class JsonExtensions
             if (property.Value is JsonValue jsonValue && jsonValue.GetValueKind() == JsonValueKind.String)
             {
                 var valueString = jsonValue.ToString();
-                if ((valueString.StartsWith("{") && valueString.EndsWith("}")) || 
+                if ((valueString.StartsWith("{") && valueString.EndsWith("}")) ||
                     (valueString.StartsWith("[") && valueString.EndsWith("]")))
                 {
                     try

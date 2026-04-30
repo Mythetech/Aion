@@ -1,5 +1,6 @@
 using Aion.Core.Database;
-using Aion.Core.Queries;
+using Aion.Contracts.Database;
+using Aion.Contracts.Queries;
 using Microsoft.Extensions.Logging;
 using Shouldly;
 using Xunit;

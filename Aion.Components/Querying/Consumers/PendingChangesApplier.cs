@@ -2,8 +2,8 @@ using Aion.Components.Connections;
 using Aion.Components.Querying.Commands;
 using Aion.Components.Querying.Editing;
 using Aion.Components.Shared.Snackbar.Commands;
-using Aion.Core.Database;
-using Aion.Core.Queries.Editing;
+using Aion.Contracts.Database;
+using Aion.Contracts.Queries.Editing;
 using Microsoft.Extensions.Logging;
 using MudBlazor;
 using Mythetech.Framework.Infrastructure.MessageBus;
@@ -91,7 +91,7 @@ public class PendingChangesApplier : IConsumer<ApplyPendingChanges>
                 {
                     _logger.LogInformation("Executing SQL: {Statement}", statement);
 
-                    Core.Queries.QueryResult queryResult;
+                    Contracts.Queries.QueryResult queryResult;
                     if (transactionId != null)
                     {
                         queryResult = await provider.ExecuteInTransactionAsync(

@@ -1,10 +1,7 @@
-using Aion.Core.Database;
+using Aion.Contracts.Database;
 
-namespace Aion.Core.Queries.Editing;
+namespace Aion.Contracts.Queries.Editing;
 
-/// <summary>
-/// Generates SQL statements from pending changes.
-/// </summary>
 public class SqlChangeGenerator : ISqlChangeGenerator
 {
     public async Task<SqlGenerationResult> GenerateSqlAsync(
@@ -19,7 +16,6 @@ public class SqlChangeGenerator : ISqlChangeGenerator
             return new SqlGenerationResult([], false);
         }
 
-        // Validate
         if (string.IsNullOrEmpty(result.SourceTable))
         {
             return new SqlGenerationResult([], false, "Source table is not specified");
@@ -30,7 +26,6 @@ public class SqlChangeGenerator : ISqlChangeGenerator
             return new SqlGenerationResult([], false, "Source database is not specified");
         }
 
-        // For updates and deletes, we need primary keys
         var needsPrimaryKey = changeList.Any(c => c.Type is ChangeType.Update or ChangeType.Delete);
         if (needsPrimaryKey && !result.HasPrimaryKey)
         {
@@ -68,7 +63,6 @@ public class SqlChangeGenerator : ISqlChangeGenerator
             return new SqlGenerationResult(statements, true, string.Join("; ", errors));
         }
 
-        // Recommend transaction for multiple statements
         var requiresTransaction = statements.Count > 1;
 
         return new SqlGenerationResult(statements, requiresTransaction);
@@ -84,7 +78,6 @@ public class SqlChangeGenerator : ISqlChangeGenerator
             throw new InvalidOperationException("Insert change has no values");
         }
 
-        // Filter out identity columns
         var valuesToInsert = change.NewValues
             .Where(kvp =>
             {
@@ -110,18 +103,16 @@ public class SqlChangeGenerator : ISqlChangeGenerator
             throw new InvalidOperationException("Update change has no new values");
         }
 
-        // Get only the modified columns
         var modifiedColumns = change.GetModifiedColumns().ToList();
         if (modifiedColumns.Count == 0)
         {
-            return string.Empty; // No actual changes
+            return string.Empty;
         }
 
         var valuesToUpdate = modifiedColumns
             .Where(col =>
             {
                 var colInfo = result.GetColumnInfo(col);
-                // Don't update primary key or identity columns
                 return colInfo == null || (!colInfo.IsPrimaryKey && !colInfo.IsIdentity);
             })
             .Select(col => new ColumnValue(col, change.NewValues.GetValueOrDefault(col)));
@@ -131,7 +122,6 @@ public class SqlChangeGenerator : ISqlChangeGenerator
             return string.Empty;
         }
 
-        // Build WHERE clause from primary key values
         var pkValues = new Dictionary<string, object?>();
         foreach (var pkCol in result.PrimaryKeyColumns)
         {
@@ -153,7 +143,6 @@ public class SqlChangeGenerator : ISqlChangeGenerator
         PendingChange change,
         IStandardDatabaseCommands commands)
     {
-        // Build WHERE clause from primary key values
         var pkValues = new Dictionary<string, object?>();
         foreach (var pkCol in result.PrimaryKeyColumns)
         {

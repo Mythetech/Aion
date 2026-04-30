@@ -1,8 +1,8 @@
 using Mythetech.Framework.Infrastructure.MessageBus;
 using Aion.Components.Querying;
 using Aion.Components.Querying.Commands;
-using Aion.Core.Connections;
-using Aion.Core.Queries;
+using Aion.Contracts.Connections;
+using Aion.Contracts.Queries;
 using NSubstitute;
 using Shouldly;
 

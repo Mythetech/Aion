@@ -1,4 +1,4 @@
-namespace Aion.Core.Database;
+namespace Aion.Contracts.Database;
 
 public interface IDatabaseRoutineProvider
 {

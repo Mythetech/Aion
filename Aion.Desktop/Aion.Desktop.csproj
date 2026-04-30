@@ -31,6 +31,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\Aion.Components\Aion.Components.csproj" />
+      <ProjectReference Include="..\Aion.Core\Aion.Core.csproj" />
     </ItemGroup>
 
     <!-- Remove duplicate static web assets from Aion.Components to prevent conflict -->

@@ -1,8 +1,8 @@
 using Aion.Components.Connections;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using Aion.Components.Querying.Commands;
-using Aion.Core.Connections;
-using Aion.Core.Queries;
+using Aion.Contracts.Connections;
+using Aion.Contracts.Queries;
 using Aion.Components.Querying.Events;
 
 namespace Aion.Components.Querying;

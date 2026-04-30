@@ -1,4 +1,4 @@
-namespace Aion.Core.Database;
+namespace Aion.Contracts.Database;
 
 public class ColumnInfo
 {
@@ -11,4 +11,4 @@ public class ColumnInfo
     public int? MaxLength { get; set; }
     public ForeignKeyInfo? ForeignKey { get; set; }
     public bool IsForeignKey => ForeignKey != null;
-} 
+}

@@ -1,8 +1,5 @@
-namespace Aion.Core.Queries.Editing;
+namespace Aion.Contracts.Queries.Editing;
 
-/// <summary>
-/// Result of SQL generation for pending changes.
-/// </summary>
 public record SqlGenerationResult(
     List<string> Statements,
     bool RequiresTransaction,

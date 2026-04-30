@@ -1,3 +1,5 @@
+using Aion.Contracts.Database;
+
 namespace Aion.Core.Database.SqlServer;
 
 public class SqlServerCommands : IStandardDatabaseCommands

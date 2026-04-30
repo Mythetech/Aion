@@ -21,6 +21,10 @@ using Aion.Desktop.NativeMenu;
 using Hermes.Abstractions;
 using Mythetech.Platform.Sdk;
 using Velopack;
+using Aion.Contracts.Database;
+using Aion.Core.Database;
+using Aion.Core.Database.LiteDB;
+using Aion.Core.Database.SqlServer;
 using Aion.Desktop.Configuration;
 using Mythetech.Framework.Desktop.Updates;
 using Mythetech.Framework.Infrastructure.Guards;
@@ -87,6 +91,11 @@ namespace Aion.Desktop
             appBuilder.Services.AddRuntimeEnvironment(isProd ? DesktopRuntimeEnvironment.Production() : DesktopRuntimeEnvironment.Development());
 
             appBuilder.Services.AddAionComponents<ConnectionService>();
+
+            appBuilder.Services.AddScoped<IDatabaseProvider, PostgreSqlProvider>();
+            appBuilder.Services.AddScoped<IDatabaseProvider, MySqlProvider>();
+            appBuilder.Services.AddScoped<IDatabaseProvider, SqlServerProvider>();
+            appBuilder.Services.AddScoped<IDatabaseProvider, LiteDBProvider>();
 
             // Settings
             appBuilder.Services.AddSettingsStorage<AionSettingsStorage>();

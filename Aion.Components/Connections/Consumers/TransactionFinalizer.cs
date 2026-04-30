@@ -1,7 +1,7 @@
 using Aion.Components.Connections.Commands;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using Aion.Components.Querying.Events;
-using Aion.Core.Queries;
+using Aion.Contracts.Queries;
 
 namespace Aion.Components.Connections.Consumers;
 using Microsoft.Extensions.Logging;

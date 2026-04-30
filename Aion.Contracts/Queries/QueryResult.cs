@@ -1,4 +1,4 @@
-namespace Aion.Core.Queries;
+namespace Aion.Contracts.Queries;
 
 public class QueryResult
 {
@@ -22,4 +22,4 @@ public class QueryResult
             Cancelled = Cancelled
         };
     }
-} 
+}

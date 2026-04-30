@@ -1,5 +1,5 @@
 using Aion.Components.Querying.Consumers;
-using Aion.Core.Queries;
+using Aion.Contracts.Queries;
 using MudBlazor;
 
 namespace Aion.Components.Querying;

@@ -7,9 +7,7 @@ using Aion.Components.Search;
 using Aion.Components.Settings;
 using Aion.Components.Settings.Domains;
 using Aion.Components.Shared.Snackbar;
-using Aion.Core.Database;
-using Aion.Core.Database.LiteDB;
-using Aion.Core.Database.SqlServer;
+using Aion.Contracts.Database;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FluentUI.AspNetCore.Components;
 using MudBlazor;
@@ -29,7 +27,6 @@ public static class RegistrationExtensions
             config.SnackbarConfiguration.PreventDuplicates = true;
             config.SnackbarConfiguration.NewestOnTop = true;
             config.SnackbarConfiguration.ShowCloseIcon = true;
-            //config.SnackbarConfiguration.RequireInteraction = true;
             config.SnackbarConfiguration.MaximumOpacity = 80;
             config.SnackbarConfiguration.VisibleStateDuration = 3000;
             config.SnackbarConfiguration.HideTransitionDuration = 200;
@@ -42,12 +39,10 @@ public static class RegistrationExtensions
         services.AddSingleton<QueryState>();
         services.AddSingleton<HistoryState>();
 
-        // Settings framework
         services.AddSettingsFramework();
         services.AddSingleton<ConnectionSettings>();
         services.AddSingleton<EditorSettings>();
 
-        // SettingsState adapter for backward compatibility
         services.AddSingleton<SettingsState>(sp =>
         {
             var settingsProvider = sp.GetRequiredService<ISettingsProvider>();
@@ -57,10 +52,6 @@ public static class RegistrationExtensions
         services.AddSingleton<IConnectionService, TConnectionService>();
         services.AddSingleton<IConnectionHealthMonitor, ConnectionHealthMonitor>();
         services.AddScoped<IDatabaseProviderFactory, DatabaseProviderFactory>();
-        services.AddScoped<IDatabaseProvider, PostgreSqlProvider>();
-        services.AddScoped<IDatabaseProvider, MySqlProvider>();
-        services.AddScoped<IDatabaseProvider, SqlServerProvider>();
-        services.AddScoped<IDatabaseProvider, LiteDBProvider>();
 
         services.AddScoped<IForeignKeyService, ForeignKeyService>();
 

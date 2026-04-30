@@ -1,4 +1,5 @@
 using Aion.Core.Database;
+using Aion.Contracts.Database;
 using Microsoft.Extensions.Logging;
 using Shouldly;
 using Testcontainers.PostgreSql;

@@ -1,6 +1,6 @@
-using Aion.Core.Queries;
+using Aion.Contracts.Queries;
 
-namespace Aion.Core.Database;
+namespace Aion.Contracts.Database;
 
 public interface IDatabaseProvider
 {
@@ -21,4 +21,4 @@ public interface IDatabaseProvider
     Task CommitTransactionAsync(string connectionString, string transactionId);
     Task RollbackTransactionAsync(string connectionString, string transactionId);
     Task<QueryResult> ExecuteInTransactionAsync(string connectionString, string query, string transactionId, CancellationToken cancellationToken);
-} 
+}

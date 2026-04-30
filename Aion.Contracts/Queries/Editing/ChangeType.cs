@@ -1,4 +1,4 @@
-namespace Aion.Core.Queries.Editing;
+namespace Aion.Contracts.Queries.Editing;
 
 public enum ChangeType
 {

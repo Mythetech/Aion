@@ -6,8 +6,8 @@ using Mythetech.Framework.Infrastructure.MessageBus;
 using Aion.Components.Querying;
 using Aion.Components.Querying.Commands;
 using Aion.Components.Theme;
-using Aion.Core.Connections;
-using Aion.Core.Database;
+using Aion.Contracts.Connections;
+using Aion.Contracts.Database;
 using Microsoft.Extensions.Logging;
 
 namespace Aion.Components.Search;

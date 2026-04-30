@@ -1,3 +1,5 @@
+using Aion.Contracts.Database;
+
 namespace Aion.Core.Database.MySql;
 
 public class MySqlCommands : IStandardDatabaseCommands

@@ -1,4 +1,4 @@
-namespace Aion.Core.Database;
+namespace Aion.Contracts.Database;
 
 public class DatabaseProviderFactory : IDatabaseProviderFactory
 {
@@ -21,4 +21,4 @@ public class DatabaseProviderFactory : IDatabaseProviderFactory
     }
 
     public IEnumerable<DatabaseType> SupportedDatabases => _providerMap.Keys;
-} 
+}

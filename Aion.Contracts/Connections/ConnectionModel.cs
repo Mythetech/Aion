@@ -1,6 +1,6 @@
-using Aion.Core.Database;
+using Aion.Contracts.Database;
 
-namespace Aion.Core.Connections;
+namespace Aion.Contracts.Connections;
 
 public class ConnectionModel
 {
@@ -13,9 +13,7 @@ public class ConnectionModel
     public bool SaveCredentials { get; set; }
     public bool IsSavedConnection { get; set; }
 
-    // Health monitoring properties
     public DateTime? LastActivityTime { get; set; }
     public DateTime? LastHealthCheckTime { get; set; }
     public ConnectionHealthStatus HealthStatus { get; set; } = ConnectionHealthStatus.Unknown;
 }
-

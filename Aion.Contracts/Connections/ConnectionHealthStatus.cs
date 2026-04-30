@@ -1,4 +1,4 @@
-namespace Aion.Core.Connections;
+namespace Aion.Contracts.Connections;
 
 public enum ConnectionHealthStatus
 {

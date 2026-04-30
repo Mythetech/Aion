@@ -3,8 +3,8 @@
 @using Aion.Components.Connections.Models
 @using Aion.Components.Connections.Services
 @using Aion.Components.Querying
-@using Aion.Core.Connections
-@using Aion.Core.Database
+@using Aion.Contracts.Connections
+@using Aion.Contracts.Database
 @using Aion.Components.Shared
 @using Aion.Components.Shared.Snackbar
 @using Aion.Components.Theme
@@ -12,7 +12,7 @@
 @using Aion.Components.Querying.Commands
 @using Aion.Components.Shared.Dialogs
 @using Aion.Components.Settings.Domains
-@using Aion.Core.Queries
+@using Aion.Contracts.Queries
 @implements IConsumer<Aion.Components.Connections.Commands.ExpandDatabase>
 @implements IConsumer<Aion.Components.Connections.Commands.ExpandTable>
 @implements IConsumer<Aion.Components.Connections.Events.ConnectionHealthChanged>

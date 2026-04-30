@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
-using Aion.Core.Connections;
+using Aion.Contracts.Connections;
 
 public interface IConnectionStorage
 {

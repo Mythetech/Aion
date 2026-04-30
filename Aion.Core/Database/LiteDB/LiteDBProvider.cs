@@ -1,5 +1,5 @@
-using Aion.Core.Database;
-using Aion.Core.Queries;
+using Aion.Contracts.Database;
+using Aion.Contracts.Queries;
 using LiteDB;
 
 namespace Aion.Core.Database.LiteDB;
