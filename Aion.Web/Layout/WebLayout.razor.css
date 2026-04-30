@@ -1,0 +1,3 @@
+::deep .web-appbar {
+    z-index: var(--mud-zindex-appbar);
+}

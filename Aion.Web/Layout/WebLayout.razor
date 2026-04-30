@@ -1,0 +1,226 @@
+@inherits LayoutComponentBase
+@using Aion.Components.Theme
+@using Aion.Components.Connections
+@using Aion.Components.Connections.Commands
+@using Aion.Components.Querying
+@using Aion.Components.Querying.Commands
+@using Aion.Components.History
+@using Aion.Components.Shared.Snackbar
+@using Aion.Components.Shared.Dialogs
+@using Aion.Components.Shared
+@using Aion.Components.Settings
+@using Aion.Components.Infrastructure
+@using Aion.Contracts.Connections
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.FluentUI.AspNetCore.Components
+@using Microsoft.JSInterop
+@using Mythetech.Framework.Infrastructure.MessageBus
+@using Aion.Components
+@using Color = MudBlazor.Color
+@using MouseEvent = MudBlazor.MouseEvent
+@using IDialogService = MudBlazor.IDialogService
+@implements IDisposable
+
+<MudThemeProvider @ref="_theme" @bind-IsDarkMode="@AppState.IsDarkMode" Theme="@Theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+<GlobalCommandSnackbarProvider />
+<DialogCommandProvider />
+<JsApiCommandProvider />
+<FluentKeyCodeProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1" Dense="true" Class="web-appbar">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu"
+                       Color="Color.Inherit"
+                       OnClick="@(() => _drawerOpen = !_drawerOpen)" />
+        <MudText Typo="Typo.h6" Class="ml-2">Aion</MudText>
+        <MudSpacer />
+        <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+            <ActivatorContent>
+                <MudIconButton Icon="@(AppState.IsDarkMode ? AionIcons.DarkMode : AionIcons.LightMode)"
+                               Color="Color.Inherit" />
+            </ActivatorContent>
+            <ChildContent>
+                <MudMenuItem Icon="@AionIcons.LightMode" OnClick="@(() => AppState.IsDarkMode = false)">Light</MudMenuItem>
+                <MudMenuItem Icon="@AionIcons.DarkMode" OnClick="@(() => AppState.IsDarkMode = true)">Dark</MudMenuItem>
+            </ChildContent>
+        </MudMenu>
+        <MudIconButton Icon="@AionIcons.Settings" Color="Color.Inherit" OnClick="OpenSettingsDialog" />
+    </MudAppBar>
+    <MudDrawer @bind-Open="_drawerOpen" Elevation="2" Variant="DrawerVariant.Responsive" Breakpoint="Breakpoint.Md">
+        <MudDrawerHeader Dense="true">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="w-100">
+                <MudText Typo="Typo.subtitle1">Connections</MudText>
+                <MudSpacer />
+                <MudIconButton Icon="@AionIcons.Add" Size="Size.Small" OnClick="AddConnection" />
+            </MudStack>
+        </MudDrawerHeader>
+        <MudNavMenu Dense="true">
+            @foreach (var connection in ConnectionState.Connections)
+            {
+                <div @oncontextmenu="@(e => ShowConnectionContextMenu(e, connection))"
+                     @oncontextmenu:preventDefault="true">
+                    <MudNavLink Icon="@AionIcons.Connection"
+                                Match="NavLinkMatch.All"
+                                OnClick="@(() => SelectConnection(connection))">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudBadge Color="@(connection.Active ? Color.Success : Color.Error)"
+                                      Dot="true" Overlap="false" Bordered="true">
+                                <MudText Typo="Typo.body2">@connection.Name</MudText>
+                            </MudBadge>
+                        </MudStack>
+                    </MudNavLink>
+                </div>
+            }
+        </MudNavMenu>
+        <MudDivider Class="my-2" />
+        <MudNavMenu Dense="true">
+            <MudNavLink Icon="@AionIcons.History" OnClick="@(() => {})">History</MudNavLink>
+        </MudNavMenu>
+
+        <MudMenu @ref="_connectionContextMenu" Dense="true" AnchorOrigin="Origin.BottomLeft"
+                 TransformOrigin="Origin.TopLeft" PositionAtCursor="true">
+            <ChildContent>
+                <MudMenuItem Icon="@AionIcons.Query" OnClick="ContextMenu_NewQuery">New Query</MudMenuItem>
+                <MudMenuItem Icon="@AionIcons.Edit" OnClick="ContextMenu_EditConnection">Edit Connection</MudMenuItem>
+                <MudDivider />
+                <MudMenuItem Icon="@AionIcons.Delete" IconColor="Color.Error" OnClick="ContextMenu_DeleteConnection">
+                    <MudText Color="Color.Error">Delete Connection</MudText>
+                </MudMenuItem>
+            </ChildContent>
+        </MudMenu>
+    </MudDrawer>
+    <MudMainContent Class="pa-2" Style="max-height: calc(100dvh - 48px); overflow: hidden;">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="px-0 mud-width-full" Style="height: 100%; overflow: hidden;">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    [Inject] protected GlobalAppState AppState { get; set; } = default!;
+    [Inject] protected ConnectionState ConnectionState { get; set; } = default!;
+    [Inject] protected IDialogService DialogService { get; set; } = default!;
+    [Inject] protected IMessageBus Bus { get; set; } = default!;
+    [Inject] protected QueryState QueryState { get; set; } = default!;
+    [Inject] protected IJSRuntime JS { get; set; } = default!;
+
+    private MudThemeProvider _theme = default!;
+    private MudTheme Theme { get; } = new AionTheme();
+    private bool _drawerOpen = true;
+    private bool _initialized;
+    private MudMenu? _connectionContextMenu;
+    private ConnectionModel? _contextMenuConnection;
+
+    protected override void OnInitialized()
+    {
+        AppState.OnDarkModeChanged += HandleDarkModeChange;
+        ConnectionState.ConnectionStateChanged += HandleConnectionStateChanged;
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            AppState.SetThemeProvider(_theme);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender || !_initialized)
+        {
+            try
+            {
+                await AppState.SetSystemColorMode();
+                await JS.InvokeVoidAsync("aionSplash.hide");
+                _initialized = true;
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    protected async void HandleDarkModeChange(bool isDarkMode)
+    {
+        await Task.Yield();
+        try
+        {
+            await BlazorMonaco.Editor.Global.SetTheme(JS, isDarkMode ? "vs-dark" : "vs");
+            StateHasChanged();
+        }
+        catch
+        {
+        }
+    }
+
+    private void HandleConnectionStateChanged() => InvokeAsync(StateHasChanged);
+
+    private void SelectConnection(ConnectionModel connection)
+    {
+    }
+
+    private async Task AddConnection()
+    {
+        await Bus.PublishAsync(new PromptCreateConnection());
+    }
+
+    private async Task OpenSettingsDialog()
+    {
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            BackgroundClass = "aion-dialog",
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true,
+            CloseButton = false
+        };
+        await DialogService.ShowAsync<SettingsDialog>("Settings", options);
+    }
+
+    private async Task ShowConnectionContextMenu(MouseEventArgs e, ConnectionModel connection)
+    {
+        _contextMenuConnection = connection;
+        if (_connectionContextMenu != null)
+        {
+            await _connectionContextMenu.OpenMenuAsync(e);
+        }
+    }
+
+    private async Task ContextMenu_NewQuery()
+    {
+        if (_contextMenuConnection == null) return;
+        var query = QueryState.AddQuery("Untitled");
+        query.ConnectionId = _contextMenuConnection.Id;
+        await Bus.PublishAsync(new FocusQuery(query));
+    }
+
+    private async Task ContextMenu_EditConnection()
+    {
+        if (_contextMenuConnection == null) return;
+        var model = new ConnectionDialogModel
+        {
+            EditingConnectionId = _contextMenuConnection.Id,
+            Name = _contextMenuConnection.Name,
+            Type = _contextMenuConnection.Type,
+            ConnectionString = _contextMenuConnection.ConnectionString,
+            SaveCredentials = _contextMenuConnection.SaveCredentials
+        };
+        await Bus.PublishAsync(new PromptCreateConnection(model));
+    }
+
+    private async Task ContextMenu_DeleteConnection()
+    {
+        if (_contextMenuConnection == null) return;
+        await Bus.PublishAsync(new Aion.Components.Connections.Commands.DeleteConnection(_contextMenuConnection.Id));
+    }
+
+    public void Dispose()
+    {
+        AppState.OnDarkModeChanged -= HandleDarkModeChange;
+        ConnectionState.ConnectionStateChanged -= HandleConnectionStateChanged;
+    }
+}
