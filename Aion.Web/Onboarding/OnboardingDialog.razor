@@ -92,11 +92,3 @@
         MudDialog.Close(DialogResult.Ok(result));
     }
 }
-
-public enum OnboardingChoice
-{
-    Sample,
-    Scratch
-}
-
-public record OnboardingResult(OnboardingChoice Choice, DatabaseType Engine);
