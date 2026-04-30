@@ -8,7 +8,7 @@ public class InMemoryQuerySaveService : IQuerySaveService
 
     public Task SaveQueryAsync(QueryModel query)
     {
-        var existing = _queries.FindIndex(q => q.Name == query.Name);
+        var existing = _queries.FindIndex(q => q.Id == query.Id);
         if (existing >= 0)
             _queries[existing] = query;
         else
@@ -18,7 +18,7 @@ public class InMemoryQuerySaveService : IQuerySaveService
 
     public Task DeleteQueryAsync(QueryModel query)
     {
-        _queries.RemoveAll(q => q.Name == query.Name);
+        _queries.RemoveAll(q => q.Id == query.Id);
         return Task.CompletedTask;
     }
 

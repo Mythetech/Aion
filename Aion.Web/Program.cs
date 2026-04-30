@@ -9,7 +9,10 @@ using Aion.Web.Services;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Mythetech.Framework.Infrastructure.MessageBus;
+using Mythetech.Framework.Infrastructure.Guards;
+using Mythetech.Framework.Infrastructure.Plugins;
 using Mythetech.Framework.Infrastructure.Settings;
+using Mythetech.Framework.WebAssembly;
 
 using WebApp = Aion.Web.App;
 using ComponentsApp = Aion.Components.App;
@@ -20,7 +23,13 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 
 builder.Services.AddAionComponents<WebConnectionService>();
 
+builder.Services.AddSingleton<IDatabaseProviderFactory, DatabaseProviderFactory>();
+builder.Services.AddSingleton<PluginState>();
+builder.Services.AddJsGuards();
+
 builder.Services.AddSettingsStorage<InMemorySettingsStorage>();
+builder.Services.RegisterSettingsFromAssembly(typeof(ComponentsApp).Assembly);
+builder.Services.AddFileSaveService();
 
 builder.Services.AddSingleton<IQuerySaveService, InMemoryQuerySaveService>();
 builder.Services.AddTransient<ILinkOpenService, BrowserLinkOpenService>();
@@ -37,6 +46,10 @@ builder.Services.AddSingleton<SchemaExecutor>();
 builder.Services.AddSingleton<SampleDatabaseProvisioner>();
 
 builder.Services.AddMessageBus(typeof(WebApp).Assembly, typeof(ComponentsApp).Assembly);
+
+// AddMessageBus re-registers IConsumer<T> types as Transient;
+// restore QueryState as Singleton so all components share one instance
+builder.Services.AddSingleton<QueryState>();
 
 var host = builder.Build();
 

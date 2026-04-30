@@ -152,7 +152,7 @@
 
     private void OnConnectionChanged(ConnectionModel? connection)
     {
-        if (State.Active != null && connection != null)
+        if (State.Active != null && connection != null && State.Active.ConnectionId != connection.Id)
         {
             State.UpdateQueryConnection(State.Active, connection);
         }

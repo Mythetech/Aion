@@ -23,7 +23,7 @@ public class QueryState : IConsumer<QueryChanged>
     
     public QueryModel? Active { get; private set; }
 
-    private bool _initializing = false;
+    private bool _initialized = false;
 
     public QueryState(IMessageBus messageBus, IQuerySaveService saveService)
     {
@@ -33,9 +33,9 @@ public class QueryState : IConsumer<QueryChanged>
 
     public async Task InitializeAsync()
     {
-        if (_initializing) return;
-        
-        _initializing = true;
+        if (_initialized) return;
+        _initialized = true;
+
         var queries = await _saveService.LoadQueriesAsync();
         if (queries?.Count() >= 1)
         {
@@ -45,11 +45,10 @@ public class QueryState : IConsumer<QueryChanged>
             {
                 q.SavedQuery = q.Query;
             }
-            SetActive(Queries.First());
         }
-        
+
+        SetActive(Queries.First());
         OnStateChanged();
-        _initializing = false;
     }
     
     private QueryModel AddQueryInternal(QueryModel query)

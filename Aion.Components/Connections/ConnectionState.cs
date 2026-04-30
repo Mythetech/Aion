@@ -34,11 +34,7 @@ public class ConnectionState
     
     protected async Task NotifyQueryChanged() => await _messageBus.PublishAsync(new QueryChanged());
     
-    public List<ConnectionModel> Connections { get; set; } = [new ConnectionModel()
-    {
-        Name = "TestDefault",
-        Active = false,
-    }];
+    public List<ConnectionModel> Connections { get; set; } = [];
 
     public async Task InitializeAsync()
     {

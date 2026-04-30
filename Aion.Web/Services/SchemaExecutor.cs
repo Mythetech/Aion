@@ -1,4 +1,5 @@
 using Aion.Components.Connections;
+using Aion.Components.Querying;
 using Aion.Components.Scaffolding;
 using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
@@ -10,16 +11,19 @@ public class SchemaExecutor
 {
     private readonly SqliteWasmProvider _sqliteProvider;
     private readonly PGliteProvider _pgliteProvider;
-    private readonly IConnectionService _connectionService;
+    private readonly ConnectionState _connectionState;
+    private readonly QueryState _queryState;
 
     public SchemaExecutor(
         SqliteWasmProvider sqliteProvider,
         PGliteProvider pgliteProvider,
-        IConnectionService connectionService)
+        ConnectionState connectionState,
+        QueryState queryState)
     {
         _sqliteProvider = sqliteProvider;
         _pgliteProvider = pgliteProvider;
-        _connectionService = connectionService;
+        _connectionState = connectionState;
+        _queryState = queryState;
     }
 
     public async Task<ConnectionModel> ExecuteAsync(SchemaWizardModel model)
@@ -66,7 +70,14 @@ public class SchemaExecutor
             IsSavedConnection = false
         };
 
-        await _connectionService.AddConnection(connection);
+        _connectionState.Connections.Add(connection);
+        await _connectionState.RefreshDatabaseAsync(connection);
+
+        var query = _queryState.AddQuery(model.DatabaseName);
+        query.ConnectionId = connection.Id;
+        query.DatabaseName = model.DatabaseName;
+        _queryState.SetActive(query);
+
         return connection;
     }
 }

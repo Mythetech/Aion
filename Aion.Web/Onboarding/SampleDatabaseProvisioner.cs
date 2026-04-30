@@ -10,18 +10,18 @@ public class SampleDatabaseProvisioner
 {
     private readonly SqliteWasmProvider _sqliteProvider;
     private readonly PGliteProvider _pgliteProvider;
-    private readonly IConnectionService _connectionService;
+    private readonly ConnectionState _connectionState;
     private readonly QueryState _queryState;
 
     public SampleDatabaseProvisioner(
         SqliteWasmProvider sqliteProvider,
         PGliteProvider pgliteProvider,
-        IConnectionService connectionService,
+        ConnectionState connectionState,
         QueryState queryState)
     {
         _sqliteProvider = sqliteProvider;
         _pgliteProvider = pgliteProvider;
-        _connectionService = connectionService;
+        _connectionState = connectionState;
         _queryState = queryState;
     }
 
@@ -65,7 +65,8 @@ public class SampleDatabaseProvisioner
             IsSavedConnection = false
         };
 
-        await _connectionService.AddConnection(connection);
+        _connectionState.Connections.Add(connection);
+        await _connectionState.RefreshDatabaseAsync(connection);
 
         var queries = SampleDatabase.GetSampleQueries();
         if (queries.Length > 0)
@@ -74,6 +75,7 @@ public class SampleDatabaseProvisioner
             query.ConnectionId = connection.Id;
             query.DatabaseName = name;
             query.Query = queries[0];
+            _queryState.SetActive(query);
         }
 
         return connection;

@@ -7,9 +7,8 @@ namespace Aion.Web.Providers;
 
 public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider
 {
-    private readonly Dictionary<string, SqliteConnection> _sentinelConnections = new();
+    private readonly Dictionary<string, SqliteConnection> _connections = new();
     private readonly Dictionary<string, SqliteTransaction> _activeTransactions = new();
-    private readonly Dictionary<string, SqliteConnection> _transactionConnections = new();
 
     public IStandardDatabaseCommands Commands { get; } = new SqliteWasmCommands();
     public DatabaseType DatabaseType => DatabaseType.WasmSQLite;
@@ -17,29 +16,39 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider
 
     public Task<List<string>?> GetDatabasesAsync(string connectionString)
     {
-        return Task.FromResult<List<string>?>(_sentinelConnections.Keys.ToList());
+        return Task.FromResult<List<string>?>(_connections.Keys.ToList());
     }
 
     public Task EnsureDatabaseAsync(string name)
     {
-        if (_sentinelConnections.ContainsKey(name))
-            return Task.CompletedTask;
+        GetOrCreateConnection(name);
+        return Task.CompletedTask;
+    }
+
+    private SqliteConnection GetOrCreateConnection(string name)
+    {
+        if (_connections.TryGetValue(name, out var existing))
+            return existing;
 
         var connStr = BuildConnectionString(name);
-        var sentinel = new SqliteConnection(connStr);
-        sentinel.Open();
-        _sentinelConnections[name] = sentinel;
-        return Task.CompletedTask;
+        var conn = new SqliteConnection(connStr);
+        conn.Open();
+        _connections[name] = conn;
+        return conn;
+    }
+
+    private SqliteConnection GetConnection(string database)
+    {
+        if (_connections.TryGetValue(database, out var conn))
+            return conn;
+
+        return GetOrCreateConnection(database);
     }
 
     public async Task<List<TableInfo>> GetTablesAsync(string connectionString, string database)
     {
-        await EnsureDatabaseAsync(database);
+        var conn = GetConnection(database);
         var tables = new List<TableInfo>();
-        var connStr = BuildConnectionString(database);
-
-        using var conn = new SqliteConnection(connStr);
-        await conn.OpenAsync();
 
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name";
@@ -55,11 +64,8 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider
 
     public async Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string schema, string table)
     {
+        var conn = GetConnection(database);
         var columns = new List<ColumnInfo>();
-        var connStr = BuildConnectionString(database);
-
-        using var conn = new SqliteConnection(connStr);
-        await conn.OpenAsync();
 
         using var cmd = conn.CreateCommand();
         cmd.CommandText = $"PRAGMA table_info(\"{table}\")";
@@ -91,11 +97,8 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider
 
     public async Task<List<ForeignKeyInfo>> GetForeignKeysAsync(string connectionString, string database, string schema, string table)
     {
+        var conn = GetConnection(database);
         var foreignKeys = new List<ForeignKeyInfo>();
-        var connStr = BuildConnectionString(database);
-
-        using var conn = new SqliteConnection(connStr);
-        await conn.OpenAsync();
 
         using var cmd = conn.CreateCommand();
         cmd.CommandText = $"PRAGMA foreign_key_list(\"{table}\")";
@@ -122,14 +125,24 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider
         try
         {
             var dbName = ExtractDatabaseName(connectionString);
-            if (!string.IsNullOrEmpty(dbName))
-                await EnsureDatabaseAsync(dbName);
+            if (string.IsNullOrEmpty(dbName))
+            {
+                result.Error = "No database specified";
+                return result;
+            }
 
-            using var conn = new SqliteConnection(connectionString);
-            await conn.OpenAsync(cancellationToken);
+            var conn = GetConnection(dbName);
 
             using var cmd = conn.CreateCommand();
             cmd.CommandText = query;
+
+            if (IsNonQuery(query))
+            {
+                var affected = await cmd.ExecuteNonQueryAsync(cancellationToken);
+                result.Columns.Add("Rows Affected");
+                result.Rows.Add(new Dictionary<string, object> { ["Rows Affected"] = affected });
+                return result;
+            }
 
             using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
@@ -173,8 +186,8 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider
 
         try
         {
-            using var conn = new SqliteConnection(connectionString);
-            await conn.OpenAsync();
+            var dbName = ExtractDatabaseName(connectionString);
+            var conn = GetConnection(dbName!);
 
             using var cmd = conn.CreateCommand();
             cmd.CommandText = $"EXPLAIN QUERY PLAN {query}";
@@ -200,18 +213,14 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider
         return await GetEstimatedPlanAsync(connectionString, query);
     }
 
-    public async Task<TransactionInfo> BeginTransactionAsync(string connectionString)
+    public Task<TransactionInfo> BeginTransactionAsync(string connectionString)
     {
         var transaction = new TransactionInfo();
-
-        var conn = new SqliteConnection(connectionString);
-        await conn.OpenAsync();
+        var dbName = ExtractDatabaseName(connectionString);
+        var conn = GetConnection(dbName!);
         var dbTransaction = conn.BeginTransaction();
-
-        _transactionConnections[transaction.Id] = conn;
         _activeTransactions[transaction.Id] = dbTransaction;
-
-        return transaction;
+        return Task.FromResult(transaction);
     }
 
     public async Task CommitTransactionAsync(string connectionString, string transactionId)
@@ -221,12 +230,6 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider
             await transaction.CommitAsync();
             transaction.Dispose();
             _activeTransactions.Remove(transactionId);
-        }
-
-        if (_transactionConnections.TryGetValue(transactionId, out var conn))
-        {
-            await conn.DisposeAsync();
-            _transactionConnections.Remove(transactionId);
         }
     }
 
@@ -238,12 +241,6 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider
             transaction.Dispose();
             _activeTransactions.Remove(transactionId);
         }
-
-        if (_transactionConnections.TryGetValue(transactionId, out var conn))
-        {
-            await conn.DisposeAsync();
-            _transactionConnections.Remove(transactionId);
-        }
     }
 
     public async Task<QueryResult> ExecuteInTransactionAsync(string connectionString, string query, string transactionId, CancellationToken cancellationToken)
@@ -254,7 +251,9 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider
         var result = new QueryResult();
         try
         {
-            var conn = _transactionConnections[transactionId];
+            var dbName = ExtractDatabaseName(connectionString);
+            var conn = GetConnection(dbName!);
+
             using var cmd = conn.CreateCommand();
             cmd.CommandText = query;
             cmd.Transaction = transaction;
@@ -286,11 +285,8 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider
 
     public async Task<List<IndexInfo>> GetIndexesAsync(string connectionString, string database)
     {
+        var conn = GetConnection(database);
         var indexes = new List<IndexInfo>();
-        var connStr = BuildConnectionString(database);
-
-        using var conn = new SqliteConnection(connStr);
-        await conn.OpenAsync();
 
         using var cmd = conn.CreateCommand();
         cmd.CommandText = @"
@@ -333,6 +329,17 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider
         }
 
         return indexes;
+    }
+
+    private static bool IsNonQuery(string query)
+    {
+        var trimmed = query.TrimStart();
+        return trimmed.StartsWith("INSERT", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("UPDATE", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("DELETE", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("CREATE", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("DROP", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("ALTER", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string BuildConnectionString(string database)

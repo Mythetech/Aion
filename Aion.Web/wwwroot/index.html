@@ -8,11 +8,11 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png" />
     <link href="https://cdn-endpnt-stmythetechglobal.azureedge.net/assets/material-symbols.css" rel="stylesheet" type="text/css" />
+    <link href="Aion.Web.styles.css" rel="stylesheet" />
     <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" type="text/css" />
     <link href="_content/Mythetech.Framework/mythetech.css" rel="stylesheet" type="text/css" />
     <link href="_content/Z.Blazor.Diagrams/style.min.css" rel="stylesheet" />
     <link href="_content/Z.Blazor.Diagrams/default.styles.min.css" rel="stylesheet" />
-    <link href="Aion.Web.styles.css" rel="stylesheet" />
     <link href="css/app.css" rel="stylesheet" type="text/css" />
     <style>
         #aion-splash {
@@ -32,8 +32,15 @@
             pointer-events: none;
         }
 
+        .splash-logo {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            animation: rotateGlow 3s linear infinite;
+        }
+
         .splash-title {
-            margin-top: 24px;
+            margin-top: 16px;
             font-family: 'Gotu', serif;
             font-size: 1.4rem;
             color: #e0e0e0;
@@ -58,6 +65,44 @@
         .splash-dot:nth-child(3) { animation-delay: 0.3s; }
         .splash-dot:nth-child(4) { animation-delay: 0.45s; }
 
+        @keyframes rotateGlow {
+            0% {
+                box-shadow:
+                    0.15em 0.15em 0.5em 0.15em #312651,
+                    -0.15em 0.15em 0.5em 0.15em #9a57a7,
+                    0.15em -0.15em 0.5em 0.15em #76a0ff,
+                    -0.15em -0.15em 0.5em 0.15em #a6b3e5;
+            }
+            25% {
+                box-shadow:
+                    -0.15em -0.15em 0.5em 0.15em #312651,
+                    0.15em -0.15em 0.5em 0.15em #9a57a7,
+                    -0.15em 0.15em 0.5em 0.15em #76a0ff,
+                    0.15em 0.15em 0.5em 0.15em #a6b3e5;
+            }
+            50% {
+                box-shadow:
+                    -0.15em -0.15em 0.5em 0.15em #a6b3e5,
+                    0.15em -0.15em 0.5em 0.15em #312651,
+                    -0.15em 0.15em 0.5em 0.15em #9a57a7,
+                    0.15em 0.15em 0.5em 0.15em #76a0ff;
+            }
+            75% {
+                box-shadow:
+                    0.15em 0.15em 0.5em 0.15em #76a0ff,
+                    -0.15em -0.15em 0.5em 0.15em #a6b3e5,
+                    0.15em -0.15em 0.5em 0.15em #312651,
+                    -0.15em 0.15em 0.5em 0.15em #9a57a7;
+            }
+            100% {
+                box-shadow:
+                    0.15em 0.15em 0.5em 0.15em #312651,
+                    -0.15em 0.15em 0.5em 0.15em #9a57a7,
+                    0.15em -0.15em 0.5em 0.15em #76a0ff,
+                    -0.15em -0.15em 0.5em 0.15em #a6b3e5;
+            }
+        }
+
         @keyframes dotPulse {
             0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
             40% { opacity: 1; transform: scale(1.2); }
@@ -66,6 +111,7 @@
 </head>
 <body>
     <div id="aion-splash">
+        <img class="splash-logo" src="aion.png" alt="Aion" />
         <div class="splash-title">Aion</div>
         <div class="splash-dots">
             <div class="splash-dot"></div>
