@@ -4,6 +4,7 @@ using Aion.Components.NativeMenu;
 using Aion.Components.Querying;
 using Aion.Contracts.Database;
 using Aion.Web.Providers;
+using Aion.Web.Onboarding;
 using Aion.Web.Services;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
@@ -33,6 +34,7 @@ builder.Services.AddSingleton<IDatabaseProvider>(sp => sp.GetRequiredService<PGl
 builder.Services.AddSingleton<ISupportedTypeProvider, SqliteWasmTypeProvider>();
 builder.Services.AddSingleton<ISupportedTypeProvider, PGliteTypeProvider>();
 builder.Services.AddSingleton<SchemaExecutor>();
+builder.Services.AddSingleton<SampleDatabaseProvisioner>();
 
 builder.Services.AddMessageBus(typeof(WebApp).Assembly, typeof(ComponentsApp).Assembly);
 

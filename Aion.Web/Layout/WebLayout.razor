@@ -14,6 +14,7 @@
 @using Aion.Contracts.Connections
 @using Aion.Contracts.Database
 @using Aion.Web.Services
+@using Aion.Web.Onboarding
 @using Microsoft.AspNetCore.Components.Routing
 @using Microsoft.FluentUI.AspNetCore.Components
 @using Microsoft.JSInterop
@@ -111,6 +112,7 @@
     [Inject] protected IJSRuntime JS { get; set; } = default!;
     [Inject] protected SchemaExecutor SchemaExecutor { get; set; } = default!;
     [Inject] protected IEnumerable<ISupportedTypeProvider> TypeProviders { get; set; } = default!;
+    [Inject] protected SampleDatabaseProvisioner Provisioner { get; set; } = default!;
 
     private MudThemeProvider _theme = default!;
     private MudTheme Theme { get; } = new AionTheme();
@@ -142,10 +144,50 @@
                 await AppState.SetSystemColorMode();
                 await JS.InvokeVoidAsync("aionSplash.hide");
                 _initialized = true;
+
+                await CheckOnboardingAsync();
             }
             catch
             {
             }
+        }
+    }
+
+    private async Task CheckOnboardingAsync()
+    {
+        try
+        {
+            var hasOnboarded = await JS.InvokeAsync<string?>("localStorage.getItem", "aion_onboarded");
+            if (hasOnboarded is not null)
+                return;
+
+            var options = new DialogOptions
+            {
+                CloseOnEscapeKey = false,
+                BackdropClick = false,
+                MaxWidth = MaxWidth.Small,
+                FullWidth = true,
+                CloseButton = false
+            };
+            var dialog = await DialogService.ShowAsync<OnboardingDialog>("Welcome", options);
+            var result = await dialog.Result;
+
+            if (result is { Canceled: false, Data: OnboardingResult onboarding })
+            {
+                if (onboarding.Choice == OnboardingChoice.Sample)
+                {
+                    await Provisioner.ProvisionAsync(onboarding.Engine);
+                }
+                else
+                {
+                    await AddConnection();
+                }
+            }
+
+            await JS.InvokeVoidAsync("localStorage.setItem", "aion_onboarded", "true");
+        }
+        catch
+        {
         }
     }
 
