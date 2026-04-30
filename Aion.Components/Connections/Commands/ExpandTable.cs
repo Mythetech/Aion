@@ -1,5 +1,5 @@
-using Aion.Core.Connections;
-using Aion.Core.Database;
+using Aion.Contracts.Connections;
+using Aion.Contracts.Database;
 
 namespace Aion.Components.Connections.Commands;
 

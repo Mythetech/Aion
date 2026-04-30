@@ -1,0 +1,94 @@
+@using Aion.Components.Theme
+@using Aion.Contracts.Database
+
+<MudDialog DisableSidePadding="true">
+    <TitleContent>
+        <MudStack AlignItems="AlignItems.Center" Spacing="1" Class="pt-4">
+            <MudIcon Icon="@AionIcons.Aion" Style="width: 48px; height: 48px;" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">Welcome to Aion</MudText>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                A browser-based SQL playground. Your data stays in your browser.
+            </MudText>
+        </MudStack>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3" Class="pa-6">
+            @if (!_loading)
+            {
+                <MudText Typo="Typo.subtitle2">How would you like to start?</MudText>
+
+                <MudPaper Outlined="true" Class="pa-4 cursor-pointer"
+                          @onclick="() => SelectOption(OnboardingChoice.Sample)">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                        <MudIcon Icon="@AionIcons.Connection" Color="Color.Primary" Size="Size.Large" />
+                        <MudStack Spacing="0">
+                            <MudText Typo="Typo.subtitle1">Explore a sample database</MudText>
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                                Load a pre-built store database with customers, orders, and products.
+                                Great for trying out queries and the analyze feature.
+                            </MudText>
+                        </MudStack>
+                        <MudSpacer />
+                        <MudIcon Icon="@AionIcons.ExpandRight" />
+                    </MudStack>
+                </MudPaper>
+
+                <MudPaper Outlined="true" Class="pa-4 cursor-pointer"
+                          @onclick="() => SelectOption(OnboardingChoice.Scratch)">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                        <MudIcon Icon="@AionIcons.Add" Color="Color.Secondary" Size="Size.Large" />
+                        <MudStack Spacing="0">
+                            <MudText Typo="Typo.subtitle1">Start from scratch</MudText>
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                                Create your own database using the schema wizard.
+                                Choose between SQLite and PostgreSQL engines.
+                            </MudText>
+                        </MudStack>
+                        <MudSpacer />
+                        <MudIcon Icon="@AionIcons.ExpandRight" />
+                    </MudStack>
+                </MudPaper>
+
+                <MudStack Spacing="1" Class="mt-2">
+                    <MudText Typo="Typo.subtitle2">Engine</MudText>
+                    <MudRadioGroup @bind-Value="_selectedEngine">
+                        <MudRadio Value="DatabaseType.WasmSQLite" Color="Color.Primary" Dense="true">
+                            SQLite (In-Browser)
+                        </MudRadio>
+                        <MudRadio Value="DatabaseType.WasmPostgreSQL" Color="Color.Primary" Dense="true">
+                            PostgreSQL (PGlite)
+                        </MudRadio>
+                    </MudRadioGroup>
+                </MudStack>
+            }
+            else
+            {
+                <MudStack AlignItems="AlignItems.Center" Spacing="2" Class="py-8">
+                    <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+                    <MudText Typo="Typo.body1">@_loadingMessage</MudText>
+                </MudStack>
+            }
+
+            @if (_error is not null)
+            {
+                <MudAlert Severity="Severity.Error" Dense="true">@_error</MudAlert>
+            }
+        </MudStack>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private DatabaseType _selectedEngine = DatabaseType.WasmSQLite;
+    private bool _loading;
+    private string _loadingMessage = "";
+    private string? _error;
+
+    private void SelectOption(OnboardingChoice choice)
+    {
+        var result = new OnboardingResult(choice, _selectedEngine);
+        MudDialog.Close(DialogResult.Ok(result));
+    }
+}

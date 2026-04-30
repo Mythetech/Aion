@@ -49,7 +49,7 @@ public class AionTheme : MudTheme
         LayoutProperties = new LayoutProperties()
         {
             DefaultBorderRadius = "0.5em",
-            AppbarHeight = "0px",
+            AppbarHeight = "48px",
             DrawerWidthLeft = "25vw",
             DrawerMiniWidthLeft = "3.25em"
         };

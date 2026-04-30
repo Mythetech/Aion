@@ -1,4 +1,5 @@
 using Aion.Core.Database;
+using Aion.Contracts.Database;
 using DotNet.Testcontainers.Builders;
 using Microsoft.Extensions.Logging;
 using Shouldly;

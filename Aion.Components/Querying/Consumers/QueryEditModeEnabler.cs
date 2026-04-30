@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 using Aion.Components.Connections;
 using Aion.Components.Querying.Commands;
 using Aion.Components.Shared.Snackbar.Commands;
-using Aion.Core.Database;
+using Aion.Contracts.Database;
 using Microsoft.Extensions.Logging;
 using MudBlazor;
 using Mythetech.Framework.Infrastructure.MessageBus;

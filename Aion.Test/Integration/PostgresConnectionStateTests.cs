@@ -1,4 +1,5 @@
 using Aion.Core.Database;
+using Aion.Contracts.Database;
 using Testcontainers.PostgreSql;
 
 namespace Aion.Test.Integration;

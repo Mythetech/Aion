@@ -1,4 +1,4 @@
-using Aion.Core.Connections;
+using Aion.Contracts.Connections;
 
 namespace Aion.Components.Connections.Commands;
 

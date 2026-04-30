@@ -1,0 +1,175 @@
+@using Aion.Components.Theme
+@using Aion.Contracts.Database
+
+<MudDialog Class="schema-wizard">
+    <TitleContent>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@AionIcons.Connection" />
+            <MudText Typo="Typo.h6">New Database</MudText>
+        </MudStack>
+    </TitleContent>
+    <DialogContent>
+        <MudStepper @ref="_stepper"
+                    @bind-ActiveIndex="_activeIndex">
+            <ActionContent Context="stepper">
+                <MudButton OnClick="Cancel"
+                           Color="Color.Default">
+                    Cancel
+                </MudButton>
+                <MudButton StartIcon="@AionIcons.Back"
+                           OnClick="@stepper.PreviousStepAsync"
+                           Disabled="@(!stepper.PreviousStepEnabled)">
+                    Back
+                </MudButton>
+                <MudSpacer />
+                @if (_activeIndex > 0)
+                {
+                    <MudButton StartIcon="@AionIcons.Add"
+                               Color="Color.Default"
+                               OnClick="AddTable">
+                        Add Table
+                    </MudButton>
+                }
+                @if (!stepper.CanGoToNextStep)
+                {
+                    <MudButton Color="Color.Primary"
+                               Variant="Variant.Filled"
+                               Disabled="@(!IsValid)"
+                               OnClick="FinishAsync">
+                        Finish
+                    </MudButton>
+                }
+                else
+                {
+                    <MudButton Color="Color.Primary"
+                               Variant="Variant.Filled"
+                               OnClick="@stepper.NextStepAsync">
+                        Next
+                    </MudButton>
+                }
+            </ActionContent>
+            <ChildContent>
+                <MudStep Title="Database">
+                    <MudStack Spacing="3" Class="pa-2">
+                        <MudTextField @bind-Value="_model.DatabaseName"
+                                      Label="Database Name"
+                                      Variant="Variant.Outlined"
+                                      Required="true"
+                                      RequiredError="Database name is required" />
+
+                        <MudSelect @bind-Value="_model.EngineType"
+                                   Label="Engine"
+                                   Variant="Variant.Outlined">
+                            @foreach (var provider in TypeProviders)
+                            {
+                                <MudSelectItem Value="@provider.DatabaseType">
+                                    @GetEngineLabel(provider.DatabaseType)
+                                </MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudStack>
+                </MudStep>
+
+                @for (int i = 0; i < _model.Tables.Count; i++)
+                {
+                    var table = _model.Tables[i];
+                    var index = i;
+                    var title = string.IsNullOrWhiteSpace(table.Name)
+                        ? $"Table {index + 1}"
+                        : table.Name;
+
+                    <MudStep Title="@title">
+                        <MudStack Spacing="2" Class="pa-2">
+                            @if (_model.Tables.Count > 1)
+                            {
+                                <div class="d-flex justify-end">
+                                    <MudButton StartIcon="@AionIcons.Delete"
+                                               Color="Color.Error"
+                                               Size="Size.Small"
+                                               Variant="Variant.Text"
+                                               OnClick="@(() => RemoveTable(index))">
+                                        Remove Table
+                                    </MudButton>
+                                </div>
+                            }
+                            <TableDefinitionStep Table="table"
+                                                 SupportedTypes="@GetSupportedTypes()" />
+                        </MudStack>
+                    </MudStep>
+                }
+            </ChildContent>
+        </MudStepper>
+
+        @if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3" Dense="true">@_error</MudAlert>
+        }
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public IReadOnlyList<ISupportedTypeProvider> TypeProviders { get; set; } = [];
+
+    private MudStepper _stepper = default!;
+    private int _activeIndex;
+    private readonly SchemaWizardModel _model = new();
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        if (TypeProviders.Count > 0)
+            _model.EngineType = TypeProviders[0].DatabaseType;
+    }
+
+    private IReadOnlyList<string> GetSupportedTypes()
+    {
+        var provider = TypeProviders.FirstOrDefault(p => p.DatabaseType == _model.EngineType);
+        return provider?.SupportedTypes ?? [];
+    }
+
+    private static string GetEngineLabel(DatabaseType type) => type switch
+    {
+        DatabaseType.WasmSQLite => "SQLite (In-Browser)",
+        DatabaseType.WasmPostgreSQL => "PostgreSQL (PGlite)",
+        _ => type.ToString()
+    };
+
+    private bool IsValid =>
+        !string.IsNullOrWhiteSpace(_model.DatabaseName)
+        && _model.Tables.All(t => t.IsValid);
+
+    private void AddTable()
+    {
+        _model.Tables.Add(new TableDefinitionModel());
+    }
+
+    private void RemoveTable(int index)
+    {
+        if (_model.Tables.Count <= 1) return;
+        _model.Tables.RemoveAt(index);
+        if (_activeIndex > _model.Tables.Count)
+            _activeIndex = _model.Tables.Count;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void FinishAsync()
+    {
+        _error = null;
+
+        if (!IsValid)
+        {
+            _error = _model.Tables
+                .Select(t => t.ValidationError)
+                .FirstOrDefault(e => e is not null)
+                ?? "Please fill in all required fields";
+            return;
+        }
+
+        MudDialog.Close(DialogResult.Ok(_model));
+    }
+}

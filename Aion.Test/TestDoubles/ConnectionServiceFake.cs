@@ -1,7 +1,8 @@
-using Aion.Components.Connections;
-using Aion.Core.Connections;
 using Aion.Core.Database;
-using Aion.Core.Queries;
+using Aion.Components.Connections;
+using Aion.Contracts.Connections;
+using Aion.Contracts.Database;
+using Aion.Contracts.Queries;
 
 namespace Aion.Test.TestDoubles;
 

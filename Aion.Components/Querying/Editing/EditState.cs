@@ -1,4 +1,4 @@
-using Aion.Core.Queries.Editing;
+using Aion.Contracts.Queries.Editing;
 
 namespace Aion.Components.Querying.Editing;
 

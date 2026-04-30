@@ -1,8 +1,9 @@
+using Aion.Contracts.Database;
+using Aion.Contracts.Queries;
 using Aion.Core.Database.MySql;
-using Aion.Core.Queries;
+using Microsoft.Extensions.Logging;
 using MySql.Data.MySqlClient;
 using System.Text;
-using Microsoft.Extensions.Logging;
 
 namespace Aion.Core.Database;
 

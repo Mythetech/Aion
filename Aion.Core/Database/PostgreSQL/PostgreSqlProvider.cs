@@ -1,5 +1,6 @@
+using Aion.Contracts.Database;
+using Aion.Contracts.Queries;
 using Aion.Core.Database.PostgreSQL;
-using Aion.Core.Queries;
 using Npgsql;
 using System.Text;
 

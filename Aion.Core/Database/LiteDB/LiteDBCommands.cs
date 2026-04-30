@@ -1,3 +1,5 @@
+using Aion.Contracts.Database;
+
 namespace Aion.Core.Database.LiteDB;
 
 public class LiteDBCommands : IStandardDatabaseCommands

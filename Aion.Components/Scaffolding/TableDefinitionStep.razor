@@ -1,0 +1,56 @@
+@using Aion.Components.Theme
+
+<MudStack Spacing="3">
+    <MudTextField @bind-Value="Table.Name"
+                  Label="Table Name"
+                  Variant="Variant.Outlined"
+                  Required="true"
+                  RequiredError="Table name is required" />
+
+    <MudText Typo="Typo.subtitle2">Columns</MudText>
+
+    @for (int i = 0; i < Table.Columns.Count; i++)
+    {
+        var column = Table.Columns[i];
+        <ColumnDefinitionRow Column="column"
+                             SupportedTypes="SupportedTypes"
+                             PrimaryKeyDisabled="@HasPrimaryKey(column)"
+                             CanRemove="@(Table.Columns.Count > 1)"
+                             OnRemove="@(() => RemoveColumn(column))"
+                             PrimaryKeyChanged="@(_ => StateHasChanged())" />
+    }
+
+    <MudButton Variant="Variant.Text"
+               Color="Color.Primary"
+               StartIcon="@AionIcons.Add"
+               OnClick="AddColumn"
+               Size="Size.Small">
+        Add Column
+    </MudButton>
+
+    @if (Table.ValidationError is { } error)
+    {
+        <MudAlert Severity="Severity.Warning" Dense="true">@error</MudAlert>
+    }
+</MudStack>
+
+@code {
+    [Parameter, EditorRequired]
+    public TableDefinitionModel Table { get; set; } = default!;
+
+    [Parameter]
+    public IReadOnlyList<string> SupportedTypes { get; set; } = [];
+
+    private bool HasPrimaryKey(ColumnDefinitionModel exclude)
+        => Table.Columns.Any(c => c.IsPrimaryKey && c != exclude);
+
+    private void AddColumn()
+    {
+        Table.Columns.Add(new ColumnDefinitionModel());
+    }
+
+    private void RemoveColumn(ColumnDefinitionModel column)
+    {
+        Table.Columns.Remove(column);
+    }
+}

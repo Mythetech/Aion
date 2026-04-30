@@ -13,6 +13,7 @@
     <ItemGroup>
       <PackageReference Include="BlazorMonaco" />
       <PackageReference Include="ClosedXML" />
+      <PackageReference Include="Hogimn.Sql.Formatter" />
       <PackageReference Include="Microsoft.AspNetCore.Components.Web" />
       <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" />
       <PackageReference Include="Mythetech.Framework" />
@@ -20,7 +21,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Aion.Core\Aion.Core.csproj" />
+      <ProjectReference Include="..\Aion.Contracts\Aion.Contracts.csproj" />
     </ItemGroup>
 
 

@@ -1,4 +1,4 @@
-using Aion.Core.Database;
+using Aion.Contracts.Database;
 using Aion.Core.Database.SqlServer;
 using DotNet.Testcontainers.Builders;
 using Microsoft.Extensions.Logging;

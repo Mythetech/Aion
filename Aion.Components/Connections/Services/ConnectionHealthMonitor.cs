@@ -1,6 +1,6 @@
 using Aion.Components.Connections.Events;
 using Aion.Components.Settings.Domains;
-using Aion.Core.Connections;
+using Aion.Contracts.Connections;
 using Microsoft.Extensions.Logging;
 using Mythetech.Framework.Infrastructure.MessageBus;
 

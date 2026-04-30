@@ -1,0 +1,299 @@
+@inherits LayoutComponentBase
+@using Aion.Components.Theme
+@using Aion.Components.Connections
+@using Aion.Components.History
+@using Aion.Components.Querying
+@using Aion.Components.Shared.Snackbar
+@using Aion.Components.Shared.Dialogs
+@using Aion.Components.Settings
+@using Aion.Components.Infrastructure
+@using Aion.Components.Scaffolding
+@using Aion.Contracts.Database
+@using Aion.Web.Services
+@using Aion.Web.Onboarding
+@using Microsoft.FluentUI.AspNetCore.Components
+@using Microsoft.JSInterop
+@using Mythetech.Framework.Infrastructure.MessageBus
+@using Mythetech.Framework.Components.AppContextDrawer
+@using Mythetech.Framework.Components.Buttons
+@using Aion.Components
+@using Aion.Components.AppContextPanel
+@using Aion.Components.Shared
+@using Color = MudBlazor.Color
+@using IDialogService = MudBlazor.IDialogService
+@implements IDisposable
+
+<MudThemeProvider @ref="_theme" @bind-IsDarkMode="@AppState.IsDarkMode" Theme="@Theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+<GlobalCommandSnackbarProvider />
+<DialogCommandProvider />
+<JsApiCommandProvider />
+<FluentKeyCodeProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1" Dense="true">
+        <MudText Typo="Typo.h6" Class="ml-2">Aion</MudText>
+        <MudSpacer />
+    </MudAppBar>
+    <MudDrawer @bind-Open="@AppState.SideBarOpen" Variant="DrawerVariant.Mini" Style="overflow: hidden;">
+        <AppContextDrawer @bind-IsOpen="@AppState.SideBarOpen" @bind-ActivePanelId="@_activePanelId"
+                          ShowPluginPanels="false" MaxWidth="800">
+            <IconBarHeader>
+                <AionIconButton Class="p-2 ml-1" Icon="@AionIcons.Aion" OnClick="OpenAboutDialog" />
+                <MtIconButton Class="p-2 ml-1" Icon="@AionIcons.Add" OnClick="AddConnection" Tooltip="New Database"
+                              TooltipPlacement="@Placement.Right" />
+            </IconBarHeader>
+
+            <PanelNavContent>
+                @foreach (var connection in ConnectionState.Connections)
+                {
+                    <ContextPanelItem Id="@connection.Id.ToString()" Icon="@AionIcons.Connection" Title="@connection.Name"
+                                      BadgeColor="Color.Success">
+                        <PanelContent>
+                            <ConnectionPanel Connection="@connection" />
+                        </PanelContent>
+                    </ContextPanelItem>
+                }
+
+                <MudDivider DividerType="DividerType.Middle" Class="ml-3" Style="width:60%" />
+
+                <ContextPanelItem Id="history" Icon="@AionIcons.History" Title="History">
+                    <PanelContent>
+                        <HistoryPanel />
+                    </PanelContent>
+                </ContextPanelItem>
+            </PanelNavContent>
+
+            <PanelFooterContent>
+                <MudMenu ActivationEvent="MouseEvent.MouseOver" AnchorOrigin="Origin.TopRight">
+                    <ActivatorContent>
+                        <MudIconButton Class="ml-1"
+                                       Icon="@(AppState.IsDarkMode ? AionIcons.DarkMode : AionIcons.LightMode)"
+                                       Color="Color.Primary" Variant="Variant.Text"
+                                       OnClick="@(() => AppState.IsDarkMode = !AppState.IsDarkMode)" />
+                    </ActivatorContent>
+                    <ChildContent>
+                        <MudToggleGroup T="string" Size="Size.Small" Value="@SelectedColorMode"
+                                        ValueChanged="HandleColorModeChanged" Style="align-items: center">
+                            <ToggleIcon Value="light" Icon="@AionIcons.LightMode" Text="Light Mode" />
+                            <ToggleIcon Value="dark" Icon="@AionIcons.DarkMode" Text="Dark Mode" />
+                            <ToggleIcon Value="system" Icon="@AionIcons.Round("laptop")" Text="System Default" />
+                        </MudToggleGroup>
+                    </ChildContent>
+                </MudMenu>
+                <MtIconButton Class="ml-1" Color="Color.Primary" Icon="@AionIcons.Settings" OnClick="OpenSettingsDialog"
+                              Tooltip="Settings" TooltipPlacement="Placement.Right" />
+                <MudIconButton Class="ml-1"
+                               Icon="@(AppState.SideBarOpen ? AionIcons.CollapseLeft : AionIcons.ExpandRight)"
+                               Color="Color.Inherit" OnClick="@(() => AppState.ToggleSideBar())" />
+            </PanelFooterContent>
+        </AppContextDrawer>
+    </MudDrawer>
+    <MudMainContent Class="pl-2 pr-0" Style="height:100dvh;max-width:100vw;overflow:hidden;">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="px-0 mud-width-full" Style="height:100%;overflow:hidden;">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    [Inject] protected GlobalAppState AppState { get; set; } = default!;
+    [Inject] protected ConnectionState ConnectionState { get; set; } = default!;
+    [Inject] protected IDialogService DialogService { get; set; } = default!;
+    [Inject] protected IMessageBus Bus { get; set; } = default!;
+    [Inject] protected QueryState QueryState { get; set; } = default!;
+    [Inject] protected IJSRuntime JS { get; set; } = default!;
+    [Inject] protected SchemaExecutor SchemaExecutor { get; set; } = default!;
+    [Inject] protected IEnumerable<ISupportedTypeProvider> TypeProviders { get; set; } = default!;
+    [Inject] protected SampleDatabaseProvisioner Provisioner { get; set; } = default!;
+
+    private MudThemeProvider _theme = default!;
+    private MudTheme Theme { get; } = new AionTheme();
+    private string? _activePanelId;
+    private bool _initialized;
+
+    private string SelectedColorMode => AppState.IsDarkMode ? "dark" : "light";
+
+    protected override void OnInitialized()
+    {
+        AppState.OnDarkModeChanged += HandleDarkModeChange;
+        ConnectionState.ConnectionStateChanged += HandleConnectionStateChanged;
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            AppState.SetThemeProvider(_theme);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender || !_initialized)
+        {
+            try
+            {
+                await AppState.SetSystemColorMode();
+                await JS.InvokeVoidAsync("aionSplash.hide");
+                _initialized = true;
+
+                await CheckOnboardingAsync();
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private async Task CheckOnboardingAsync()
+    {
+        try
+        {
+            var hasOnboarded = await JS.InvokeAsync<string?>("localStorage.getItem", "aion_onboarded");
+            if (hasOnboarded is not null && ConnectionState.Connections.Count > 0)
+                return;
+
+            if (hasOnboarded is not null)
+                await JS.InvokeVoidAsync("localStorage.removeItem", "aion_onboarded");
+
+            var options = new DialogOptions
+            {
+                CloseOnEscapeKey = false,
+                BackdropClick = false,
+                MaxWidth = MaxWidth.Small,
+                FullWidth = true,
+                CloseButton = false
+            };
+            var dialog = await DialogService.ShowAsync<OnboardingDialog>("Welcome", options);
+            var result = await dialog.Result;
+
+            if (result is { Canceled: false, Data: OnboardingResult onboarding })
+            {
+                try
+                {
+                    if (onboarding.Choice == OnboardingChoice.Sample)
+                    {
+                        await Provisioner.ProvisionAsync(onboarding.Engine);
+                    }
+                    else
+                    {
+                        await AddConnection();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    await Bus.PublishAsync(new Aion.Components.Shared.Snackbar.Commands.AddNotification(
+                        $"Failed to set up database: {ex.Message}",
+                        MudBlazor.Severity.Error));
+                }
+            }
+
+            if (ConnectionState.Connections.Count > 0)
+                await JS.InvokeVoidAsync("localStorage.setItem", "aion_onboarded", "true");
+        }
+        catch
+        {
+        }
+    }
+
+    protected async void HandleDarkModeChange(bool isDarkMode)
+    {
+        await Task.Yield();
+        try
+        {
+            await BlazorMonaco.Editor.Global.SetTheme(JS, isDarkMode ? "vs-dark" : "vs");
+            StateHasChanged();
+        }
+        catch
+        {
+        }
+    }
+
+    private void HandleConnectionStateChanged()
+    {
+        if (_activePanelId != null && !ConnectionState.Connections.Any(c => c.Id.ToString() == _activePanelId))
+        {
+            _activePanelId = null;
+        }
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleColorModeChanged(string s)
+    {
+        if (!AppState.IsDarkMode && s.Equals("light", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        AppState.IsDarkMode = s.Equals("dark", StringComparison.OrdinalIgnoreCase) ||
+                              s.Equals("system", StringComparison.OrdinalIgnoreCase);
+
+        StateHasChanged();
+    }
+
+    private async Task AddConnection()
+    {
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            BackgroundClass = "aion-dialog",
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true,
+            CloseButton = false
+        };
+        var parameters = new MudBlazor.DialogParameters<SchemaWizard>
+        {
+            { x => x.TypeProviders, TypeProviders.ToList() }
+        };
+        var dialog = await DialogService.ShowAsync<SchemaWizard>("New Database", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: SchemaWizardModel model })
+        {
+            try
+            {
+                await SchemaExecutor.ExecuteAsync(model);
+            }
+            catch (Exception ex)
+            {
+                await Bus.PublishAsync(new Aion.Components.Shared.Snackbar.Commands.AddNotification(
+                    $"Failed to create database: {ex.Message}",
+                    MudBlazor.Severity.Error));
+            }
+        }
+    }
+
+    private async Task OpenSettingsDialog()
+    {
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            BackgroundClass = "aion-dialog",
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true,
+            CloseButton = false
+        };
+        await DialogService.ShowAsync<SettingsDialog>("Settings", options);
+    }
+
+    private async Task OpenAboutDialog()
+    {
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            BackgroundClass = "aion-dialog",
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            CloseButton = false
+        };
+        await DialogService.ShowAsync<AboutAionWasm>("About Aion", options);
+    }
+
+    public void Dispose()
+    {
+        AppState.OnDarkModeChanged -= HandleDarkModeChange;
+        ConnectionState.ConnectionStateChanged -= HandleConnectionStateChanged;
+    }
+}

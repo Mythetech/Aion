@@ -1,3 +1,4 @@
+using Aion.Contracts.Database;
 
 namespace Aion.Core.Database.PostgreSQL;
 

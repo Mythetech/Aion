@@ -1,12 +1,13 @@
+using Aion.Core.Database;
 using Aion.Components.Connections;
 using Aion.Components.Connections.Commands;
 using Aion.Components.Connections.Consumers;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using Aion.Components.Querying;
 using Aion.Components.Querying.Events;
-using Aion.Core.Connections;
-using Aion.Core.Database;
-using Aion.Core.Queries;
+using Aion.Contracts.Connections;
+using Aion.Contracts.Database;
+using Aion.Contracts.Queries;
 using Aion.Test.TestDoubles;
 using Bunit;
 using DocumentFormat.OpenXml.Spreadsheet;

@@ -1,5 +1,5 @@
 using Aion.Components.Connections;
-using Aion.Core.Database;
+using Aion.Contracts.Database;
 
 namespace Aion.Components.ForeignKeys;
 

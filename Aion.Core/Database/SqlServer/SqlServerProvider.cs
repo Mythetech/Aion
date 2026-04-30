@@ -1,8 +1,8 @@
+using Aion.Contracts.Database;
+using Aion.Contracts.Queries;
 using Microsoft.Data.SqlClient;
-using System.Text;
-using Aion.Core.Database;
-using Aion.Core.Queries;
 using Microsoft.Extensions.Logging;
+using System.Text;
 
 namespace Aion.Core.Database.SqlServer;
 

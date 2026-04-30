@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <base href="/" />
+    <title>Aion</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png" />
+    <link href="https://cdn-endpnt-stmythetechglobal.azureedge.net/assets/material-symbols.css" rel="stylesheet" type="text/css" />
+    <link href="Aion.Web.styles.css" rel="stylesheet" />
+    <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" type="text/css" />
+    <link href="_content/Mythetech.Framework/mythetech.css" rel="stylesheet" type="text/css" />
+    <link href="_content/Z.Blazor.Diagrams/style.min.css" rel="stylesheet" />
+    <link href="_content/Z.Blazor.Diagrams/default.styles.min.css" rel="stylesheet" />
+    <link href="css/app.css" rel="stylesheet" type="text/css" />
+    <style>
+        #aion-splash {
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0d0d1a 0%, #1a1030 50%, #0d0d1a 100%);
+            transition: opacity 0.4s ease-out;
+        }
+
+        #aion-splash.fade-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .splash-logo {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            animation: rotateGlow 3s linear infinite;
+        }
+
+        .splash-title {
+            margin-top: 16px;
+            font-family: 'Gotu', serif;
+            font-size: 1.4rem;
+            color: #e0e0e0;
+            letter-spacing: 0.1em;
+        }
+
+        .splash-dots {
+            display: flex;
+            gap: 6px;
+            margin-top: 24px;
+        }
+
+        .splash-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #7c4dff;
+            animation: dotPulse 1.2s ease-in-out infinite;
+        }
+
+        .splash-dot:nth-child(2) { animation-delay: 0.15s; }
+        .splash-dot:nth-child(3) { animation-delay: 0.3s; }
+        .splash-dot:nth-child(4) { animation-delay: 0.45s; }
+
+        @keyframes rotateGlow {
+            0% {
+                box-shadow:
+                    0.15em 0.15em 0.5em 0.15em #312651,
+                    -0.15em 0.15em 0.5em 0.15em #9a57a7,
+                    0.15em -0.15em 0.5em 0.15em #76a0ff,
+                    -0.15em -0.15em 0.5em 0.15em #a6b3e5;
+            }
+            25% {
+                box-shadow:
+                    -0.15em -0.15em 0.5em 0.15em #312651,
+                    0.15em -0.15em 0.5em 0.15em #9a57a7,
+                    -0.15em 0.15em 0.5em 0.15em #76a0ff,
+                    0.15em 0.15em 0.5em 0.15em #a6b3e5;
+            }
+            50% {
+                box-shadow:
+                    -0.15em -0.15em 0.5em 0.15em #a6b3e5,
+                    0.15em -0.15em 0.5em 0.15em #312651,
+                    -0.15em 0.15em 0.5em 0.15em #9a57a7,
+                    0.15em 0.15em 0.5em 0.15em #76a0ff;
+            }
+            75% {
+                box-shadow:
+                    0.15em 0.15em 0.5em 0.15em #76a0ff,
+                    -0.15em -0.15em 0.5em 0.15em #a6b3e5,
+                    0.15em -0.15em 0.5em 0.15em #312651,
+                    -0.15em 0.15em 0.5em 0.15em #9a57a7;
+            }
+            100% {
+                box-shadow:
+                    0.15em 0.15em 0.5em 0.15em #312651,
+                    -0.15em 0.15em 0.5em 0.15em #9a57a7,
+                    0.15em -0.15em 0.5em 0.15em #76a0ff,
+                    -0.15em -0.15em 0.5em 0.15em #a6b3e5;
+            }
+        }
+
+        @keyframes dotPulse {
+            0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+            40% { opacity: 1; transform: scale(1.2); }
+        }
+    </style>
+</head>
+<body>
+    <div id="aion-splash">
+        <img class="splash-logo" src="aion.png" alt="Aion" />
+        <div class="splash-title">Aion</div>
+        <div class="splash-dots">
+            <div class="splash-dot"></div>
+            <div class="splash-dot"></div>
+            <div class="splash-dot"></div>
+            <div class="splash-dot"></div>
+        </div>
+    </div>
+    <div id="app" style="overflow: hidden;"></div>
+
+    <script src="_content/Microsoft.FluentUI.AspNetCore.Components/Microsoft.FluentUI.AspNetCore.Components.lib.module.js"
+            type="module" async></script>
+
+    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+    <script src="_content/Mythetech.Framework/mythetech.js" type="module"></script>
+    <script src="_content/Mythetech.Framework/js-guard.js"></script>
+    <script src="_content/Z.Blazor.Diagrams/script.min.js"></script>
+    <script src="_content/BlazorMonaco/jsInterop.js"></script>
+    <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/loader.js"></script>
+    <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/editor/editor.main.js"></script>
+    <script>
+        if (typeof monaco === 'undefined' && typeof require === 'function') {
+            require(['vs/editor/editor.main'], function() {});
+        }
+        registerJsGuard("monaco", function() { return typeof monaco !== 'undefined'; });
+    </script>
+    <script>
+        window.aionSplash = {
+            hide: function() {
+                var splash = document.getElementById('aion-splash');
+                if (splash) {
+                    splash.classList.add('fade-out');
+                    setTimeout(function() { splash.remove(); }, 400);
+                }
+            }
+        };
+    </script>
+    <script src="_framework/blazor.webassembly.js"></script>
+    <script>navigator.serviceWorker.register('service-worker.js');</script>
+</body>
+</html>

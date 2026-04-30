@@ -9,7 +9,7 @@
 @using Aion.Components.History
 @using Aion.Components.Querying
 @using Aion.Components.Querying.Commands
-@using Aion.Core.Connections
+@using Aion.Contracts.Connections
 @using Aion.Components.NativeMenu
 @using Aion.Components.Search
 @using Aion.Components.Shared.Snackbar
@@ -129,7 +129,7 @@
             </ChildContent>
         </MudMenu>
     </MudDrawer>
-    <MudMainContent Class="pl-2 pr-0" Style="max-height:100dvh;max-width:100vw;overflow:hidden;">
+    <MudMainContent Class="pl-2 pr-0 pt-0" Style="max-height:100dvh;max-width:100vw;overflow:hidden;">
         <MudContainer Class="px-0 mud-width-full" MaxWidth="MaxWidth.ExtraLarge" Style="height:100%;overflow:hidden;">
             @Body
         </MudContainer>
