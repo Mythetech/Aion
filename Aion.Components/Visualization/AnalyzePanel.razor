@@ -1,0 +1,86 @@
+@using Aion.Contracts.Queries
+
+<MudStack Spacing="3" Class="pa-4 h-100">
+    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.End">
+        <MudSelect @bind-Value="_groupByColumn"
+                   Label="Group By"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Style="min-width: 180px;">
+            @foreach (var col in _groupableColumns)
+            {
+                <MudSelectItem Value="@col">@col</MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudSelect @bind-Value="_measureColumn"
+                   Label="Measure"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Style="min-width: 180px;">
+            @foreach (var col in _measurableColumns)
+            {
+                <MudSelectItem Value="@col">@col</MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudSelect @bind-Value="_function"
+                   Label="Function"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Style="min-width: 140px;">
+            @foreach (var fn in Enum.GetValues<AggregateFunction>())
+            {
+                <MudSelectItem Value="@fn">@fn</MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   Size="Size.Small"
+                   OnClick="RunAggregation"
+                   Disabled="@(!CanRun)">
+            Analyze
+        </MudButton>
+    </MudStack>
+
+    <MudDivider />
+
+    <div class="flex-grow-1 overflow-auto">
+        <ResultChart Result="@_result" />
+    </div>
+</MudStack>
+
+@code {
+    [Parameter, EditorRequired]
+    public QueryResult Result { get; set; } = default!;
+
+    private readonly AggregationEngine _engine = new();
+    private IReadOnlyList<string> _groupableColumns = [];
+    private IReadOnlyList<string> _measurableColumns = [];
+    private string? _groupByColumn;
+    private string? _measureColumn;
+    private AggregateFunction _function = AggregateFunction.Count;
+    private AggregationResult? _result;
+
+    protected override void OnParametersSet()
+    {
+        _groupableColumns = _engine.GetGroupableColumns(Result);
+        _measurableColumns = _engine.GetMeasurableColumns(Result);
+
+        if (_groupByColumn is null && _groupableColumns.Count > 0)
+            _groupByColumn = _groupableColumns[0];
+
+        if (_measureColumn is null && _measurableColumns.Count > 0)
+            _measureColumn = _measurableColumns[0];
+    }
+
+    private bool CanRun => !string.IsNullOrEmpty(_groupByColumn);
+
+    private void RunAggregation()
+    {
+        if (_groupByColumn is null) return;
+
+        _result = _engine.Aggregate(Result, _groupByColumn, _measureColumn ?? _groupByColumn, _function);
+    }
+}

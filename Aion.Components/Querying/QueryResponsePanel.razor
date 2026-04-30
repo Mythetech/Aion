@@ -11,6 +11,7 @@
 @using Aion.Contracts.Queries.Editing
 @using Aion.Components.Shared.Loaders
 @using Aion.Components.Querying
+@using Aion.Components.Visualization
 @implements IDisposable
 
 @if (State?.Active?.Result != null && (!State?.Active?.IsExecuting ?? false))
@@ -32,6 +33,10 @@
                 @if (State.Active.EditMetadata?.IsEditMode == true)
                 {
                     <MudTabPanel Text="Edit" Icon="@Icons.Material.Filled.Edit" OnClick="() => _activeTab = Edit" />
+                }
+                @if (queryResult.Success && queryResult.Rows.Count > 0)
+                {
+                    <MudTabPanel Text="Analyze" OnClick="() => _activeTab = Analyze" />
                 }
             </MudTabs>
             <MudSpacer />
@@ -95,6 +100,10 @@
                     OnExitEditMode="@ExitEditMode" />
             }
         }
+        else if (_activeTab == Analyze && queryResult.Success && queryResult.Rows.Count > 0)
+        {
+            <AnalyzePanel Result="@queryResult" />
+        }
         <MudStack Row="true" AlignItems="AlignItems.Center">
             <MudText Typo="Typo.caption" Class="mud-text-secondary ml-4">
                 @(State?.Active?.Result?.RowCount ?? 0) Results
@@ -123,6 +132,7 @@ else if (State?.Active?.IsExecuting ?? false)
     private string? _search = "";
     private const string Results = "results";
     private const string Edit = "edit";
+    private const string Analyze = "analyze";
     private string Messages => "messages";
     private string EstimatedPlan => "estimated";
     private string ActualPlan => "actual";
