@@ -1,0 +1,71 @@
+@using Aion.Components.Theme
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="py-1">
+    <MudTextField @bind-Value="Column.Name"
+                  Label="Column Name"
+                  Variant="Variant.Outlined"
+                  Margin="Margin.Dense"
+                  Style="min-width: 160px;" />
+
+    <MudSelect @bind-Value="Column.DataType"
+               Label="Data Type"
+               Variant="Variant.Outlined"
+               Margin="Margin.Dense"
+               Style="min-width: 160px;">
+        @foreach (var type in SupportedTypes)
+        {
+            <MudSelectItem Value="@type">@type</MudSelectItem>
+        }
+    </MudSelect>
+
+    <MudCheckBox @bind-Value="Column.IsNullable"
+                 Label="Nullable"
+                 Dense="true"
+                 Color="Color.Primary" />
+
+    <MudCheckBox @bind-Value="Column.IsPrimaryKey"
+                 @bind-Value:after="HandlePrimaryKeyChanged"
+                 Label="PK"
+                 Dense="true"
+                 Color="Color.Secondary"
+                 Disabled="@(!Column.IsPrimaryKey && PrimaryKeyDisabled)" />
+
+    <MudTextField @bind-Value="Column.DefaultValue"
+                  Label="Default"
+                  Variant="Variant.Outlined"
+                  Margin="Margin.Dense"
+                  Style="min-width: 120px;" />
+
+    <MudIconButton Icon="@AionIcons.Delete"
+                   Color="Color.Error"
+                   Size="Size.Small"
+                   OnClick="OnRemove"
+                   Disabled="@(!CanRemove)" />
+</MudStack>
+
+@code {
+    [Parameter, EditorRequired]
+    public ColumnDefinitionModel Column { get; set; } = default!;
+
+    [Parameter]
+    public IReadOnlyList<string> SupportedTypes { get; set; } = [];
+
+    [Parameter]
+    public bool PrimaryKeyDisabled { get; set; }
+
+    [Parameter]
+    public bool CanRemove { get; set; } = true;
+
+    [Parameter]
+    public EventCallback OnRemove { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> PrimaryKeyChanged { get; set; }
+
+    private async Task HandlePrimaryKeyChanged()
+    {
+        if (Column.IsPrimaryKey)
+            Column.IsNullable = false;
+        await PrimaryKeyChanged.InvokeAsync(Column.IsPrimaryKey);
+    }
+}

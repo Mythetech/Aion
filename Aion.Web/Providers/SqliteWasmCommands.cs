@@ -24,7 +24,9 @@ public class SqliteWasmCommands : IStandardDatabaseCommands
         var columnDefs = columns.Select(c =>
         {
             var def = $"\"{c.Name}\" {c.DataType}";
-            if (!c.IsNullable)
+            if (c.IsPrimaryKey)
+                def += " PRIMARY KEY";
+            else if (!c.IsNullable)
                 def += " NOT NULL";
             if (c.DefaultValue != null)
                 def += $" DEFAULT {c.DefaultValue}";

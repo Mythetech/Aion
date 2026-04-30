@@ -22,7 +22,8 @@ public record ColumnDefinition(
     string Name,
     string DataType,
     bool IsNullable,
-    string? DefaultValue = null
+    string? DefaultValue = null,
+    bool IsPrimaryKey = false
 );
 
 public record ColumnValue(

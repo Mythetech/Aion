@@ -10,7 +10,10 @@
 @using Aion.Components.Shared
 @using Aion.Components.Settings
 @using Aion.Components.Infrastructure
+@using Aion.Components.Scaffolding
 @using Aion.Contracts.Connections
+@using Aion.Contracts.Database
+@using Aion.Web.Services
 @using Microsoft.AspNetCore.Components.Routing
 @using Microsoft.FluentUI.AspNetCore.Components
 @using Microsoft.JSInterop
@@ -106,6 +109,8 @@
     [Inject] protected IMessageBus Bus { get; set; } = default!;
     [Inject] protected QueryState QueryState { get; set; } = default!;
     [Inject] protected IJSRuntime JS { get; set; } = default!;
+    [Inject] protected SchemaExecutor SchemaExecutor { get; set; } = default!;
+    [Inject] protected IEnumerable<ISupportedTypeProvider> TypeProviders { get; set; } = default!;
 
     private MudThemeProvider _theme = default!;
     private MudTheme Theme { get; } = new AionTheme();
@@ -165,7 +170,34 @@
 
     private async Task AddConnection()
     {
-        await Bus.PublishAsync(new PromptCreateConnection());
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            BackgroundClass = "aion-dialog",
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true,
+            CloseButton = false
+        };
+        var parameters = new MudBlazor.DialogParameters<SchemaWizard>
+        {
+            { x => x.TypeProviders, TypeProviders.ToList() }
+        };
+        var dialog = await DialogService.ShowAsync<SchemaWizard>("New Database", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: SchemaWizardModel model })
+        {
+            try
+            {
+                await SchemaExecutor.ExecuteAsync(model);
+            }
+            catch (Exception ex)
+            {
+                await Bus.PublishAsync(new Aion.Components.Shared.Snackbar.Commands.AddNotification(
+                    $"Failed to create database: {ex.Message}",
+                    MudBlazor.Severity.Error));
+            }
+        }
     }
 
     private async Task OpenSettingsDialog()

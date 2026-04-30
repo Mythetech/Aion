@@ -30,6 +30,10 @@ builder.Services.AddSingleton<IDatabaseProvider>(sp => sp.GetRequiredService<Sql
 builder.Services.AddSingleton<PGliteProvider>();
 builder.Services.AddSingleton<IDatabaseProvider>(sp => sp.GetRequiredService<PGliteProvider>());
 
+builder.Services.AddSingleton<ISupportedTypeProvider, SqliteWasmTypeProvider>();
+builder.Services.AddSingleton<ISupportedTypeProvider, PGliteTypeProvider>();
+builder.Services.AddSingleton<SchemaExecutor>();
+
 builder.Services.AddMessageBus(typeof(WebApp).Assembly, typeof(ComponentsApp).Assembly);
 
 var host = builder.Build();
