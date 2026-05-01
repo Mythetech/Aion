@@ -56,6 +56,7 @@ public static class RegistrationExtensions
         services.AddScoped<IForeignKeyService, ForeignKeyService>();
 
         services.AddTransient<SearchService>();
+        services.AddSingleton<SqlCompletionService>();
 
         services.AddFluentUIComponents();
 
