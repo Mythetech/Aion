@@ -2,6 +2,7 @@
 @using Aion.Components.Connections.Commands
 @using Mythetech.Framework.Infrastructure.MessageBus
 @using Aion.Components.Querying.Commands
+@using BlazorMonaco
 @using BlazorMonaco.Editor
 @using Aion.Components.Shared
 @using Aion.Components.Theme
@@ -185,10 +186,20 @@
     protected async Task HandleInit()
     {
         await State.InitializeAsync();
-        
+
         _initialized = true;
 
         await RefreshEditor();
+
+        await _editor.AddAction(new ActionDescriptor
+        {
+            Id = "expand-select-star",
+            Label = "Expand SELECT *",
+            Keybindings = new[] { (int)KeyMod.CtrlCmd | (int)KeyMod.Shift | (int)KeyCode.KeyE },
+            ContextMenuGroupId = "navigation",
+            ContextMenuOrder = 1.5f,
+            Run = (editor) => _ = InvokeAsync(ExpandSelectStarAsync)
+        });
     }
 
     private async Task OnTabChanged(QueryModel query)
@@ -197,6 +208,27 @@
         {
             await _editor.SetValue(query.Query);
         }
+    }
+
+    private async Task<(string Text, Selection Selection)?> GetSelectedTextAsync()
+    {
+        if (_editor == null) return null;
+
+        var selection = await _editor.GetSelection();
+        var hasSelection = selection.StartLineNumber != selection.EndLineNumber
+                           || selection.StartColumn != selection.EndColumn;
+        if (!hasSelection) return null;
+
+        var model = await _editor.GetModel();
+        var text = await model.GetValueInRange(new BlazorMonaco.Range
+        {
+            StartLineNumber = selection.StartLineNumber,
+            StartColumn = selection.StartColumn,
+            EndLineNumber = selection.EndLineNumber,
+            EndColumn = selection.EndColumn
+        }, EndOfLinePreference.TextDefined);
+
+        return (text, selection);
     }
 
     private async Task RunQuery()
@@ -218,14 +250,15 @@
         {
             _queryTokenSource?.Dispose();
             _queryTokenSource = new CancellationTokenSource();
-            
-            if (_editor != null)
-            {
-                var currentText = await _editor.GetValue();
-                query.Query = currentText;
-            }
-            
+
+            var fullText = _editor != null ? await _editor.GetValue() : query.Query;
+            var selected = await GetSelectedTextAsync();
+            var textToExecute = selected?.Text ?? fullText;
+
+            query.Query = textToExecute;
             var result = await Connections.ExecuteQueryAsync(query, _queryTokenSource.Token);
+
+            query.Query = fullText;
             State.SetResult(query, result);
         }
         finally
@@ -261,6 +294,69 @@
         if (_editor != null && State.Active != null)
         {
             await _editor.SetValue(State.Active.Query);
+        }
+    }
+
+    private async Task ExpandSelectStarAsync()
+    {
+        try
+        {
+            if (_editor == null) return;
+
+            var query = State.Active;
+            if (query?.ConnectionId == null || query.DatabaseName == null) return;
+
+            var selected = await GetSelectedTextAsync();
+            if (selected == null) return;
+
+            var (selectedText, selection) = selected.Value;
+
+            if (!SelectStarExpander.TryParse(selectedText, out var schema, out var table)) return;
+
+            var connection = Connections.Connections.FirstOrDefault(c => c.Id == query.ConnectionId);
+            if (connection == null) return;
+
+            var database = connection.Databases.FirstOrDefault(d => d.Name == query.DatabaseName);
+            if (database == null) return;
+
+            if (!database.TablesLoaded)
+                await Connections.LoadTablesAsync(connection, database);
+
+            var tableInfo = database.Tables.FirstOrDefault(t =>
+                t.Name.Equals(table, StringComparison.OrdinalIgnoreCase)
+                && (schema == null || t.Schema.Equals(schema, StringComparison.OrdinalIgnoreCase)));
+
+            if (tableInfo == null) return;
+
+            await Connections.LoadColumnsAsync(connection, database, tableInfo.Schema, tableInfo.Name);
+
+            if (!database.TableColumns.TryGetValue(tableInfo.DisplayName, out var columns) || columns.Count == 0) return;
+
+            var columnNames = columns.Select(c => c.Name).ToList();
+            var expanded = SelectStarExpander.BuildExpandedSelect(columnNames, schema, table!);
+
+            var edits = new List<IdentifiedSingleEditOperation>
+            {
+                new()
+                {
+                    Range = new BlazorMonaco.Range
+                    {
+                        StartLineNumber = selection.StartLineNumber,
+                        StartColumn = selection.StartColumn,
+                        EndLineNumber = selection.EndLineNumber,
+                        EndColumn = selection.EndColumn
+                    },
+                    Text = expanded,
+                    ForceMoveMarkers = false
+                }
+            };
+
+            await _editor.ExecuteEdits("expand-select-star", edits, new List<Selection>());
+            StateHasChanged();
+        }
+        catch (Exception)
+        {
+            // Swallowed: fired from sync Action<CodeEditor> callback via InvokeAsync
         }
     }
 }
