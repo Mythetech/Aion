@@ -287,15 +287,6 @@ html {
             'opsz' 24
 }
 
-.aion-search {
-    max-height: 32px;
-    background-color: transparent;
-}
-
-.appbar-narrow-height {
-    max-height: 32px;
-}
-
 .text-nowrap {
     text-wrap: nowrap;
 }
@@ -394,4 +385,9 @@ html {
 
 .custom-title-bar-layout .mud-main-content {
     height: calc(100dvh - 38px);
+}
+
+.py-0-5 {
+    padding-top: 2px!important;
+    padding-bottom: 2px!important;
 }

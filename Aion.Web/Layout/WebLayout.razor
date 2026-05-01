@@ -7,6 +7,7 @@
 @using Aion.Components.Shared.Dialogs
 @using Aion.Components.Settings
 @using Aion.Components.Infrastructure
+@using Aion.Components.Search
 @using Aion.Components.Scaffolding
 @using Aion.Contracts.Database
 @using Aion.Web.Services
@@ -34,8 +35,14 @@
 
 <MudLayout>
     <MudAppBar Elevation="1" Dense="true">
-        <MudText Typo="Typo.h6" Class="ml-2">Aion</MudText>
-        <MudSpacer />
+        <MudStack Row=true AlignItems="@AlignItems.Center" Class="mud-width-full">
+            <MudText Typo="Typo.h6" Class="ml-2">Aion</MudText>
+            <MudSpacer />
+            <SearchBar />
+            <MudSpacer />
+            <MtIconButton Icon="@AionIcons.Round("bug_report")" Tooltip="Report Bug"
+                          OnClick="@(() => LinkService.OpenUrl("https://github.com/Mythetech/Aion/issues/new"))" />
+        </MudStack>
     </MudAppBar>
     <MudDrawer @bind-Open="@AppState.SideBarOpen" Variant="DrawerVariant.Mini" Style="overflow: hidden;">
         <AppContextDrawer @bind-IsOpen="@AppState.SideBarOpen" @bind-ActivePanelId="@_activePanelId"
@@ -108,6 +115,7 @@
     [Inject] protected SchemaExecutor SchemaExecutor { get; set; } = default!;
     [Inject] protected IEnumerable<ISupportedTypeProvider> TypeProviders { get; set; } = default!;
     [Inject] protected SampleDatabaseProvisioner Provisioner { get; set; } = default!;
+    [Inject] protected ILinkOpenService LinkService { get; set; } = default!;
 
     private MudThemeProvider _theme = default!;
     private MudTheme Theme { get; } = new AionTheme();

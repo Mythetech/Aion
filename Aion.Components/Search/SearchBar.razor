@@ -1,0 +1,48 @@
+@using Aion.Components.Shared
+@using Aion.Components.Theme
+
+<MudAutocomplete T="SearchModel" Placeholder="Search..." @bind-Value="_search" SearchFunc="@SearchAsync"
+                 @ref="_searchAutocomplete" Variant="Variant.Outlined" Dense="true" ShowProgressIndicator="true"
+                 Margin="Margin.Dense" Clearable="true" Class="rounded-xl search-bar" InputClass="py-1"
+                 OnAdornmentClick="@(async () => await HandleSearch(_search))" AdornmentIcon="@AionIcons.Search"
+                 AdornmentColor="Color.Primary">
+    <ItemTemplate>
+        <MudStack Class="pa-1" Row="true" AlignItems="AlignItems.Center"
+                  onclick="@(async () => await HandleSearch(context))">
+            <TooltipIcon Size="Size.Small" Text="@(context.Description ?? context.Kind.ToString())"
+                         Icon="@context.Icon" />
+            <MudText>
+                @context
+            </MudText>
+        </MudStack>
+    </ItemTemplate>
+</MudAutocomplete>
+
+@code {
+    [Inject] private SearchService SearchService { get; set; } = default!;
+
+    private SearchModel _search = new();
+    private MudAutocomplete<SearchModel>? _searchAutocomplete;
+
+    private async Task<IEnumerable<SearchModel>> SearchAsync(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return [];
+
+        List<SearchModel> results = [];
+        await foreach (var r in SearchService.SearchAsync(value, token))
+        {
+            results.Add(r);
+        }
+        return results;
+    }
+
+    private async Task HandleSearch(SearchModel result)
+    {
+        if (result.SearchAction != null)
+            await result.SearchAction.Invoke();
+
+        if (_searchAutocomplete != null)
+            await _searchAutocomplete.ClearAsync();
+    }
+}
