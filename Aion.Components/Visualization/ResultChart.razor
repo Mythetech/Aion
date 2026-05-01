@@ -8,21 +8,16 @@
                 @Result.Function of @Result.MeasureColumn by @Result.GroupByColumn
             </MudText>
             <MudSpacer />
-            <MudMenu Dense="true" AnchorOrigin="Origin.BottomRight">
-                <ActivatorContent>
-                    <MudButton Size="Size.Small"
-                               Variant="Variant.Text"
-                               EndIcon="@Icons.Material.Filled.ArrowDropDown">
-                        @_chartType
-                    </MudButton>
-                </ActivatorContent>
-                <ChildContent>
-                    <MudMenuItem OnClick="@(() => _chartType = ChartType.Bar)">Bar</MudMenuItem>
-                    <MudMenuItem OnClick="@(() => _chartType = ChartType.Pie)">Pie</MudMenuItem>
-                    <MudMenuItem OnClick="@(() => _chartType = ChartType.Line)">Line</MudMenuItem>
-                    <MudMenuItem OnClick="@(() => _chartType = ChartType.Donut)">Donut</MudMenuItem>
-                </ChildContent>
-            </MudMenu>
+            <MudSelect T="ChartType"
+                       @bind-Value="_chartType"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Style="min-width: 120px;">
+                <MudSelectItem T="ChartType" Value="ChartType.Bar">Bar</MudSelectItem>
+                <MudSelectItem T="ChartType" Value="ChartType.Pie">Pie</MudSelectItem>
+                <MudSelectItem T="ChartType" Value="ChartType.Line">Line</MudSelectItem>
+                <MudSelectItem T="ChartType" Value="ChartType.Donut">Donut</MudSelectItem>
+            </MudSelect>
         </MudStack>
 
         <MudChart T="double"
@@ -43,6 +38,7 @@ else
 @code {
     private ChartType _chartType = ChartType.Bar;
     private List<ChartSeries<double>> _series = [];
+    private AggregationResult? _previousResult;
 
     [Parameter]
     public AggregationResult? Result { get; set; }
@@ -51,13 +47,17 @@ else
     {
         if (Result is { Values.Length: > 0 })
         {
-            _chartType = Result.RecommendedChartType switch
+            if (!ReferenceEquals(Result, _previousResult))
             {
-                ChartTypeRecommendation.Bar => ChartType.Bar,
-                ChartTypeRecommendation.Pie => ChartType.Pie,
-                ChartTypeRecommendation.Line => ChartType.Line,
-                _ => ChartType.Bar
-            };
+                _chartType = Result.RecommendedChartType switch
+                {
+                    ChartTypeRecommendation.Bar => ChartType.Bar,
+                    ChartTypeRecommendation.Pie => ChartType.Pie,
+                    ChartTypeRecommendation.Line => ChartType.Line,
+                    _ => ChartType.Bar
+                };
+                _previousResult = Result;
+            }
 
             _series =
             [

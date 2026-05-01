@@ -2,36 +2,39 @@
 
 <MudStack Spacing="3" Class="pa-4 h-100">
     <MudStack Row="true" Spacing="2" AlignItems="AlignItems.End">
-        <MudSelect @bind-Value="_groupByColumn"
+        <MudSelect T="string"
+                   @bind-Value="_groupByColumn"
                    Label="Group By"
                    Variant="Variant.Outlined"
                    Margin="Margin.Dense"
                    Style="min-width: 180px;">
             @foreach (var col in _groupableColumns)
             {
-                <MudSelectItem Value="@col">@col</MudSelectItem>
+                <MudSelectItem T="string" Value="@col">@col</MudSelectItem>
             }
         </MudSelect>
 
-        <MudSelect @bind-Value="_measureColumn"
+        <MudSelect T="string"
+                   @bind-Value="_measureColumn"
                    Label="Measure"
                    Variant="Variant.Outlined"
                    Margin="Margin.Dense"
                    Style="min-width: 180px;">
             @foreach (var col in _measurableColumns)
             {
-                <MudSelectItem Value="@col">@col</MudSelectItem>
+                <MudSelectItem T="string" Value="@col">@col</MudSelectItem>
             }
         </MudSelect>
 
-        <MudSelect @bind-Value="_function"
+        <MudSelect T="AggregateFunction"
+                   @bind-Value="_function"
                    Label="Function"
                    Variant="Variant.Outlined"
                    Margin="Margin.Dense"
                    Style="min-width: 140px;">
             @foreach (var fn in Enum.GetValues<AggregateFunction>())
             {
-                <MudSelectItem Value="@fn">@fn</MudSelectItem>
+                <MudSelectItem T="AggregateFunction" Value="@fn">@fn</MudSelectItem>
             }
         </MudSelect>
 
