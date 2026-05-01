@@ -13,6 +13,7 @@ using Mythetech.Framework.Infrastructure.Guards;
 using Mythetech.Framework.Infrastructure.Plugins;
 using Mythetech.Framework.Infrastructure.Settings;
 using Mythetech.Framework.WebAssembly;
+using SqliteWasmBlazor;
 
 using WebApp = Aion.Web.App;
 using ComponentsApp = Aion.Components.App;
@@ -20,6 +21,8 @@ using ComponentsApp = Aion.Components.App;
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<WebApp>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
+
+builder.Services.AddSqliteWasm();
 
 builder.Services.AddAionComponents<WebConnectionService>();
 
