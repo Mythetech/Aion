@@ -7,30 +7,44 @@
 @using Blazor.Diagrams.Core.Geometry
 @using Blazor.Diagrams.Core.Models
 @using Aion.Contracts.Queries
+@using Aion.Contracts.Database
 
-@if (Plan != null)
+@if (Plan == null)
 {
-    @Plan.PlanContent
-    <div class="diagram-container">
-        <CascadingValue Value="@Diagram" IsFixed="true">
+    return;
+}
+
+@if (_planTree != null)
+{
+    <div class="plan-visualizer-container">
+        <CascadingValue Value="@_diagram" IsFixed="true">
             <DiagramCanvas></DiagramCanvas>
         </CascadingValue>
+        <PlanNodeDetail Node="@_selectedNode" OnClose="ClearSelection" />
     </div>
+}
+else
+{
+    <pre class="plan-raw-text">@Plan.PlanContent</pre>
 }
 
 @code {
-    [Parameter]
-    public QueryPlan? Plan { get; set; }
+    [Parameter] public QueryPlan? Plan { get; set; }
+    [Parameter] public DatabaseType DatabaseType { get; set; }
 
-    private BlazorDiagram Diagram { get; set; } = default!;
+    [Inject] private IDatabaseProviderFactory ProviderFactory { get; set; } = default!;
+
+    private BlazorDiagram _diagram = default!;
+    private QueryPlanTree? _planTree;
+    private QueryPlanNode? _selectedNode;
+
+    private const int NodeVerticalSpacing = 120;
+    private const int NodeHorizontalSpacing = 300;
 
     private readonly BlazorDiagramOptions _diagramOptions = new()
     {
-        AllowMultiSelection = true,
-        Zoom =
-        {
-            Enabled = false,
-        },
+        AllowMultiSelection = false,
+        Zoom = { Enabled = true },
         Links =
         {
             DefaultRouter = new NormalRouter(),
@@ -40,47 +54,114 @@
 
     protected override void OnInitialized()
     {
-        Diagram = new(_diagramOptions);
-        base.OnInitialized();
+        _diagram = new BlazorDiagram(_diagramOptions);
+        _diagram.RegisterComponent<PlanNodeModel, PlanNodeWidget>();
     }
 
     protected override void OnParametersSet()
     {
-        if (Plan != null)
+        if (Plan == null) return;
+
+        _planTree = TryParsePlan();
+        if (_planTree != null)
         {
-            RenderDiagram();
+            RenderTree();
         }
     }
 
-    private void RenderDiagram()
+    private QueryPlanTree? TryParsePlan()
     {
-        Diagram = new(_diagramOptions);
-        int x = 10;
-        int y = 10;
-        bool parent = true;
-        foreach (var node in Plan!.PlanContent.Split("->"))
+        var provider = ProviderFactory.GetProvider(DatabaseType);
+        if (provider is IQueryPlanParsingProvider planProvider)
         {
-            var n = Diagram.Nodes.Add(new NodeModel(position: new Point(x, y))
-            {
-                Title = node
-            });
+            return planProvider.ParsePlan(Plan!);
+        }
+        return null;
+    }
 
-            var p = n.AddPort(PortAlignment.Right);
+    private void RenderTree()
+    {
+        _diagram = new BlazorDiagram(_diagramOptions);
+        _diagram.RegisterComponent<PlanNodeModel, PlanNodeWidget>();
+        _diagram.SelectionChanged += OnSelectionChanged;
 
-            if (!parent)
-            {
-                var destinationLeftPort = n.AddPort(PortAlignment.Left);
-                var source = Diagram.Nodes.ElementAtOrDefault(Diagram.Nodes.Count - 2);
-                var sourceAnchor = new SinglePortAnchor(source.GetPort(PortAlignment.Right));
-                var targetAnchor = new SinglePortAnchor(destinationLeftPort);
-                var link = Diagram.Links.Add(new LinkModel(sourceAnchor, targetAnchor));
-            }
+        var nodePositions = new Dictionary<QueryPlanNode, PlanNodeModel>();
+        LayoutNode(_planTree!.Root, 0, 0, nodePositions);
+        ConnectNodes(_planTree.Root, nodePositions);
+        _diagram.Refresh();
+    }
 
-            parent = false;
-            x += 350;
-            y += 50;
+    private double LayoutNode(
+        QueryPlanNode node,
+        int depth,
+        double xOffset,
+        Dictionary<QueryPlanNode, PlanNodeModel> nodePositions)
+    {
+        if (node.Children.Count == 0)
+        {
+            var leafModel = CreateDiagramNode(node, xOffset, depth);
+            nodePositions[node] = leafModel;
+            return xOffset + NodeHorizontalSpacing;
         }
 
-        Diagram.Refresh();
+        var startX = xOffset;
+        foreach (var child in node.Children)
+        {
+            xOffset = LayoutNode(child, depth + 1, xOffset, nodePositions);
+        }
+
+        var childPositions = node.Children.Select(c => nodePositions[c].Position!.X).ToList();
+        var centerX = (childPositions.First() + childPositions.Last()) / 2;
+
+        var model = CreateDiagramNode(node, centerX, depth);
+        nodePositions[node] = model;
+
+        return Math.Max(xOffset, startX + NodeHorizontalSpacing);
     }
-} 
+
+    private PlanNodeModel CreateDiagramNode(QueryPlanNode node, double x, int depth)
+    {
+        var relativeCost = _planTree!.TotalCost > 0 ? node.TotalCost / _planTree.TotalCost : 0;
+        var position = new Point(x, depth * NodeVerticalSpacing);
+        var model = new PlanNodeModel(node, relativeCost, position);
+        model.AddPort(PortAlignment.Top);
+        model.AddPort(PortAlignment.Bottom);
+        _diagram.Nodes.Add(model);
+        return model;
+    }
+
+    private void ConnectNodes(QueryPlanNode node, Dictionary<QueryPlanNode, PlanNodeModel> nodePositions)
+    {
+        if (!nodePositions.TryGetValue(node, out var parentModel)) return;
+
+        foreach (var child in node.Children)
+        {
+            if (!nodePositions.TryGetValue(child, out var childModel)) continue;
+
+            var sourceAnchor = new SinglePortAnchor(parentModel.GetPort(PortAlignment.Bottom));
+            var targetAnchor = new SinglePortAnchor(childModel.GetPort(PortAlignment.Top));
+            _diagram.Links.Add(new LinkModel(sourceAnchor, targetAnchor));
+
+            ConnectNodes(child, nodePositions);
+        }
+    }
+
+    private void OnSelectionChanged(Blazor.Diagrams.Core.Models.Base.SelectableModel model)
+    {
+        if (model is PlanNodeModel planNode && model.Selected)
+        {
+            _selectedNode = planNode.PlanNode;
+        }
+        else
+        {
+            _selectedNode = null;
+        }
+        StateHasChanged();
+    }
+
+    private void ClearSelection()
+    {
+        _selectedNode = null;
+        StateHasChanged();
+    }
+}

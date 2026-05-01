@@ -5,7 +5,7 @@ using SqliteWasmBlazor;
 
 namespace Aion.Web.Providers;
 
-public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider
+public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider
 {
     private readonly ISqliteWasmDatabaseService _databaseService;
     private readonly HashSet<string> _knownDatabases = new();

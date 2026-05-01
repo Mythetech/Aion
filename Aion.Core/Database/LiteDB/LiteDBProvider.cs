@@ -4,7 +4,7 @@ using LiteDB;
 
 namespace Aion.Core.Database.LiteDB;
 
-public class LiteDBProvider : IDatabaseProvider, IDatabaseIndexProvider
+public class LiteDBProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider
 {
     private readonly Dictionary<string, (LiteDatabase Db, bool InTransaction)> _activeTransactions = new();
 

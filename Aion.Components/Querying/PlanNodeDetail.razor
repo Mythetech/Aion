@@ -1,0 +1,68 @@
+@using Aion.Contracts.Queries
+
+@if (Node != null)
+{
+    <MudPaper Class="plan-detail-panel" Elevation="4">
+        <MudStack Spacing="2">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                <MudText Typo="Typo.subtitle1">@Node.Operation</MudText>
+                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="OnClose" />
+            </MudStack>
+
+            @if (Node.Target != null)
+            {
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">Target: @Node.Target</MudText>
+            }
+
+            <MudDivider />
+
+            <MudSimpleTable Dense="true" Hover="true">
+                <tbody>
+                    <tr><td>Startup Cost</td><td>@Node.StartupCost.ToString("F2")</td></tr>
+                    <tr><td>Total Cost</td><td>@Node.TotalCost.ToString("F2")</td></tr>
+                    <tr><td>Estimated Rows</td><td>@Node.EstimatedRows.ToString("N0")</td></tr>
+                    @if (Node.ActualRows.HasValue)
+                    {
+                        <tr><td>Actual Rows</td><td>@Node.ActualRows.Value.ToString("N0")</td></tr>
+                    }
+                    @if (Node.ActualTime.HasValue)
+                    {
+                        <tr><td>Actual Time</td><td>@($"{Node.ActualTime.Value:F3} ms")</td></tr>
+                    }
+                    @if (Node.Loops.HasValue)
+                    {
+                        <tr><td>Loops</td><td>@Node.Loops.Value</td></tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+
+            @if (Node.Filter != null || Node.JoinCondition != null || Node.SortKey != null || Node.Properties.Count > 0)
+            {
+                <MudDivider />
+                <MudText Typo="Typo.subtitle2">Properties</MudText>
+
+                @if (Node.Filter != null)
+                {
+                    <MudText Typo="Typo.body2"><strong>Filter:</strong> @Node.Filter</MudText>
+                }
+                @if (Node.JoinCondition != null)
+                {
+                    <MudText Typo="Typo.body2"><strong>Join Condition:</strong> @Node.JoinCondition</MudText>
+                }
+                @if (Node.SortKey != null)
+                {
+                    <MudText Typo="Typo.body2"><strong>Sort Key:</strong> @Node.SortKey</MudText>
+                }
+                @foreach (var prop in Node.Properties)
+                {
+                    <MudText Typo="Typo.body2"><strong>@prop.Key:</strong> @prop.Value</MudText>
+                }
+            }
+        </MudStack>
+    </MudPaper>
+}
+
+@code {
+    [Parameter] public QueryPlanNode? Node { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+}

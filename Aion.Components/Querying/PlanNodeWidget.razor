@@ -1,0 +1,44 @@
+@using Aion.Contracts.Queries
+
+<div class="plan-node @Node.CostLevel">
+    <div class="plan-node-header">
+        <span class="plan-node-operation">@Node.PlanNode.Operation</span>
+        @if (Node.PlanNode.Target != null)
+        {
+            <span class="plan-node-target">@Node.PlanNode.Target</span>
+        }
+    </div>
+    <div class="plan-node-cost-bar">
+        <div class="plan-node-cost-fill" style="@($"width: {Node.RelativeCost * 100:F0}%")"></div>
+    </div>
+    <div class="plan-node-stats">
+        <span class="plan-node-rows">
+            @if (Node.PlanNode.ActualRows.HasValue)
+            {
+                <span class="@(Node.HasRowDiscrepancy ? "row-discrepancy" : "")">
+                    Est: @Node.PlanNode.EstimatedRows.ToString("N0") / Act: @Node.PlanNode.ActualRows.Value.ToString("N0")
+                </span>
+            }
+            else
+            {
+                <span>Rows: @Node.PlanNode.EstimatedRows.ToString("N0")</span>
+            }
+        </span>
+    </div>
+    @if (GetKeyProperty() is { } keyProp)
+    {
+        <div class="plan-node-property">@keyProp</div>
+    }
+</div>
+
+@code {
+    [Parameter] public PlanNodeModel Node { get; set; } = default!;
+
+    private string? GetKeyProperty()
+    {
+        if (Node.PlanNode.Filter != null) return $"Filter: {Node.PlanNode.Filter}";
+        if (Node.PlanNode.JoinCondition != null) return $"Cond: {Node.PlanNode.JoinCondition}";
+        if (Node.PlanNode.SortKey != null) return $"Sort: {Node.PlanNode.SortKey}";
+        return null;
+    }
+}

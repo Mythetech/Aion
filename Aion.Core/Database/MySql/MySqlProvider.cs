@@ -7,7 +7,7 @@ using System.Text;
 
 namespace Aion.Core.Database;
 
-public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider
+public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider
 {
     private readonly ILogger<MySqlProvider> _logger;
 

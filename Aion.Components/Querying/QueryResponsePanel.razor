@@ -1,5 +1,6 @@
 @using System.Text.Json.Nodes
 @using Mythetech.Framework.Infrastructure.MessageBus
+@using Aion.Components.Connections
 @using Aion.Components.Querying.Commands
 @using Aion.Components.Querying.Consumers
 @using Aion.Components.Querying.Editing
@@ -7,6 +8,7 @@
 @using Aion.Components.RequestContextPanel.Commands
 @using Aion.Components.Shared
 @using Aion.Components.Theme
+@using Aion.Contracts.Database
 @using Aion.Contracts.Queries
 @using Aion.Contracts.Queries.Editing
 @using Aion.Components.Shared.Loaders
@@ -81,11 +83,11 @@
         }
         else if (_activeTab == EstimatedPlan)
         {
-            <QueryPlanVisualizer Plan="@State.Active.EstimatedPlan" />
+            <QueryPlanVisualizer Plan="@State.Active.EstimatedPlan" DatabaseType="@GetActiveDatabaseType()" />
         }
         else if (_activeTab == ActualPlan)
         {
-            <QueryPlanVisualizer Plan="@State.Active.ActualPlan" />
+            <QueryPlanVisualizer Plan="@State.Active.ActualPlan" DatabaseType="@GetActiveDatabaseType()" />
         }
         else if (_activeTab == Edit && State.Active.EditMetadata?.IsEditMode == true)
         {
@@ -128,6 +130,7 @@ else if (State?.Active?.IsExecuting ?? false)
 @code {
     [Inject] protected QueryState State { get; set; } = default!;
     [Inject] protected IMessageBus Bus { get; set; } = default!;
+    [Inject] protected ConnectionState Connections { get; set; } = default!;
 
     private string? _search = "";
     private const string Results = "results";
@@ -155,6 +158,14 @@ else if (State?.Active?.IsExecuting ?? false)
         // Clear selection when switching queries or when results change
         _selectionState.ClearSelection();
         StateHasChanged();
+    }
+
+    private DatabaseType GetActiveDatabaseType()
+    {
+        var connectionId = State.Active?.ConnectionId;
+        if (connectionId == null) return default;
+        var connection = Connections.Connections.FirstOrDefault(c => c.Id == connectionId);
+        return connection?.Type ?? default;
     }
 
     // EditState management per query

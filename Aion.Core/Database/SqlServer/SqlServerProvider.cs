@@ -6,7 +6,7 @@ using System.Text;
 
 namespace Aion.Core.Database.SqlServer;
 
-public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider
+public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider
 {
     private readonly ILogger<SqlServerProvider> _logger;
 
