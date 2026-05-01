@@ -72,7 +72,8 @@
 
     @if (State?.Active?.Result?.Error != null)
     {
-        <MudAlert Severity="Severity.Error" Class="my-2">@State.Active.Result.Error</MudAlert>
+        var severity = State.Active.Result.Error.StartsWith("Query not executed") ? Severity.Info : Severity.Error;
+        <MudAlert Severity="severity" Class="my-2">@State.Active.Result.Error</MudAlert>
     }
 
     <JsGuard Name="monaco">

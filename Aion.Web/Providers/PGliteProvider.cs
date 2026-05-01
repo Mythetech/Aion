@@ -6,7 +6,7 @@ using Microsoft.JSInterop;
 
 namespace Aion.Web.Providers;
 
-public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider
+public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider
 {
     private readonly IJSRuntime _js;
     private IJSObjectReference? _module;

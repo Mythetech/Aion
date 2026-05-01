@@ -6,9 +6,10 @@ using System.Text;
 
 namespace Aion.Core.Database;
 
-public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider
+public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider
 {
     private readonly Dictionary<string, NpgsqlTransaction> _activeTransactions = new();
+    private readonly PostgreSqlPlanParser _planParser = new();
     public IStandardDatabaseCommands Commands { get; } = new PostgreSqlCommands();
     public DatabaseType DatabaseType => DatabaseType.PostgreSQL;
     public IReadOnlyList<string> SystemSchemas { get; } = ["pg_catalog", "information_schema", "pg_toast"];
@@ -496,5 +497,13 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
             result.Error = ex.Message;
             return result;
         }
+    }
+
+    public QueryPlanTree? ParsePlan(QueryPlan plan)
+    {
+        if (plan.PlanFormat != "TEXT")
+            return null;
+
+        return _planParser.Parse(plan);
     }
 }
