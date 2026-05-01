@@ -3,10 +3,12 @@
 @using Mythetech.Framework.Infrastructure.MessageBus
 @using Aion.Components.Querying.Commands
 @using BlazorMonaco.Editor
+@using BlazorMonaco.Languages
 @using Aion.Components.Shared
 @using Aion.Components.Theme
 @using Aion.Contracts.Connections
 @using Aion.Contracts.Queries
+@using Microsoft.JSInterop
 @using Mythetech.Framework.Infrastructure.Guards
 @implements IDisposable
 @implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.FocusQuery>
@@ -83,6 +85,8 @@
     [Inject] protected QueryState State { get; set; } = default!;
     [Inject] protected ConnectionState Connections { get; set; } = default!;
     [Inject] protected IMessageBus Bus { get; set; } = default!;
+    [Inject] protected SqlCompletionService CompletionService { get; set; } = default!;
+    [Inject] protected IJSRuntime JS { get; set; } = default!;
     
     private bool _initialized = false;
 
@@ -185,8 +189,14 @@
     protected async Task HandleInit()
     {
         await State.InitializeAsync();
-        
+
         _initialized = true;
+
+        await BlazorMonaco.Languages.Global.RegisterCompletionItemProvider(JS, "sql",
+            new CompletionItemProvider(
+                new List<string> { " ", ",", "(", "." },
+                ProvideSqlCompletionsAsync,
+                ResolveSqlCompletionAsync));
 
         await RefreshEditor();
     }
@@ -262,5 +272,72 @@
         {
             await _editor.SetValue(State.Active.Query);
         }
+    }
+
+    private async Task<CompletionList> ProvideSqlCompletionsAsync(
+        string modelUri, BlazorMonaco.Position position, CompletionContext context)
+    {
+        try
+        {
+            var model = await BlazorMonaco.Editor.Global.GetModel(JS, modelUri);
+            var word = await model.GetWordUntilPosition(position);
+            var range = new BlazorMonaco.Range
+            {
+                StartLineNumber = position.LineNumber,
+                EndLineNumber = position.LineNumber,
+                StartColumn = word.StartColumn,
+                EndColumn = word.EndColumn
+            };
+
+            var editorText = await _editor!.GetValue();
+            var line = (int)position.LineNumber - 1;
+            var column = (int)position.Column - 1;
+
+            var completions = await CompletionService.GetCompletionsAsync(
+                editorText, line, column,
+                context.TriggerCharacter,
+                State.Active?.ConnectionId,
+                State.Active?.DatabaseName);
+
+            var suggestions = completions.Select(item => new CompletionItem
+            {
+                LabelAsString = item.Label,
+                Kind = MapCompletionKind(item.Kind),
+                Detail = item.Detail,
+                InsertText = item.InsertText ?? item.Label,
+                FilterText = item.FilterText,
+                SortText = item.SortText,
+                RangeAsObject = range
+            }).ToList();
+
+            return new CompletionList
+            {
+                Suggestions = suggestions,
+                Incomplete = completions.Count >= 500
+            };
+        }
+        catch
+        {
+            return new CompletionList { Suggestions = [] };
+        }
+    }
+
+    private Task<CompletionItem> ResolveSqlCompletionAsync(CompletionItem item)
+    {
+        return Task.FromResult(item);
+    }
+
+    private static CompletionItemKind MapCompletionKind(SqlCompletionKind kind)
+    {
+        return kind switch
+        {
+            SqlCompletionKind.Keyword => CompletionItemKind.Keyword,
+            SqlCompletionKind.Table => CompletionItemKind.Class,
+            SqlCompletionKind.Column => CompletionItemKind.Field,
+            SqlCompletionKind.Schema => CompletionItemKind.Module,
+            SqlCompletionKind.Function => CompletionItemKind.Function,
+            SqlCompletionKind.Procedure => CompletionItemKind.Method,
+            _ => CompletionItemKind.Text
+        };
     }
 }
