@@ -3,6 +3,7 @@ using Aion.Components.Querying;
 using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 using Aion.Web.Providers;
+using Aion.Web.Services;
 
 namespace Aion.Web.Onboarding;
 
@@ -12,17 +13,20 @@ public class SampleDatabaseProvisioner
     private readonly PGliteProvider _pgliteProvider;
     private readonly ConnectionState _connectionState;
     private readonly QueryState _queryState;
+    private readonly IndexedDbStorageService _storage;
 
     public SampleDatabaseProvisioner(
         SqliteWasmProvider sqliteProvider,
         PGliteProvider pgliteProvider,
         ConnectionState connectionState,
-        QueryState queryState)
+        QueryState queryState,
+        IndexedDbStorageService storage)
     {
         _sqliteProvider = sqliteProvider;
         _pgliteProvider = pgliteProvider;
         _connectionState = connectionState;
         _queryState = queryState;
+        _storage = storage;
     }
 
     public async Task<ConnectionModel> ProvisionAsync(DatabaseType engine)
@@ -65,8 +69,7 @@ public class SampleDatabaseProvisioner
             IsSavedConnection = false
         };
 
-        _connectionState.Connections.Add(connection);
-        await _connectionState.RefreshDatabaseAsync(connection);
+        await _connectionState.ConnectAsync(connection);
 
         var queries = SampleDatabase.GetSampleQueries();
         if (queries.Length > 0)
@@ -77,6 +80,8 @@ public class SampleDatabaseProvisioner
             query.Query = queries[0];
             _queryState.SetActive(query);
         }
+
+        await _storage.SaveDatabaseMetaAsync(name, engine);
 
         return connection;
     }

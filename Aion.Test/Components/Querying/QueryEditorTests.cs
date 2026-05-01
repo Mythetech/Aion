@@ -49,6 +49,7 @@ public class QueryEditorTests : TestContext
         Services.AddSingleton(_state);
         Services.AddSingleton(_connections);
         Services.AddSingleton(Substitute.For<IJsGuardService>());
+        Services.AddSingleton(new SqlCompletionService(_connections));
     }
 
     [Fact]

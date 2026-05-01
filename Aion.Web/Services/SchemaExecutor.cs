@@ -13,17 +13,20 @@ public class SchemaExecutor
     private readonly PGliteProvider _pgliteProvider;
     private readonly ConnectionState _connectionState;
     private readonly QueryState _queryState;
+    private readonly IndexedDbStorageService _storage;
 
     public SchemaExecutor(
         SqliteWasmProvider sqliteProvider,
         PGliteProvider pgliteProvider,
         ConnectionState connectionState,
-        QueryState queryState)
+        QueryState queryState,
+        IndexedDbStorageService storage)
     {
         _sqliteProvider = sqliteProvider;
         _pgliteProvider = pgliteProvider;
         _connectionState = connectionState;
         _queryState = queryState;
+        _storage = storage;
     }
 
     public async Task<ConnectionModel> ExecuteAsync(SchemaWizardModel model)
@@ -70,13 +73,14 @@ public class SchemaExecutor
             IsSavedConnection = false
         };
 
-        _connectionState.Connections.Add(connection);
-        await _connectionState.RefreshDatabaseAsync(connection);
+        await _connectionState.ConnectAsync(connection);
 
         var query = _queryState.AddQuery(model.DatabaseName);
         query.ConnectionId = connection.Id;
         query.DatabaseName = model.DatabaseName;
         _queryState.SetActive(query);
+
+        await _storage.SaveDatabaseMetaAsync(model.DatabaseName, model.EngineType);
 
         return connection;
     }

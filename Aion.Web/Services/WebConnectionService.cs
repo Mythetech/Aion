@@ -8,36 +8,43 @@ namespace Aion.Web.Services;
 public class WebConnectionService : IConnectionService
 {
     private readonly IDatabaseProviderFactory _providerFactory;
+    private readonly IndexedDbStorageService _storage;
     private readonly List<ConnectionModel> _connections = new();
 
-    public WebConnectionService(IDatabaseProviderFactory providerFactory)
+    public WebConnectionService(IDatabaseProviderFactory providerFactory, IndexedDbStorageService storage)
     {
         _providerFactory = providerFactory;
+        _storage = storage;
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public async Task InitializeAsync()
+    {
+        _connections.Clear();
+        var records = await _storage.LoadConnectionsAsync();
+        _connections.AddRange(records.Select(r => r.ToConnectionModel()));
+    }
 
     public Task<IEnumerable<ConnectionModel>> GetSavedConnections()
         => Task.FromResult(_connections.AsEnumerable());
 
-    public Task AddConnection(ConnectionModel connection)
+    public async Task AddConnection(ConnectionModel connection)
     {
         _connections.Add(connection);
-        return Task.CompletedTask;
+        await _storage.SaveConnectionAsync(connection);
     }
 
-    public Task RemoveConnection(Guid id)
+    public async Task RemoveConnection(Guid id)
     {
         _connections.RemoveAll(c => c.Id == id);
-        return Task.CompletedTask;
+        await _storage.DeleteConnectionAsync(id);
     }
 
-    public Task UpdateConnection(ConnectionModel connection)
+    public async Task UpdateConnection(ConnectionModel connection)
     {
         var index = _connections.FindIndex(c => c.Id == connection.Id);
         if (index >= 0)
             _connections[index] = connection;
-        return Task.CompletedTask;
+        await _storage.SaveConnectionAsync(connection);
     }
 
     public async Task<List<string>?> GetDatabasesAsync(string connectionString, DatabaseType type)
