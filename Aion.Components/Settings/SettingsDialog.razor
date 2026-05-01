@@ -1,5 +1,6 @@
 @using MudBlazor
 @using Mythetech.Framework.Components.Settings
+@using Mythetech.Framework.Components.Switch
 @using Mythetech.Framework.Infrastructure.Settings
 @using Aion.Components.Theme
 
@@ -16,15 +17,11 @@
     </TitleContent>
     <DialogContent>
         <div class="mf-settings-dialog-content">
-            <SettingsPanel @ref="_settingsPanel"
-                           ShowTitle="false"
-                           AdditionalSectionIds="@(new[] { "Appearance" })"
+            <SettingsPanel @ref="_settingsPanel" ShowTitle="false" AdditionalSectionIds="@(new[] { "Appearance" })"
                            @bind-ActiveSection="_activeSection">
                 <NavPrefix>
-                    <SettingsNavLink SettingsId="Appearance"
-                                     DisplayName="Appearance"
-                                     Icon="@Icons.Material.Filled.Palette"
-                                     IsActive="@(_activeSection == "Appearance")"
+                    <SettingsNavLink SettingsId="Appearance" DisplayName="Appearance"
+                                     Icon="@Icons.Material.Filled.Palette" IsActive="@(_activeSection == "Appearance")"
                                      OnClick="@(() => ScrollToSection("Appearance"))" />
                 </NavPrefix>
                 <ContentPrefix>
@@ -42,10 +39,8 @@
                                         <MudText Class="mf-setting-label">Dark Mode</MudText>
                                     </div>
                                     <div class="mf-setting-control">
-                                        <MudSwitch T="bool"
-                                                   Value="@_isDarkMode"
-                                                   ValueChanged="@OnDarkModeChanged"
-                                                   Color="Color.Primary" />
+                                        <MtSwitch T="bool" Value="@_isDarkMode" ValueChanged="@OnDarkModeChanged"
+                                                  Color="Color.Primary" />
                                     </div>
                                 </div>
                             </div>
