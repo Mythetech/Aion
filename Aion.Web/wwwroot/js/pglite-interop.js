@@ -4,7 +4,7 @@ export async function create(name) {
     if (instances[name]) return;
 
     const { PGlite } = await import('https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/index.js');
-    instances[name] = await PGlite.create();
+    instances[name] = await PGlite.create(`idb://${name}`);
 }
 
 export async function query(name, sql) {
@@ -42,5 +42,22 @@ export async function close(name) {
     if (db) {
         await db.close();
         delete instances[name];
+    }
+}
+
+export async function destroy(name) {
+    const db = instances[name];
+    if (db) {
+        await db.close();
+        delete instances[name];
+    }
+
+    const databases = await indexedDB.databases();
+    const pgliteDbNames = databases
+        .map(db => db.name)
+        .filter(n => n && n.includes(name));
+
+    for (const dbName of pgliteDbNames) {
+        indexedDB.deleteDatabase(dbName);
     }
 }

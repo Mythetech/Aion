@@ -37,6 +37,13 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider
         _databases.Add(name);
     }
 
+    public async Task DestroyDatabaseAsync(string name)
+    {
+        var module = await GetModuleAsync();
+        await module.InvokeVoidAsync("destroy", name);
+        _databases.Remove(name);
+    }
+
     public Task<List<string>?> GetDatabasesAsync(string connectionString)
     {
         return Task.FromResult<List<string>?>(_databases.ToList());

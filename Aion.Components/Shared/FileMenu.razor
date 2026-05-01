@@ -1,0 +1,41 @@
+@using Aion.Components.Theme
+@using Aion.Contracts.Connections
+@using MouseEvent = MudBlazor.MouseEvent
+@using Color = MudBlazor.Color
+
+<MudMenu Label="File" Dense ActivationEvent="MouseEvent.MouseOver">
+    <MudMenuItem Icon="@AionIcons.Add" OnClick="OnNewDatabase">
+        New Database...
+    </MudMenuItem>
+    <MudMenuItem Icon="@AionIcons.Sample" OnClick="OnLoadSample">
+        Load Sample Database
+    </MudMenuItem>
+    <MudDivider />
+    @if (Connections.Any())
+    {
+        <MudMenu Label="Clear Database" StartIcon="@AionIcons.Delete" Dense>
+            @foreach (var connection in Connections)
+            {
+                <MudMenuItem OnClick="@(() => OnClearDatabase.InvokeAsync(connection.Id))">
+                    @connection.Name
+                </MudMenuItem>
+            }
+        </MudMenu>
+    }
+    <MudMenuItem Icon="@AionIcons.ClearAll" IconColor="Color.Error" OnClick="OnClearAllClicked">
+        Clear All Data
+    </MudMenuItem>
+</MudMenu>
+
+@code {
+    [Parameter] public List<ConnectionModel> Connections { get; set; } = [];
+    [Parameter] public EventCallback OnNewDatabase { get; set; }
+    [Parameter] public EventCallback OnLoadSample { get; set; }
+    [Parameter] public EventCallback<Guid> OnClearDatabase { get; set; }
+    [Parameter] public EventCallback OnClearAllData { get; set; }
+
+    private async Task OnClearAllClicked()
+    {
+        await OnClearAllData.InvokeAsync();
+    }
+}
