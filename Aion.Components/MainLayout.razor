@@ -94,8 +94,8 @@
                         </MudToggleGroup>
                     </ChildContent>
                 </MudMenu>
-                <IconButton Class="ml-1" Color="Color.Primary" Icon="@AionIcons.Settings" OnClick="OpenSettingsDialog"
-                            Tooltip="Settings" TooltipPlacement="Placement.Right" />
+                <MtIconButton Class="ml-1" Color="Color.Primary" Icon="@AionIcons.Settings" OnClick="OpenSettingsDialog"
+                              Tooltip="Settings" TooltipPlacement="Placement.Right" />
                 <MudIconButton Class="ml-1"
                                Icon="@(AppState.SideBarOpen ? AionIcons.CollapseLeft : AionIcons.ExpandRight)"
                                Color="Color.Inherit" OnClick="@(() => AppState.ToggleSideBar())" />
