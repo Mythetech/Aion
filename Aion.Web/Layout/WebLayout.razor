@@ -12,6 +12,7 @@
 @using Aion.Contracts.Database
 @using Aion.Web.Services
 @using Aion.Web.Onboarding
+@using Aion.Web.Providers
 @using Microsoft.FluentUI.AspNetCore.Components
 @using Microsoft.JSInterop
 @using Mythetech.Framework.Infrastructure.MessageBus
@@ -37,6 +38,11 @@
     <MudAppBar Elevation="1" Dense="true">
         <MudStack Row=true AlignItems="@AlignItems.Center" Class="mud-width-full">
             <MudText Typo="Typo.h6" Class="ml-2">Aion</MudText>
+            <FileMenu Connections="@ConnectionState.Connections"
+                      OnNewDatabase="AddConnection"
+                      OnLoadSample="LoadSampleDatabase"
+                      OnClearDatabase="ClearDatabase"
+                      OnClearAllData="ClearAllData" />
             <MudSpacer />
             <SearchBar />
             <MudSpacer />
@@ -116,6 +122,8 @@
     [Inject] protected IEnumerable<ISupportedTypeProvider> TypeProviders { get; set; } = default!;
     [Inject] protected SampleDatabaseProvisioner Provisioner { get; set; } = default!;
     [Inject] protected ILinkOpenService LinkService { get; set; } = default!;
+    [Inject] protected StorageRestoreService RestoreService { get; set; } = default!;
+    [Inject] protected IndexedDbStorageService StorageService { get; set; } = default!;
 
     private MudThemeProvider _theme = default!;
     private MudTheme Theme { get; } = new AionTheme();
@@ -148,6 +156,7 @@
                 await JS.InvokeVoidAsync("aionSplash.hide");
                 _initialized = true;
 
+                await RestoreService.RestoreAsync();
                 await CheckOnboardingAsync();
             }
             catch
@@ -160,6 +169,12 @@
     {
         try
         {
+            if (RestoreService.HasRestoredData)
+            {
+                await JS.InvokeVoidAsync("localStorage.setItem", "aion_onboarded", "true");
+                return;
+            }
+
             var hasOnboarded = await JS.InvokeAsync<string?>("localStorage.getItem", "aion_onboarded");
             if (hasOnboarded is not null && ConnectionState.Connections.Count > 0)
                 return;
@@ -284,6 +299,100 @@
             CloseButton = false
         };
         await DialogService.ShowAsync<SettingsDialog>("Settings", options);
+    }
+
+    private async Task LoadSampleDatabase()
+    {
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            BackgroundClass = "aion-dialog",
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            CloseButton = false
+        };
+        var dialog = await DialogService.ShowAsync<OnboardingDialog>("Load Sample", options);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: OnboardingResult onboarding })
+        {
+            try
+            {
+                await Provisioner.ProvisionAsync(onboarding.Engine);
+            }
+            catch (Exception ex)
+            {
+                await Bus.PublishAsync(new Aion.Components.Shared.Snackbar.Commands.AddNotification(
+                    $"Failed to set up database: {ex.Message}",
+                    MudBlazor.Severity.Error));
+            }
+        }
+    }
+
+    private async Task ClearDatabase(Guid connectionId)
+    {
+        var connection = ConnectionState.Connections.FirstOrDefault(c => c.Id == connectionId);
+        if (connection == null) return;
+
+        foreach (var db in connection.Databases)
+        {
+            var provider = ConnectionState.GetProvider(connection.Type);
+            if (provider is SqliteWasmProvider sqlite)
+                await sqlite.DeleteDatabaseAsync(db.Name);
+            else if (provider is PGliteProvider pglite)
+                await pglite.DestroyDatabaseAsync(db.Name);
+
+            await StorageService.DeleteDatabaseMetaAsync(db.Name);
+        }
+
+        var queriesToClose = QueryState.Queries
+            .Where(q => q.ConnectionId == connectionId)
+            .ToList();
+        foreach (var q in queriesToClose)
+        {
+            await QueryState.Remove(q);
+        }
+
+        await ConnectionState.RemoveConnection(connectionId);
+
+        await Bus.PublishAsync(new Aion.Components.Shared.Snackbar.Commands.AddNotification(
+            $"Cleared {connection.Name}", MudBlazor.Severity.Success));
+    }
+
+    private async Task ClearAllData()
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Clear All Data",
+            "This will delete all databases, connections, and saved queries. This cannot be undone.",
+            yesText: "Clear All Data",
+            cancelText: "Cancel");
+
+        if (confirmed == true)
+        {
+            foreach (var connection in ConnectionState.Connections.ToList())
+            {
+                foreach (var db in connection.Databases)
+                {
+                    var provider = ConnectionState.GetProvider(connection.Type);
+                    if (provider is SqliteWasmProvider sqlite)
+                        await sqlite.DeleteDatabaseAsync(db.Name);
+                    else if (provider is PGliteProvider pglite)
+                        await pglite.DestroyDatabaseAsync(db.Name);
+                }
+            }
+
+            await StorageService.ClearAllAsync();
+            await QueryState.CloseAllTabs();
+
+            ConnectionState.Connections.Clear();
+
+            await JS.InvokeVoidAsync("localStorage.removeItem", "aion_onboarded");
+
+            await CheckOnboardingAsync();
+
+            await Bus.PublishAsync(new Aion.Components.Shared.Snackbar.Commands.AddNotification(
+                "All data cleared", MudBlazor.Severity.Success));
+        }
     }
 
     private async Task OpenAboutDialog()
