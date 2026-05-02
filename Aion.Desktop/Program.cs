@@ -125,9 +125,7 @@ namespace Aion.Desktop
 
             appBuilder.Services.AddSingleton<IConnectionStorage, FileConnectionStorage>();
             appBuilder.Services.AddSingleton<IQuerySaveService, FileQuerySaveService>();
-
-            appBuilder.Services.AddTransient<ILinkOpenService, LinkOpenService>();
-
+            
             // Native menu services
             appBuilder.Services.AddSingleton<INativeMenuService, Desktop.NativeMenu.NativeMenuService>();
             appBuilder.Services.AddSingleton<INativeMenuCommandDispatcher, NativeMenuCommandDispatcher>();

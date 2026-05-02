@@ -32,11 +32,10 @@ builder.Services.AddJsGuards();
 
 builder.Services.AddSettingsStorage<InMemorySettingsStorage>();
 builder.Services.RegisterSettingsFromAssembly(typeof(ComponentsApp).Assembly);
-builder.Services.AddFileSaveService();
+builder.Services.AddWebAssemblyServices();
 
 builder.Services.AddSingleton<IQuerySaveService, IndexedDbQuerySaveService>();
 builder.Services.AddSingleton<IndexedDbStorageService>();
-builder.Services.AddTransient<ILinkOpenService, BrowserLinkOpenService>();
 builder.Services.AddSingleton<INativeMenuService, NoOpNativeMenuService>();
 
 builder.Services.AddSingleton<SqliteWasmProvider>();

@@ -21,6 +21,7 @@
 @using Aion.Components
 @using Aion.Components.AppContextPanel
 @using Aion.Components.Shared
+@using Mythetech.Framework.Infrastructure
 @using Color = MudBlazor.Color
 @using IDialogService = MudBlazor.IDialogService
 @implements IDisposable
@@ -47,7 +48,7 @@
             <SearchBar />
             <MudSpacer />
             <MtIconButton Icon="@AionIcons.Round("bug_report")" Tooltip="Report Bug"
-                          OnClick="@(() => LinkService.OpenUrl("https://github.com/Mythetech/Aion/issues/new"))" />
+                          OnClick="@(async () => await LinkService.OpenLinkAsync("https://github.com/Mythetech/Aion/issues/new"))" />
         </MudStack>
     </MudAppBar>
     <MudDrawer @bind-Open="@AppState.SideBarOpen" Variant="DrawerVariant.Mini" Style="overflow: hidden;">

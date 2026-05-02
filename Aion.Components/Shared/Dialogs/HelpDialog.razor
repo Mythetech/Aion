@@ -3,6 +3,7 @@
 @using Aion.Components.Shared
 @using Aion.Components.Theme
 @using Microsoft.JSInterop
+@using Mythetech.Framework.Infrastructure
 
 <MudDialog Class="aion-transparent-dialog about-aion-dialog">
     <DialogContent>
@@ -35,19 +36,19 @@
     private const string GitHubIssuesLink = $"{GitHubLink}issues/new";
     private const string MythetechLink = "https://www.mythetech.com";
 
-    private void OpenMythetech()
+    private Task OpenMythetech()
     {
-        LinkOpenService.OpenUrl(MythetechLink);
+        return LinkOpenService.OpenLinkAsync(MythetechLink);
     }
 
-    private void OpenGithub()
+    private Task OpenGithub()
     {
-        LinkOpenService.OpenUrl(GitHubLink);
+        return LinkOpenService.OpenLinkAsync(GitHubLink);
     }
     
-    private void OpenGithubIssues()
+    private Task OpenGithubIssues()
     {
-        LinkOpenService.OpenUrl(GitHubIssuesLink);
+        return LinkOpenService.OpenLinkAsync(GitHubIssuesLink);
     }
 
     [Inject] ILinkOpenService LinkOpenService { get; set; }
