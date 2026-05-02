@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FluentUI.AspNetCore.Components;
 using MudBlazor;
 using MudBlazor.Services;
+using Mythetech.Framework.Infrastructure.Plugins;
 using Mythetech.Framework.Infrastructure.Settings;
 
 namespace Aion.Components;
@@ -40,14 +41,12 @@ public static class RegistrationExtensions
         services.AddSingleton<HistoryState>();
 
         services.AddSettingsFramework();
-        services.AddSingleton<ConnectionSettings>();
-        services.AddSingleton<EditorSettings>();
+        services.RegisterSettingsFromAssemblies(
+            typeof(ConnectionSettings).Assembly,
+            typeof(PluginSettings).Assembly);
+        services.AddPluginFramework();
 
-        services.AddSingleton<SettingsState>(sp =>
-        {
-            var settingsProvider = sp.GetRequiredService<ISettingsProvider>();
-            return new SettingsState(settingsProvider);
-        });
+        services.AddSingleton<SettingsState>();
 
         services.AddSingleton<IConnectionService, TConnectionService>();
         services.AddSingleton<IConnectionHealthMonitor, ConnectionHealthMonitor>();

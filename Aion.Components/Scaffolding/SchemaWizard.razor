@@ -93,7 +93,8 @@
                                 </div>
                             }
                             <TableDefinitionStep Table="table"
-                                                 SupportedTypes="@GetSupportedTypes()" />
+                                                 SupportedTypes="@GetSupportedTypes()"
+                                                 TableChanged="StateHasChanged" />
                         </MudStack>
                     </MudStep>
                 }

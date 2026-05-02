@@ -2,6 +2,7 @@
 
 <MudStack Spacing="3">
     <MudTextField @bind-Value="Table.Name"
+                  @bind-Value:after="NotifyChangedAsync"
                   Label="Table Name"
                   Variant="Variant.Outlined"
                   Required="true"
@@ -17,7 +18,8 @@
                              PrimaryKeyDisabled="@HasPrimaryKey(column)"
                              CanRemove="@(Table.Columns.Count > 1)"
                              OnRemove="@(() => RemoveColumn(column))"
-                             PrimaryKeyChanged="@(_ => StateHasChanged())" />
+                             PrimaryKeyChanged="@(_ => StateHasChanged())"
+                             Changed="NotifyChangedAsync" />
     }
 
     <MudButton Variant="Variant.Text"
@@ -41,16 +43,23 @@
     [Parameter]
     public IReadOnlyList<string> SupportedTypes { get; set; } = [];
 
+    [Parameter]
+    public EventCallback TableChanged { get; set; }
+
     private bool HasPrimaryKey(ColumnDefinitionModel exclude)
         => Table.Columns.Any(c => c.IsPrimaryKey && c != exclude);
 
-    private void AddColumn()
+    private async Task AddColumn()
     {
         Table.Columns.Add(new ColumnDefinitionModel());
+        await TableChanged.InvokeAsync();
     }
 
-    private void RemoveColumn(ColumnDefinitionModel column)
+    private async Task RemoveColumn(ColumnDefinitionModel column)
     {
         Table.Columns.Remove(column);
+        await TableChanged.InvokeAsync();
     }
+
+    private Task NotifyChangedAsync() => TableChanged.InvokeAsync();
 }

@@ -1,6 +1,5 @@
 using Aion.Components;
 using Aion.Components.Infrastructure;
-using Aion.Components.Settings.Domains;
 using Hermes;
 using Hermes.Blazor;
 using Hermes.Diagnostics;
@@ -83,7 +82,6 @@ namespace Aion.Desktop
             // Framework services
             appBuilder.Services.AddDesktopServices(DesktopHost.Hermes);
             appBuilder.Services.AddJsGuards();
-            appBuilder.Services.AddPluginFramework();
             appBuilder.Services.AddDesktopAssetLoader();
             appBuilder.Services.AddNativeSecretManager("aion");
             appBuilder.Services.AddOnePasswordSecretManager();
@@ -99,10 +97,7 @@ namespace Aion.Desktop
 
             // Settings
             appBuilder.Services.AddSettingsStorage<AionSettingsStorage>();
-            appBuilder.Services.RegisterSettingsFromAssemblies(
-                typeof(ConnectionSettings).Assembly,
-                typeof(PluginSettings).Assembly,
-                typeof(UpdateSettings).Assembly);
+            appBuilder.Services.RegisterSettingsFromAssembly(typeof(UpdateSettings).Assembly);
 
             // Update service
             appBuilder.Services.AddUpdateService(options =>

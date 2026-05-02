@@ -7,14 +7,17 @@
 @using BlazorMonaco.Languages
 @using Aion.Components.Shared
 @using Aion.Components.Theme
+@using Aion.Components.Settings.Domains
 @using Aion.Contracts.Connections
 @using Aion.Contracts.Queries
 @using Microsoft.JSInterop
 @using Mythetech.Framework.Infrastructure.Guards
+@using Mythetech.Framework.Infrastructure.Settings.Events
 @implements IDisposable
 @implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.FocusQuery>
 @implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.CreateQuery>
 @implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.RunQuery>
+@implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Mythetech.Framework.Infrastructure.Settings.Events.SettingsModelChanged<Aion.Components.Settings.Domains.EditorSettings>>
 
 
 <MudStack Class="h-100" Spacing="0">
@@ -89,6 +92,7 @@
     [Inject] protected IMessageBus Bus { get; set; } = default!;
     [Inject] protected SqlCompletionService CompletionService { get; set; } = default!;
     [Inject] protected IJSRuntime JS { get; set; } = default!;
+    [Inject] protected EditorSettings EditorSettings { get; set; } = default!;
     
     private bool _initialized = false;
 
@@ -128,6 +132,10 @@
         return new StandaloneEditorConstructionOptions
         {
             Language = "sql",
+            FontSize = EditorSettings.FontSize,
+            WordWrap = EditorSettings.WordWrap ? "on" : "off",
+            LineNumbers = EditorSettings.ShowLineNumbers ? "on" : "off",
+            Minimap = new EditorMinimapOptions { Enabled = EditorSettings.ShowMinimap },
         };
     }
 
@@ -141,6 +149,7 @@
         Bus.Subscribe<FocusQuery>(this);
         Bus.Subscribe<CreateQuery>(this);
         Bus.Subscribe<RunQuery>(this);
+        Bus.Subscribe<SettingsModelChanged<EditorSettings>>(this);
 
         base.OnInitialized();
     }
@@ -153,6 +162,7 @@
         Bus.Unsubscribe<FocusQuery>(this);
         Bus.Unsubscribe<CreateQuery>(this);
         Bus.Unsubscribe<RunQuery>(this);
+        Bus.Unsubscribe<SettingsModelChanged<EditorSettings>>(this);
         _queryTokenSource?.Dispose();
     }
 
@@ -297,6 +307,20 @@
     public async Task Consume(RunQuery message)
     {
         await RunQuery();
+    }
+
+    public async Task Consume(SettingsModelChanged<EditorSettings> message)
+    {
+        if (_editor == null) return;
+
+        var s = message.Settings;
+        await _editor.UpdateOptions(new EditorUpdateOptions
+        {
+            FontSize = s.FontSize,
+            WordWrap = s.WordWrap ? "on" : "off",
+            LineNumbers = s.ShowLineNumbers ? "on" : "off",
+            Minimap = new EditorMinimapOptions { Enabled = s.ShowMinimap },
+        });
     }
 
     private async Task QueryAddClicked()

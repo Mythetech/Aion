@@ -26,12 +26,11 @@ builder.Services.AddSqliteWasm(o => o.HostEnvironment = builder.HostEnvironment)
 
 builder.Services.AddAionComponents<WebConnectionService>();
 
+builder.Services.AddHttpClient();
 builder.Services.AddSingleton<IDatabaseProviderFactory, DatabaseProviderFactory>();
-builder.Services.AddSingleton<PluginState>();
 builder.Services.AddJsGuards();
 
 builder.Services.AddSettingsStorage<InMemorySettingsStorage>();
-builder.Services.RegisterSettingsFromAssembly(typeof(ComponentsApp).Assembly);
 builder.Services.AddWebAssemblyServices();
 
 builder.Services.AddSingleton<IQuerySaveService, IndexedDbQuerySaveService>();
@@ -59,6 +58,8 @@ builder.Services.AddSingleton<QueryState>();
 var host = builder.Build();
 
 host.Services.UseMessageBus(typeof(WebApp).Assembly, typeof(ComponentsApp).Assembly);
+host.Services.UseSettingsFramework();
+host.Services.UsePluginFramework();
 
 var persistenceManager = host.Services.GetRequiredService<WebPersistenceManager>();
 persistenceManager.Start();

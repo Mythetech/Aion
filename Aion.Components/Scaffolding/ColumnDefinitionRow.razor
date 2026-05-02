@@ -2,12 +2,14 @@
 
 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="py-1">
     <MudTextField @bind-Value="Column.Name"
+                  @bind-Value:after="NotifyChangedAsync"
                   Label="Column Name"
                   Variant="Variant.Outlined"
                   Margin="Margin.Dense"
                   Style="min-width: 160px;" />
 
     <MudSelect @bind-Value="Column.DataType"
+               @bind-Value:after="NotifyChangedAsync"
                Label="Data Type"
                Variant="Variant.Outlined"
                Margin="Margin.Dense"
@@ -62,10 +64,16 @@
     [Parameter]
     public EventCallback<bool> PrimaryKeyChanged { get; set; }
 
+    [Parameter]
+    public EventCallback Changed { get; set; }
+
+    private Task NotifyChangedAsync() => Changed.InvokeAsync();
+
     private async Task HandlePrimaryKeyChanged()
     {
         if (Column.IsPrimaryKey)
             Column.IsNullable = false;
         await PrimaryKeyChanged.InvokeAsync(Column.IsPrimaryKey);
+        await Changed.InvokeAsync();
     }
 }
