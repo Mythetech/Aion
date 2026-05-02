@@ -12,6 +12,7 @@ using MudBlazor.Services;
 using Mythetech.Framework.Infrastructure.Guards;
 using NSubstitute;
 using Shouldly;
+using Aion.Components.Settings.Domains;
 
 namespace Aion.Test.Components.Querying;
 
@@ -50,6 +51,7 @@ public class QueryEditorTests : TestContext
         Services.AddSingleton(_connections);
         Services.AddSingleton(Substitute.For<IJsGuardService>());
         Services.AddSingleton(new SqlCompletionService(_connections));
+        Services.AddSingleton<EditorSettings>();
     }
 
     [Fact]
@@ -57,7 +59,7 @@ public class QueryEditorTests : TestContext
     {
         // Arrange & Act
         var cut = RenderComponent<QueryEditor>();
-        
+
         // Assert
         cut.ShouldNotBeNull();
     }
@@ -67,12 +69,12 @@ public class QueryEditorTests : TestContext
     {
         // Arrange
         _state.SetActive(null!);
-        
+
         // Act
         var cut = RenderComponent<QueryEditor>();
-        
+
         // Assert
         cut.ShouldNotBeNull();
-        
+
     }
 }
