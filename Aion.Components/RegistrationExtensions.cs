@@ -1,3 +1,4 @@
+using Aion.Components.CommandPalette;
 using Aion.Components.Connections;
 using Aion.Components.Connections.Services;
 using Aion.Components.ForeignKeys;
@@ -12,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FluentUI.AspNetCore.Components;
 using MudBlazor;
 using MudBlazor.Services;
+using Mythetech.Framework.Components.CommandPalette;
 using Mythetech.Framework.Infrastructure.Plugins;
 using Mythetech.Framework.Infrastructure.Settings;
 
@@ -58,6 +60,9 @@ public static class RegistrationExtensions
         services.AddSingleton<SqlCompletionService>();
 
         services.AddFluentUIComponents();
+
+        services.AddCommandPalette();
+        services.AddCommandProvider<AionCommandProvider>();
 
         return services;
     }

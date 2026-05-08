@@ -22,6 +22,7 @@
 @using Color = MudBlazor.Color
 @using MouseEvent = MudBlazor.MouseEvent
 @using Mythetech.Framework.Infrastructure.Initialization
+@using Mythetech.Framework.Components.CommandPalette
 @using Mythetech.Framework.Infrastructure.Plugins
 @using Mythetech.Framework.Infrastructure.Settings
 @implements IDisposable
@@ -34,6 +35,7 @@
 <DialogCommandProvider />
 <JsApiCommandProvider />
 <FluentKeyCodeProvider />
+<CommandPaletteHost BackgroundClass="aion-dialog" />
 
 <MudLayout Class="custom-title-bar-layout">
     <Hermes.Blazor.Components.HermesTitleBar Height="38">
