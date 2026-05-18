@@ -15,7 +15,6 @@
       <PackageReference Include="ClosedXML" />
       <PackageReference Include="Hogimn.Sql.Formatter" />
       <PackageReference Include="Microsoft.AspNetCore.Components.Web" />
-      <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" />
       <PackageReference Include="Mythetech.Framework" />
       <PackageReference Include="Z.Blazor.Diagrams" />
     </ItemGroup>

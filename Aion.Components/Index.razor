@@ -4,49 +4,59 @@
 @using MudBlazor
 @using Aion.Components.Querying
 @using Aion.Components.Querying.Commands
-@using Microsoft.FluentUI.AspNetCore.Components
+@using MudBlazor.Utilities
 @using Aion.Components.RequestContextPanel
 @using Aion.Components.RequestContextPanel.Commands
 @using Aion.Components.Shared
 @using Aion.Components.Theme
 @using Microsoft.JSInterop
 @implements IDisposable
-@implements IAsyncDisposable
 @implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.RequestContextPanel.Commands.OpenRequestContextPanel>
 @implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.RequestContextPanel.Commands.OpenJsonDetailView>
 @implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.RequestContextPanel.Commands.OpenForeignKeyView>
 
 
-<MudStack Row="true" Class="w-100 h-100 ml-1" Spacing="0">
-    <FluentMultiSplitter BarSize="1" @ref="_primarySplitter"  OnCollapse="@((args) => HandleCollapse(args))" OnExpand="HandleExpand" Height="100%" Width="@(_sidePanelClosed ? "97%" :"100%")" Orientation="Microsoft.FluentUI.AspNetCore.Components.Orientation.Horizontal" Style="border-radius:0;overflow-x:clip;">
-        <FluentMultiSplitterPane Size="@(!_sidePanelClosed ? "80%" : "88%")" Min="400px" Max="100%">
-            <FluentMultiSplitter Height="100%" Width="100%" Orientation="Microsoft.FluentUI.AspNetCore.Components.Orientation.Vertical">
-                <FluentMultiSplitterPane Size="50%" Min="150px">
+<MudStack Row="true" Class="w-100 h-100 pl-1 pr-1" Spacing="0">
+    <MudSplitPanel @ref="_outerSplitter" PanelGap="2" Transparent="true" MinPanelSize="50"
+                   Class="@($"w-100 h-100{(_sidePanelClosed ? " divider-locked" : "")}")">
+        <FirstPanel>
+            <MudSplitPanel Horizontal="true" PanelGap="2" Transparent="true" MinPanelSize="150" Class="w-100 h-100">
+                <FirstPanel>
                     <MudPaper Height="100%" Elevation="0" Width="100%">
                         <QueryEditor />
                     </MudPaper>
-                </FluentMultiSplitterPane>
-                <FluentMultiSplitterPane Size="50%" Min="150px" Collapsible="true">
+                </FirstPanel>
+                <SecondPanel>
                     <QueryResponsePanel />
-                </FluentMultiSplitterPane>
-            </FluentMultiSplitter>
-        </FluentMultiSplitterPane>
-        <FluentMultiSplitterPane Id="request-context-panel" Collapsed="@_sidePanelClosed" Collapsible="true" Size="@(!_sidePanelClosed ? "20%" :"12%")" Min="50px" Max=@(!_sidePanelClosed ? "50%" :"3%")>
-            <MudPaper Height="100%" Width="100%">
-                <RequestContextPanel @ref="_requestContextPanel" PanelClosed="@(() => ToggleSidePanel())" />
-            </MudPaper>
-        </FluentMultiSplitterPane>
-    </FluentMultiSplitter>
-    @if (_sidePanelClosed)
-    {
-        <MudStack Spacing="3" AlignItems="AlignItems.Center" Class="w-100" Style="max-width: 30px;">
-            <AionIconButton Class="py-4" Size="Size.Small" Tooltip="Info Panel" Icon="@AionIcons.Info" OnClick="@(() => ToggleSidePanel("Info"))" />
-            @if (QueryState?.Active?.Transaction.HasValue ?? false)
+                </SecondPanel>
+            </MudSplitPanel>
+        </FirstPanel>
+        <SecondPanel>
+            @if (!_sidePanelClosed)
             {
-                <AionIconButton Tooltip="Transactions" Icon="@AionIcons.Transaction" OnClick="@(() => ToggleSidePanel("Transactions"))"></AionIconButton>
+                <MudPaper Height="100%" Width="100%">
+                    <RequestContextPanel @ref="_requestContextPanel" PanelClosed="@(() => ToggleSidePanel())" />
+                </MudPaper>
             }
-        </MudStack>
-    }
+            else
+            {
+                <MudStack Spacing="3" AlignItems="AlignItems.Center" Class="w-100 h-100 pt-2"
+                          Style="border-left: solid 1px var(--mud-palette-primary); min-width: 48px">
+                    <AionIconButton Size="Size.Small" Tooltip="Info Panel" Icon="@AionIcons.Info" OnClick="@(() => ToggleSidePanel("Info"))" />
+                    @if (QueryState?.Active?.Transaction.HasValue ?? false)
+                    {
+                        <AionIconButton Tooltip="Transactions" Icon="@AionIcons.Transaction" OnClick="@(() => ToggleSidePanel("Transactions"))"></AionIconButton>
+                    }
+                </MudStack>
+            }
+        </SecondPanel>
+    </MudSplitPanel>
+    <MudHotkey Key="JsKey.Enter" KeyModifiers="@CtrlOnly" OnHotkeyPressed="@HandleRunQuery" />
+    <MudHotkey Key="JsKey.Enter" KeyModifiers="@MetaOnly" OnHotkeyPressed="@HandleRunQuery" />
+    <MudHotkey Key="JsKey.KeyT" KeyModifiers="@CtrlOnly" OnHotkeyPressed="@HandleNewQuery" />
+    <MudHotkey Key="JsKey.KeyT" KeyModifiers="@MetaOnly" OnHotkeyPressed="@HandleNewQuery" />
+    <MudHotkey Key="JsKey.KeyN" KeyModifiers="@CtrlOnly" OnHotkeyPressed="@HandleNewConnection" />
+    <MudHotkey Key="JsKey.KeyN" KeyModifiers="@MetaOnly" OnHotkeyPressed="@HandleNewConnection" />
 </MudStack>
 
 
@@ -61,41 +71,41 @@
 
     [Inject] protected IJSRuntime JS { get; set; } = default!;
 
-    [Inject] protected IKeyCodeService KeyCodeService { get; set; } = default!;
-    
-    private IJSObjectReference? _module;
-    
     private RequestContextPanel.RequestContextPanel _requestContextPanel = default!;
     
-    private FluentMultiSplitter _primarySplitter = default!;
+    private MudSplitPanel _outerSplitter = default!;
 
-    private FluentMultiSplitterPane? _contextPanel = default!;
-    
     private bool _sidePanelClosed = true;
     
-    protected void HandleExpand(FluentMultiSplitterEventArgs args)
+    private async Task<int> GetOuterSplitterWidthAsync()
     {
-        if (args.Pane.Id == "request-context-panel")
-        {
-            _sidePanelClosed = false;
-            StateHasChanged();
-        }
+        return await JS.InvokeAsync<int>("eval",
+            "document.querySelector('.mud-split-panel')?.getBoundingClientRect().width ?? 800");
     }
 
-    protected void HandleCollapse(FluentMultiSplitterEventArgs args)
-    {
-        if (args.Pane.Id == "request-context-panel")
-        {
-            _sidePanelClosed = true;
-            StateHasChanged();
-        }
-    }
-    protected void ToggleSidePanel(string selectedTab = "")
+    protected async Task ToggleSidePanel(string selectedTab = "")
     {
         _sidePanelClosed = !_sidePanelClosed;
+        StateHasChanged();
+        await Task.Yield();
 
-        if (!string.IsNullOrWhiteSpace(selectedTab))
-            _requestContextPanel.Open(selectedTab);
+        var containerWidth = await GetOuterSplitterWidthAsync();
+
+        if (_sidePanelClosed)
+        {
+            await _outerSplitter.SetDividerPositionAsync(containerWidth - 52);
+        }
+        else
+        {
+            await _outerSplitter.SetDividerPositionAsync((int)(containerWidth * 0.8));
+
+            if (!string.IsNullOrWhiteSpace(selectedTab))
+            {
+                StateHasChanged();
+                await Task.Yield();
+                _requestContextPanel?.Open(selectedTab);
+            }
+        }
 
         StateHasChanged();
     }
@@ -108,24 +118,24 @@
         QueryState.StateChanged += StateHasChanged;
     }
     
-    protected override Task OnAfterRenderAsync(bool firstRender)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            var keyId = KeyCodeService.RegisterListener(HandleKeyDown);
+            if (_sidePanelClosed)
+            {
+                var containerWidth = await GetOuterSplitterWidthAsync();
+                await _outerSplitter.SetDividerPositionAsync(containerWidth - 52);
+            }
         }
-
-        return Task.CompletedTask;
     }
 
     public void Dispose()
     {
-        _contextPanel?.Dispose();
         Bus.Unsubscribe<OpenRequestContextPanel>(this);
         Bus.Unsubscribe<OpenJsonDetailView>(this);
         Bus.Unsubscribe<OpenForeignKeyView>(this);
         QueryState.StateChanged -= StateHasChanged;
-        KeyCodeService.UnregisterListener(HandleKeyDown);
     }
 
     public Task Consume(OpenRequestContextPanel message)
@@ -152,42 +162,32 @@
         return Task.CompletedTask;
     }
 
-    public async ValueTask DisposeAsync()
+    private static readonly IEnumerable<JsKeyModifier> CtrlOnly = new[] { JsKeyModifier.ControlLeft };
+    private static readonly IEnumerable<JsKeyModifier> MetaOnly = new[] { JsKeyModifier.MetaLeft };
+
+    private async Task HandleRunQuery()
     {
-        if (_module != null) await _module.DisposeAsync();
+        await Bus.PublishAsync(new RunQuery());
     }
-    
-    private async Task HandleKeyDown(FluentKeyCodeEventArgs args)
+
+    private async Task HandleNewQuery()
     {
-        if(!(args.CtrlKey || args.MetaKey)) return;  
-              
-        if ((args.CtrlKey || args.MetaKey) && args.Key == KeyCode.Enter)
+        var isInputField = await IsInputFieldFocusedAsync();
+        if (!isInputField)
         {
-            await Bus.PublishAsync(new RunQuery());
-            return;
-        }
-
-        if ((args.CtrlKey || args.MetaKey) && args.Key == KeyCode.KeyT)
-        {
-            var isInputField = await IsInputFieldFocusedAsync();
-            if (!isInputField)
-            {
-                await Bus.PublishAsync(new CreateQuery());
-            }
-            return;
-        }
-
-        if ((args.CtrlKey || args.MetaKey) && args.Key == KeyCode.KeyN)
-        {
-            var isInputField = await IsInputFieldFocusedAsync();
-            if (!isInputField)
-            {
-                await Bus.PublishAsync(new PromptCreateConnection());
-            }
-            return;
+            await Bus.PublishAsync(new CreateQuery());
         }
     }
-    
+
+    private async Task HandleNewConnection()
+    {
+        var isInputField = await IsInputFieldFocusedAsync();
+        if (!isInputField)
+        {
+            await Bus.PublishAsync(new PromptCreateConnection());
+        }
+    }
+
     private async Task<bool> IsInputFieldFocusedAsync()
     {
         try

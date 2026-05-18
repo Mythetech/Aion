@@ -10,7 +10,6 @@ using Aion.Components.Settings.Domains;
 using Aion.Components.Shared.Snackbar;
 using Aion.Contracts.Database;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.FluentUI.AspNetCore.Components;
 using MudBlazor;
 using MudBlazor.Services;
 using Mythetech.Framework.Components.CommandPalette;
@@ -58,8 +57,6 @@ public static class RegistrationExtensions
 
         services.AddTransient<SearchService>();
         services.AddSingleton<SqlCompletionService>();
-
-        services.AddFluentUIComponents();
 
         services.AddCommandPalette();
         services.AddCommandProvider<AionCommandProvider>();

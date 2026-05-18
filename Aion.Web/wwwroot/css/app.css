@@ -104,61 +104,23 @@ html, body {
     width: 100%;
 }
 
-.fluent-multi-splitter {
-    --neutral-stroke-strong-rest: var(--mud-palette-primary-lighten);
-    --neutral-stroke-strong-hover: var(--mud-palette-primary-lighten);
-    --neutral-stroke-rest: var(--mud-palette-primary-darken);
-    --neutral-stroke-hover: var(--mud-palette-primary);
-    --fluent-multi-splitter-bar-size: 10px !important;
+.mud-split-panel > .divider {
+    background-color: var(--mud-palette-primary-darken);
     border-radius: 2em;
+    transition: background-color 0.2s ease;
 }
 
-.fluent-multi-splitter > .fluent-multi-splitter-bar:has([status="lastresizable"]) {
-    opacity: 0.2;
+.mud-split-panel > .divider:hover {
+    background-color: var(--mud-palette-primary);
 }
 
-.fluent-multi-splitter-bar {
-    border-radius: 2em;
-}
-
-.fluent-multi-splitter[orientation="vertical"] > .fluent-multi-splitter-bar::before,
-.fluent-multi-splitter[orientation="vertical"] > .fluent-multi-splitter-bar::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    width: 100%;
-    height: 4px;
-    background-color: var(--mud-palette-surface);
+.divider-locked > .divider {
     pointer-events: none;
+    visibility: hidden;
 }
 
-.fluent-multi-splitter[orientation="vertical"] > .fluent-multi-splitter-bar::before {
-    top: 0;
-}
-
-.fluent-multi-splitter[orientation="vertical"] > .fluent-multi-splitter-bar::after {
-    bottom: 0;
-}
-
-.fluent-multi-splitter[orientation="horizontal"] > .fluent-multi-splitter-bar::before,
-.fluent-multi-splitter[orientation="horizontal"] > .fluent-multi-splitter-bar::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    height: 100%;
-    width: 4px;
-    background-color: var(--mud-palette-surface);
-    pointer-events: none;
-}
-
-.fluent-multi-splitter[orientation="horizontal"] > .fluent-multi-splitter-bar::before {
-    left: 0;
-}
-
-.fluent-multi-splitter[orientation="horizontal"] > .fluent-multi-splitter-bar::after {
-    right: 0;
+.divider-locked > .child-panel:last-child {
+    overflow: visible;
 }
 
 .monaco-editor-container {
