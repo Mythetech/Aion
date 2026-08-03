@@ -108,16 +108,9 @@ public static class SampleDatabase
         """
     ];
 
-    public static string[] GetSeedData() =>
+    public static string[] GetSqliteSeedData() =>
     [
-        """
-        INSERT INTO "categories" ("id", "name", "description") VALUES
-        (1, 'Electronics', 'Phones, laptops, and accessories'),
-        (2, 'Books', 'Fiction and non-fiction'),
-        (3, 'Clothing', 'Apparel and accessories'),
-        (4, 'Home & Garden', 'Furniture and decor'),
-        (5, 'Sports', 'Equipment and gear')
-        """,
+        CategoriesSeed,
         """
         INSERT INTO "products" ("id", "name", "category_id", "price", "stock_quantity", "is_active") VALUES
         (1, 'Wireless Headphones', 1, 79.99, 150, 1),
@@ -136,6 +129,55 @@ public static class SampleDatabase
         (14, 'Resistance Bands', 5, 15.99, 300, 1),
         (15, 'Water Bottle', 5, 12.99, 400, 1)
         """,
+        CustomersSeed,
+        OrdersSeed,
+        OrderItemsSeed
+    ];
+
+    public static string[] GetPostgresSeedData() =>
+    [
+        CategoriesSeed,
+        """
+        INSERT INTO "products" ("id", "name", "category_id", "price", "stock_quantity", "is_active") VALUES
+        (1, 'Wireless Headphones', 1, 79.99, 150, true),
+        (2, 'USB-C Hub', 1, 34.99, 300, true),
+        (3, 'Laptop Stand', 1, 49.99, 85, true),
+        (4, 'Mechanical Keyboard', 1, 129.99, 60, true),
+        (5, 'The Great Gatsby', 2, 12.99, 200, true),
+        (6, 'Clean Code', 2, 39.99, 120, true),
+        (7, 'Designing Data-Intensive Applications', 2, 44.99, 95, true),
+        (8, 'Cotton T-Shirt', 3, 19.99, 500, true),
+        (9, 'Running Shoes', 3, 89.99, 75, true),
+        (10, 'Winter Jacket', 3, 149.99, 40, false),
+        (11, 'Desk Lamp', 4, 29.99, 180, true),
+        (12, 'Plant Pot Set', 4, 24.99, 220, true),
+        (13, 'Yoga Mat', 5, 29.99, 160, true),
+        (14, 'Resistance Bands', 5, 15.99, 300, true),
+        (15, 'Water Bottle', 5, 12.99, 400, true)
+        """,
+        CustomersSeed,
+        OrdersSeed,
+        OrderItemsSeed,
+        // The seed rows insert explicit ids, so each serial sequence must be advanced past them
+        // or the next insert without an id collides with a seeded primary key.
+        """SELECT setval(pg_get_serial_sequence('categories', 'id'), (SELECT MAX("id") FROM "categories"))""",
+        """SELECT setval(pg_get_serial_sequence('products', 'id'), (SELECT MAX("id") FROM "products"))""",
+        """SELECT setval(pg_get_serial_sequence('customers', 'id'), (SELECT MAX("id") FROM "customers"))""",
+        """SELECT setval(pg_get_serial_sequence('orders', 'id'), (SELECT MAX("id") FROM "orders"))""",
+        """SELECT setval(pg_get_serial_sequence('order_items', 'id'), (SELECT MAX("id") FROM "order_items"))"""
+    ];
+
+    private const string CategoriesSeed =
+        """
+        INSERT INTO "categories" ("id", "name", "description") VALUES
+        (1, 'Electronics', 'Phones, laptops, and accessories'),
+        (2, 'Books', 'Fiction and non-fiction'),
+        (3, 'Clothing', 'Apparel and accessories'),
+        (4, 'Home & Garden', 'Furniture and decor'),
+        (5, 'Sports', 'Equipment and gear')
+        """;
+
+    private const string CustomersSeed =
         """
         INSERT INTO "customers" ("id", "name", "email", "city", "created_at") VALUES
         (1, 'Alice Johnson', 'alice@example.com', 'Seattle', '2024-01-15'),
@@ -148,7 +190,9 @@ public static class SampleDatabase
         (8, 'Hannah Lee', 'hannah@example.com', 'San Francisco', '2024-07-22'),
         (9, 'Ivan Patel', 'ivan@example.com', 'Austin', '2024-08-30'),
         (10, 'Julia Anderson', 'julia@example.com', 'Denver', '2024-09-15')
-        """,
+        """;
+
+    private const string OrdersSeed =
         """
         INSERT INTO "orders" ("id", "customer_id", "order_date", "status", "total") VALUES
         (1, 1, '2024-06-01', 'completed', 114.98),
@@ -166,7 +210,9 @@ public static class SampleDatabase
         (13, 10, '2024-10-01', 'completed', 119.98),
         (14, 1, '2024-10-15', 'shipped', 69.98),
         (15, 4, '2024-10-20', 'pending', 29.99)
-        """,
+        """;
+
+    private const string OrderItemsSeed =
         """
         INSERT INTO "order_items" ("id", "order_id", "product_id", "quantity", "unit_price") VALUES
         (1, 1, 1, 1, 79.99),
@@ -194,12 +240,19 @@ public static class SampleDatabase
         (23, 13, 11, 1, 29.99),
         (24, 14, 2, 2, 34.99),
         (25, 15, 11, 1, 29.99)
-        """
-    ];
+        """;
 
-    public static string[] GetSampleQueries() =>
+    public static string[] GetSqliteSampleQueries() =>
     [
         "SELECT * FROM products WHERE is_active = 1 ORDER BY price DESC",
+        "SELECT c.name, COUNT(o.id) as order_count, SUM(o.total) as total_spent FROM customers c JOIN orders o ON c.id = o.customer_id GROUP BY c.name ORDER BY total_spent DESC",
+        "SELECT cat.name as category, COUNT(p.id) as product_count, AVG(p.price) as avg_price FROM categories cat JOIN products p ON cat.id = p.category_id GROUP BY cat.name",
+        "SELECT o.status, COUNT(*) as count, SUM(o.total) as revenue FROM orders o GROUP BY o.status"
+    ];
+
+    public static string[] GetPostgresSampleQueries() =>
+    [
+        "SELECT * FROM products WHERE is_active = true ORDER BY price DESC",
         "SELECT c.name, COUNT(o.id) as order_count, SUM(o.total) as total_spent FROM customers c JOIN orders o ON c.id = o.customer_id GROUP BY c.name ORDER BY total_spent DESC",
         "SELECT cat.name as category, COUNT(p.id) as product_count, AVG(p.price) as avg_price FROM categories cat JOIN products p ON cat.id = p.category_id GROUP BY cat.name",
         "SELECT o.status, COUNT(*) as count, SUM(o.total) as revenue FROM orders o GROUP BY o.status"

@@ -36,6 +36,7 @@
       <ProjectReference Include="..\Aion.Components\Aion.Components.csproj" />
       <ProjectReference Include="..\Aion.Contracts\Aion.Contracts.csproj" />
       <ProjectReference Include="..\Aion.Core\Aion.Core.csproj" />
+      <ProjectReference Include="..\Aion.Web\Aion.Web.csproj" />
     </ItemGroup>
 
 </Project>

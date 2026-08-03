@@ -54,11 +54,15 @@ public class SampleDatabaseProvisioner
             ? SampleDatabase.GetSqliteSchema()
             : SampleDatabase.GetPostgresSchema();
 
-        foreach (var ddl in schema)
-            await provider.ExecuteQueryAsync(connectionString, ddl, CancellationToken.None);
+        var seedData = engine == DatabaseType.WasmSQLite
+            ? SampleDatabase.GetSqliteSeedData()
+            : SampleDatabase.GetPostgresSeedData();
 
-        foreach (var dml in SampleDatabase.GetSeedData())
-            await provider.ExecuteQueryAsync(connectionString, dml, CancellationToken.None);
+        foreach (var ddl in schema)
+            await ExecuteAsync(provider, connectionString, ddl);
+
+        foreach (var dml in seedData)
+            await ExecuteAsync(provider, connectionString, dml);
 
         var connection = new ConnectionModel
         {
@@ -71,7 +75,9 @@ public class SampleDatabaseProvisioner
 
         await _connectionState.ConnectAsync(connection);
 
-        var queries = SampleDatabase.GetSampleQueries();
+        var queries = engine == DatabaseType.WasmSQLite
+            ? SampleDatabase.GetSqliteSampleQueries()
+            : SampleDatabase.GetPostgresSampleQueries();
         if (queries.Length > 0)
         {
             var query = _queryState.AddQuery("Sample: Products by Price");
@@ -84,5 +90,12 @@ public class SampleDatabaseProvisioner
         await _storage.SaveDatabaseMetaAsync(name, engine);
 
         return connection;
+    }
+
+    private static async Task ExecuteAsync(IDatabaseProvider provider, string connectionString, string sql)
+    {
+        var result = await provider.ExecuteQueryAsync(connectionString, sql, CancellationToken.None);
+        if (result.Error is not null)
+            throw new InvalidOperationException(result.Error);
     }
 }
