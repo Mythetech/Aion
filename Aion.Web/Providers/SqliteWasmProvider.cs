@@ -1,11 +1,13 @@
 using System.Text;
 using Aion.Contracts.Database;
+using Aion.Contracts.Metrics;
 using Aion.Contracts.Queries;
 using SqliteWasmBlazor;
 
 namespace Aion.Web.Providers;
 
-public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider
+public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider,
+    IDatabaseConnectionMetrics
 {
     private readonly ISqliteWasmDatabaseService _databaseService;
     private readonly HashSet<string> _knownDatabases = new();
@@ -343,6 +345,12 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQu
         await _databaseService.DeleteDatabaseAsync($"{name}.db");
         _knownDatabases.Remove(name);
     }
+
+    public Task<int> GetActiveConnectionCountAsync(string connectionString, CancellationToken cancellationToken = default)
+        => Task.FromResult(1);
+
+    public Task<int> GetMaxConnectionsAsync(string connectionString, CancellationToken cancellationToken = default)
+        => Task.FromResult(1);
 
     private static bool IsNonQuery(string query)
     {

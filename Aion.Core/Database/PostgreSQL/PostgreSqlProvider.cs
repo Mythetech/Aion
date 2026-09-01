@@ -1,4 +1,5 @@
 using Aion.Contracts.Database;
+using Aion.Contracts.Metrics;
 using Aion.Contracts.Queries;
 using Aion.Core.Database.PostgreSQL;
 using Npgsql;
@@ -6,7 +7,8 @@ using System.Text;
 
 namespace Aion.Core.Database;
 
-public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider
+public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider,
+    IDatabaseConnectionMetrics, IDatabaseServerHealthMetrics, IDatabaseStorageMetrics, IDatabasePerformanceMetrics
 {
     private readonly Dictionary<string, NpgsqlTransaction> _activeTransactions = new();
     private readonly PostgreSqlPlanParser _planParser = new();
@@ -505,5 +507,184 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
             return null;
 
         return _planParser.Parse(plan);
+    }
+
+    public async Task<int> GetActiveConnectionCountAsync(string connectionString, CancellationToken cancellationToken = default)
+    {
+        using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        using var cmd = new NpgsqlCommand("SELECT count(*) FROM pg_stat_activity WHERE state IS NOT NULL", conn);
+        var result = await cmd.ExecuteScalarAsync(cancellationToken);
+        return Convert.ToInt32(result);
+    }
+
+    public async Task<int> GetMaxConnectionsAsync(string connectionString, CancellationToken cancellationToken = default)
+    {
+        using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        using var cmd = new NpgsqlCommand("SHOW max_connections", conn);
+        var result = await cmd.ExecuteScalarAsync(cancellationToken);
+        return int.Parse(result?.ToString() ?? "0");
+    }
+
+    public async Task<TimeSpan> GetServerUptimeAsync(string connectionString, CancellationToken cancellationToken = default)
+    {
+        using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        using var cmd = new NpgsqlCommand("SELECT now() - pg_postmaster_start_time()", conn);
+        var result = await cmd.ExecuteScalarAsync(cancellationToken);
+        return result is TimeSpan ts ? ts : TimeSpan.Zero;
+    }
+
+    public async Task<string> GetServerVersionAsync(string connectionString, CancellationToken cancellationToken = default)
+    {
+        using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        using var cmd = new NpgsqlCommand("SELECT version()", conn);
+        var result = await cmd.ExecuteScalarAsync(cancellationToken);
+        return result?.ToString() ?? string.Empty;
+    }
+
+    public async Task<DatabaseSizeInfo> GetDatabaseSizeAsync(string connectionString, string databaseName, CancellationToken cancellationToken = default)
+    {
+        using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        using var sizeCmd = new NpgsqlCommand("SELECT pg_database_size(@db)", conn);
+        sizeCmd.Parameters.AddWithValue("@db", databaseName);
+        var sizeResult = await sizeCmd.ExecuteScalarAsync(cancellationToken);
+        var sizeBytes = Convert.ToInt64(sizeResult);
+
+        const string countSql = @"
+            SELECT count(*)
+            FROM information_schema.tables
+            WHERE table_schema NOT IN ('pg_catalog', 'information_schema')";
+        using var countCmd = new NpgsqlCommand(countSql, conn);
+        var countResult = await countCmd.ExecuteScalarAsync(cancellationToken);
+        var tableCount = Convert.ToInt32(countResult);
+
+        return new DatabaseSizeInfo(databaseName, sizeBytes, tableCount);
+    }
+
+    public async Task<IReadOnlyList<TableSizeInfo>> GetTableSizesAsync(string connectionString, string databaseName, CancellationToken cancellationToken = default)
+    {
+        var tables = new List<TableSizeInfo>();
+
+        using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        const string sql = @"
+            SELECT
+                relname AS table_name,
+                pg_total_relation_size(relid) AS size_bytes,
+                n_live_tup AS row_count
+            FROM pg_stat_user_tables
+            ORDER BY size_bytes DESC";
+
+        using var cmd = new NpgsqlCommand(sql, conn);
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            tables.Add(new TableSizeInfo(
+                TableName: reader.GetString(0),
+                SizeBytes: reader.GetInt64(1),
+                RowCount: reader.GetInt64(2)));
+        }
+
+        return tables;
+    }
+
+    public async Task<double?> GetCacheHitRatioAsync(string connectionString, CancellationToken cancellationToken = default)
+    {
+        using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        const string sql = @"
+            SELECT
+                sum(heap_blks_hit)::float / NULLIF(sum(heap_blks_hit) + sum(heap_blks_read), 0)
+            FROM pg_statio_user_tables";
+
+        using var cmd = new NpgsqlCommand(sql, conn);
+        var result = await cmd.ExecuteScalarAsync(cancellationToken);
+
+        if (result == null || result == DBNull.Value)
+            return null;
+
+        return Convert.ToDouble(result);
+    }
+
+    public async Task<IReadOnlyList<SlowQueryInfo>> GetSlowQueriesAsync(string connectionString, TimeSpan threshold, CancellationToken cancellationToken = default)
+    {
+        var queries = new List<SlowQueryInfo>();
+
+        using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        const string sql = @"
+            SELECT
+                query,
+                now() - query_start AS duration,
+                query_start,
+                usename
+            FROM pg_stat_activity
+            WHERE state = 'active'
+                AND query_start IS NOT NULL
+                AND now() - query_start > @threshold
+                AND pid != pg_backend_pid()
+            ORDER BY duration DESC";
+
+        using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@threshold", threshold);
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            queries.Add(new SlowQueryInfo(
+                Query: reader.GetString(0),
+                Duration: reader.GetFieldValue<TimeSpan>(1),
+                StartedAt: reader.GetDateTime(2),
+                Username: reader.IsDBNull(3) ? null : reader.GetString(3)));
+        }
+
+        return queries;
+    }
+
+    public async Task<IReadOnlyList<ActiveQueryInfo>> GetActiveQueriesAsync(string connectionString, CancellationToken cancellationToken = default)
+    {
+        var queries = new List<ActiveQueryInfo>();
+
+        using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        const string sql = @"
+            SELECT
+                query,
+                now() - query_start AS elapsed_time,
+                usename,
+                state
+            FROM pg_stat_activity
+            WHERE state = 'active'
+                AND query_start IS NOT NULL
+                AND pid != pg_backend_pid()
+            ORDER BY elapsed_time DESC";
+
+        using var cmd = new NpgsqlCommand(sql, conn);
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            queries.Add(new ActiveQueryInfo(
+                Query: reader.GetString(0),
+                ElapsedTime: reader.GetFieldValue<TimeSpan>(1),
+                Username: reader.IsDBNull(2) ? null : reader.GetString(2),
+                State: reader.IsDBNull(3) ? null : reader.GetString(3)));
+        }
+
+        return queries;
     }
 }

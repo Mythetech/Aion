@@ -1,0 +1,59 @@
+@using Aion.Contracts.Metrics
+
+<div class="metrics-card">
+    <MudText Typo="Typo.overline">Performance</MudText>
+    @if (Performance.CacheHitRatio.HasValue)
+    {
+        <div class="metrics-stat mb-2">
+            <MudText Typo="Typo.caption" Class="mud-text-disabled">Cache Hit Ratio</MudText>
+            <MudText Typo="Typo.body2"><b>@($"{Performance.CacheHitRatio.Value * 100:F1}%")</b></MudText>
+        </div>
+    }
+    @if (Performance.ActiveQueries is { Count: > 0 })
+    {
+        <MudText Typo="Typo.overline">Active Queries</MudText>
+        <div class="active-queries-list">
+            @foreach (var query in Performance.ActiveQueries)
+            {
+                <div class="active-query-item">
+                    <MudText Typo="Typo.caption" Class="active-query-sql">@Truncate(query.Query, 80)</MudText>
+                    <MudStack Row="true" Spacing="2">
+                        <MudText Typo="Typo.caption" Class="mud-text-disabled">@FormatElapsed(query.ElapsedTime)</MudText>
+                        @if (!string.IsNullOrEmpty(query.Username))
+                        {
+                            <MudText Typo="Typo.caption" Class="mud-text-disabled">@query.Username</MudText>
+                        }
+                    </MudStack>
+                </div>
+            }
+        </div>
+    }
+    else if (!Performance.CacheHitRatio.HasValue)
+    {
+        <MudText Typo="Typo.caption" Class="mud-text-disabled">No performance data available</MudText>
+    }
+    else
+    {
+        <MudText Typo="Typo.caption" Class="mud-text-disabled">No active queries</MudText>
+    }
+</div>
+
+@code {
+    [Parameter] public PerformanceSnapshot Performance { get; set; } = default!;
+
+    private static string Truncate(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text) || text.Length <= maxLength)
+            return text ?? string.Empty;
+        return text[..maxLength] + "...";
+    }
+
+    private static string FormatElapsed(TimeSpan elapsed)
+    {
+        if (elapsed.TotalMinutes >= 1)
+            return $"{(int)elapsed.TotalMinutes}m {elapsed.Seconds}s";
+        if (elapsed.TotalSeconds >= 1)
+            return $"{elapsed.TotalSeconds:F1}s";
+        return $"{elapsed.TotalMilliseconds:F0}ms";
+    }
+}

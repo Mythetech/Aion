@@ -1,0 +1,38 @@
+@using Aion.Components.Metrics.Services
+
+<div class="metrics-card">
+    <MudText Typo="Typo.overline">Session Summary</MudText>
+    <div class="metrics-card-grid">
+        <div class="metrics-stat">
+            <MudText Typo="Typo.caption" Class="mud-text-disabled">Uptime</MudText>
+            <MudText Typo="Typo.body2"><b>@FormatUptime(Data.SessionUptime)</b></MudText>
+        </div>
+        <div class="metrics-stat">
+            <MudText Typo="Typo.caption" Class="mud-text-disabled">Queries</MudText>
+            <MudText Typo="Typo.body2"><b>@Data.QueryCount</b></MudText>
+        </div>
+        <div class="metrics-stat">
+            <MudText Typo="Typo.caption" Class="mud-text-disabled">Avg Duration</MudText>
+            <MudText Typo="Typo.body2"><b>@($"{Data.AverageQueryDuration.TotalMilliseconds:F0}ms")</b></MudText>
+        </div>
+        <div class="metrics-stat">
+            <MudText Typo="Typo.caption" Class="mud-text-disabled">Error Rate</MudText>
+            <MudText Typo="Typo.body2" Color="@(Data.ErrorRate > 0 ? Color.Error : Color.Success)">
+                <b>@($"{Data.ErrorRate:P0}")</b>
+            </MudText>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public ConnectionMetricsData Data { get; set; } = default!;
+
+    private static string FormatUptime(TimeSpan uptime)
+    {
+        if (uptime.TotalDays >= 1)
+            return $"{(int)uptime.TotalDays}d {uptime.Hours}h";
+        if (uptime.TotalHours >= 1)
+            return $"{(int)uptime.TotalHours}h {uptime.Minutes}m";
+        return $"{uptime.Minutes}m {uptime.Seconds}s";
+    }
+}

@@ -1,0 +1,115 @@
+@using Aion.Components.Connections
+@using Aion.Components.Metrics.Cards
+@using Aion.Components.Metrics.Services
+@using Aion.Contracts.Connections
+@using Aion.Contracts.Metrics
+@implements IDisposable
+
+@if (_data is not null)
+{
+    <div class="metrics-panel">
+        <SessionSummaryCard Data="_data" />
+        <QueryDurationCard Data="_data" />
+        <HealthHistoryCard Data="_data" />
+
+        @if (_supportsConnectionMetrics && _data.LatestConnectionPool is not null)
+        {
+            <ConnectionPoolCard Pool="_data.LatestConnectionPool" History="_data.ConnectionPoolHistory" />
+        }
+
+        @if (_supportsServerHealth && _data.LatestServerHealth is not null)
+        {
+            <ServerHealthCard Health="_data.LatestServerHealth" />
+        }
+
+        @if (_supportsStorage && _data.LatestStorage is not null)
+        {
+            <StorageCard Storage="_data.LatestStorage" />
+        }
+
+        @if (_supportsPerformance && _data.LatestPerformance is not null)
+        {
+            <ActiveQueriesCard Performance="_data.LatestPerformance" />
+        }
+    </div>
+}
+else
+{
+    <div class="metrics-empty">
+        <MudText Typo="Typo.body2" Class="mud-text-disabled">Connect to see metrics</MudText>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid ConnectionId { get; set; }
+    [Parameter] public ConnectionState ConnectionState { get; set; } = default!;
+
+    [Inject] private MetricsState MetricsState { get; set; } = default!;
+    [Inject] private IMetricsPollingService PollingService { get; set; } = default!;
+
+    private ConnectionMetricsData? _data;
+    private Guid _activeConnectionId;
+    private bool _supportsConnectionMetrics;
+    private bool _supportsServerHealth;
+    private bool _supportsStorage;
+    private bool _supportsPerformance;
+
+    protected override void OnInitialized()
+    {
+        MetricsState.StateChanged += OnMetricsStateChanged;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (ConnectionId != _activeConnectionId)
+        {
+            _activeConnectionId = ConnectionId;
+            EnsureInitialized();
+        }
+        RefreshData();
+    }
+
+    private void EnsureInitialized()
+    {
+        if (MetricsState.GetConnectionData(ConnectionId) is null)
+            MetricsState.InitializeConnection(ConnectionId);
+
+        var connection = ConnectionState.Connections.FirstOrDefault(c => c.Id == ConnectionId);
+        if (connection is { Active: true })
+        {
+            var provider = ConnectionState.GetProvider(connection.Type);
+            var activeDb = connection.Databases.FirstOrDefault()?.Name;
+            PollingService.StartPollingAsync(ConnectionId, provider, connection.ConnectionString, activeDb);
+        }
+    }
+
+    private void RefreshData()
+    {
+        _data = MetricsState.GetConnectionData(ConnectionId);
+
+        var connection = ConnectionState.Connections.FirstOrDefault(c => c.Id == ConnectionId);
+        if (connection is not null)
+        {
+            var provider = ConnectionState.GetProvider(connection.Type);
+            _supportsConnectionMetrics = provider is IDatabaseConnectionMetrics;
+            _supportsServerHealth = provider is IDatabaseServerHealthMetrics;
+            _supportsStorage = provider is IDatabaseStorageMetrics;
+            _supportsPerformance = provider is IDatabasePerformanceMetrics;
+        }
+    }
+
+    private void OnMetricsStateChanged()
+    {
+        InvokeAsync(() =>
+        {
+            RefreshData();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        MetricsState.StateChanged -= OnMetricsStateChanged;
+        PollingService.StopPollingAsync(_activeConnectionId);
+    }
+}

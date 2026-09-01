@@ -1,4 +1,5 @@
 using Aion.Contracts.Database;
+using Aion.Contracts.Metrics;
 using Aion.Contracts.Queries;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
@@ -6,7 +7,8 @@ using System.Text;
 
 namespace Aion.Core.Database.SqlServer;
 
-public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider
+public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider,
+    IDatabaseConnectionMetrics, IDatabaseServerHealthMetrics, IDatabaseStorageMetrics, IDatabasePerformanceMetrics
 {
     private readonly ILogger<SqlServerProvider> _logger;
 
@@ -440,5 +442,203 @@ public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDat
         CancellationToken cancellationToken)
     {
         throw new NotImplementedException();
+    }
+
+    public async Task<int> GetActiveConnectionCountAsync(string connectionString, CancellationToken cancellationToken = default)
+    {
+        using var conn = new SqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        using var cmd = new SqlCommand("SELECT COUNT(*) FROM sys.dm_exec_connections", conn);
+        var result = await cmd.ExecuteScalarAsync(cancellationToken);
+        return Convert.ToInt32(result);
+    }
+
+    public async Task<int> GetMaxConnectionsAsync(string connectionString, CancellationToken cancellationToken = default)
+    {
+        using var conn = new SqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        using var cmd = new SqlCommand("SELECT @@MAX_CONNECTIONS", conn);
+        var result = await cmd.ExecuteScalarAsync(cancellationToken);
+        return Convert.ToInt32(result);
+    }
+
+    public async Task<TimeSpan> GetServerUptimeAsync(string connectionString, CancellationToken cancellationToken = default)
+    {
+        using var conn = new SqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        using var cmd = new SqlCommand("SELECT DATEDIFF(SECOND, sqlserver_start_time, GETDATE()) FROM sys.dm_os_sys_info", conn);
+        var result = await cmd.ExecuteScalarAsync(cancellationToken);
+        return TimeSpan.FromSeconds(Convert.ToDouble(result));
+    }
+
+    public async Task<string> GetServerVersionAsync(string connectionString, CancellationToken cancellationToken = default)
+    {
+        using var conn = new SqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        using var cmd = new SqlCommand("SELECT @@VERSION", conn);
+        var result = await cmd.ExecuteScalarAsync(cancellationToken);
+        var fullVersion = result?.ToString() ?? string.Empty;
+        return fullVersion.Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.Trim() ?? fullVersion;
+    }
+
+    public async Task<DatabaseSizeInfo> GetDatabaseSizeAsync(string connectionString, string databaseName, CancellationToken cancellationToken = default)
+    {
+        using var conn = new SqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        using var sizeCmd = new SqlCommand("SELECT SUM(size) * 8192 FROM sys.master_files WHERE database_id = DB_ID(@db)", conn);
+        sizeCmd.Parameters.AddWithValue("@db", databaseName);
+        var sizeResult = await sizeCmd.ExecuteScalarAsync(cancellationToken);
+        var sizeBytes = sizeResult == null || sizeResult == DBNull.Value ? 0L : Convert.ToInt64(sizeResult);
+
+        const string countSql = @"
+            SELECT COUNT(*)
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_TYPE = 'BASE TABLE'";
+        using var countCmd = new SqlCommand(countSql, conn);
+        var countResult = await countCmd.ExecuteScalarAsync(cancellationToken);
+        var tableCount = Convert.ToInt32(countResult);
+
+        return new DatabaseSizeInfo(databaseName, sizeBytes, tableCount);
+    }
+
+    public async Task<IReadOnlyList<TableSizeInfo>> GetTableSizesAsync(string connectionString, string databaseName, CancellationToken cancellationToken = default)
+    {
+        var tables = new List<TableSizeInfo>();
+
+        using var conn = new SqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        const string sql = @"
+            SELECT
+                s.name + '.' + t.name AS table_name,
+                SUM(a.total_pages) * 8192 AS size_bytes,
+                SUM(p.rows) AS row_count
+            FROM sys.tables t
+            INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
+            INNER JOIN sys.indexes i ON t.object_id = i.object_id
+            INNER JOIN sys.partitions p ON i.object_id = p.object_id AND i.index_id = p.index_id
+            INNER JOIN sys.allocation_units a ON p.partition_id = a.container_id
+            WHERE i.index_id <= 1
+              AND s.name NOT IN ('sys', 'INFORMATION_SCHEMA', 'guest')
+            GROUP BY s.name, t.name
+            ORDER BY size_bytes DESC";
+
+        using var cmd = new SqlCommand(sql, conn);
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            tables.Add(new TableSizeInfo(
+                TableName: reader.GetString(0),
+                SizeBytes: reader.GetInt64(1),
+                RowCount: reader.GetInt64(2)));
+        }
+
+        return tables;
+    }
+
+    public async Task<double?> GetCacheHitRatioAsync(string connectionString, CancellationToken cancellationToken = default)
+    {
+        using var conn = new SqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        const string sql = @"
+            SELECT
+                (SELECT cntr_value FROM sys.dm_os_performance_counters
+                 WHERE counter_name = 'Buffer cache hit ratio'
+                   AND object_name LIKE '%Buffer Manager%') * 1.0
+                /
+                NULLIF(
+                    (SELECT cntr_value FROM sys.dm_os_performance_counters
+                     WHERE counter_name = 'Buffer cache hit ratio base'
+                       AND object_name LIKE '%Buffer Manager%'),
+                0)";
+
+        using var cmd = new SqlCommand(sql, conn);
+        var result = await cmd.ExecuteScalarAsync(cancellationToken);
+
+        if (result == null || result == DBNull.Value)
+            return null;
+
+        return Convert.ToDouble(result);
+    }
+
+    public async Task<IReadOnlyList<SlowQueryInfo>> GetSlowQueriesAsync(string connectionString, TimeSpan threshold, CancellationToken cancellationToken = default)
+    {
+        var queries = new List<SlowQueryInfo>();
+
+        using var conn = new SqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        const string sql = @"
+            SELECT
+                st.text AS query,
+                r.start_time,
+                DATEDIFF(MILLISECOND, r.start_time, GETDATE()) AS elapsed_ms,
+                l.name AS username
+            FROM sys.dm_exec_requests r
+            CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) st
+            LEFT JOIN sys.syslogins l ON r.login_name = l.name
+            WHERE r.session_id != @@SPID
+              AND r.start_time IS NOT NULL
+              AND DATEDIFF(MILLISECOND, r.start_time, GETDATE()) > @thresholdMs
+            ORDER BY elapsed_ms DESC";
+
+        using var cmd = new SqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@thresholdMs", (long)threshold.TotalMilliseconds);
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var startedAt = reader.GetDateTime(1);
+            var elapsedMs = reader.GetInt32(2);
+
+            queries.Add(new SlowQueryInfo(
+                Query: reader.GetString(0),
+                Duration: TimeSpan.FromMilliseconds(elapsedMs),
+                StartedAt: startedAt,
+                Username: reader.IsDBNull(3) ? null : reader.GetString(3)));
+        }
+
+        return queries;
+    }
+
+    public async Task<IReadOnlyList<ActiveQueryInfo>> GetActiveQueriesAsync(string connectionString, CancellationToken cancellationToken = default)
+    {
+        var queries = new List<ActiveQueryInfo>();
+
+        using var conn = new SqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        const string sql = @"
+            SELECT
+                st.text AS query,
+                DATEDIFF(MILLISECOND, r.start_time, GETDATE()) AS elapsed_ms,
+                r.login_name AS username,
+                r.status AS state
+            FROM sys.dm_exec_requests r
+            CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) st
+            WHERE r.session_id != @@SPID
+              AND r.start_time IS NOT NULL
+            ORDER BY elapsed_ms DESC";
+
+        using var cmd = new SqlCommand(sql, conn);
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            queries.Add(new ActiveQueryInfo(
+                Query: reader.GetString(0),
+                ElapsedTime: TimeSpan.FromMilliseconds(reader.GetInt32(1)),
+                Username: reader.IsDBNull(2) ? null : reader.GetString(2),
+                State: reader.IsDBNull(3) ? null : reader.GetString(3)));
+        }
+
+        return queries;
     }
 }

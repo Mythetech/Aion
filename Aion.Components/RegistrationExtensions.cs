@@ -3,6 +3,7 @@ using Aion.Components.Connections;
 using Aion.Components.Connections.Services;
 using Aion.Components.ForeignKeys;
 using Aion.Components.History;
+using Aion.Components.Metrics.Services;
 using Aion.Components.Querying;
 using Aion.Components.Search;
 using Aion.Components.Settings;
@@ -40,6 +41,7 @@ public static class RegistrationExtensions
         services.AddSingleton<ConnectionState>();
         services.AddSingleton<QueryState>();
         services.AddSingleton<HistoryState>();
+        services.AddSingleton<MetricsState>();
 
         services.AddSettingsFramework();
         services.RegisterSettingsFromAssemblies(
@@ -51,6 +53,7 @@ public static class RegistrationExtensions
 
         services.AddSingleton<IConnectionService, TConnectionService>();
         services.AddSingleton<IConnectionHealthMonitor, ConnectionHealthMonitor>();
+        services.AddSingleton<IMetricsPollingService, MetricsPollingService>();
         services.AddScoped<IDatabaseProviderFactory, DatabaseProviderFactory>();
 
         services.AddScoped<IForeignKeyService, ForeignKeyService>();

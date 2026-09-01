@@ -1,0 +1,126 @@
+.metrics-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+.metrics-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 24px;
+}
+
+::deep .metrics-card {
+    background-color: var(--mud-palette-surface);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+::deep .metrics-card-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+::deep .metrics-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+::deep .health-bar {
+    display: flex;
+    gap: 2px;
+    height: 16px;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+::deep .health-segment {
+    flex: 1;
+    min-width: 4px;
+    border-radius: 2px;
+}
+
+::deep .health-segment.healthy {
+    background-color: var(--mud-palette-success);
+}
+
+::deep .health-segment.unhealthy {
+    background-color: var(--mud-palette-error);
+}
+
+::deep .health-segment.timeout {
+    background-color: var(--mud-palette-warning);
+}
+
+::deep .health-segment.checking {
+    background-color: var(--mud-palette-info);
+}
+
+::deep .health-segment.unknown {
+    background-color: var(--mud-palette-text-disabled);
+}
+
+::deep .storage-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+::deep .storage-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2px 0;
+    border-bottom: 1px solid var(--mud-palette-divider);
+}
+
+::deep .storage-item:last-child {
+    border-bottom: none;
+}
+
+::deep .active-queries-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+::deep .active-query-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+    background-color: var(--mud-palette-background);
+    border-radius: 4px;
+}
+
+::deep .active-query-sql {
+    font-family: monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+::deep .chart-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 80px;
+}
+
+::deep .chart-container {
+    height: 150px;
+}

@@ -1,0 +1,19 @@
+.connection-panel-root {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+::deep .connection-icon-row {
+    border-bottom: 1px solid var(--mud-palette-divider);
+}
+
+::deep .connection-tab-content {
+    overflow-y: auto;
+    min-height: 0 !important;
+    height: auto !important;
+    flex: 1;
+    padding: 0 !important;
+}

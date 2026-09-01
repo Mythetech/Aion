@@ -1,4 +1,5 @@
 using Aion.Contracts.Database;
+using Aion.Contracts.Metrics;
 using Aion.Contracts.Queries;
 using Aion.Core.Database.MySql;
 using Microsoft.Extensions.Logging;
@@ -7,7 +8,8 @@ using System.Text;
 
 namespace Aion.Core.Database;
 
-public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider
+public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider,
+    IDatabaseConnectionMetrics, IDatabaseServerHealthMetrics, IDatabaseStorageMetrics, IDatabasePerformanceMetrics
 {
     private readonly ILogger<MySqlProvider> _logger;
 
@@ -473,5 +475,221 @@ public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabas
         }
 
         return foreignKeys;
+    }
+
+    public async Task<int> GetActiveConnectionCountAsync(string connectionString, CancellationToken cancellationToken = default)
+    {
+        using var conn = new MySqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        using var cmd = new MySqlCommand("SHOW STATUS LIKE 'Threads_connected'", conn);
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+
+        if (await reader.ReadAsync(cancellationToken))
+            return Convert.ToInt32(reader.GetString(1));
+
+        return 0;
+    }
+
+    public async Task<int> GetMaxConnectionsAsync(string connectionString, CancellationToken cancellationToken = default)
+    {
+        using var conn = new MySqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        using var cmd = new MySqlCommand("SHOW VARIABLES LIKE 'max_connections'", conn);
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+
+        if (await reader.ReadAsync(cancellationToken))
+            return Convert.ToInt32(reader.GetString(1));
+
+        return 0;
+    }
+
+    public async Task<TimeSpan> GetServerUptimeAsync(string connectionString, CancellationToken cancellationToken = default)
+    {
+        using var conn = new MySqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        using var cmd = new MySqlCommand("SHOW STATUS LIKE 'Uptime'", conn);
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+
+        if (await reader.ReadAsync(cancellationToken))
+            return TimeSpan.FromSeconds(Convert.ToDouble(reader.GetString(1)));
+
+        return TimeSpan.Zero;
+    }
+
+    public async Task<string> GetServerVersionAsync(string connectionString, CancellationToken cancellationToken = default)
+    {
+        using var conn = new MySqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        using var cmd = new MySqlCommand("SELECT @@version", conn);
+        var result = await cmd.ExecuteScalarAsync(cancellationToken);
+        return result?.ToString() ?? string.Empty;
+    }
+
+    public async Task<DatabaseSizeInfo> GetDatabaseSizeAsync(string connectionString, string databaseName, CancellationToken cancellationToken = default)
+    {
+        using var conn = new MySqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        const string sql = @"
+            SELECT
+                COALESCE(SUM(data_length + index_length), 0) AS size_bytes,
+                COUNT(*) AS table_count
+            FROM information_schema.tables
+            WHERE table_schema = @db";
+
+        using var cmd = new MySqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@db", databaseName);
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+
+        if (await reader.ReadAsync(cancellationToken))
+        {
+            return new DatabaseSizeInfo(
+                DatabaseName: databaseName,
+                SizeBytes: reader.IsDBNull(0) ? 0L : Convert.ToInt64(reader.GetValue(0)),
+                TableCount: Convert.ToInt32(reader.GetValue(1)));
+        }
+
+        return new DatabaseSizeInfo(databaseName, 0, 0);
+    }
+
+    public async Task<IReadOnlyList<TableSizeInfo>> GetTableSizesAsync(string connectionString, string databaseName, CancellationToken cancellationToken = default)
+    {
+        var tables = new List<TableSizeInfo>();
+
+        using var conn = new MySqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        const string sql = @"
+            SELECT
+                table_name,
+                COALESCE(data_length + index_length, 0) AS size_bytes,
+                COALESCE(table_rows, 0) AS row_count
+            FROM information_schema.tables
+            WHERE table_schema = @db
+              AND table_type = 'BASE TABLE'
+            ORDER BY size_bytes DESC";
+
+        using var cmd = new MySqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@db", databaseName);
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            tables.Add(new TableSizeInfo(
+                TableName: reader.GetString(0),
+                SizeBytes: Convert.ToInt64(reader.GetValue(1)),
+                RowCount: Convert.ToInt64(reader.GetValue(2))));
+        }
+
+        return tables;
+    }
+
+    public async Task<double?> GetCacheHitRatioAsync(string connectionString, CancellationToken cancellationToken = default)
+    {
+        using var conn = new MySqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        const string sql = @"
+            SELECT VARIABLE_NAME, VARIABLE_VALUE
+            FROM performance_schema.global_status
+            WHERE VARIABLE_NAME IN ('Innodb_buffer_pool_reads', 'Innodb_buffer_pool_read_requests')";
+
+        using var cmd = new MySqlCommand(sql, conn);
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+
+        long reads = 0;
+        long readRequests = 0;
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var name = reader.GetString(0);
+            var value = Convert.ToInt64(reader.GetString(1));
+
+            if (name == "Innodb_buffer_pool_reads")
+                reads = value;
+            else if (name == "Innodb_buffer_pool_read_requests")
+                readRequests = value;
+        }
+
+        if (readRequests == 0)
+            return null;
+
+        return (readRequests - reads) * 1.0 / readRequests;
+    }
+
+    public async Task<IReadOnlyList<SlowQueryInfo>> GetSlowQueriesAsync(string connectionString, TimeSpan threshold, CancellationToken cancellationToken = default)
+    {
+        var queries = new List<SlowQueryInfo>();
+
+        using var conn = new MySqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        const string sql = @"
+            SELECT
+                INFO AS query,
+                TIME AS elapsed_seconds,
+                USER AS username
+            FROM information_schema.processlist
+            WHERE COMMAND != 'Sleep'
+              AND TIME > @thresholdSeconds
+              AND ID != CONNECTION_ID()
+            ORDER BY TIME DESC";
+
+        using var cmd = new MySqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@thresholdSeconds", (long)threshold.TotalSeconds);
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var elapsedSeconds = reader.IsDBNull(1) ? 0 : Convert.ToInt64(reader.GetValue(1));
+            var duration = TimeSpan.FromSeconds(elapsedSeconds);
+
+            queries.Add(new SlowQueryInfo(
+                Query: reader.IsDBNull(0) ? string.Empty : reader.GetString(0),
+                Duration: duration,
+                StartedAt: DateTime.UtcNow - duration,
+                Username: reader.IsDBNull(2) ? null : reader.GetString(2)));
+        }
+
+        return queries;
+    }
+
+    public async Task<IReadOnlyList<ActiveQueryInfo>> GetActiveQueriesAsync(string connectionString, CancellationToken cancellationToken = default)
+    {
+        var queries = new List<ActiveQueryInfo>();
+
+        using var conn = new MySqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        const string sql = @"
+            SELECT
+                INFO AS query,
+                TIME AS elapsed_seconds,
+                USER AS username,
+                STATE AS state
+            FROM information_schema.processlist
+            WHERE COMMAND != 'Sleep'
+              AND ID != CONNECTION_ID()
+            ORDER BY TIME DESC";
+
+        using var cmd = new MySqlCommand(sql, conn);
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var elapsedSeconds = reader.IsDBNull(1) ? 0 : Convert.ToInt64(reader.GetValue(1));
+
+            queries.Add(new ActiveQueryInfo(
+                Query: reader.IsDBNull(0) ? string.Empty : reader.GetString(0),
+                ElapsedTime: TimeSpan.FromSeconds(elapsedSeconds),
+                Username: reader.IsDBNull(2) ? null : reader.GetString(2),
+                State: reader.IsDBNull(3) ? null : reader.GetString(3)));
+        }
+
+        return queries;
     }
 }

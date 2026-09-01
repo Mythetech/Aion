@@ -1,0 +1,42 @@
+@using Aion.Contracts.Metrics
+
+<div class="metrics-card">
+    <MudText Typo="Typo.overline">Storage</MudText>
+    @if (Storage.DatabaseSize is not null)
+    {
+        <div class="metrics-card-grid">
+            <div class="metrics-stat">
+                <MudText Typo="Typo.caption" Class="mud-text-disabled">Database Size</MudText>
+                <MudText Typo="Typo.body2"><b>@FormatSize(Storage.DatabaseSize.SizeBytes)</b></MudText>
+            </div>
+            <div class="metrics-stat">
+                <MudText Typo="Typo.caption" Class="mud-text-disabled">Tables</MudText>
+                <MudText Typo="Typo.body2"><b>@Storage.DatabaseSize.TableCount</b></MudText>
+            </div>
+        </div>
+    }
+    @if (Storage.TableSizes is { Count: > 0 })
+    {
+        <div class="storage-list">
+            @foreach (var table in Storage.TableSizes.OrderByDescending(t => t.SizeBytes).Take(10))
+            {
+                <div class="storage-item">
+                    <MudText Typo="Typo.caption" Class="text-truncate">@table.TableName</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-disabled">@FormatSize(table.SizeBytes)</MudText>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public StorageSnapshot Storage { get; set; } = default!;
+
+    private static string FormatSize(long bytes) => bytes switch
+    {
+        >= 1_073_741_824 => $"{bytes / 1_073_741_824.0:F1} GB",
+        >= 1_048_576 => $"{bytes / 1_048_576.0:F1} MB",
+        >= 1_024 => $"{bytes / 1_024.0:F1} KB",
+        _ => $"{bytes} B"
+    };
+}

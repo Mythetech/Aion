@@ -1,12 +1,14 @@
 using System.Text;
 using System.Text.Json;
 using Aion.Contracts.Database;
+using Aion.Contracts.Metrics;
 using Aion.Contracts.Queries;
 using Microsoft.JSInterop;
 
 namespace Aion.Web.Providers;
 
-public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider
+public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider,
+    IDatabaseConnectionMetrics, IDatabaseServerHealthMetrics
 {
     private readonly IJSRuntime _js;
     private IJSObjectReference? _module;
@@ -339,6 +341,18 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
 
         return indexes;
     }
+
+    public Task<int> GetActiveConnectionCountAsync(string connectionString, CancellationToken cancellationToken = default)
+        => Task.FromResult(1);
+
+    public Task<int> GetMaxConnectionsAsync(string connectionString, CancellationToken cancellationToken = default)
+        => Task.FromResult(1);
+
+    public Task<TimeSpan> GetServerUptimeAsync(string connectionString, CancellationToken cancellationToken = default)
+        => Task.FromResult(TimeSpan.Zero);
+
+    public Task<string> GetServerVersionAsync(string connectionString, CancellationToken cancellationToken = default)
+        => Task.FromResult("PGlite (WASM)");
 
     private static string? ExtractDatabaseName(string connectionString)
     {

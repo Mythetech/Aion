@@ -1,0 +1,59 @@
+@using Aion.Components.Metrics.Services
+
+<div class="metrics-card">
+    <MudText Typo="Typo.overline">Query Duration</MudText>
+    @if (_series.Count > 0 && Data.QueriesOverTime.Count > 0)
+    {
+        <div class="chart-container">
+            <MudChart T="double"
+                      ChartType="ChartType.Timeseries"
+                      ChartSeries="_series"
+                      ChartOptions="_chartOptions"
+                      Width="100%"
+                      Height="150px" />
+        </div>
+    }
+    else
+    {
+        <div class="chart-placeholder">
+            <MudText Typo="Typo.body2" Class="mud-text-disabled">No queries yet</MudText>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public ConnectionMetricsData Data { get; set; } = default!;
+
+    private List<ChartSeries<double>> _series = [];
+    private TimeSeriesChartOptions _chartOptions = new()
+    {
+        TimeLabelFormat = "HH:mm:ss",
+        TimeLabelSpacing = TimeSpan.FromSeconds(30),
+        YAxisTicks = 50,
+        ShowLegend = false
+    };
+
+    protected override void OnParametersSet()
+    {
+        var queries = Data.QueriesOverTime;
+        if (queries.Count > 0)
+        {
+            var dataPoints = queries
+                .Select(q => (q.Timestamp, q.Duration.TotalMilliseconds))
+                .ToList();
+
+            _series =
+            [
+                new ChartSeries<double>
+                {
+                    Name = "Duration (ms)",
+                    Data = new ChartData<double>(dataPoints)
+                }
+            ];
+        }
+        else
+        {
+            _series = [];
+        }
+    }
+}

@@ -1,0 +1,36 @@
+@using Aion.Components.Metrics.Services
+@using Aion.Contracts.Connections
+
+<div class="metrics-card">
+    <MudText Typo="Typo.overline">Health History</MudText>
+    @if (Data.HealthHistory.Count > 0)
+    {
+        <div class="health-bar">
+            @foreach (var point in Data.HealthHistory)
+            {
+                <MudTooltip Text="@($"{point.Status} - {point.Timestamp:HH:mm:ss}")">
+                    <div class="health-segment @GetSegmentClass(point.Status)"></div>
+                </MudTooltip>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="chart-placeholder">
+            <MudText Typo="Typo.body2" Class="mud-text-disabled">No health data yet</MudText>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public ConnectionMetricsData Data { get; set; } = default!;
+
+    private static string GetSegmentClass(ConnectionHealthStatus status) => status switch
+    {
+        ConnectionHealthStatus.Healthy => "healthy",
+        ConnectionHealthStatus.Unhealthy => "unhealthy",
+        ConnectionHealthStatus.Timeout => "timeout",
+        ConnectionHealthStatus.Checking => "checking",
+        _ => "unknown"
+    };
+}

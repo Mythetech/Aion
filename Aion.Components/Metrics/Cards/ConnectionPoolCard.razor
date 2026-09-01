@@ -1,0 +1,26 @@
+@using Aion.Contracts.Metrics
+
+<div class="metrics-card">
+    <MudText Typo="Typo.overline">Connection Pool</MudText>
+    <MudStack Row="true" AlignItems="AlignItems.Baseline" Spacing="1">
+        <MudText Typo="Typo.h6">@Pool.ActiveConnections</MudText>
+        <MudText Typo="Typo.caption" Class="mud-text-disabled">of @Pool.MaxConnections max</MudText>
+    </MudStack>
+    <MudProgressLinear Value="@UsagePercent" Color="@UsageColor" Rounded="true" Size="Size.Small" Class="mt-2" />
+</div>
+
+@code {
+    [Parameter] public ConnectionPoolSnapshot Pool { get; set; } = default!;
+    [Parameter] public List<ConnectionPoolSnapshot>? History { get; set; }
+
+    private double UsagePercent => Pool.MaxConnections > 0
+        ? (double)Pool.ActiveConnections / Pool.MaxConnections * 100
+        : 0;
+
+    private Color UsageColor => UsagePercent switch
+    {
+        > 80 => Color.Error,
+        > 60 => Color.Warning,
+        _ => Color.Primary
+    };
+}

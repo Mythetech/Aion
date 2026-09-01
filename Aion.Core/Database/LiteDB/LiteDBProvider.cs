@@ -1,10 +1,12 @@
 using Aion.Contracts.Database;
+using Aion.Contracts.Metrics;
 using Aion.Contracts.Queries;
 using LiteDB;
 
 namespace Aion.Core.Database.LiteDB;
 
-public class LiteDBProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider
+public class LiteDBProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider,
+    IDatabaseConnectionMetrics, IDatabaseServerHealthMetrics, IDatabaseStorageMetrics
 {
     private readonly Dictionary<string, (LiteDatabase Db, bool InTransaction)> _activeTransactions = new();
 
@@ -346,6 +348,60 @@ public class LiteDBProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
             PlanFormat = "TEXT",
             PlanContent = "Query plans are not supported for LiteDB.\n\nLiteDB uses internal indexing for query optimization.\nUse EXPLAIN pragma commands to view index usage:\n\nSELECT $ FROM $indexes"
         });
+    }
+
+    public Task<int> GetActiveConnectionCountAsync(string connectionString, CancellationToken cancellationToken = default)
+        => Task.FromResult(1);
+
+    public Task<int> GetMaxConnectionsAsync(string connectionString, CancellationToken cancellationToken = default)
+        => Task.FromResult(1);
+
+    public Task<TimeSpan> GetServerUptimeAsync(string connectionString, CancellationToken cancellationToken = default)
+        => Task.FromResult(TimeSpan.Zero);
+
+    public Task<string> GetServerVersionAsync(string connectionString, CancellationToken cancellationToken = default)
+        => Task.FromResult(typeof(LiteDatabase).Assembly.GetName().Version?.ToString() ?? "Unknown");
+
+    public Task<DatabaseSizeInfo> GetDatabaseSizeAsync(string connectionString, string databaseName, CancellationToken cancellationToken = default)
+    {
+        var cs = new ConnectionString(connectionString);
+        var fileInfo = new FileInfo(cs.Filename);
+        var sizeBytes = fileInfo.Exists ? fileInfo.Length : 0L;
+
+        int collectionCount;
+        try
+        {
+            using var db = new LiteDatabase(connectionString);
+            collectionCount = db.GetCollectionNames().Count(n => !n.StartsWith('$'));
+        }
+        catch
+        {
+            collectionCount = 0;
+        }
+
+        return Task.FromResult(new DatabaseSizeInfo(databaseName, sizeBytes, collectionCount));
+    }
+
+    public Task<IReadOnlyList<TableSizeInfo>> GetTableSizesAsync(string connectionString, string databaseName, CancellationToken cancellationToken = default)
+    {
+        var sizes = new List<TableSizeInfo>();
+
+        try
+        {
+            using var db = new LiteDatabase(connectionString);
+            foreach (var name in db.GetCollectionNames().Where(n => !n.StartsWith('$')))
+            {
+                var col = db.GetCollection(name);
+                var rowCount = col.Count();
+                sizes.Add(new TableSizeInfo(name, 0L, rowCount));
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"LiteDB GetTableSizesAsync error: {ex.Message}");
+        }
+
+        return Task.FromResult<IReadOnlyList<TableSizeInfo>>(sizes);
     }
 
     public Task<TransactionInfo> BeginTransactionAsync(string connectionString)

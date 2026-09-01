@@ -107,4 +107,6 @@ public static class AionIcons
     public static string Sample => Round("science");
 
     public static string ClearAll => Round("delete_sweep");
+
+    public static string Metrics => Round("insights");
 }

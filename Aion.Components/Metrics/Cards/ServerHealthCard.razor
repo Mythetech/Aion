@@ -1,0 +1,45 @@
+@using Aion.Contracts.Metrics
+
+<div class="metrics-card">
+    <MudText Typo="Typo.overline">Server Health</MudText>
+    <MudStack Spacing="1">
+        @if (Health.Uptime is { TotalSeconds: > 0 })
+        {
+            <div class="metrics-stat">
+                <MudText Typo="Typo.caption" Class="mud-text-disabled">Server Uptime</MudText>
+                <MudText Typo="Typo.body2"><b>@FormatUptime(Health.Uptime.Value)</b></MudText>
+            </div>
+        }
+        @if (!string.IsNullOrEmpty(Health.Version))
+        {
+            <div class="metrics-stat">
+                <MudText Typo="Typo.caption" Class="mud-text-disabled">Version</MudText>
+                <MudTooltip Text="@Health.Version" Placement="Placement.Bottom">
+                    <MudText Typo="Typo.caption">@ShortVersion(Health.Version)</MudText>
+                </MudTooltip>
+            </div>
+        }
+    </MudStack>
+</div>
+
+@code {
+    [Parameter] public ServerHealthSnapshot Health { get; set; } = default!;
+
+    private static string FormatUptime(TimeSpan uptime)
+    {
+        if (uptime.TotalDays >= 1)
+            return $"{(int)uptime.TotalDays}d {uptime.Hours}h";
+        if (uptime.TotalHours >= 1)
+            return $"{(int)uptime.TotalHours}h {uptime.Minutes}m";
+        return $"{uptime.Minutes}m {uptime.Seconds}s";
+    }
+
+    private static string ShortVersion(string version)
+    {
+        var firstLine = version.Split('\n', '\r').FirstOrDefault() ?? version;
+        var parenIdx = firstLine.IndexOf('(');
+        if (parenIdx > 0)
+            return firstLine[..parenIdx].Trim();
+        return firstLine.Length > 30 ? firstLine[..27] + "..." : firstLine;
+    }
+}
