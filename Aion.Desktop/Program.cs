@@ -48,8 +48,7 @@ namespace Aion.Desktop
 
             var isProd = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")?.Equals("Production", StringComparison.OrdinalIgnoreCase) ?? false;
 
-            var appBuilder = HermesBlazorAppBuilder.CreateDefault(args)
-                .WithLicenseKey(HermesLicense.Key);
+            var appBuilder = HermesBlazorAppBuilder.CreateDefault(args);
 
             appBuilder.ConfigureWindow(options =>
             {
