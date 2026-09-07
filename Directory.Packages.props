@@ -22,7 +22,7 @@
     <PackageVersion Include="SqliteWasmBlazor" Version="0.9.0-pre" />
     <PackageVersion Include="Mythetech.Framework.WebAssembly" Version="0.18.1" />
     <!-- Aion.Desktop -->
-    <PackageVersion Include="Mythetech.Platform.Sdk" Version="0.0.0-preview.6" />
+    <PackageVersion Include="Mythetech.Platform.Sdk" Version="0.0.0-preview.9" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebView" Version="10.0.11" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.11" />
     <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.3240.44" />
