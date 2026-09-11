@@ -1,7 +1,7 @@
 name: Deploy Aion Web
 
 env:
-  PUBLISH_DIR: Aion.Web/bin/Release/net10.0/publish/wwwroot
+  PUBLISH_DIR: Aion.Web/bin/Release/net11.0/publish/wwwroot
 
 on:
   push:
@@ -35,7 +35,7 @@ jobs:
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "10.0"
+          global-json-file: global.json
 
       - name: Install .NET WASM workload
         run: dotnet workload install wasm-tools
@@ -57,7 +57,7 @@ jobs:
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "10.0"
+          global-json-file: global.json
 
       - name: Install .NET WASM workload
         run: dotnet workload install wasm-tools

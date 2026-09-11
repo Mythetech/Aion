@@ -6,9 +6,9 @@
     <!-- Aion.Components -->
     <PackageVersion Include="BlazorMonaco" Version="3.3.0" />
     <PackageVersion Include="ClosedXML" Version="0.105.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.0.11" />
-    <PackageVersion Include="Mythetech.Framework" Version="0.18.1" />
-    <PackageVersion Include="Mythetech.Framework.Desktop" Version="0.18.3" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.0.12" />
+    <PackageVersion Include="Mythetech.Framework" Version="0.19.0" />
+    <PackageVersion Include="Mythetech.Framework.Desktop" Version="0.19.0" />
     <PackageVersion Include="Z.Blazor.Diagrams" Version="3.0.4.1" />
     <!-- Aion.Core -->
     <PackageVersion Include="Hogimn.Sql.Formatter" Version="2.0.2" />
@@ -17,14 +17,14 @@
     <PackageVersion Include="MySql.Data" Version="9.5.0" />
     <PackageVersion Include="Npgsql" Version="9.0.2" />
     <!-- Aion.Web -->
-    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.12" />
     <PackageVersion Include="SqliteWasmBlazor" Version="0.9.0-pre" />
-    <PackageVersion Include="Mythetech.Framework.WebAssembly" Version="0.18.1" />
+    <PackageVersion Include="Mythetech.Framework.WebAssembly" Version="0.19.0" />
     <!-- Aion.Desktop -->
-    <PackageVersion Include="Mythetech.Platform.Sdk" Version="0.0.0-preview.9" />
-    <PackageVersion Include="Microsoft.AspNetCore.Components.WebView" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.11" />
+    <PackageVersion Include="Mythetech.Platform.Sdk" Version="0.0.0-preview.10" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebView" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.3240.44" />
     <PackageVersion Include="Velopack" Version="0.0.1298" />
     <!-- Aion.Test -->
