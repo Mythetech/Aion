@@ -17,6 +17,7 @@ jobs:
       app_name: "Aion"
       project_path: "Aion.Desktop/Aion.Desktop.csproj"
       test_project: "Aion.Test/Aion.Test.csproj"
+      global_json_file: "global.json"
       entitlements_path: "Aion.Desktop/Aion.entitlements"
       icon_windows: "Aion.Desktop/wwwroot/aion.ico"
       icon_linux: "Aion.Desktop/wwwroot/aion512.png"

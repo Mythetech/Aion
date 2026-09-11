@@ -1,11 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
 
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFramework>net11.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <ServiceWorkerAssetsManifest>service-worker-assets.js</ServiceWorkerAssetsManifest>
     </PropertyGroup>
+
+    <!-- Trimming is disabled until .NET 11 GA. The RC1 IL trimmer (11.0.0-rc.1.26425.128)
+         recurses without bound in its DynamicallyAccessedMembers generic dataflow and dies
+         with a stack overflow, failing publish under the default partial trim mode.
+         TrimMode=full avoids the crash but strips DI-activated Mythetech.Framework types and
+         breaks startup. Untrimmed output behaves identically. Remove once the trimmer is fixed. -->
+    <PropertyGroup>
+        <PublishTrimmed>false</PublishTrimmed>
+    </PropertyGroup>
+
 
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
