@@ -20,7 +20,7 @@ public class SqlServerConnectionStateTests : ConnectionStateTestBase
             .WithPassword("Strong_Password_123!")
             .WithEnvironment("ACCEPT_EULA", "Y")
             .WithPortBinding(1433, true)
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(1433))
+            .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(1433))
             .WithAutoRemove(true)
             .Build();
     }

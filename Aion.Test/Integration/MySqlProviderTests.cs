@@ -25,7 +25,7 @@ public class MySqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
             .WithEnvironment("MYSQL_ROOT_PASSWORD", "test_password")
             .WithEnvironment("MYSQL_ALLOW_EMPTY_PASSWORD", "yes")
             .WithPortBinding(3306, true)
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(3306))
+            .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(3306))
             .WithAutoRemove(true)
             .Build();
     }

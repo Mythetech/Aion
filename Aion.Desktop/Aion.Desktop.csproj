@@ -14,9 +14,6 @@
 
     <ItemGroup>
       <PackageReference Include="BlazorMonaco" />
-      <PackageReference Include="Microsoft.AspNetCore.Components.WebView" />
-      <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
-      <PackageReference Include="Microsoft.AspNetCore.Components.Web" />
       <PackageReference Include="Mythetech.Framework" />
       <PackageReference Include="Mythetech.Framework.Desktop" />
       <PackageReference Include="Mythetech.Platform.Sdk" />
