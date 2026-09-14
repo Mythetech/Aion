@@ -23,7 +23,7 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
             .WithEnvironment("ACCEPT_EULA", "Y")
             .WithEnvironment("MSSQL_PID", "Developer")
             .WithPortBinding(1433, true)
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(1433))
+            .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(1433))
             .WithAutoRemove(true)
             .Build();
     }
