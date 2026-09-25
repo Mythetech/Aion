@@ -197,6 +197,27 @@ public class ConnectionState
         return result;
     }
 
+    public void MarkHealthCheckStarted(ConnectionModel connection)
+    {
+        connection.HealthStatus = ConnectionHealthStatus.Checking;
+        OnConnectionStateChanged();
+    }
+
+    public void ApplyHealthCheck(ConnectionModel connection, ConnectionHealthCheckResult result)
+    {
+        SetHealth(connection, result.IsHealthy, result.TimedOut, result.ErrorMessage, result.CheckTime);
+        OnConnectionStateChanged();
+    }
+
+    public void RecordActivity(Guid connectionId)
+    {
+        var connection = Connections.FirstOrDefault(c => c.Id == connectionId);
+        if (connection != null)
+        {
+            connection.LastActivityTime = DateTime.UtcNow;
+        }
+    }
+
     private static void ApplyConnectionResult(ConnectionModel connection, ConnectionResult result)
     {
         if (result.Success)
