@@ -183,6 +183,22 @@ public class ConnectionDialogTests : TestContext
     }
 
     [Fact]
+    public async Task Connect_FromConnectionStringTab_UsesStringAsTyped()
+    {
+        const string typed = "Host=typed-host;Username=admin;Password=secret;SSL Mode=Require";
+        string? sentConnectionString = null;
+        _connectionService.GetDatabasesAsync(Arg.Do<string>(cs => sentConnectionString = cs), Arg.Any<DatabaseType>())
+            .Returns(new List<string> { "postgres" });
+        var cut = await ShowDialogAsync(FilledIn());
+
+        await cut.FindAll(".mud-link").First(l => l.TextContent.Contains("Connection String")).ClickAsync(new MouseEventArgs());
+        await cut.FindAll("textarea").Single().ChangeAsync(new ChangeEventArgs { Value = typed });
+        await cut.Find(".primary-action-button").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => sentConnectionString.ShouldBe(typed));
+    }
+
+    [Fact]
     public async Task WindowsAuthenticationSwitch_HidesCredentialFields()
     {
         var model = FilledIn();
