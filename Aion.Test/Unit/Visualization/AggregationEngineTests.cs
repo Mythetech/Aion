@@ -257,6 +257,101 @@ public class AggregationEngineTests
         agg.Labels.ShouldBe(["Alice", "Bob", "Charlie"]);
     }
 
+    [Fact]
+    public void Labels_NumericGroupKeys_ShouldSortNumerically()
+    {
+        var result = CreateResult(
+            ["bucket", "val"],
+            [
+                new() { ["bucket"] = 10, ["val"] = 1 },
+                new() { ["bucket"] = 2, ["val"] = 1 },
+                new() { ["bucket"] = null!, ["val"] = 1 },
+                new() { ["bucket"] = 1, ["val"] = 1 }
+            ]);
+
+        var agg = _sut.Aggregate(result, "bucket", "val", AggregateFunction.Count);
+
+        agg.Labels.ShouldBe(["1", "2", "10", AggregationEngine.NullLabel]);
+    }
+
+    [Fact]
+    public void Labels_NumericStringGroupKeys_ShouldSortNumerically()
+    {
+        var result = CreateResult(
+            ["bucket"],
+            [
+                new() { ["bucket"] = "10" },
+                new() { ["bucket"] = "2" },
+                new() { ["bucket"] = "1.5" }
+            ]);
+
+        var agg = _sut.Aggregate(result, "bucket", "bucket", AggregateFunction.Count);
+
+        agg.Labels.ShouldBe(["1.5", "2", "10"]);
+    }
+
+    [Fact]
+    public void Labels_MixedTextAndNumberKeys_ShouldSortAsStrings()
+    {
+        var result = CreateResult(
+            ["code"],
+            [
+                new() { ["code"] = "b10" },
+                new() { ["code"] = "10" },
+                new() { ["code"] = "b2" },
+                new() { ["code"] = "2" }
+            ]);
+
+        var agg = _sut.Aggregate(result, "code", "code", AggregateFunction.Count);
+
+        agg.Labels.ShouldBe(["10", "2", "b10", "b2"]);
+    }
+
+    [Fact]
+    public void Labels_DoubleGroupKeys_ShouldDropFloatingPointNoise()
+    {
+        var result = CreateResult(
+            ["total"],
+            [new() { ["total"] = 259.96999999999997 }]);
+
+        var agg = _sut.Aggregate(result, "total", "total", AggregateFunction.Count);
+
+        agg.Labels.ShouldBe(["259.97"]);
+    }
+
+    [Fact]
+    public void ValueDescendingSort_ShouldPutLargestGroupFirst()
+    {
+        var result = CreateResult(
+            ["name", "val"],
+            [
+                new() { ["name"] = "Alice", ["val"] = 5 },
+                new() { ["name"] = "Bob", ["val"] = 20 },
+                new() { ["name"] = "Charlie", ["val"] = 10 }
+            ]);
+
+        var agg = _sut.Aggregate(result, "name", "val", AggregateFunction.Sum, AggregationSort.ValueDescending);
+
+        agg.Labels.ShouldBe(["Bob", "Charlie", "Alice"]);
+        agg.Values.ShouldBe([20.0, 10.0, 5.0]);
+    }
+
+    [Fact]
+    public void ValueAscendingSort_ShouldPutSmallestGroupFirst()
+    {
+        var result = CreateResult(
+            ["name", "val"],
+            [
+                new() { ["name"] = "Alice", ["val"] = 5 },
+                new() { ["name"] = "Bob", ["val"] = 20 },
+                new() { ["name"] = "Charlie", ["val"] = 10 }
+            ]);
+
+        var agg = _sut.Aggregate(result, "name", "val", AggregateFunction.Sum, AggregationSort.ValueAscending);
+
+        agg.Labels.ShouldBe(["Alice", "Charlie", "Bob"]);
+    }
+
     private static QueryResult CreateResult(
         string[] columns,
         List<Dictionary<string, object>> rows)
