@@ -55,7 +55,7 @@
         <AppContextDrawer @bind-IsOpen="@AppState.SideBarOpen" @bind-ActivePanelId="@_activePanelId"
                           ShowPluginPanels="false" MaxWidth="800">
             <IconBarHeader>
-                <AionIconButton Class="p-2 ml-1" Icon="@AionIcons.Aion" OnClick="OpenAboutDialog" />
+                <AionIconButton Class="p-2 ml-1" Icon="@AionIcons.Aion" OnClick="OpenAboutDialog" AriaLabel="About Aion" />
                 <MtIconButton Class="p-2 ml-1" Icon="@AionIcons.Add" OnClick="AddConnection" Tooltip="New Database"
                               TooltipPlacement="@Placement.Right" />
             </IconBarHeader>
@@ -83,7 +83,7 @@
             <PanelFooterContent>
                 <MudMenu ActivationEvent="MouseEvent.MouseOver" AnchorOrigin="Origin.TopRight">
                     <ActivatorContent>
-                        <MudIconButton Class="ml-1"
+                        <MudIconButton Class="ml-1" aria-label="Toggle dark mode"
                                        Icon="@(AppState.IsDarkMode ? AionIcons.DarkMode : AionIcons.LightMode)"
                                        Color="Color.Primary" Variant="Variant.Text"
                                        OnClick="@(() => AppState.IsDarkMode = !AppState.IsDarkMode)" />
@@ -99,7 +99,7 @@
                 </MudMenu>
                 <MtIconButton Class="ml-1" Color="Color.Primary" Icon="@AionIcons.Settings" OnClick="OpenSettingsDialog"
                               Tooltip="Settings" TooltipPlacement="Placement.Right" />
-                <MudIconButton Class="ml-1"
+                <MudIconButton Class="ml-1" aria-label="@(AppState.SideBarOpen ? "Collapse sidebar" : "Expand sidebar")"
                                Icon="@(AppState.SideBarOpen ? AionIcons.CollapseLeft : AionIcons.ExpandRight)"
                                Color="Color.Inherit" OnClick="@(() => AppState.ToggleSideBar())" />
             </PanelFooterContent>
