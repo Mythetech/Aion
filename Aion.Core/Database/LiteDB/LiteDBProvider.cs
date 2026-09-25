@@ -362,22 +362,26 @@ public class LiteDBProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
 
     public Task CommitTransactionAsync(string connectionString, string transactionId)
     {
-        if (_activeTransactions.TryGetValue(transactionId, out var entry))
+        if (!_activeTransactions.Remove(transactionId, out var entry))
+        {
+            throw new InvalidOperationException("This transaction is no longer open. Roll back to clear it.");
+        }
+
+        using (entry.Db)
         {
             entry.Db.Commit();
-            entry.Db.Dispose();
-            _activeTransactions.Remove(transactionId);
         }
         return Task.CompletedTask;
     }
 
     public Task RollbackTransactionAsync(string connectionString, string transactionId)
     {
-        if (_activeTransactions.TryGetValue(transactionId, out var entry))
+        if (_activeTransactions.Remove(transactionId, out var entry))
         {
-            entry.Db.Rollback();
-            entry.Db.Dispose();
-            _activeTransactions.Remove(transactionId);
+            using (entry.Db)
+            {
+                entry.Db.Rollback();
+            }
         }
         return Task.CompletedTask;
     }

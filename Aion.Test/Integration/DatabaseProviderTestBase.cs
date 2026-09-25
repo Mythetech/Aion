@@ -52,4 +52,118 @@ public abstract class DatabaseProviderTestBase : IAsyncLifetime
         result.ShouldNotBeNull();
         result.Error.ShouldBeNull();
     }
+
+    protected static string ActualPlanUpdateStatement => $"UPDATE {TestTable} SET name = 'changed' WHERE id = 1";
+
+    protected string DatabaseConnectionString => Provider.UpdateConnectionString(ConnectionString, TestDatabase);
+
+    protected async Task InsertRowAsync(int id, string name)
+    {
+        var result = await Provider.ExecuteQueryAsync(
+            DatabaseConnectionString, $"INSERT INTO {TestTable} (id, name) VALUES ({id}, '{name}')", CancellationToken.None);
+        ValidateQueryResult(result);
+    }
+
+    protected async Task<long> CountRowsAsync()
+    {
+        var result = await Provider.ExecuteQueryAsync(
+            DatabaseConnectionString, $"SELECT COUNT(*) AS row_count FROM {TestTable}", CancellationToken.None);
+        ValidateQueryResult(result);
+        return Convert.ToInt64(result.Rows[0]["row_count"]);
+    }
+
+    protected async Task<string?> ReadNameAsync(int id)
+    {
+        var result = await Provider.ExecuteQueryAsync(
+            DatabaseConnectionString, $"SELECT name FROM {TestTable} WHERE id = {id}", CancellationToken.None);
+        ValidateQueryResult(result);
+        return result.Rows.Single()["name"]?.ToString();
+    }
+
+    [Fact]
+    public async Task Transaction_Rollback_ShouldLeaveDataUnchanged()
+    {
+        // Arrange
+        var transaction = await Provider.BeginTransactionAsync(DatabaseConnectionString);
+
+        // Act
+        var insert = await Provider.ExecuteInTransactionAsync(DatabaseConnectionString,
+            $"INSERT INTO {TestTable} (id, name) VALUES (1, 'pending')", transaction.Id, CancellationToken.None);
+        var countInside = await Provider.ExecuteInTransactionAsync(DatabaseConnectionString,
+            $"SELECT COUNT(*) AS row_count FROM {TestTable}", transaction.Id, CancellationToken.None);
+        await Provider.RollbackTransactionAsync(DatabaseConnectionString, transaction.Id);
+
+        // Assert
+        ValidateQueryResult(insert);
+        ValidateQueryResult(countInside);
+        Convert.ToInt64(countInside.Rows[0]["row_count"]).ShouldBe(1);
+        (await CountRowsAsync()).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Transaction_Commit_ShouldPersistData()
+    {
+        // Arrange
+        var transaction = await Provider.BeginTransactionAsync(DatabaseConnectionString);
+
+        // Act
+        var first = await Provider.ExecuteInTransactionAsync(DatabaseConnectionString,
+            $"INSERT INTO {TestTable} (id, name) VALUES (1, 'first')", transaction.Id, CancellationToken.None);
+        var second = await Provider.ExecuteInTransactionAsync(DatabaseConnectionString,
+            $"INSERT INTO {TestTable} (id, name) VALUES (2, 'second')", transaction.Id, CancellationToken.None);
+        await Provider.CommitTransactionAsync(DatabaseConnectionString, transaction.Id);
+
+        // Assert
+        ValidateQueryResult(first);
+        ValidateQueryResult(second);
+        (await CountRowsAsync()).ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Transaction_AfterCommit_ShouldRefuseFurtherStatementsAndCommits()
+    {
+        // Arrange
+        var transaction = await Provider.BeginTransactionAsync(DatabaseConnectionString);
+        await Provider.CommitTransactionAsync(DatabaseConnectionString, transaction.Id);
+
+        // Act
+        var execute = await Provider.ExecuteInTransactionAsync(DatabaseConnectionString,
+            $"INSERT INTO {TestTable} (id, name) VALUES (1, 'late')", transaction.Id, CancellationToken.None);
+
+        // Assert
+        execute.Error.ShouldNotBeNull();
+        await Should.ThrowAsync<InvalidOperationException>(() =>
+            Provider.CommitTransactionAsync(DatabaseConnectionString, transaction.Id));
+        (await CountRowsAsync()).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task ActualPlan_ForUpdate_ShouldCapturePlanAndLeaveRowUnchanged()
+    {
+        // Arrange
+        await InsertRowAsync(1, "original");
+        var plans = Provider.ShouldBeAssignableTo<IActualQueryPlanProvider>()!;
+
+        // Act
+        var plan = await plans.GetActualPlanAsync(DatabaseConnectionString, ActualPlanUpdateStatement, CancellationToken.None);
+
+        // Assert
+        plan.PlanType.ShouldBe("Actual");
+        plan.PlanContent.ShouldNotBeNullOrWhiteSpace();
+        plan.PlanContent.ShouldNotStartWith("Error");
+        (await ReadNameAsync(1)).ShouldBe("original");
+    }
+
+    [Fact]
+    public async Task ActualPlan_WithCommitInText_ShouldBeRefusedWithoutRunningAnything()
+    {
+        // Arrange
+        await InsertRowAsync(1, "original");
+        var plans = Provider.ShouldBeAssignableTo<IActualQueryPlanProvider>()!;
+
+        // Act & Assert
+        await Should.ThrowAsync<InvalidOperationException>(() => plans.GetActualPlanAsync(
+            DatabaseConnectionString, $"SELECT 1; COMMIT; DELETE FROM {TestTable}", CancellationToken.None));
+        (await CountRowsAsync()).ShouldBe(1);
+    }
 } 

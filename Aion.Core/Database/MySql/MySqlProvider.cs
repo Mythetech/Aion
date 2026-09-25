@@ -3,13 +3,19 @@ using Aion.Contracts.Queries;
 using Aion.Core.Database.MySql;
 using Microsoft.Extensions.Logging;
 using MySql.Data.MySqlClient;
+using System.Collections.Concurrent;
 using System.Text;
 
 namespace Aion.Core.Database;
 
-public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider
+public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider,
+    IEstimatedQueryPlanProvider, IActualQueryPlanProvider
 {
+    private const string TransactionNotOpenMessage = "This transaction is no longer open. Roll back to clear it.";
+    private const int DeadlockErrorNumber = 1213;
+
     private readonly ILogger<MySqlProvider> _logger;
+    private readonly ConcurrentDictionary<string, OpenTransaction> _activeTransactions = new();
 
     public MySqlProvider(ILogger<MySqlProvider> logger)
     {
@@ -173,90 +179,177 @@ public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabas
 
     public async Task<QueryPlan> GetEstimatedPlanAsync(string connectionString, string query)
     {
-        var plan = new QueryPlan
-        {
-            PlanType = "Estimated",
-            PlanFormat = "TEXT"
-        };
-
         try
         {
-            using var conn = new MySqlConnection(connectionString);
-            await conn.OpenAsync();
-
-            using var cmd = new MySqlCommand($"EXPLAIN FORMAT=JSON {query}", conn);
-            var result = await cmd.ExecuteScalarAsync();
-
-            plan.PlanFormat = "JSON";
-            plan.PlanContent = result?.ToString() ?? string.Empty;
-            return plan;
+            return await GetEstimatedPlanAsync(connectionString, query, CancellationToken.None);
         }
         catch (Exception ex)
         {
-            plan.PlanContent = $"Error getting plan: {ex.Message}";
-            return plan;
+            return new QueryPlan { PlanType = "Estimated", PlanFormat = "TEXT", PlanContent = $"Error getting plan: {ex.Message}" };
         }
+    }
+
+    public async Task<QueryPlan> GetEstimatedPlanAsync(string connectionString, string query, CancellationToken cancellationToken)
+    {
+        var refusal = QueryPlanStatementGuard.RequireSingleStatement(query);
+        if (refusal != null) throw new InvalidOperationException(refusal);
+
+        await using var conn = new MySqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        await using var cmd = new MySqlCommand($"EXPLAIN FORMAT=JSON {QueryPlanStatementGuard.TrimTrailingTerminators(query)}", conn);
+        var result = await cmd.ExecuteScalarAsync(cancellationToken);
+
+        return new QueryPlan
+        {
+            PlanType = "Estimated",
+            PlanFormat = "JSON",
+            PlanContent = result?.ToString() ?? string.Empty
+        };
     }
 
     public async Task<QueryPlan> GetActualPlanAsync(string connectionString, string query)
     {
-        var plan = new QueryPlan
-        {
-            PlanType = "Actual",
-            PlanFormat = "TEXT"
-        };
-
         try
         {
-            using var conn = new MySqlConnection(connectionString);
-            await conn.OpenAsync();
-
-            // MySQL 8.0+ supports EXPLAIN ANALYZE
-            using var cmd = new MySqlCommand($"EXPLAIN ANALYZE {query}", conn);
-            using var reader = await cmd.ExecuteReaderAsync();
-
-            var planText = new StringBuilder();
-            while (await reader.ReadAsync())
-            {
-                // EXPLAIN ANALYZE returns a single column with the plan
-                planText.AppendLine(reader.GetString(0));
-            }
-
-            plan.PlanContent = planText.ToString();
-            return plan;
-        }
-        catch (MySqlException ex) when (ex.Message.Contains("ANALYZE", StringComparison.OrdinalIgnoreCase))
-        {
-            // Fallback for older MySQL versions that don't support EXPLAIN ANALYZE
-            plan.PlanContent = "EXPLAIN ANALYZE is only supported in MySQL 8.0+";
-            return plan;
+            return await GetActualPlanAsync(connectionString, query, CancellationToken.None);
         }
         catch (Exception ex)
         {
-            plan.PlanContent = $"Error getting plan: {ex.Message}";
-            return plan;
+            return new QueryPlan { PlanType = "Actual", PlanFormat = "TEXT", PlanContent = $"Error getting plan: {ex.Message}" };
         }
+    }
+
+    public async Task<QueryPlan> GetActualPlanAsync(string connectionString, string query, CancellationToken cancellationToken)
+    {
+        var refusal = MySqlStatementGuard.GetActualPlanRefusal(query);
+        if (refusal != null) throw new InvalidOperationException(refusal);
+
+        await using var conn = new MySqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        // Disposing an uncommitted MySqlTransaction rolls it back, which covers the failure paths.
+        await using var transaction = await conn.BeginTransactionAsync(cancellationToken);
+        await using var cmd = new MySqlCommand(
+            $"EXPLAIN ANALYZE {QueryPlanStatementGuard.TrimTrailingTerminators(query)}", conn, transaction);
+
+        var planText = new StringBuilder();
+        await using (var reader = await cmd.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                planText.AppendLine(reader.GetString(0));
+            }
+        }
+
+        await transaction.RollbackAsync(CancellationToken.None);
+
+        return new QueryPlan
+        {
+            PlanType = "Actual",
+            PlanFormat = "TEXT",
+            PlanContent = planText.ToString()
+        };
     }
 
     public async Task<TransactionInfo> BeginTransactionAsync(string connectionString)
     {
-        throw new NotImplementedException();
+        var conn = new MySqlConnection(connectionString);
+        try
+        {
+            await conn.OpenAsync();
+            var dbTransaction = await conn.BeginTransactionAsync();
+
+            var transaction = new TransactionInfo();
+            _activeTransactions[transaction.Id] = new OpenTransaction(conn, dbTransaction);
+            return transaction;
+        }
+        catch
+        {
+            await conn.DisposeAsync();
+            throw;
+        }
     }
 
     public async Task CommitTransactionAsync(string connectionString, string transactionId)
     {
-        throw new NotImplementedException();
+        if (!_activeTransactions.TryRemove(transactionId, out var open))
+        {
+            throw new InvalidOperationException(TransactionNotOpenMessage);
+        }
+
+        await using (open)
+        {
+            await open.Transaction.CommitAsync();
+        }
     }
 
     public async Task RollbackTransactionAsync(string connectionString, string transactionId)
     {
-        throw new NotImplementedException();
+        if (!_activeTransactions.TryRemove(transactionId, out var open)) return;
+
+        await using (open)
+        {
+            await open.Transaction.RollbackAsync();
+        }
     }
 
     public async Task<QueryResult> ExecuteInTransactionAsync(string connectionString, string query, string transactionId,
         CancellationToken cancellationToken)
     {
-        throw new NotImplementedException();
+        if (!_activeTransactions.TryGetValue(transactionId, out var open))
+        {
+            return new QueryResult { Error = TransactionNotOpenMessage };
+        }
+
+        var refusal = MySqlStatementGuard.GetTransactionRefusal(query);
+        if (refusal != null)
+        {
+            return new QueryResult { Error = refusal };
+        }
+
+        var result = new QueryResult();
+
+        try
+        {
+            await using var cmd = new MySqlCommand(query, open.Connection, open.Transaction);
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                result.Columns.Add(reader.GetName(i));
+            }
+
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var row = new Dictionary<string, object>();
+                for (int i = 0; i < reader.FieldCount; i++)
+                {
+                    var value = reader.GetValue(i);
+                    row[result.Columns[i]] = value == DBNull.Value ? null : value;
+                }
+                result.Rows.Add(row);
+            }
+
+            return result;
+        }
+        catch (MySqlException ex) when (ex.Number == DeadlockErrorNumber)
+        {
+            // MySQL rolls back the whole transaction on a deadlock and later statements would autocommit,
+            // so the connection is released rather than left looking like an open transaction.
+            if (_activeTransactions.TryRemove(transactionId, out var aborted))
+            {
+                await aborted.DisposeAsync();
+            }
+
+            result.Error = $"{ex.Message} MySQL rolled back the whole transaction, so none of its changes were kept.";
+            return result;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            result.Error = ex.Message;
+            return result;
+        }
     }
 
     public async Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string schema, string table)
@@ -473,5 +566,14 @@ public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabas
         }
 
         return foreignKeys;
+    }
+
+    private sealed record OpenTransaction(MySqlConnection Connection, MySqlTransaction Transaction) : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync()
+        {
+            await Transaction.DisposeAsync();
+            await Connection.DisposeAsync();
+        }
     }
 }
