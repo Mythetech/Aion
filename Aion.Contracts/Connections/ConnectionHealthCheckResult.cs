@@ -5,5 +5,6 @@ public record ConnectionHealthCheckResult(
     bool IsHealthy,
     DateTime CheckTime,
     TimeSpan? ResponseTime,
-    string? ErrorMessage
+    string? ErrorMessage,
+    bool TimedOut = false
 );
