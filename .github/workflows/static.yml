@@ -8,6 +8,7 @@ on:
     paths:
       - Aion.*/**
       - ".github/workflows/static.yml"
+      - ".github/scripts/wasm-boot-smoke.mjs"
     branches:
       - main
   pull_request:
@@ -42,6 +43,20 @@ jobs:
 
       - name: Run Tests
         run: dotnet test Aion.Test
+
+      - name: Publish app
+        run: dotnet publish Aion.Web -c Release
+
+      - name: Check the published app boots
+        run: |
+          if [ ! -f "$PUBLISH_DIR/_framework/blazor.webassembly.js" ]; then
+            echo "::error::$PUBLISH_DIR/_framework/blazor.webassembly.js is missing, so the app would never leave its splash screen"
+            exit 1
+          fi
+          npm install --no-save --prefix .github/scripts playwright-core@1.63.0
+          python3 -m http.server 8080 --directory "$PUBLISH_DIR" > /tmp/aion-web-http.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:8080/ > /dev/null && break; sleep 1; done
+          node .github/scripts/wasm-boot-smoke.mjs http://localhost:8080/
 
   deploy:
     needs: test
