@@ -89,17 +89,17 @@ public class PendingChangesApplier : IConsumer<ApplyPendingChanges>
 
                 foreach (var statement in result.Statements)
                 {
-                    _logger.LogInformation("Executing SQL: {Statement}", statement);
+                    _logger.LogInformation("Executing SQL: {Statement}", statement.Sql);
 
                     Contracts.Queries.QueryResult queryResult;
                     if (transactionId != null)
                     {
                         queryResult = await provider.ExecuteInTransactionAsync(
-                            connectionString, statement, transactionId, CancellationToken.None);
+                            connectionString, statement.Sql, transactionId, CancellationToken.None);
                     }
                     else
                     {
-                        queryResult = await provider.ExecuteQueryAsync(connectionString, statement, CancellationToken.None);
+                        queryResult = await provider.ExecuteQueryAsync(connectionString, statement.Sql, CancellationToken.None);
                     }
 
                     if (!string.IsNullOrEmpty(queryResult.Error))

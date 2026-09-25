@@ -16,6 +16,14 @@ public class EditableQueryResult : QueryResult
         .ToList();
 
     public bool HasPrimaryKey => PrimaryKeyColumns.Count > 0;
+
+    /// <summary>
+    /// Primary key columns that the result set does not include. Rows can only be targeted when this is empty.
+    /// </summary>
+    public List<string> MissingPrimaryKeyColumns => PrimaryKeyColumns
+        .Where(pk => !Columns.Contains(pk, StringComparer.OrdinalIgnoreCase))
+        .ToList();
+
     public bool IsEditable => HasPrimaryKey && !string.IsNullOrEmpty(SourceTable);
 
     public ColumnInfo? GetColumnInfo(string columnName)
