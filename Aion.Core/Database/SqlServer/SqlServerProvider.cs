@@ -560,6 +560,10 @@ public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDat
                 result.Rows.Add(row);
             }
 
+            // Grid edits apply multi-row changes in a transaction and check each statement changed exactly one row.
+            await reader.CloseAsync();
+            result.RowsAffected = reader.RecordsAffected >= 0 ? reader.RecordsAffected : null;
+
             return result;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

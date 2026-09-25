@@ -164,6 +164,24 @@ public abstract class DatabaseProviderTestBase : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Transaction_Update_ShouldReportRowsAffected()
+    {
+        // Arrange
+        await InsertRowAsync(1, "original");
+        await InsertRowAsync(2, "other");
+        var transaction = await Provider.BeginTransactionAsync(DatabaseConnectionString);
+
+        // Act
+        var update = await Provider.ExecuteInTransactionAsync(DatabaseConnectionString,
+            $"UPDATE {TestTable} SET name = 'changed' WHERE id = 1", transaction.Id, CancellationToken.None);
+        await Provider.RollbackTransactionAsync(DatabaseConnectionString, transaction.Id);
+
+        // Assert
+        ValidateQueryResult(update);
+        update.RowsAffected.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task Transaction_AfterCommit_ShouldRefuseFurtherStatementsAndCommits()
     {
         // Arrange
