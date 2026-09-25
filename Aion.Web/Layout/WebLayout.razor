@@ -22,6 +22,7 @@
 @using Aion.Components.Shared
 @using Mythetech.Framework.Components.CommandPalette
 @using Mythetech.Framework.Infrastructure
+@using Mythetech.Framework.Infrastructure.Initialization
 @using Color = MudBlazor.Color
 @using IDialogService = MudBlazor.IDialogService
 @implements IDisposable
@@ -110,6 +111,7 @@
     [Inject] protected ILinkOpenService LinkService { get; set; } = default!;
     [Inject] protected StorageRestoreService RestoreService { get; set; } = default!;
     [Inject] protected IndexedDbStorageService StorageService { get; set; } = default!;
+    [Inject] protected IAsyncInitializationHost AppInitializer { get; set; } = default!;
 
     private AionThemeProvider _themeProvider = default!;
     private string? _activePanelId;
@@ -122,6 +124,11 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender)
+        {
+            await AppInitializer.InitializeAsync();
+        }
+
         if (firstRender || !_initialized)
         {
             try

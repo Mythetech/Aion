@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using Mythetech.Framework.Infrastructure.Guards;
+using Mythetech.Framework.Infrastructure.Initialization;
 using Mythetech.Framework.Infrastructure.Plugins;
 using Mythetech.Framework.Infrastructure.Settings;
 using Mythetech.Framework.WebAssembly;
@@ -30,7 +31,9 @@ builder.Services.AddHttpClient();
 builder.Services.AddSingleton<IDatabaseProviderFactory, DatabaseProviderFactory>();
 builder.Services.AddJsGuards();
 
-builder.Services.AddSettingsStorage<InMemorySettingsStorage>();
+builder.Services.AddSettingsStorage<IndexedDbSettingsStorage>();
+builder.Services.AddAsyncInitialization();
+builder.Services.AddInitializationHook<SettingsInitializationHook>();
 builder.Services.AddWebAssemblyServices();
 
 builder.Services.AddSingleton<IQuerySaveService, IndexedDbQuerySaveService>();
