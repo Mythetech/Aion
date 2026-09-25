@@ -1,7 +1,6 @@
 @using Aion.Components.Connections.Commands
 @using Aion.Components.Connections.Events
 @using Aion.Components.Connections.Models
-@using Aion.Components.Connections.Services
 @using Aion.Components.Querying
 @using Aion.Contracts.Connections
 @using Aion.Contracts.Database
@@ -258,13 +257,11 @@
     [Inject] protected ISnackbar Snackbar { get; set; } = default!;
     [Inject] private IDialogService DialogService { get; set; } = default!;
     [Inject] private IMessageBus MessageBus { get; set; } = default!;
-    [Inject] private IConnectionHealthMonitor HealthMonitor { get; set; } = default!;
     [Inject] private BrowserSettings BrowserSettings { get; set; } = default!;
 
     private Dictionary<string, MudTreeViewItem<string>> _databases = new();
     private Dictionary<string, MudTreeViewItem<string>> _tables = new();
     private bool _isRefreshing;
-    private string? _lastError;
 
     private IEnumerable<TableInfo> GetVisibleTables(DatabaseModel database)
     {
@@ -291,8 +288,8 @@
 
     private string GetConnectionErrorTooltip()
     {
-        if (!string.IsNullOrEmpty(_lastError))
-            return _lastError;
+        if (!string.IsNullOrEmpty(Connection.LastError))
+            return Connection.LastError;
 
         return Connection.HealthStatus switch
         {
@@ -309,23 +306,15 @@
 
         try
         {
-            var result = await HealthMonitor.CheckConnectionHealthAsync(Connection);
+            var result = await ConnectionState.RefreshDatabaseAsync(Connection);
 
-            Connection.Active = result.IsHealthy;
-            Connection.HealthStatus = result.IsHealthy
-                ? ConnectionHealthStatus.Healthy
-                : ConnectionHealthStatus.Unhealthy;
-            Connection.LastHealthCheckTime = result.CheckTime;
-            _lastError = result.ErrorMessage;
-
-            if (result.IsHealthy)
+            if (result.Success)
             {
-                await ConnectionState.RefreshDatabaseAsync(Connection);
                 Snackbar.AddAionNotification($"Reconnected to {Connection.Name}", Severity.Success);
             }
             else
             {
-                Snackbar.AddAionNotification($"Failed to reconnect: {result.ErrorMessage}", Severity.Error);
+                Snackbar.AddAionNotification($"Failed to reconnect: {result.Error}", Severity.Error);
             }
         }
         finally
@@ -556,11 +545,7 @@
         if (message.ConnectionId != Connection.Id)
             return;
 
-        await InvokeAsync(() =>
-        {
-            _lastError = message.ErrorMessage;
-            StateHasChanged();
-        });
+        await InvokeAsync(StateHasChanged);
     }
 
     public async Task Consume(ExpandTable message)

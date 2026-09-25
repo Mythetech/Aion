@@ -191,7 +191,13 @@
                             SaveCredentials = Model.SaveCredentials
                         };
 
-                        await ConnectionState.UpdateConnection(Model.EditingConnectionId!.Value, updated);
+                        var result = await ConnectionState.UpdateConnection(Model.EditingConnectionId!.Value, updated);
+                        if (!result.Success)
+                        {
+                            ValidationError = $"Changes saved, but could not connect: {result.Error}";
+                            return;
+                        }
+
                         MudDialog.Close(DialogResult.Ok(updated));
                     }
                     else
@@ -205,7 +211,13 @@
                             SaveCredentials = Model.SaveCredentials
                         };
 
-                        await ConnectionState.ConnectAsync(connection);
+                        var result = await ConnectionState.ConnectAsync(connection);
+                        if (!result.Success)
+                        {
+                            ValidationError = result.Error;
+                            return;
+                        }
+
                         MudDialog.Close(DialogResult.Ok(connection));
                     }
                 }

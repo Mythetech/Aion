@@ -42,35 +42,57 @@ public class ConnectionState
         var savedConnections = await _connectionService.GetSavedConnections();
         Connections = savedConnections.ToList();
 
-        foreach (var connection in Connections.ToList())
+        foreach (var connection in Connections)
         {
-            await RefreshDatabaseAsync(connection);
+            connection.HealthStatus = ConnectionHealthStatus.Checking;
         }
+
+        OnConnectionStateChanged();
+
+        // Concurrent so several unreachable servers cost one driver timeout at startup, not one each.
+        await Task.WhenAll(Connections.ToList().Select(RefreshDatabaseAsync));
 
         OnConnectionStateChanged();
     }
 
-    public async Task ConnectAsync(ConnectionModel connection)
+    /// <summary>
+    /// Tries to reach the server and list its databases without changing any state.
+    /// </summary>
+    public async Task<ConnectionResult> TestConnectionAsync(string connectionString, DatabaseType type)
     {
         try
         {
-            var databases = await _connectionService.GetDatabasesAsync(connection.ConnectionString, connection.Type);
+            var databases = await _connectionService.GetDatabasesAsync(connectionString, type);
 
-            connection.Databases = databases?.Select(db => new DatabaseModel { Name = db }).ToList() ?? [];
-            connection.Active = true;
-            
-            await _connectionService.AddConnection(connection);
-            
-            Connections.Add(connection);
-            
-            await _messageBus.PublishAsync(new AddNotification($"Connected to {connection.Name}", Severity.Success));
-            OnConnectionStateChanged();
+            return databases is null
+                ? ConnectionResult.Failed("The server did not return a list of databases.")
+                : ConnectionResult.Connected(databases);
         }
         catch (Exception ex)
         {
-            await _messageBus.PublishAsync(new AddNotification($"Error connecting to {connection.Name}{Environment.NewLine}{ex.Message}", Severity.Error));
-
+            _logger.LogWarning(ex, "Could not connect to {DatabaseType} server", type);
+            return ConnectionResult.FromException(ex);
         }
+    }
+
+    /// <summary>
+    /// Connects a new connection and, only when the server answers, marks it active, saves it and announces it.
+    /// </summary>
+    public async Task<ConnectionResult> ConnectAsync(ConnectionModel connection)
+    {
+        var result = await TestConnectionAsync(connection.ConnectionString, connection.Type);
+        if (!result.Success)
+            return result;
+
+        ApplyConnectionResult(connection, result);
+
+        await _connectionService.AddConnection(connection);
+        Connections.Add(connection);
+
+        await _messageBus.PublishAsync(new AddNotification($"Connected to {connection.Name}", Severity.Success));
+        OnConnectionStateChanged();
+
+        return result;
     }
 
     public async Task LoadTablesAsync(ConnectionModel connection, DatabaseModel database)
@@ -167,29 +189,32 @@ public class ConnectionState
         }
     }
 
-    public async Task RefreshDatabaseAsync(ConnectionModel connection)
+    public async Task<ConnectionResult> RefreshDatabaseAsync(ConnectionModel connection)
     {
-        try 
+        var result = await TestConnectionAsync(connection.ConnectionString, connection.Type);
+        ApplyConnectionResult(connection, result);
+        OnConnectionStateChanged();
+        return result;
+    }
+
+    private static void ApplyConnectionResult(ConnectionModel connection, ConnectionResult result)
+    {
+        if (result.Success)
         {
-            var databases = await _connectionService.GetDatabasesAsync(
-                connection.ConnectionString, 
-                connection.Type
-            );
-            if (databases != null)
-            {
-                connection.Databases = databases.Select(db => new DatabaseModel { Name = db }).ToList();
-                connection.Active = true;
-            }
-            else
-            {
-                connection.Active = false;
-            }
-            OnConnectionStateChanged();
+            connection.Databases = result.Databases.Select(db => new DatabaseModel { Name = db }).ToList();
         }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, $"Failed to refresh databases for connection {connection.Name}: {ex.Message}");
-        }
+
+        SetHealth(connection, result.Success, result.TimedOut, result.Error, DateTime.UtcNow);
+    }
+
+    private static void SetHealth(ConnectionModel connection, bool healthy, bool timedOut, string? error, DateTime checkedAt)
+    {
+        connection.Active = healthy;
+        connection.LastError = healthy ? null : error;
+        connection.LastHealthCheckTime = checkedAt;
+        connection.HealthStatus = healthy
+            ? ConnectionHealthStatus.Healthy
+            : timedOut ? ConnectionHealthStatus.Timeout : ConnectionHealthStatus.Unhealthy;
     }
 
     public bool SupportsIndexes(DatabaseType type) => _providerFactory.GetProvider(type) is IDatabaseIndexProvider;
@@ -281,38 +306,27 @@ public class ConnectionState
         OnConnectionStateChanged();
     }
 
-    public async Task UpdateConnection(Guid id, ConnectionModel updated)
+    /// <summary>
+    /// Saves the edited settings and reconnects with them. The edit is kept even when the server is
+    /// unreachable, so the result only reports whether the reconnect worked.
+    /// </summary>
+    public async Task<ConnectionResult> UpdateConnection(Guid id, ConnectionModel updated)
     {
         var connection = Connections.FirstOrDefault(c => c.Id == id);
-        if (connection == null) return;
+        if (connection == null) return ConnectionResult.Failed("The connection no longer exists.");
 
         connection.Name = updated.Name;
         connection.ConnectionString = updated.ConnectionString;
         connection.SaveCredentials = updated.SaveCredentials;
-
-        // Disconnect and reconnect with new settings
-        connection.Active = false;
         connection.Databases = [];
 
-        try
-        {
-            var provider = _providerFactory.GetProvider(connection.Type);
-            var databases = await provider.GetDatabasesAsync(connection.ConnectionString);
-            if (databases != null)
-            {
-                connection.Databases = databases.Select(db => new DatabaseModel { Name = db }).ToList();
-                connection.Active = true;
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to reconnect after updating connection {Name}", connection.Name);
-            await _messageBus.PublishAsync(new AddNotification(
-                $"Updated {connection.Name} but failed to reconnect: {ex.Message}", Severity.Warning));
-        }
+        var result = await TestConnectionAsync(connection.ConnectionString, connection.Type);
+        ApplyConnectionResult(connection, result);
 
         await _connectionService.UpdateConnection(connection);
         OnConnectionStateChanged();
+
+        return result;
     }
 
     public IDatabaseProvider GetProvider(DatabaseType type) => _providerFactory.GetProvider(type);
