@@ -1,6 +1,6 @@
-using System.Text.RegularExpressions;
 using Aion.Components.Connections;
 using Aion.Components.Querying.Commands;
+using Aion.Components.Querying.Editing;
 using Aion.Components.Shared.Snackbar.Commands;
 using Aion.Contracts.Database;
 using Microsoft.Extensions.Logging;
@@ -13,7 +13,7 @@ namespace Aion.Components.Querying.Consumers;
 /// Handles EnableEditModeFromQuery command - parses the active query SQL to determine
 /// the table and enables edit mode if valid.
 /// </summary>
-public partial class QueryEditModeEnabler : IConsumer<EnableEditModeFromQuery>
+public class QueryEditModeEnabler : IConsumer<EnableEditModeFromQuery>
 {
     private readonly ConnectionState _connectionState;
     private readonly QueryState _queryState;
@@ -61,6 +61,13 @@ public partial class QueryEditModeEnabler : IConsumer<EnableEditModeFromQuery>
             return;
         }
 
+        if (_connectionState.GetProvider(connection.Type) is not IDatabaseRowEditingProvider)
+        {
+            await _bus.PublishAsync(new AddNotification(
+                $"Editing rows is not supported for {connection.Type} connections.", Severity.Warning));
+            return;
+        }
+
         var databaseName = query.DatabaseName;
         if (string.IsNullOrEmpty(databaseName))
         {
@@ -76,25 +83,22 @@ public partial class QueryEditModeEnabler : IConsumer<EnableEditModeFromQuery>
             return;
         }
 
-        // Parse the SQL to extract the table name (and optional schema)
-        var (schema, tableName) = ExtractTableName(query.Query, connection.Type);
-        if (string.IsNullOrEmpty(tableName))
+        var parsed = EditableQueryParser.Parse(query.Query);
+        if (parsed.Target == null)
         {
-            await _bus.PublishAsync(new AddNotification(
-                "Could not determine table from query. Edit mode requires a simple SELECT from a single table.",
-                Severity.Warning));
+            await _bus.PublishAsync(new AddNotification($"{parsed.Error}.", Severity.Warning));
             return;
         }
 
+        var (schema, tableName, selectedColumns) = parsed.Target;
+
         try
         {
-            // Ensure tables are loaded for this database
             if (!database.TablesLoaded)
             {
                 await _connectionState.LoadTablesAsync(connection, database);
             }
 
-            // Find matching table (case-insensitive)
             var matchedTable = database.Tables.FirstOrDefault(t =>
                 t.Name.Equals(tableName, StringComparison.OrdinalIgnoreCase) &&
                 (string.IsNullOrEmpty(schema) || t.Schema.Equals(schema, StringComparison.OrdinalIgnoreCase)));
@@ -108,15 +112,15 @@ public partial class QueryEditModeEnabler : IConsumer<EnableEditModeFromQuery>
 
             var displayName = matchedTable.DisplayName;
 
-            // Load column metadata if needed
             if (!database.LoadedColumnTables.Contains(displayName))
             {
                 await _connectionState.LoadColumnsAsync(connection, database, matchedTable.Schema, matchedTable.Name);
             }
 
             var columns = database.TableColumns.GetValueOrDefault(displayName) ?? [];
+            var primaryKeys = columns.Where(c => c.IsPrimaryKey).Select(c => c.Name).ToList();
 
-            if (!columns.Any(c => c.IsPrimaryKey))
+            if (primaryKeys.Count == 0)
             {
                 await _bus.PublishAsync(new AddNotification(
                     $"Table '{displayName}' has no primary key. Edit mode requires a primary key.",
@@ -124,18 +128,34 @@ public partial class QueryEditModeEnabler : IConsumer<EnableEditModeFromQuery>
                 return;
             }
 
-            // Enable edit mode on the current query
+            var missingKeys = selectedColumns == null
+                ? []
+                : primaryKeys.Where(pk => !selectedColumns.Contains(pk, StringComparer.OrdinalIgnoreCase)).ToList();
+            if (missingKeys.Count > 0)
+            {
+                await _bus.PublishAsync(new AddNotification(
+                    $"Select the primary key column(s) {string.Join(", ", missingKeys)} to edit rows of '{displayName}'.",
+                    Severity.Warning));
+                return;
+            }
+
             query.EditMetadata = new QueryEditMetadata
             {
                 SourceTable = matchedTable.Name,
                 SourceSchema = matchedTable.Schema,
                 SourceDatabase = databaseName,
+                ConnectionId = connection.Id,
                 ColumnMetadata = columns.ToList(),
                 IsEditMode = true
             };
 
-            // Re-run the query to refresh results with edit mode enabled
             await _bus.PublishAsync(new RunQuery());
+
+            // Re-running the query can end edit mode again, for example when the results lack the key columns.
+            if (query.EditMetadata?.IsEditMode != true)
+            {
+                return;
+            }
 
             _logger.LogInformation("Enabled edit mode for table {Table} from query", displayName);
             await _bus.PublishAsync(new AddNotification(
@@ -147,48 +167,5 @@ public partial class QueryEditModeEnabler : IConsumer<EnableEditModeFromQuery>
             await _bus.PublishAsync(new AddNotification(
                 $"Failed to enable edit mode: {ex.Message}", Severity.Error));
         }
-    }
-
-    /// <summary>
-    /// Extracts the schema and table name from a SELECT query.
-    /// Supports simple SELECT * FROM schema.table or SELECT columns FROM table patterns.
-    /// </summary>
-    private static (string? Schema, string? Table) ExtractTableName(string sql, DatabaseType dbType)
-    {
-        if (string.IsNullOrWhiteSpace(sql))
-            return (null, null);
-
-        // Normalize whitespace
-        sql = sql.Trim();
-
-        // Check it's a SELECT statement (not INSERT, UPDATE, DELETE, etc.)
-        if (!sql.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase))
-            return (null, null);
-
-        // Pattern to match: FROM "schema"."table" or FROM schema.table or FROM "table"
-        var pattern = dbType switch
-        {
-            DatabaseType.PostgreSQL => @"FROM\s+""?(\w+)""?\.""?(\w+)""?|FROM\s+""?(\w+)""?",
-            DatabaseType.MySQL => @"FROM\s+`?(\w+)`?\.`?(\w+)`?|FROM\s+`?(\w+)`?",
-            DatabaseType.SQLServer => @"FROM\s+\[?(\w+)\]?\.\[?(\w+)\]?|FROM\s+\[?(\w+)\]?",
-            _ => @"FROM\s+[""'`\[]?(\w+)[""'`\]]?\.[""'`\[]?(\w+)[""'`\]]?|FROM\s+[""'`\[]?(\w+)[""'`\]]?"
-        };
-
-        var match = Regex.Match(sql, pattern, RegexOptions.IgnoreCase);
-        if (match.Success)
-        {
-            // Schema-qualified: groups 1 and 2
-            if (match.Groups[1].Success && match.Groups[2].Success)
-            {
-                return (match.Groups[1].Value, match.Groups[2].Value);
-            }
-            // Unqualified: group 3
-            if (match.Groups[3].Success)
-            {
-                return (null, match.Groups[3].Value);
-            }
-        }
-
-        return (null, null);
     }
 }

@@ -1,0 +1,27 @@
+@using System.Reflection
+@using Aion.Components.Theme
+@using Mythetech.Framework.Infrastructure.Settings
+
+<ThemeModePicker Value="@GetValue()" ValueChanged="@OnValueChangedAsync" ShowLabels="true" />
+
+@code {
+    [Parameter, EditorRequired]
+    public SettingsBase Settings { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public PropertyInfo Property { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public SettingAttribute Attribute { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback OnValueChanged { get; set; }
+
+    private ThemeMode GetValue() => (ThemeMode)(Property.GetValue(Settings) ?? ThemeMode.System);
+
+    private async Task OnValueChangedAsync(ThemeMode mode)
+    {
+        Property.SetValue(Settings, mode);
+        await OnValueChanged.InvokeAsync();
+    }
+}

@@ -1,7 +1,7 @@
 @using Aion.Components.Theme
 @using Aion.Contracts.Database
 
-<MudDialog DisableSidePadding="true">
+<MudDialog>
     <TitleContent>
         <MudStack AlignItems="AlignItems.Center" Spacing="1" Class="pt-4">
             <MudIcon Icon="@AionIcons.Aion" Style="width: 48px; height: 48px;" Color="Color.Primary" />
@@ -15,41 +15,7 @@
         <MudStack Spacing="3" Class="pa-6">
             @if (!_loading)
             {
-                <MudText Typo="Typo.subtitle2">How would you like to start?</MudText>
-
-                <MudPaper Outlined="true" Class="pa-4 cursor-pointer"
-                          @onclick="() => SelectOption(OnboardingChoice.Sample)">
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
-                        <MudIcon Icon="@AionIcons.Connection" Color="Color.Primary" Size="Size.Large" />
-                        <MudStack Spacing="0">
-                            <MudText Typo="Typo.subtitle1">Explore a sample database</MudText>
-                            <MudText Typo="Typo.body2" Class="mud-text-secondary">
-                                Load a pre-built store database with customers, orders, and products.
-                                Great for trying out queries and the analyze feature.
-                            </MudText>
-                        </MudStack>
-                        <MudSpacer />
-                        <MudIcon Icon="@AionIcons.ExpandRight" />
-                    </MudStack>
-                </MudPaper>
-
-                <MudPaper Outlined="true" Class="pa-4 cursor-pointer"
-                          @onclick="() => SelectOption(OnboardingChoice.Scratch)">
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
-                        <MudIcon Icon="@AionIcons.Add" Color="Color.Secondary" Size="Size.Large" />
-                        <MudStack Spacing="0">
-                            <MudText Typo="Typo.subtitle1">Start from scratch</MudText>
-                            <MudText Typo="Typo.body2" Class="mud-text-secondary">
-                                Create your own database using the schema wizard.
-                                Choose between SQLite and PostgreSQL engines.
-                            </MudText>
-                        </MudStack>
-                        <MudSpacer />
-                        <MudIcon Icon="@AionIcons.ExpandRight" />
-                    </MudStack>
-                </MudPaper>
-
-                <MudStack Spacing="1" Class="mt-2">
+                <MudStack Spacing="1">
                     <MudText Typo="Typo.subtitle2">Engine</MudText>
                     <MudRadioGroup @bind-Value="_selectedEngine">
                         <MudRadio Value="DatabaseType.WasmSQLite" Color="Color.Primary" Dense="true">
@@ -60,6 +26,49 @@
                         </MudRadio>
                     </MudRadioGroup>
                 </MudStack>
+
+                <MudText Typo="Typo.subtitle2">How would you like to start?</MudText>
+
+                <div class="onboarding-options">
+                    <MudPaper Outlined="true" Class="pa-4 cursor-pointer onboarding-option"
+                              role="button" tabindex="0" data-choice="sample"
+                              @onclick="() => SelectOptionAsync(OnboardingChoice.Sample)"
+                              @onkeydown="e => OnOptionKeyDownAsync(e, OnboardingChoice.Sample)">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                            <MudIcon Icon="@AionIcons.Connection" Color="Color.Primary" Size="Size.Large" />
+                            <MudStack Spacing="0">
+                                <MudText Typo="Typo.subtitle1">Explore a sample database</MudText>
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                                    Load a pre-built store database with customers, orders, and products.
+                                    Great for trying out queries and the analyze feature.
+                                </MudText>
+                            </MudStack>
+                            <MudSpacer />
+                            <MudIcon Icon="@AionIcons.ExpandRight" />
+                        </MudStack>
+                    </MudPaper>
+
+                    @if (ShowScratchOption)
+                    {
+                        <MudPaper Outlined="true" Class="pa-4 cursor-pointer onboarding-option"
+                                  role="button" tabindex="0" data-choice="scratch"
+                                  @onclick="() => SelectOptionAsync(OnboardingChoice.Scratch)"
+                                  @onkeydown="e => OnOptionKeyDownAsync(e, OnboardingChoice.Scratch)">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                                <MudIcon Icon="@AionIcons.Add" Color="Color.Secondary" Size="Size.Large" />
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.subtitle1">Start from scratch</MudText>
+                                    <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                                        Create your own database with the schema wizard,
+                                        using the engine selected above.
+                                    </MudText>
+                                </MudStack>
+                                <MudSpacer />
+                                <MudIcon Icon="@AionIcons.ExpandRight" />
+                            </MudStack>
+                        </MudPaper>
+                    }
+                </div>
             }
             else
             {
@@ -81,14 +90,51 @@
     [CascadingParameter]
     private IMudDialogInstance MudDialog { get; set; } = default!;
 
+    [Inject] private SampleDatabaseProvisioner Provisioner { get; set; } = default!;
+
+    [Parameter] public bool ShowScratchOption { get; set; } = true;
+
     private DatabaseType _selectedEngine = DatabaseType.WasmSQLite;
     private bool _loading;
     private string _loadingMessage = "";
     private string? _error;
 
-    private void SelectOption(OnboardingChoice choice)
+    private async Task OnOptionKeyDownAsync(KeyboardEventArgs e, OnboardingChoice choice)
     {
-        var result = new OnboardingResult(choice, _selectedEngine);
-        MudDialog.Close(DialogResult.Ok(result));
+        if (e.Key is "Enter" or " ")
+            await SelectOptionAsync(choice);
     }
+
+    private async Task SelectOptionAsync(OnboardingChoice choice)
+    {
+        if (_loading) return;
+
+        var result = new OnboardingResult(choice, _selectedEngine);
+        if (choice == OnboardingChoice.Scratch)
+        {
+            MudDialog.Close(DialogResult.Ok(result));
+            return;
+        }
+
+        _error = null;
+        _loading = true;
+        _loadingMessage = $"Loading the sample store into {GetEngineLabel(_selectedEngine)}...";
+
+        try
+        {
+            await Provisioner.ProvisionAsync(_selectedEngine);
+            MudDialog.Close(DialogResult.Ok(result));
+        }
+        catch (Exception ex)
+        {
+            _error = $"The sample database couldn't be loaded: {ex.Message}";
+            _loading = false;
+        }
+    }
+
+    private static string GetEngineLabel(DatabaseType engine) => engine switch
+    {
+        DatabaseType.WasmPostgreSQL => "PostgreSQL",
+        _ => "SQLite"
+    };
 }

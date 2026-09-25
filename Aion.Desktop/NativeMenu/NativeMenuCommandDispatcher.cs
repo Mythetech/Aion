@@ -9,7 +9,7 @@ using Mythetech.Framework.Components.AppContextDrawer.Commands;
 using Aion.Components.Connections.Commands;
 using Aion.Components.Querying.Commands;
 using Aion.Components.History;
-using Aion.Components.Settings;
+using Aion.Components.Settings.Commands;
 using Aion.Components.Shared.Dialogs;
 using Aion.Components.Shared.Dialogs.Commands;
 
@@ -32,8 +32,8 @@ public class NativeMenuCommandDispatcher : INativeMenuCommandDispatcher
         _handlers = new Dictionary<string, Func<Task>>
         {
             // App menu
-            [MenuItemIds.AionAbout] = () => _messageBus.PublishAsync(new ShowHelp()),
-            [MenuItemIds.AionSettings] = () => ShowDialog<SettingsDialog>("Settings", MaxWidth.Large),
+            [MenuItemIds.AionAbout] = () => _messageBus.PublishAsync(new ShowAbout()),
+            [MenuItemIds.AionSettings] = () => _messageBus.PublishAsync(new OpenSettingsDialog()),
 
             // File menu
             [MenuItemIds.FileNewConnection] = () => _messageBus.PublishAsync(new PromptCreateConnection()),

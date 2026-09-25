@@ -175,18 +175,34 @@ public class QueryStateTests
     }
 
     [Fact]
-    public void Should_Set_Transaction_Info()
+    public void Should_Keep_Executing_State_When_Switching_Tabs()
     {
         // Arrange
-        var query = _state.Queries[0];
-        _state.SetActive(query);
-        var transaction = new TransactionInfo {Id = Guid.NewGuid().ToString(), StartTime = DateTime.Now, Status = TransactionStatus.Active};
+        var running = _state.Queries[0];
+        running.IsExecuting = true;
+        var other = _state.AddQuery("Other");
 
         // Act
-        _state.SetTransactionInfo(transaction);
+        _state.SetActive(other);
+        _state.SetActive(running);
 
         // Assert
-        _state.Active.Transaction.ShouldBe(transaction);
+        _state.Active!.IsExecuting.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Should_Not_Share_Open_Transaction_When_Cloning()
+    {
+        // Arrange
+        var original = _state.Queries[0];
+        original.Transaction = new TransactionInfo();
+
+        // Act
+        var clone = _state.Clone(original);
+
+        // Assert
+        clone.Transaction.ShouldBeNull();
+        original.HasOpenTransaction.ShouldBeTrue();
     }
 
     [Fact]

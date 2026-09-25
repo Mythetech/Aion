@@ -80,4 +80,20 @@ public class SampleDatabasePostgresTests : IAsyncLifetime
         await ExecuteAsync("INSERT INTO \"orders\" (\"customer_id\", \"order_date\") VALUES (1, '2024-11-02')");
         await ExecuteAsync("INSERT INTO \"order_items\" (\"order_id\", \"product_id\", \"quantity\", \"unit_price\") VALUES (1, 1, 1, 79.99)");
     }
+
+    [Fact]
+    public async Task SchemaAndSeed_RunAgainOnTheSample_SucceedWithoutDuplicatingRows()
+    {
+        foreach (var ddl in SampleDatabase.GetPostgresSchema())
+            await ExecuteAsync(ddl);
+
+        foreach (var dml in SampleDatabase.GetPostgresSeedData())
+            await ExecuteAsync(dml);
+
+        (await CountAsync("categories")).ShouldBe(5);
+        (await CountAsync("products")).ShouldBe(15);
+        (await CountAsync("customers")).ShouldBe(10);
+        (await CountAsync("orders")).ShouldBe(15);
+        (await CountAsync("order_items")).ShouldBe(25);
+    }
 }

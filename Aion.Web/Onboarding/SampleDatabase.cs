@@ -1,5 +1,7 @@
 namespace Aion.Web.Onboarding;
 
+// The schema and seed statements are idempotent so loading the sample into a browser that already has it
+// succeeds instead of failing on existing tables and rows.
 public static class SampleDatabase
 {
     public const string Name = "sample_store";
@@ -7,14 +9,14 @@ public static class SampleDatabase
     public static string[] GetSqliteSchema() =>
     [
         """
-        CREATE TABLE "categories" (
+        CREATE TABLE IF NOT EXISTS "categories" (
             "id" INTEGER PRIMARY KEY,
             "name" TEXT NOT NULL,
             "description" TEXT
         )
         """,
         """
-        CREATE TABLE "products" (
+        CREATE TABLE IF NOT EXISTS "products" (
             "id" INTEGER PRIMARY KEY,
             "name" TEXT NOT NULL,
             "category_id" INTEGER NOT NULL,
@@ -25,7 +27,7 @@ public static class SampleDatabase
         )
         """,
         """
-        CREATE TABLE "customers" (
+        CREATE TABLE IF NOT EXISTS "customers" (
             "id" INTEGER PRIMARY KEY,
             "name" TEXT NOT NULL,
             "email" TEXT NOT NULL,
@@ -34,7 +36,7 @@ public static class SampleDatabase
         )
         """,
         """
-        CREATE TABLE "orders" (
+        CREATE TABLE IF NOT EXISTS "orders" (
             "id" INTEGER PRIMARY KEY,
             "customer_id" INTEGER NOT NULL,
             "order_date" TEXT NOT NULL,
@@ -44,7 +46,7 @@ public static class SampleDatabase
         )
         """,
         """
-        CREATE TABLE "order_items" (
+        CREATE TABLE IF NOT EXISTS "order_items" (
             "id" INTEGER PRIMARY KEY,
             "order_id" INTEGER NOT NULL,
             "product_id" INTEGER NOT NULL,
@@ -59,14 +61,14 @@ public static class SampleDatabase
     public static string[] GetPostgresSchema() =>
     [
         """
-        CREATE TABLE "categories" (
+        CREATE TABLE IF NOT EXISTS "categories" (
             "id" serial PRIMARY KEY,
             "name" text NOT NULL,
             "description" text
         )
         """,
         """
-        CREATE TABLE "products" (
+        CREATE TABLE IF NOT EXISTS "products" (
             "id" serial PRIMARY KEY,
             "name" text NOT NULL,
             "category_id" integer NOT NULL,
@@ -77,7 +79,7 @@ public static class SampleDatabase
         )
         """,
         """
-        CREATE TABLE "customers" (
+        CREATE TABLE IF NOT EXISTS "customers" (
             "id" serial PRIMARY KEY,
             "name" text NOT NULL,
             "email" text NOT NULL,
@@ -86,7 +88,7 @@ public static class SampleDatabase
         )
         """,
         """
-        CREATE TABLE "orders" (
+        CREATE TABLE IF NOT EXISTS "orders" (
             "id" serial PRIMARY KEY,
             "customer_id" integer NOT NULL,
             "order_date" timestamp NOT NULL,
@@ -96,7 +98,7 @@ public static class SampleDatabase
         )
         """,
         """
-        CREATE TABLE "order_items" (
+        CREATE TABLE IF NOT EXISTS "order_items" (
             "id" serial PRIMARY KEY,
             "order_id" integer NOT NULL,
             "product_id" integer NOT NULL,
@@ -128,6 +130,7 @@ public static class SampleDatabase
         (13, 'Yoga Mat', 5, 29.99, 160, 1),
         (14, 'Resistance Bands', 5, 15.99, 300, 1),
         (15, 'Water Bottle', 5, 12.99, 400, 1)
+        ON CONFLICT DO NOTHING
         """,
         CustomersSeed,
         OrdersSeed,
@@ -154,6 +157,7 @@ public static class SampleDatabase
         (13, 'Yoga Mat', 5, 29.99, 160, true),
         (14, 'Resistance Bands', 5, 15.99, 300, true),
         (15, 'Water Bottle', 5, 12.99, 400, true)
+        ON CONFLICT DO NOTHING
         """,
         CustomersSeed,
         OrdersSeed,
@@ -175,6 +179,7 @@ public static class SampleDatabase
         (3, 'Clothing', 'Apparel and accessories'),
         (4, 'Home & Garden', 'Furniture and decor'),
         (5, 'Sports', 'Equipment and gear')
+        ON CONFLICT DO NOTHING
         """;
 
     private const string CustomersSeed =
@@ -190,6 +195,7 @@ public static class SampleDatabase
         (8, 'Hannah Lee', 'hannah@example.com', 'San Francisco', '2024-07-22'),
         (9, 'Ivan Patel', 'ivan@example.com', 'Austin', '2024-08-30'),
         (10, 'Julia Anderson', 'julia@example.com', 'Denver', '2024-09-15')
+        ON CONFLICT DO NOTHING
         """;
 
     private const string OrdersSeed =
@@ -210,6 +216,7 @@ public static class SampleDatabase
         (13, 10, '2024-10-01', 'completed', 119.98),
         (14, 1, '2024-10-15', 'shipped', 69.98),
         (15, 4, '2024-10-20', 'pending', 29.99)
+        ON CONFLICT DO NOTHING
         """;
 
     private const string OrderItemsSeed =
@@ -240,6 +247,7 @@ public static class SampleDatabase
         (23, 13, 11, 1, 29.99),
         (24, 14, 2, 2, 34.99),
         (25, 15, 11, 1, 29.99)
+        ON CONFLICT DO NOTHING
         """;
 
     public static string[] GetSqliteSampleQueries() =>

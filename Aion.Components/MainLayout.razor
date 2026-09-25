@@ -17,7 +17,9 @@
 @using Aion.Components.Shared.Dialogs
 @using Aion.Components.Infrastructure
 @using Aion.Components.Settings
+@using Aion.Components.Settings.Commands
 @using Microsoft.JSInterop
+@using Microsoft.Extensions.Logging
 @using Color = MudBlazor.Color
 @using MouseEvent = MudBlazor.MouseEvent
 @using Mythetech.Framework.Infrastructure.Initialization
@@ -26,7 +28,7 @@
 @using Mythetech.Framework.Infrastructure.Settings
 @implements IDisposable
 
-<MudThemeProvider @ref="_theme" @bind-IsDarkMode="@AppState.IsDarkMode" Theme="@Theme" />
+<AionThemeProvider @ref="_themeProvider" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -49,7 +51,7 @@
         <AppContextDrawer @bind-IsOpen="@AppState.SideBarOpen" @bind-ActivePanelId="@_activePanelId"
                           ShowPluginPanels="true" MaxWidth="800">
             <IconBarHeader>
-                <AionIconButton Class="p-2 ml-1" Icon="aion-icon" OnClick="@OpenAboutAion" />
+                <AionIconButton Class="p-2 ml-1" Icon="aion-icon" OnClick="@OpenAboutAion" AriaLabel="About Aion" />
                 <AionIconButton Class="p-2 ml-1" Icon="@AionIcons.Add" OnClick="AddConnection"
                                 Tooltip="Create Connection" />
             </IconBarHeader>
@@ -78,25 +80,10 @@
             </PanelNavContent>
 
             <PanelFooterContent>
-                <MudMenu ActivationEvent="MouseEvent.MouseOver" AnchorOrigin="Origin.TopRight">
-                    <ActivatorContent>
-                        <MudIconButton Class="ml-1"
-                                       Icon="@(AppState.IsDarkMode ? AionIcons.DarkMode : AionIcons.LightMode)"
-                                       Color="Color.Primary" Variant="Variant.Text"
-                                       OnClick="@(() => AppState.IsDarkMode = !AppState.IsDarkMode)" />
-                    </ActivatorContent>
-                    <ChildContent>
-                        <MudToggleGroup T="string" Size="Size.Small" Value="@SelectedColorMode"
-                                        ValueChanged="HandleColorModeChanged" Style="align-items: center">
-                            <ToggleIcon Value="light" Icon="@AionIcons.LightMode" Text="Light Mode" />
-                            <ToggleIcon Value="dark" Icon="@AionIcons.DarkMode" Text="Dark Mode" />
-                            <ToggleIcon Value="system" Icon="@AionIcons.Round("laptop")" Text="System Default" />
-                        </MudToggleGroup>
-                    </ChildContent>
-                </MudMenu>
-                <MtIconButton Class="ml-1" Color="Color.Primary" Icon="@AionIcons.Settings" OnClick="OpenSettingsDialog"
+                <ThemeModeMenu />
+                <MtIconButton Class="ml-1" Color="Color.Primary" Icon="@AionIcons.Settings" OnClick="OpenSettings"
                               Tooltip="Settings" TooltipPlacement="Placement.Right" />
-                <MudIconButton Class="ml-1"
+                <MudIconButton Class="ml-1" aria-label="@(AppState.SideBarOpen ? "Collapse sidebar" : "Expand sidebar")"
                                Icon="@(AppState.SideBarOpen ? AionIcons.CollapseLeft : AionIcons.ExpandRight)"
                                Color="Color.Inherit" OnClick="@(() => AppState.ToggleSideBar())" />
             </PanelFooterContent>
@@ -134,21 +121,18 @@
     [Inject] protected MudBlazor.IDialogService DialogService { get; set; } = default!;
     [Inject] protected IMessageBus Bus { get; set; } = default!;
     [Inject] protected QueryState QueryState { get; set; } = default!;
+    [Inject] protected ILogger<MainLayout> Logger { get; set; } = default!;
 
-    protected MudThemeProvider _theme { get; set; } = default!;
+    private AionThemeProvider _themeProvider = default!;
     private bool _assetsLoaded = false;
     private string? _activePanelId;
     private MudMenu? _connectionContextMenu;
     private ConnectionModel? _contextMenuConnection;
 
-    private string SelectedColorMode => AppState.IsDarkMode ? "dark" : "light";
-
     private bool _aionInitialized = false;
-    private MudTheme Theme { get; } = new AionTheme();
 
     protected override void OnInitialized()
     {
-        AppState.OnDarkModeChanged += HandleDarkModeChange;
         Settings.SettingsChanged += HandleSettingsChanged;
         Plugins.StateChanged += OnPluginStateChanged;
         ConnectionState.ConnectionStateChanged += HandleConnectionStateChanged;
@@ -157,16 +141,6 @@
     }
 
     private void HandleSettingsChanged(SettingsState s) => StateHasChanged();
-
-    protected override void OnAfterRender(bool firstRender)
-    {
-        if (firstRender)
-        {
-            AppState.SetThemeProvider(_theme);
-        }
-
-        base.OnAfterRender(firstRender);
-    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -186,36 +160,22 @@
         {
             try
             {
-                await AppState.SetSystemColorMode();
+                await _themeProvider.RefreshSystemPreferenceAsync();
                 await JS.InvokeVoidAsync("aionSplash.hide");
             
                 _aionInitialized = true;
             }
-            catch
+            catch (Exception ex)
             {
+                Logger.LogError(ex, "Failed to apply the system color mode or hide the splash screen");
             }
         }
 
         await base.OnAfterRenderAsync(firstRender);
     }
 
-    protected async void HandleDarkModeChange(bool isDarkMode)
-    {
-        await Task.Yield();
-
-        try
-        {
-            await BlazorMonaco.Editor.Global.SetTheme(JS, isDarkMode ? "vs-dark" : "vs");
-            StateHasChanged();
-        }
-        catch
-        {
-        }
-    }
-
     public void Dispose()
     {
-        AppState.OnDarkModeChanged -= HandleDarkModeChange;
         Settings.SettingsChanged -= HandleSettingsChanged;
         Plugins.StateChanged -= OnPluginStateChanged;
         ConnectionState.ConnectionStateChanged -= HandleConnectionStateChanged;
@@ -245,17 +205,6 @@
         StateHasChanged();
     }
 
-    protected async Task HandleColorModeChanged(string s)
-    {
-        if (!AppState.IsDarkMode && s.Equals("light", StringComparison.OrdinalIgnoreCase))
-            return;
-
-        AppState.IsDarkMode = s.Equals("dark", StringComparison.OrdinalIgnoreCase) ||
-                              s.Equals("system", StringComparison.OrdinalIgnoreCase);
-
-        StateHasChanged();
-    }
-
     protected async Task OpenAboutAion()
     {
         var options = AionDialogs.CreateDefaultOptions();
@@ -268,17 +217,9 @@
         await Bus.PublishAsync(new PromptCreateConnection());
     }
 
-    protected async Task OpenSettingsDialog()
+    protected async Task OpenSettings()
     {
-        var options = new DialogOptions
-        {
-            CloseOnEscapeKey = true,
-            BackgroundClass = "aion-dialog",
-            MaxWidth = MaxWidth.Large,
-            FullWidth = true,
-            CloseButton = false
-        };
-        await DialogService.ShowAsync<Settings.SettingsDialog>("Settings", options);
+        await Bus.PublishAsync(new OpenSettingsDialog());
     }
 
     private async Task ShowConnectionContextMenu(MouseEventArgs e, ConnectionModel connection)
@@ -301,15 +242,7 @@
     private async Task ContextMenu_EditConnection()
     {
         if (_contextMenuConnection == null) return;
-        var model = new ConnectionDialogModel
-        {
-            EditingConnectionId = _contextMenuConnection.Id,
-            Name = _contextMenuConnection.Name,
-            Type = _contextMenuConnection.Type,
-            ConnectionString = _contextMenuConnection.ConnectionString,
-            SaveCredentials = _contextMenuConnection.SaveCredentials
-        };
-        await Bus.PublishAsync(new PromptCreateConnection(model));
+        await Bus.PublishAsync(new PromptCreateConnection(ConnectionDialogModel.ForEdit(_contextMenuConnection)));
     }
 
     private async Task ContextMenu_DeleteConnection()

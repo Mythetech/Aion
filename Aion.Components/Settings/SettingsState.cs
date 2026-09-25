@@ -26,17 +26,18 @@ public class SettingsState
     /// <summary>
     /// Whether the plugin menu is enabled. Delegates to framework's PluginSettings.PluginsActive.
     /// </summary>
-    public bool PluginState
+    public bool PluginState => Plugins.PluginsActive;
+
+    /// <summary>
+    /// Enables or disables the plugin menu and persists the change through the settings provider.
+    /// </summary>
+    public async Task SetPluginStateAsync(bool value)
     {
-        get => Plugins.PluginsActive;
-        set
-        {
-            if (Plugins.PluginsActive == value) return;
-            Plugins.PluginsActive = value;
-            Plugins.MarkDirty();
-            _ = _provider.NotifySettingsChangedAsync(Plugins);
-            SettingsChanged?.Invoke(this);
-        }
+        if (Plugins.PluginsActive == value) return;
+        Plugins.PluginsActive = value;
+        Plugins.MarkDirty();
+        await _provider.NotifySettingsChangedAsync(Plugins);
+        SettingsChanged?.Invoke(this);
     }
 
     /// <summary>
@@ -45,11 +46,11 @@ public class SettingsState
     public T? GetSettings<T>() where T : SettingsBase => _provider.GetSettings<T>();
 
     /// <summary>
-    /// Notifies listeners that settings have changed.
-    /// Called after the settings dialog commits changes.
+    /// Persists and broadcasts a settings section that was edited, then tells listeners.
     /// </summary>
-    public void NotifyChanged()
+    public async Task SaveAsync(SettingsBase settings)
     {
+        await _provider.NotifySettingsChangedAsync(settings);
         SettingsChanged?.Invoke(this);
     }
 }

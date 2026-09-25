@@ -1,0 +1,40 @@
+@using Aion.Components.Shared
+
+<div class="theme-mode-picker">
+    <MudToggleGroup T="ThemeMode" Size="Size.Small" Value="@Value" ValueChanged="@ValueChanged">
+        @foreach (var option in Options)
+        {
+            if (ShowLabels)
+            {
+                <MudToggleItem T="ThemeMode" Value="@option.Mode">
+                    <span class="theme-mode-option">
+                        <MudIcon Icon="@option.Icon" Size="Size.Small" />
+                        @option.Label
+                    </span>
+                </MudToggleItem>
+            }
+            else
+            {
+                <ToggleIcon T="ThemeMode" Value="@option.Mode" Icon="@option.Icon" Text="@option.Label" />
+            }
+        }
+    </MudToggleGroup>
+</div>
+
+@code {
+    private static readonly (ThemeMode Mode, string Icon, string Label)[] Options =
+    [
+        (ThemeMode.Light, AionIcons.LightMode, "Light"),
+        (ThemeMode.Dark, AionIcons.DarkMode, "Dark"),
+        (ThemeMode.System, AionIcons.SystemTheme, "System"),
+    ];
+
+    [Parameter]
+    public ThemeMode Value { get; set; }
+
+    [Parameter]
+    public EventCallback<ThemeMode> ValueChanged { get; set; }
+
+    [Parameter]
+    public bool ShowLabels { get; set; }
+}

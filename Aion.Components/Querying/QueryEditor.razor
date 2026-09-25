@@ -13,7 +13,8 @@
 @using Microsoft.JSInterop
 @using Mythetech.Framework.Infrastructure.Guards
 @using Mythetech.Framework.Infrastructure.Settings.Events
-@implements IDisposable
+@using System.Threading.Channels
+@implements IAsyncDisposable
 @implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.FocusQuery>
 @implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.CreateQuery>
 @implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.RunQuery>
@@ -28,6 +29,7 @@
                    Value="@SelectedConnection"
                    ValueChanged="@OnConnectionChanged"
                    ToStringFunc="@(c => c?.Name ?? string.Empty)"
+                   Disabled="@HasOpenTransaction"
                    Margin="Margin.Dense">
             @foreach (var connection in Connections.Connections)
             {
@@ -39,7 +41,7 @@
                    Label="Database"
                    Value="@SelectedDatabase"
                    ValueChanged="@OnDatabaseChanged"
-                   Disabled="@(SelectedConnection == null)"
+                   Disabled="@(SelectedConnection == null || HasOpenTransaction)"
                    Margin="Margin.Dense">
             @if (SelectedConnection != null)
             {
@@ -56,30 +58,45 @@
         {
             <ToggleChip Text="Transactions"
                         Icon="@(State.Active.UseTransaction ? AionIcons.Transaction : AionIcons.TransactionOff)"
+                        Disabled="@HasOpenTransaction"
+                        DisabledTooltip="Commit or roll back the open transaction to change this"
                         @bind-Value="State.Active.UseTransaction" />
 
-            <ToggleChip Text="Estimated Query Plan"
-                        Icon="@AionIcons.EstimatedQueryPlan"
-                        @bind-Value="State.Active.IncludeEstimatedPlan" />
+            @if (ShowEstimatedPlanToggle)
+            {
+                <ToggleChip Text="Estimated Query Plan"
+                            Icon="@AionIcons.EstimatedQueryPlan"
+                            @bind-Value="State.Active.IncludeEstimatedPlan" />
+            }
 
-            <ToggleChip Text="Actual Query Plan"
-                        Icon="@AionIcons.ActualQueryPlan"
-                        @bind-Value="State.Active.IncludeActualPlan" />
+            @if (ShowActualPlanToggle)
+            {
+                <ToggleChip Text="Actual Query Plan"
+                            Icon="@AionIcons.ActualQueryPlan"
+                            @bind-Value="State.Active.IncludeActualPlan" />
+            }
 
             <MudSpacer/>
 
             <RunQueryButton Text="Run"
                             OnClick="RunQuery"
                             Disabled="@(!CanExecuteQuery)"
-                            IsExecuting="@((State?.Active?.IsExecuting ?? false) || HasActiveTransaction())"/>
+                            IsExecuting="@State.Active.IsExecuting"/>
         }
     </MudStack>
 
+    @if (State?.Active is { HasOpenTransaction: true } transactionQuery)
+    {
+        <TransactionBar Query="@transactionQuery" />
+    }
 
     @if (State?.Active?.Result?.Error != null)
     {
-        var severity = State.Active.Result.Error.StartsWith("Query not executed") ? Severity.Info : Severity.Error;
-        <MudAlert Severity="severity" Class="my-2">@State.Active.Result.Error</MudAlert>
+        <MudAlert Severity="Severity.Error" Class="my-2">@State.Active.Result.Error</MudAlert>
+    }
+    else if (State?.Active?.ResultNotice != null)
+    {
+        <MudAlert Severity="Severity.Info" Class="my-2">@State.Active.ResultNotice</MudAlert>
     }
 
     <JsGuard Name="monaco">
@@ -96,14 +113,21 @@
     
     private bool _initialized = false;
 
-    protected bool HasActiveTransaction()
-    {
-        var query = State.Active;
+    private readonly Dictionary<Guid, CancellationTokenSource> _runningQueries = new();
 
-        if (query?.Transaction == null) return false;
+    // Monaco invokes editor actions through a synchronous callback, so requests are queued here and
+    // handled by an awaited reader loop instead of being fired and forgotten.
+    private readonly Channel<ExpandSelectStarRequested> _expandSelectStarRequests =
+        Channel.CreateUnbounded<ExpandSelectStarRequested>(new UnboundedChannelOptions { SingleReader = true });
+    private Task? _expandSelectStarLoop;
 
-        return query.Transaction.Value.Status == TransactionStatus.Active;
-    }
+    private sealed record ExpandSelectStarRequested;
+
+    private bool HasOpenTransaction => State.Active?.HasOpenTransaction ?? false;
+
+    private bool ShowEstimatedPlanToggle => SelectedConnection is not { } connection || Connections.SupportsEstimatedPlan(connection.Type);
+
+    private bool ShowActualPlanToggle => SelectedConnection is not { } connection || Connections.SupportsActualPlan(connection.Type);
     
     private ConnectionModel? SelectedConnection => State.Active?.ConnectionId != null 
         ? Connections.Connections.FirstOrDefault(c => c.Id == State.Active.ConnectionId)
@@ -136,10 +160,11 @@
             WordWrap = EditorSettings.WordWrap ? "on" : "off",
             LineNumbers = EditorSettings.ShowLineNumbers ? "on" : "off",
             Minimap = new EditorMinimapOptions { Enabled = EditorSettings.ShowMinimap },
+            // Monaco measures its container once at creation. The editor pane changes width whenever a side
+            // panel opens or closes, and at startup it can be created before the side panel has collapsed.
+            AutomaticLayout = true,
         };
     }
-
-    private CancellationTokenSource? _queryTokenSource;
 
     protected override void OnInitialized()
     {
@@ -154,7 +179,7 @@
         base.OnInitialized();
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         State.StateChanged -= StateHasChanged;
         State.ActiveQueryTextChanged -= RefreshEditor;
@@ -163,7 +188,12 @@
         Bus.Unsubscribe<CreateQuery>(this);
         Bus.Unsubscribe<RunQuery>(this);
         Bus.Unsubscribe<SettingsModelChanged<EditorSettings>>(this);
-        _queryTokenSource?.Dispose();
+
+        _expandSelectStarRequests.Writer.TryComplete();
+        if (_expandSelectStarLoop != null)
+        {
+            await _expandSelectStarLoop;
+        }
     }
 
     private void OnConnectionChanged(ConnectionModel? connection)
@@ -212,6 +242,8 @@
 
         await RefreshEditor();
 
+        _expandSelectStarLoop ??= ProcessExpandSelectStarRequestsAsync();
+
         await _editor.AddAction(new ActionDescriptor
         {
             Id = "expand-select-star",
@@ -219,8 +251,16 @@
             Keybindings = new[] { (int)KeyMod.CtrlCmd | (int)KeyMod.Shift | (int)KeyCode.KeyE },
             ContextMenuGroupId = "navigation",
             ContextMenuOrder = 1.5f,
-            Run = (editor) => _ = InvokeAsync(ExpandSelectStarAsync)
+            Run = _ => _expandSelectStarRequests.Writer.TryWrite(new ExpandSelectStarRequested())
         });
+    }
+
+    private async Task ProcessExpandSelectStarRequestsAsync()
+    {
+        await foreach (var _ in _expandSelectStarRequests.Reader.ReadAllAsync())
+        {
+            await InvokeAsync(ExpandSelectStarAsync);
+        }
     }
 
     private async Task OnTabChanged(QueryModel query)
@@ -252,38 +292,43 @@
         return (text, selection);
     }
 
+    /// <summary>
+    /// Runs the active tab's statement, inside its transaction when one is open. While that tab is
+    /// executing the same action cancels the statement; it never ends the transaction, which only the
+    /// Commit and Rollback buttons do.
+    /// </summary>
     private async Task RunQuery()
     {
         var query = State.Active ?? State.Queries.First();
-        
-        await Bus.PublishAsync(new SaveQuery(query));
-        
-        if (!CanExecuteQuery) return;
-        
-        if (query.IsExecuting || query.Transaction?.Status == TransactionStatus.Active)
+
+        if (query.IsExecuting && _runningQueries.TryGetValue(query.Id, out var running))
         {
-            await Bus.PublishAsync(new RollbackTransaction(query));
-            await _queryTokenSource?.CancelAsync();
+            await running.CancelAsync();
             return;
         }
-        
+
+        await Bus.PublishAsync(new SaveQuery(query));
+
+        if (!CanExecuteQuery) return;
+
+        using var cancellation = new CancellationTokenSource();
+        _runningQueries[query.Id] = cancellation;
+
         try
         {
-            _queryTokenSource?.Dispose();
-            _queryTokenSource = new CancellationTokenSource();
-
             var fullText = _editor != null ? await _editor.GetValue() : query.Query;
             var selected = await GetSelectedTextAsync();
             var textToExecute = selected?.Text ?? fullText;
 
             query.Query = textToExecute;
-            var result = await Connections.ExecuteQueryAsync(query, _queryTokenSource.Token);
+            var result = await Connections.ExecuteQueryAsync(query, cancellation.Token);
 
             query.Query = fullText;
             State.SetResult(query, result);
         }
         finally
         {
+            _runningQueries.Remove(query.Id);
             StateHasChanged();
         }
     }
@@ -391,7 +436,8 @@
         }
         catch (Exception)
         {
-            // Swallowed: fired from sync Action<CodeEditor> callback via InvokeAsync
+            // Swallowed: an editor convenience failing (for example on a table that no longer
+            // exists) should not end the request loop or surface as an error.
         }
     }
     private async Task<CompletionList> ProvideSqlCompletionsAsync(

@@ -4,13 +4,14 @@ using Mythetech.Framework.Infrastructure.Settings;
 namespace Aion.Components.Settings.Domains;
 
 /// <summary>
-/// Settings for the database object browser (connection panel tree view).
+/// Settings for the schema explorer (the connection panel tree view).
+/// The "Browser" id is kept so values saved before the rename still load.
 /// </summary>
 public class BrowserSettings : SettingsBase
 {
     public override string SettingsId => "Browser";
-    public override string DisplayName => "Browser";
-    public override string Icon => AionIcons.Connection;
+    public override string DisplayName => "Schema explorer";
+    public override string Icon => AionIcons.SchemaExplorer;
     public override int Order => 13;
 
     [Setting(

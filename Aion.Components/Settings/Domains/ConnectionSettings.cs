@@ -17,7 +17,7 @@ public class ConnectionSettings : SettingsBase
         Label = "Enable Auto Health Check",
         Group = "Health Monitoring",
         Order = 1,
-        Description = "Automatically monitor connection health in the background")]
+        Description = "Automatically monitor connection health in the background. Takes effect after restarting Aion.")]
     public bool EnableAutoHealthCheck { get; set; } = true;
 
     [Setting(
@@ -27,7 +27,7 @@ public class ConnectionSettings : SettingsBase
         Min = 10,
         Max = 300,
         Step = 10,
-        Description = "How often to check connection health")]
+        Description = "How often to check connection health. Takes effect after restarting Aion.")]
     public int PollIntervalSeconds { get; set; } = 60;
 
     [Setting(

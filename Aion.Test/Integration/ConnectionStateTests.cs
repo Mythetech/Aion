@@ -9,6 +9,7 @@ using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
 using Aion.Test.TestDoubles;
+using System.Data.Common;
 using Bunit;
 using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.Extensions.DependencyInjection;
@@ -53,11 +54,9 @@ public abstract class ConnectionStateTestBase : TestContext, IAsyncLifetime
             Query = "SELECT * FROM test_table"
         };
         
-        MessageBus.RegisterConsumerType<StartTransaction, TransactionInitializer>();
         MessageBus.RegisterConsumerType<CommitTransaction, TransactionFinalizer>();
         MessageBus.RegisterConsumerType<RollbackTransaction, TransactionFinalizer>();
 
-        Services.AddSingleton<TransactionInitializer>();
         Services.AddSingleton<TransactionFinalizer>();
         Services.AddSingleton<ConnectionState>(ConnectionState);
         Services.AddSingleton(MessageBus);
@@ -97,7 +96,7 @@ public abstract class ConnectionStateTestBase : TestContext, IAsyncLifetime
         result.Rows.Count.ShouldBeGreaterThan(0);
     }
 
-    [Fact(Skip = "Feature in progress")]
+    [Fact]
     public async Task ExecuteQuery_WithTransaction_ShouldMaintainTransactionState()
     {
         // Arrange
@@ -140,8 +139,7 @@ public abstract class ConnectionStateTestBase : TestContext, IAsyncLifetime
         TestQuery.Transaction.Value.Status.ShouldBe(TransactionStatus.Active);
 
         await MessageBus.PublishAsync(new RollbackTransaction(TestQuery));
-        TestQuery.Transaction.ShouldNotBeNull();
-        TestQuery.Transaction.Value.Status.ShouldBe(TransactionStatus.RolledBack);
+        TestQuery.Transaction.ShouldBeNull();
 
         // Verify rollback worked
         TestQuery.UseTransaction = false;
@@ -150,6 +148,77 @@ public abstract class ConnectionStateTestBase : TestContext, IAsyncLifetime
         finalResult.ShouldNotBeNull();
         finalResult.Error.ShouldBeNull();
         finalResult.Rows[0]["count"].ToString().ShouldBe("0");
+    }
+
+    [Fact]
+    public async Task ExecuteQuery_WithTransaction_CommitShouldPersistAndEndTransaction()
+    {
+        // Arrange
+        var connection = new ConnectionModel()
+        {
+            Type = Provider.DatabaseType,
+            ConnectionString = ConnectionString,
+        };
+        await ConnectionState.ConnectAsync(connection);
+
+        TestQuery.ConnectionId = connection.Id;
+        TestQuery.DatabaseName = TestDatabase;
+        TestQuery.UseTransaction = true;
+        TestQuery.Query = "INSERT INTO test_table (name) VALUES ('committed')";
+
+        // Act
+        var insert = await ConnectionState.ExecuteQueryAsync(TestQuery, CancellationToken.None);
+        await MessageBus.PublishAsync(new CommitTransaction(TestQuery));
+
+        // Assert
+        insert.Error.ShouldBeNull();
+        TestQuery.Transaction.ShouldBeNull();
+
+        TestQuery.UseTransaction = false;
+        TestQuery.Query = "SELECT COUNT(*) as count FROM test_table WHERE name = 'committed'";
+        var count = await ConnectionState.ExecuteQueryAsync(TestQuery, CancellationToken.None);
+        count.Error.ShouldBeNull();
+        count.Rows[0]["count"].ToString().ShouldBe("1");
+    }
+
+    [Fact]
+    public async Task ExecuteQuery_WithActualPlan_ShouldReturnPlanWithoutKeepingChanges()
+    {
+        // Arrange
+        var connection = new ConnectionModel()
+        {
+            Type = Provider.DatabaseType,
+            ConnectionString = ConnectionString,
+        };
+        await ConnectionState.ConnectAsync(connection);
+
+        var seed = new QueryModel
+        {
+            Query = "INSERT INTO test_table (name) VALUES ('original')",
+            DatabaseName = TestDatabase,
+            ConnectionId = connection.Id,
+        };
+        (await ConnectionState.ExecuteQueryAsync(seed, CancellationToken.None)).Error.ShouldBeNull();
+
+        TestQuery.ConnectionId = connection.Id;
+        TestQuery.DatabaseName = TestDatabase;
+        TestQuery.IncludeActualPlan = true;
+        TestQuery.Query = "UPDATE test_table SET name = 'changed' WHERE name = 'original'";
+
+        // Act
+        var result = await ConnectionState.ExecuteQueryAsync(TestQuery, CancellationToken.None);
+
+        // Assert
+        result.Error.ShouldBeNull();
+        TestQuery.ResultNotice.ShouldBe(ConnectionState.ActualPlanNotice);
+        TestQuery.ActualPlan.ShouldNotBeNull();
+        TestQuery.ActualPlan.PlanContent.ShouldNotStartWith("Error");
+        TestQuery.ExecutionEndTime.ShouldNotBeNull();
+
+        TestQuery.IncludeActualPlan = false;
+        TestQuery.Query = "SELECT COUNT(*) as count FROM test_table WHERE name = 'original'";
+        var count = await ConnectionState.ExecuteQueryAsync(TestQuery, CancellationToken.None);
+        count.Rows[0]["count"].ToString().ShouldBe("1");
     }
 
     [Fact(Skip = "Feature in progress")]
@@ -186,6 +255,44 @@ public abstract class ConnectionStateTestBase : TestContext, IAsyncLifetime
         result.Error.ShouldBeNull();
         TestQuery.EstimatedPlan.ShouldNotBeNull();
         TestQuery.EstimatedPlan.PlanContent.ShouldNotBeEmpty();
+    }
+
+    [Fact]
+    public async Task ConnectAsync_WrongPassword_ReportsFailureAndSavesNothing()
+    {
+        var builder = new DbConnectionStringBuilder { ConnectionString = ConnectionString };
+        builder["Password"] = "Definitely_Wrong_123!";
+        var connection = new ConnectionModel
+        {
+            Type = Provider.DatabaseType,
+            ConnectionString = builder.ConnectionString,
+            Name = "Wrong Password"
+        };
+
+        var result = await ConnectionState.ConnectAsync(connection);
+
+        result.Success.ShouldBeFalse();
+        result.Error.ShouldNotBeNullOrWhiteSpace();
+        connection.Active.ShouldBeFalse();
+        ConnectionState.Connections.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task ConnectAsync_ValidCredentials_ConnectsAndListsDatabases()
+    {
+        var connection = new ConnectionModel
+        {
+            Type = Provider.DatabaseType,
+            ConnectionString = ConnectionString,
+            Name = "Test Connection"
+        };
+
+        var result = await ConnectionState.ConnectAsync(connection);
+
+        result.Success.ShouldBeTrue(result.Error);
+        connection.Active.ShouldBeTrue();
+        connection.Databases.ShouldContain(d => d.Name == TestDatabase);
+        ConnectionState.Connections.ShouldContain(connection);
     }
 
     protected virtual async Task SetupTestDatabase()
@@ -225,7 +332,7 @@ public abstract class ConnectionStateTestBase : TestContext, IAsyncLifetime
                 new ColumnDefinition("id", Provider.DatabaseType switch
                 {
                     DatabaseType.SQLServer => "int IDENTITY(1,1)",
-                    DatabaseType.MySQL => "int AUTO_INCREMENT",
+                    DatabaseType.MySQL => "int AUTO_INCREMENT PRIMARY KEY",
                     DatabaseType.PostgreSQL => "SERIAL",
                     _ => throw new NotSupportedException($"Unsupported database type: {Provider.DatabaseType}")
                 }, false),

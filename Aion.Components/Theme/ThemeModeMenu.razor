@@ -1,0 +1,30 @@
+@implements IDisposable
+
+<MudMenu ActivationEvent="MouseEvent.MouseOver" AnchorOrigin="Origin.TopRight">
+    <ActivatorContent>
+        <MudIconButton Class="ml-1"
+                       Icon="@(ThemeState.IsDarkMode ? AionIcons.DarkMode : AionIcons.LightMode)"
+                       Color="Color.Primary" Variant="Variant.Text"
+                       aria-label="Toggle light and dark theme"
+                       OnClick="@ThemeState.ToggleAsync" />
+    </ActivatorContent>
+    <ChildContent>
+        <ThemeModePicker Value="@ThemeState.Mode" ValueChanged="@ThemeState.SetModeAsync" />
+    </ChildContent>
+</MudMenu>
+
+@code {
+    [Inject] private ThemeState ThemeState { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        ThemeState.ThemeChanged += OnThemeChanged;
+    }
+
+    private void OnThemeChanged() => StateHasChanged();
+
+    public void Dispose()
+    {
+        ThemeState.ThemeChanged -= OnThemeChanged;
+    }
+}

@@ -1,0 +1,14 @@
+.onboarding-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.onboarding-options ::deep .onboarding-option:hover {
+    background-color: var(--mud-palette-action-default-hover);
+}
+
+.onboarding-options ::deep .onboarding-option:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
+}
