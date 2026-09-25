@@ -71,7 +71,7 @@
                                   QueryName="@State.Active.Name"
                                   SearchFilter="@_search"
                                   SelectionState="@_selectionState"
-                                  EditState="@GetOrCreateEditState()"
+                                  EditState="@GetEditState()"
                                   EditMetadata="@State.Active.EditMetadata"
                                   ConnectionId="@State.Active.ConnectionId"
                                   DatabaseName="@State.Active.DatabaseName" />
@@ -91,7 +91,7 @@
         }
         else if (_activeTab == Edit && State.Active.EditMetadata?.IsEditMode == true)
         {
-            var editState = GetOrCreateEditState();
+            var editState = GetEditState();
             @if (editState != null)
             {
                 <PendingChangesPanel
@@ -142,7 +142,6 @@ else if (State?.Active?.IsExecuting ?? false)
 
     private string _activeTab = Results;
     private RowSelectionState _selectionState = new();
-    private Dictionary<Guid, EditState> _editStates = new();
 
     [Parameter] public QueryPlan? QueryPlan { get; set; }
 
@@ -157,6 +156,12 @@ else if (State?.Active?.IsExecuting ?? false)
     {
         // Clear selection when switching queries or when results change
         _selectionState.ClearSelection();
+
+        if (_activeTab == Edit && State.Active?.EditMetadata?.IsEditMode != true)
+        {
+            _activeTab = Results;
+        }
+
         StateHasChanged();
     }
 
@@ -173,18 +178,10 @@ else if (State?.Active?.IsExecuting ?? false)
         return connection?.Type ?? default;
     }
 
-    // EditState management per query
-    private EditState? GetOrCreateEditState()
+    private EditState? GetEditState()
     {
-        if (State.Active?.EditMetadata?.IsEditMode != true) return null;
-
-        var queryId = State.Active.Id;
-        if (!_editStates.TryGetValue(queryId, out var editState))
-        {
-            editState = new EditState { IsEditMode = true };
-            _editStates[queryId] = editState;
-        }
-        return editState;
+        var metadata = State.Active?.EditMetadata;
+        return metadata?.IsEditMode == true ? metadata.EditState : null;
     }
 
     private EditableQueryResult? GetEditableResult()
@@ -195,13 +192,13 @@ else if (State?.Active?.IsExecuting ?? false)
             State.Active.EditMetadata.SourceTable,
             State.Active.EditMetadata.SourceSchema,
             State.Active.EditMetadata.SourceDatabase,
-            State.Active.ConnectionId,
+            State.Active.EditMetadata.ConnectionId,
             State.Active.EditMetadata.ColumnMetadata);
     }
 
     private async Task ApplyChanges()
     {
-        var editState = GetOrCreateEditState();
+        var editState = GetEditState();
         var editableResult = GetEditableResult();
         if (editState != null && editableResult != null)
         {
@@ -218,17 +215,14 @@ else if (State?.Active?.IsExecuting ?? false)
 
     private void DiscardChanges()
     {
-        GetOrCreateEditState()?.DiscardAllChanges();
+        GetEditState()?.DiscardAllChanges();
     }
 
     private void ExitEditMode()
     {
         if (State.Active == null) return;
 
-        // Clear the edit state for this query
-        _editStates.Remove(State.Active.Id);
-
-        // Clear edit metadata to exit edit mode
+        // Pending changes live on the metadata, so clearing it also drops them
         State.Active.EditMetadata = null;
 
         // Switch back to Results tab
