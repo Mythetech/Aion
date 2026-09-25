@@ -36,7 +36,9 @@ public class AionTheme : MudTheme
             {
                 FontFamily = new[] { "Tahoma", "Geneva", "Verdana", },
                 TextTransform = "none",
-                FontSize = "0.75",
+                // This was the unitless "0.75", which CSS rejects, so body text fell back to the root
+                // font size. 1rem keeps that rendering while giving the value a valid unit.
+                FontSize = "1rem",
             },
 
             Button = new ButtonTypography()
