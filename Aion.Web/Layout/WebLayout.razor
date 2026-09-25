@@ -116,6 +116,7 @@
     private AionThemeProvider _themeProvider = default!;
     private string? _activePanelId;
     private bool _initialized;
+    private bool _startupRunning;
 
     protected override void OnInitialized()
     {
@@ -124,6 +125,12 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        // Renders while settings load or onboarding is open must not start the app a second time.
+        if (_startupRunning)
+            return;
+
+        _startupRunning = true;
+
         if (firstRender)
         {
             await AppInitializer.InitializeAsync();
@@ -144,6 +151,8 @@
             {
             }
         }
+
+        _startupRunning = false;
     }
 
     private async Task CheckOnboardingAsync()
