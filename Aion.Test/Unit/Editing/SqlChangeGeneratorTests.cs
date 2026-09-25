@@ -68,7 +68,7 @@ public class SqlChangeGeneratorTests
         var generation = await _sut.GenerateSqlAsync(CreateResult("name", "note"), [Rename(1, "new")], new PostgreSqlCommands());
 
         generation.IsValid.ShouldBeFalse();
-        generation.ValidationError.ShouldContain("id");
+        generation.ValidationError.ShouldNotBeNull().ShouldContain("id");
         generation.Statements.ShouldBeEmpty();
     }
 
@@ -78,7 +78,7 @@ public class SqlChangeGeneratorTests
         var generation = await _sut.GenerateSqlAsync(CreateResult("id", "name", "note"), [Rename(null, "new")], new PostgreSqlCommands());
 
         generation.IsValid.ShouldBeFalse();
-        generation.ValidationError.ShouldContain("NULL");
+        generation.ValidationError.ShouldNotBeNull().ShouldContain("NULL");
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public class SqlChangeGeneratorTests
         var generation = await _sut.GenerateSqlAsync(CreateResult("id", "upper_name"), [change], new PostgreSqlCommands());
 
         generation.IsValid.ShouldBeFalse();
-        generation.ValidationError.ShouldContain("upper_name");
+        generation.ValidationError.ShouldNotBeNull().ShouldContain("upper_name");
     }
 
     [Fact]
@@ -151,6 +151,6 @@ public class SqlChangeGeneratorTests
             new Aion.Core.Database.LiteDB.LiteDBCommands());
 
         generation.IsValid.ShouldBeFalse();
-        generation.ValidationError.ShouldContain("LiteDB");
+        generation.ValidationError.ShouldNotBeNull().ShouldContain("LiteDB");
     }
 }
