@@ -279,6 +279,7 @@ public class ConnectionState
         Connections.Remove(connection);
         await _connectionService.RemoveConnection(id);
         OnConnectionStateChanged();
+        await _messageBus.PublishAsync(new ConnectionRemoved(id));
     }
 
     public async Task UpdateConnection(Guid id, ConnectionModel updated)
