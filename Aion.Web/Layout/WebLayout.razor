@@ -14,6 +14,7 @@
 @using Aion.Web.Onboarding
 @using Aion.Web.Providers
 @using Microsoft.JSInterop
+@using Microsoft.Extensions.Logging
 @using Mythetech.Framework.Infrastructure.MessageBus
 @using Mythetech.Framework.Components.AppContextDrawer
 @using Mythetech.Framework.Components.Buttons
@@ -125,6 +126,7 @@
     [Inject] protected ILinkOpenService LinkService { get; set; } = default!;
     [Inject] protected StorageRestoreService RestoreService { get; set; } = default!;
     [Inject] protected IndexedDbStorageService StorageService { get; set; } = default!;
+    [Inject] protected ILogger<WebLayout> Logger { get; set; } = default!;
 
     private MudThemeProvider _theme = default!;
     private MudTheme Theme { get; } = new AionTheme();
@@ -160,8 +162,9 @@
                 await RestoreService.RestoreAsync();
                 await CheckOnboardingAsync();
             }
-            catch
+            catch (Exception ex)
             {
+                Logger.LogError(ex, "Web startup failed while applying the color mode, hiding the splash screen or restoring data");
             }
         }
     }
@@ -218,8 +221,9 @@
             if (ConnectionState.Connections.Count > 0)
                 await JS.InvokeVoidAsync("localStorage.setItem", "aion_onboarded", "true");
         }
-        catch
+        catch (Exception ex)
         {
+            Logger.LogError(ex, "Onboarding check failed");
         }
     }
 
