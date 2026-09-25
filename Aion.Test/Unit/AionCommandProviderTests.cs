@@ -1,5 +1,6 @@
 using Aion.Components.CommandPalette;
 using Aion.Components.Connections;
+using Aion.Components.NativeMenu;
 using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 using Microsoft.Extensions.Logging;
@@ -29,7 +30,7 @@ public class AionCommandProviderTests
     {
         var result = await _provider.GetCommandsAsync("", CancellationToken.None);
 
-        result.Count.ShouldBe(15);
+        result.Count.ShouldBe(16);
     }
 
     [Fact]
@@ -44,8 +45,19 @@ public class AionCommandProviderTests
 
         var result = await _provider.GetCommandsAsync("", CancellationToken.None);
 
-        result.Count.ShouldBe(16);
+        result.Count.ShouldBe(17);
         result.ShouldContain(c => c.Id.StartsWith("panel.connection."));
+    }
+
+    [Fact]
+    public async Task GetCommandsAsync_ClearHistory_PublishesClearHistory()
+    {
+        var result = await _provider.GetCommandsAsync("", CancellationToken.None);
+        var clear = result.Single(c => c.Id == "action.clear-history");
+
+        await clear.InvokeAsync(CancellationToken.None);
+
+        await _bus.Received(1).PublishAsync(Arg.Any<ClearHistory>());
     }
 
     [Fact]
