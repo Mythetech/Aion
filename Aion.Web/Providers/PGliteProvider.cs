@@ -6,11 +6,19 @@ using Microsoft.JSInterop;
 
 namespace Aion.Web.Providers;
 
-public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider
+public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider, IDatabaseRowEditingProvider,
+    IEstimatedQueryPlanProvider, IActualQueryPlanProvider, IManagedDatabaseProvider
 {
+    private const string TransactionNotOpenMessage = "This transaction is no longer open. Roll back to clear it.";
+
     private readonly IJSRuntime _js;
     private IJSObjectReference? _module;
     private readonly HashSet<string> _databases = new();
+
+    // PGlite runs every tab on the database's single session, so an open BEGIN would silently absorb
+    // statements from other tabs. Only one transaction per database is allowed and everything else
+    // is refused until it ends. Keyed by database name, valued by transaction id.
+    private readonly Dictionary<string, string> _openTransactions = new();
 
     public IStandardDatabaseCommands Commands { get; } = new PGliteCommands();
     public DatabaseType DatabaseType => DatabaseType.WasmPostgreSQL;
@@ -37,16 +45,19 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
         _databases.Add(name);
     }
 
-    public async Task DestroyDatabaseAsync(string name)
+    public async Task DeleteDatabaseAsync(string name)
     {
         var module = await GetModuleAsync();
         await module.InvokeVoidAsync("destroy", name);
         _databases.Remove(name);
     }
 
+    // Each in-browser connection is bound to the one database named in its connection string. Listing every
+    // open PGlite database here made one connection show, and Clear Database wipe, all of them.
     public Task<List<string>?> GetDatabasesAsync(string connectionString)
     {
-        return Task.FromResult<List<string>?>(_databases.ToList());
+        var name = ExtractDatabaseName(connectionString);
+        return Task.FromResult<List<string>?>(string.IsNullOrWhiteSpace(name) ? [] : [name]);
     }
 
     public async Task<List<TableInfo>> GetTablesAsync(string connectionString, string database)
@@ -166,6 +177,24 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
 
     public async Task<QueryResult> ExecuteQueryAsync(string connectionString, string query, CancellationToken cancellationToken)
     {
+        var dbName = ExtractDatabaseName(connectionString);
+        if (!string.IsNullOrEmpty(dbName))
+        {
+            // Warm up first so no await separates the check below from the query reaching PGlite.
+            await EnsureDatabaseAsync(dbName);
+            await GetModuleAsync();
+
+            if (_openTransactions.ContainsKey(dbName))
+            {
+                return new QueryResult { Error = OpenTransactionMessage(dbName) };
+            }
+        }
+
+        return await ExecuteOnSessionAsync(connectionString, query);
+    }
+
+    private async Task<QueryResult> ExecuteOnSessionAsync(string connectionString, string query)
+    {
         var result = new QueryResult();
 
         try
@@ -207,6 +236,14 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
                 result.Rows.Add(dict);
             }
 
+            if (jsResult.TryGetProperty("affectedRows", out var affectedRows) && affectedRows.ValueKind == JsonValueKind.Number)
+            {
+                // PGlite reports 0 for statements that return rows without changing any, so a zero is only a
+                // real count when the statement produced no result set.
+                var count = affectedRows.GetInt32();
+                result.RowsAffected = count > 0 || result.Columns.Count == 0 ? count : null;
+            }
+
             return result;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -229,83 +266,163 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
 
     public async Task<QueryPlan> GetEstimatedPlanAsync(string connectionString, string query)
     {
-        var plan = new QueryPlan { PlanType = "Estimated", PlanFormat = "TEXT" };
-
         try
         {
-            var dbName = ExtractDatabaseName(connectionString);
-            var module = await GetModuleAsync();
-            var result = await module.InvokeAsync<JsonElement>("query", dbName, $"EXPLAIN {query}");
-
-            var sb = new StringBuilder();
-            foreach (var row in result.GetProperty("rows").EnumerateArray())
-            {
-                var planLine = row.GetProperty("QUERY PLAN").GetString();
-                if (planLine != null) sb.AppendLine(planLine);
-            }
-            plan.PlanContent = sb.ToString();
+            return await GetEstimatedPlanAsync(connectionString, query, CancellationToken.None);
         }
         catch (Exception ex)
         {
-            plan.PlanContent = $"Error getting plan: {ex.Message}";
+            return new QueryPlan { PlanType = "Estimated", PlanFormat = "TEXT", PlanContent = $"Error getting plan: {ex.Message}" };
+        }
+    }
+
+    public async Task<QueryPlan> GetEstimatedPlanAsync(string connectionString, string query, CancellationToken cancellationToken)
+    {
+        var refusal = QueryPlanStatementGuard.RequireSingleStatement(query);
+        if (refusal != null) throw new InvalidOperationException(refusal);
+
+        var dbName = ExtractDatabaseName(connectionString);
+        var module = await GetModuleAsync();
+        var result = await module.InvokeAsync<JsonElement>("query", cancellationToken,
+            new object?[] { dbName, $"EXPLAIN {QueryPlanStatementGuard.TrimTrailingTerminators(query)}" });
+
+        var sb = new StringBuilder();
+        foreach (var row in result.GetProperty("rows").EnumerateArray())
+        {
+            var planLine = row.GetProperty("QUERY PLAN").GetString();
+            if (planLine != null) sb.AppendLine(planLine);
         }
 
-        return plan;
+        return new QueryPlan { PlanType = "Estimated", PlanFormat = "TEXT", PlanContent = sb.ToString() };
     }
 
     public async Task<QueryPlan> GetActualPlanAsync(string connectionString, string query)
     {
-        var plan = new QueryPlan { PlanType = "Actual", PlanFormat = "TEXT" };
-
         try
         {
-            var dbName = ExtractDatabaseName(connectionString);
-            var module = await GetModuleAsync();
-            var result = await module.InvokeAsync<JsonElement>("query", dbName, $"EXPLAIN ANALYZE {query}");
-
-            var sb = new StringBuilder();
-            foreach (var row in result.GetProperty("rows").EnumerateArray())
-            {
-                var planLine = row.GetProperty("QUERY PLAN").GetString();
-                if (planLine != null) sb.AppendLine(planLine);
-            }
-            plan.PlanContent = sb.ToString();
+            return await GetActualPlanAsync(connectionString, query, CancellationToken.None);
         }
         catch (Exception ex)
         {
-            plan.PlanContent = $"Error getting plan: {ex.Message}";
+            return new QueryPlan { PlanType = "Actual", PlanFormat = "TEXT", PlanContent = $"Error getting plan: {ex.Message}" };
+        }
+    }
+
+    public async Task<QueryPlan> GetActualPlanAsync(string connectionString, string query, CancellationToken cancellationToken)
+    {
+        var refusal = QueryPlanStatementGuard.GetActualPlanRefusal(query);
+        if (refusal != null) throw new InvalidOperationException(refusal);
+
+        var dbName = ExtractDatabaseName(connectionString);
+        var module = await GetModuleAsync();
+
+        // Rolling back the plan run would also roll back another tab's open transaction on this session.
+        if (dbName != null && _openTransactions.ContainsKey(dbName))
+        {
+            throw new InvalidOperationException(OpenTransactionMessage(dbName));
         }
 
-        return plan;
+        var lines = await module.InvokeAsync<string[]>("queryRolledBack", cancellationToken,
+            new object?[] { dbName, $"EXPLAIN (ANALYZE) {QueryPlanStatementGuard.TrimTrailingTerminators(query)}" });
+
+        var sb = new StringBuilder();
+        foreach (var line in lines)
+        {
+            sb.AppendLine(line);
+        }
+
+        return new QueryPlan { PlanType = "Actual", PlanFormat = "TEXT", PlanContent = sb.ToString() };
     }
 
     public async Task<TransactionInfo> BeginTransactionAsync(string connectionString)
     {
+        var dbName = ExtractDatabaseName(connectionString) ?? string.Empty;
+        if (_openTransactions.ContainsKey(dbName))
+        {
+            throw new InvalidOperationException(OpenTransactionMessage(dbName));
+        }
+
         var transaction = new TransactionInfo();
-        var dbName = ExtractDatabaseName(connectionString);
-        var module = await GetModuleAsync();
-        await module.InvokeVoidAsync("exec", dbName, "BEGIN");
-        return transaction;
+        _openTransactions[dbName] = transaction.Id;
+
+        try
+        {
+            await EnsureDatabaseAsync(dbName);
+            var module = await GetModuleAsync();
+            await module.InvokeVoidAsync("exec", dbName, "BEGIN");
+            return transaction;
+        }
+        catch
+        {
+            _openTransactions.Remove(dbName);
+            throw;
+        }
     }
 
     public async Task CommitTransactionAsync(string connectionString, string transactionId)
     {
-        var dbName = ExtractDatabaseName(connectionString);
+        var dbName = FindTransactionDatabase(transactionId)
+                     ?? throw new InvalidOperationException(TransactionNotOpenMessage);
+
         var module = await GetModuleAsync();
+        await EnsureNotAbortedAsync(module, dbName);
+
+        // Tracking is only released once COMMIT succeeds, so after a failure Rollback can still end
+        // the session's transaction instead of leaving it open for other tabs to fall into.
         await module.InvokeVoidAsync("exec", dbName, "COMMIT");
+        _openTransactions.Remove(dbName);
     }
 
     public async Task RollbackTransactionAsync(string connectionString, string transactionId)
     {
-        var dbName = ExtractDatabaseName(connectionString);
-        var module = await GetModuleAsync();
-        await module.InvokeVoidAsync("exec", dbName, "ROLLBACK");
+        var dbName = FindTransactionDatabase(transactionId);
+        if (dbName == null) return;
+
+        try
+        {
+            var module = await GetModuleAsync();
+            await module.InvokeVoidAsync("exec", dbName, "ROLLBACK");
+        }
+        finally
+        {
+            _openTransactions.Remove(dbName);
+        }
     }
 
     public async Task<QueryResult> ExecuteInTransactionAsync(string connectionString, string query, string transactionId, CancellationToken cancellationToken)
     {
-        return await ExecuteQueryAsync(connectionString, query, cancellationToken);
+        var dbName = ExtractDatabaseName(connectionString);
+        if (dbName == null || !_openTransactions.TryGetValue(dbName, out var openId) || openId != transactionId)
+        {
+            return new QueryResult { Error = TransactionNotOpenMessage };
+        }
+
+        return await ExecuteOnSessionAsync(connectionString, query);
     }
+
+    /// <summary>
+    /// PostgreSQL answers COMMIT on a transaction that an earlier error aborted with a silent ROLLBACK,
+    /// so probe first and keep the transaction open for the user to roll back deliberately.
+    /// </summary>
+    private static async Task EnsureNotAbortedAsync(IJSObjectReference module, string dbName)
+    {
+        try
+        {
+            await module.InvokeAsync<JsonElement>("query", dbName, "SELECT 1");
+        }
+        catch (JSException ex) when (ex.Message.Contains("current transaction is aborted", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "An earlier statement failed, so PostgreSQL aborted this transaction and nothing can be committed. Roll back to end it.", ex);
+        }
+    }
+
+    private string? FindTransactionDatabase(string transactionId) =>
+        _openTransactions.FirstOrDefault(entry => entry.Value == transactionId).Key;
+
+    private static string OpenTransactionMessage(string dbName) =>
+        $"Database '{dbName}' has an open transaction in a query tab. PGlite runs every tab on one session, " +
+        "so commit or roll back that transaction first.";
 
     public async Task<List<IndexInfo>> GetIndexesAsync(string connectionString, string database)
     {

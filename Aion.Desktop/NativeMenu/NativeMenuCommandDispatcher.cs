@@ -32,7 +32,7 @@ public class NativeMenuCommandDispatcher : INativeMenuCommandDispatcher
         _handlers = new Dictionary<string, Func<Task>>
         {
             // App menu
-            [MenuItemIds.AionAbout] = () => _messageBus.PublishAsync(new ShowHelp()),
+            [MenuItemIds.AionAbout] = () => _messageBus.PublishAsync(new ShowAbout()),
             [MenuItemIds.AionSettings] = () => _messageBus.PublishAsync(new OpenSettingsDialog()),
 
             // File menu

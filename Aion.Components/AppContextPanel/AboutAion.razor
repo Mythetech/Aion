@@ -1,6 +1,7 @@
 @using System.Reflection
 @using Aion.Components.Shared
 @using Aion.Components.Theme
+@using Mythetech.Framework.Components.Links
 
 <MudDialog Class="aion-transparent-dialog about-aion-dialog">
     <DialogContent>
@@ -11,14 +12,14 @@
             <MudItem xs="6">
                 <MudStack Class="w-100 h-100" Spacing="3" AlignItems="AlignItems.Center" Justify="Justify.Center">
                     <MudText Class="app-header-font" Typo="Typo.h4">Aion</MudText>
-                    <MudText Typo="Typo.h5" Class="mud-text-secondary"></MudText>
-                    <MudText Typo="Typo.h6"></MudText>
+                    <MudText Typo="Typo.h5" Class="mud-text-secondary">A modern SQL client</MudText>
+                    <MudText Typo="Typo.h6">PostgreSQL, MySQL, SQL Server and LiteDB in one desktop app</MudText>
                 </MudStack>
             </MudItem>
         </MudGrid>
     </DialogContent>
     <DialogActions>
-        <MudLink Href="https://wwww.mythetech.com" Class="app-header-font">Mythetech</MudLink>
+        <ExternalLink Link="@MythetechLink" Color="Color.Primary" Class="app-header-font">Mythetech</ExternalLink>
         <MudText Typo="Typo.body1" class="mud-text-secondary pl-3">Version @Version</MudText>
         <MudSpacer/>
         <MudButton OnClick="Cancel">Close</MudButton>
@@ -29,6 +30,8 @@
     [CascadingParameter]
     private IMudDialogInstance MudDialog { get; set; }
     private void Cancel() => MudDialog.Cancel();
+
+    private const string MythetechLink = "https://www.mythetech.com";
 
     private string Version => Assembly.GetExecutingAssembly().GetName().Version.ToString();
 

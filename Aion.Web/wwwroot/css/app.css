@@ -13,12 +13,27 @@ html, body {
     height: 100dvh;
 }
 
+.app-header-font {
+    font-family: 'Gotu';
+}
+
 .aion-icon {
     background-image: url('../aion.png');
     background-size: contain;
     background-repeat: no-repeat;
     border-radius: 1em;
     scale: 1.5;
+}
+
+.aion-image {
+    transition: all 0.3s ease-in-out;
+}
+
+.aion-image:hover {
+    box-shadow: 0.1em 0.1em 0.4em 0.1em #312651,
+                -0.1em 0.1em 0.4em 0.1em #9a57a7,
+                0.1em -0.1em 0.4em 0.1em #76a0ff,
+                -0.1em -0.1em 0.4em 0.1em #a6b3e5;
 }
 
 .mud-snackbar {
@@ -280,4 +295,66 @@ html, body {
 
 .mud-tabs-tabbar .mud-tabs-tabbar-inner {
     min-height: auto;
+}
+
+/* Blazor shows this when the app hits an unhandled exception. It mirrors the error snackbar and
+   overrides MudBlazor's default full-width bar, which also pins .dismiss to the corner. */
+#blazor-error-ui {
+    display: none;
+    position: fixed;
+    left: auto;
+    right: 16px;
+    bottom: 16px;
+    width: auto;
+    z-index: 100000;
+    max-width: min(520px, calc(100vw - 32px));
+    padding: 12px 16px;
+    border-radius: 0.5em;
+    border: 1px solid var(--mud-palette-error, #f44336);
+    background: linear-gradient(rgba(var(--mud-palette-error-rgb, 244, 67, 54), 0.25), rgba(var(--mud-palette-error-rgb, 244, 67, 54), 0.25)),
+                var(--mud-palette-surface, #1a1030);
+    box-shadow: 0 0 0.4em 0.1em var(--mud-palette-error, #f44336);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    color: var(--mud-palette-text-primary, #e0e0e0);
+    font-family: var(--mud-typography-default-family, Tahoma, Geneva, Verdana, sans-serif);
+    font-size: 0.875rem;
+}
+
+#blazor-error-ui .blazor-error-content {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+}
+
+#blazor-error-ui .blazor-error-message {
+    flex: 1 1 200px;
+}
+
+#blazor-error-ui .blazor-error-action {
+    position: static;
+    padding: 4px 12px;
+    border: 1px solid currentColor;
+    border-radius: 0.5em;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+#blazor-error-ui .blazor-error-action.reload {
+    border-color: var(--mud-palette-error, #f44336);
+    background-color: var(--mud-palette-error, #f44336);
+    color: var(--mud-palette-error-text, #fff);
+}
+
+#blazor-error-ui .blazor-error-action:hover {
+    filter: brightness(1.1);
+}
+
+#blazor-error-ui .blazor-error-action:focus-visible {
+    outline: 2px solid var(--mud-palette-primary, #7986cb);
+    outline-offset: 2px;
 }

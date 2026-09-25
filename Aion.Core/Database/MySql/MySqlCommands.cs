@@ -1,9 +1,12 @@
 using Aion.Contracts.Database;
+using Aion.Contracts.Database.Dialects;
 
 namespace Aion.Core.Database.MySql;
 
 public class MySqlCommands : IStandardDatabaseCommands
 {
+    private static readonly MySqlDialect Dialect = MySqlDialect.Instance;
+
     public Task<string> GenerateCreateDatabaseScript(string name)
     {
         return Task.FromResult($@"
@@ -61,43 +64,34 @@ ALTER TABLE `{name}`
 
     public Task<string> GenerateInsertScript(string database, string schema, string table, IEnumerable<ColumnValue> values)
     {
-        var columns = values.Select(v => $"`{v.Column}`");
-        var vals = values.Select(v => v.Value == null ? "NULL" : $"'{v.Value}'");
+        var columns = values.ToList();
 
-        return Task.FromResult($@"
-INSERT INTO `{table}`
-({string.Join(", ", columns)})
-VALUES ({string.Join(", ", vals)});");
+        return Task.FromResult(
+            $"INSERT INTO {TableName(table)}\n({Dialect.BuildColumnList(columns)})\nVALUES ({Dialect.BuildValueList(columns)});");
     }
 
-    public Task<string> GenerateUpdateScript(string database, string schema, string table, IEnumerable<ColumnValue> values, string whereClause)
+    public Task<string> GenerateUpdateScript(string database, string schema, string table, IEnumerable<ColumnValue> values, IEnumerable<ColumnValue> keyValues)
     {
-        var setStatements = values.Select(v =>
-            $"`{v.Column}` = {(v.Value == null ? "NULL" : $"'{v.Value}'")}");
-
-        return Task.FromResult($@"
-UPDATE `{table}`
-SET {string.Join(",\n    ", setStatements)}
-WHERE {whereClause};");
+        return Task.FromResult(
+            $"UPDATE {TableName(table)}\nSET {Dialect.BuildAssignments(values)}\nWHERE {Dialect.BuildKeyPredicate(keyValues)};");
     }
 
-    public Task<string> GenerateDeleteScript(string database, string schema, string table, string whereClause)
+    public Task<string> GenerateDeleteScript(string database, string schema, string table, IEnumerable<ColumnValue> keyValues)
     {
-        return Task.FromResult($@"
-DELETE FROM `{table}`
-WHERE {whereClause};");
+        return Task.FromResult(
+            $"DELETE FROM {TableName(table)}\nWHERE {Dialect.BuildKeyPredicate(keyValues)};");
     }
 
     public Task<string> GenerateSelectTopScript(string database, string schema, string table, int count)
     {
-        return Task.FromResult($@"
-SELECT * FROM `{table}`
-LIMIT {count};");
+        return Task.FromResult($"SELECT * FROM {TableName(table)}\nLIMIT {count};");
     }
 
     public Task<string> GenerateCountScript(string database, string schema, string table)
     {
-        return Task.FromResult($@"
-SELECT COUNT(*) FROM `{table}`;");
+        return Task.FromResult($"SELECT COUNT(*) FROM {TableName(table)};");
     }
+
+    // The connection string already selects the database, and MySQL has no schema level below it.
+    private static string TableName(string table) => Dialect.QuoteIdentifier(table);
 }

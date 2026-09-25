@@ -4,10 +4,12 @@ using Aion.Components.Connections.Services;
 using Aion.Components.ForeignKeys;
 using Aion.Components.History;
 using Aion.Components.Querying;
+using Aion.Components.Querying.Editing;
 using Aion.Components.Search;
 using Aion.Components.Settings;
 using Aion.Components.Shared.Snackbar;
 using Aion.Contracts.Database;
+using Aion.Contracts.Queries.Editing;
 using Microsoft.Extensions.DependencyInjection;
 using MudBlazor;
 using MudBlazor.Services;
@@ -50,6 +52,8 @@ public static class RegistrationExtensions
 
         services.AddTransient<SearchService>();
         services.AddSingleton<SqlCompletionService>();
+        services.AddSingleton<ISqlChangeGenerator, SqlChangeGenerator>();
+        services.AddTransient<PendingChangesSqlBuilder>();
 
         services.AddCommandPalette();
         services.AddCommandProvider<AionCommandProvider>();

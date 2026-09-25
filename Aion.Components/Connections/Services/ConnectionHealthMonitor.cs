@@ -1,6 +1,7 @@
 using Aion.Components.Connections.Events;
 using Aion.Components.Settings.Domains;
 using Aion.Contracts.Connections;
+using Aion.Contracts.Database;
 using Microsoft.Extensions.Logging;
 using Mythetech.Framework.Infrastructure.MessageBus;
 
@@ -8,7 +9,6 @@ namespace Aion.Components.Connections.Services;
 
 public class ConnectionHealthMonitor : IConnectionHealthMonitor
 {
-    private readonly IConnectionService _connectionService;
     private readonly ConnectionState _connectionState;
     private readonly IMessageBus _messageBus;
     private readonly ILogger<ConnectionHealthMonitor> _logger;
@@ -20,13 +20,11 @@ public class ConnectionHealthMonitor : IConnectionHealthMonitor
     private bool _disposed;
 
     public ConnectionHealthMonitor(
-        IConnectionService connectionService,
         ConnectionState connectionState,
         IMessageBus messageBus,
         ConnectionSettings settings,
         ILogger<ConnectionHealthMonitor> logger)
     {
-        _connectionService = connectionService;
         _connectionState = connectionState;
         _messageBus = messageBus;
         _settings = settings;
@@ -76,7 +74,7 @@ public class ConnectionHealthMonitor : IConnectionHealthMonitor
         {
             try
             {
-                await CheckActiveConnectionsAsync(cancellationToken);
+                await CheckConnectionsAsync(cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -85,8 +83,13 @@ public class ConnectionHealthMonitor : IConnectionHealthMonitor
         }
     }
 
-    private async Task CheckActiveConnectionsAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Runs one polling cycle: checks every remote connection that is unchecked or was used recently.
+    /// </summary>
+    public async Task CheckConnectionsAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var now = DateTime.UtcNow;
         var connectionsToCheck = _connectionState.Connections
             .Where(c => ShouldCheckConnection(c, now))
@@ -100,38 +103,48 @@ public class ConnectionHealthMonitor : IConnectionHealthMonitor
 
         _logger.LogDebug("Checking health of {Count} connections", connectionsToCheck.Count);
 
-        var tasks = connectionsToCheck.Select(c => CheckAndUpdateConnectionAsync(c, cancellationToken));
-        await Task.WhenAll(tasks);
+        await Task.WhenAll(connectionsToCheck.Select(CheckAndUpdateConnectionAsync));
+    }
+
+    public async Task RefreshAsync(Guid? connectionId = null)
+    {
+        var connectionsToCheck = _connectionState.Connections
+            .Where(c => connectionId == null || c.Id == connectionId)
+            .Where(IsCheckable)
+            .ToList();
+
+        await Task.WhenAll(connectionsToCheck.Select(CheckAndUpdateConnectionAsync));
     }
 
     private bool ShouldCheckConnection(ConnectionModel connection, DateTime now)
     {
-        // Always check if we don't know the health status
+        if (!IsCheckable(connection))
+            return false;
+
         if (connection.HealthStatus == ConnectionHealthStatus.Unknown)
             return true;
 
-        // Check if connection was recently active
         if (connection.LastActivityTime.HasValue)
         {
             var timeSinceActivity = now - connection.LastActivityTime.Value;
             return timeSinceActivity <= _settings.ActivityThreshold;
         }
 
-        // If no activity recorded but connection is marked active, check it
         return connection.Active;
     }
 
-    private async Task CheckAndUpdateConnectionAsync(ConnectionModel connection, CancellationToken cancellationToken)
+    // In-process engines have no server to lose, and polling them only flickers the status chip.
+    private static bool IsCheckable(ConnectionModel connection) =>
+        !connection.Type.IsInProcess() && connection.HealthStatus != ConnectionHealthStatus.Checking;
+
+    private async Task CheckAndUpdateConnectionAsync(ConnectionModel connection)
     {
         var oldStatus = connection.HealthStatus;
-        connection.HealthStatus = ConnectionHealthStatus.Checking;
+        _connectionState.MarkHealthCheckStarted(connection);
         await PublishHealthChangedAsync(connection.Id, ConnectionHealthStatus.Checking, oldStatus);
 
         var result = await CheckConnectionHealthAsync(connection);
-
-        connection.LastHealthCheckTime = result.CheckTime;
-        connection.HealthStatus = result.IsHealthy ? ConnectionHealthStatus.Healthy : ConnectionHealthStatus.Unhealthy;
-        connection.Active = result.IsHealthy;
+        _connectionState.ApplyHealthCheck(connection, result);
 
         if (connection.HealthStatus != oldStatus || !result.IsHealthy)
         {
@@ -143,66 +156,29 @@ public class ConnectionHealthMonitor : IConnectionHealthMonitor
     {
         var startTime = DateTime.UtcNow;
 
-        try
-        {
-            using var timeoutCts = new CancellationTokenSource(_settings.ConnectionTimeout);
+        // The providers take no cancellation token, so the driver's own connect timeout enforces the setting.
+        var connectionString = ConnectionStringComposer.WithConnectTimeout(
+            connection.ConnectionString, connection.Type, _settings.ConnectionTimeout);
 
-            var databases = await _connectionService.GetDatabasesAsync(
-                connection.ConnectionString,
-                connection.Type);
+        var result = await _connectionState.TestConnectionAsync(connectionString, connection.Type);
+        var responseTime = DateTime.UtcNow - startTime;
 
-            var responseTime = DateTime.UtcNow - startTime;
+        _logger.LogDebug(
+            "Health check for {ConnectionName}: {Status} (response time: {ResponseTime}ms)",
+            connection.Name,
+            result.Success ? "Healthy" : "Unhealthy",
+            responseTime.TotalMilliseconds);
 
-            var isHealthy = databases != null;
-
-            _logger.LogDebug(
-                "Health check for {ConnectionName}: {Status} (response time: {ResponseTime}ms)",
-                connection.Name,
-                isHealthy ? "Healthy" : "Unhealthy",
-                responseTime.TotalMilliseconds);
-
-            return new ConnectionHealthCheckResult(
-                connection.Id,
-                isHealthy,
-                startTime,
-                responseTime,
-                isHealthy ? null : "Failed to retrieve databases");
-        }
-        catch (OperationCanceledException)
-        {
-            _logger.LogWarning("Health check for {ConnectionName} timed out", connection.Name);
-
-            return new ConnectionHealthCheckResult(
-                connection.Id,
-                false,
-                startTime,
-                _settings.ConnectionTimeout,
-                "Connection timed out");
-        }
-        catch (Exception ex)
-        {
-            var responseTime = DateTime.UtcNow - startTime;
-
-            _logger.LogWarning(ex, "Health check failed for {ConnectionName}", connection.Name);
-
-            return new ConnectionHealthCheckResult(
-                connection.Id,
-                false,
-                startTime,
-                responseTime,
-                ex.Message);
-        }
+        return new ConnectionHealthCheckResult(
+            connection.Id,
+            result.Success,
+            startTime,
+            responseTime,
+            result.Error,
+            result.TimedOut);
     }
 
-    public void RecordActivity(Guid connectionId)
-    {
-        var connection = _connectionState.Connections.FirstOrDefault(c => c.Id == connectionId);
-        if (connection != null)
-        {
-            connection.LastActivityTime = DateTime.UtcNow;
-            _logger.LogDebug("Recorded activity for connection {ConnectionName}", connection.Name);
-        }
-    }
+    public void RecordActivity(Guid connectionId) => _connectionState.RecordActivity(connectionId);
 
     private async Task PublishHealthChangedAsync(
         Guid connectionId,

@@ -266,6 +266,7 @@ public class LiteDBProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
                 }
             }
 
+            SetRowsAffected(query, result);
             return Task.FromResult(result);
         }
         catch (OperationCanceledException)
@@ -277,6 +278,20 @@ public class LiteDBProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
         {
             result.Error = ex.Message;
             return Task.FromResult(result);
+        }
+    }
+
+    // LiteDB answers INSERT, UPDATE and DELETE with a single number: the count of documents it touched.
+    private static void SetRowsAffected(string query, QueryResult result)
+    {
+        var command = query.TrimStart();
+        var isWrite = command.StartsWith("INSERT", StringComparison.OrdinalIgnoreCase)
+            || command.StartsWith("UPDATE", StringComparison.OrdinalIgnoreCase)
+            || command.StartsWith("DELETE", StringComparison.OrdinalIgnoreCase);
+
+        if (isWrite && result.Rows.Count == 1 && result.Rows[0].GetValueOrDefault("Result") is int count)
+        {
+            result.RowsAffected = count;
         }
     }
 
@@ -362,22 +377,26 @@ public class LiteDBProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
 
     public Task CommitTransactionAsync(string connectionString, string transactionId)
     {
-        if (_activeTransactions.TryGetValue(transactionId, out var entry))
+        if (!_activeTransactions.Remove(transactionId, out var entry))
+        {
+            throw new InvalidOperationException("This transaction is no longer open. Roll back to clear it.");
+        }
+
+        using (entry.Db)
         {
             entry.Db.Commit();
-            entry.Db.Dispose();
-            _activeTransactions.Remove(transactionId);
         }
         return Task.CompletedTask;
     }
 
     public Task RollbackTransactionAsync(string connectionString, string transactionId)
     {
-        if (_activeTransactions.TryGetValue(transactionId, out var entry))
+        if (_activeTransactions.Remove(transactionId, out var entry))
         {
-            entry.Db.Rollback();
-            entry.Db.Dispose();
-            _activeTransactions.Remove(transactionId);
+            using (entry.Db)
+            {
+                entry.Db.Rollback();
+            }
         }
         return Task.CompletedTask;
     }
@@ -437,6 +456,7 @@ public class LiteDBProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
                 }
             }
 
+            SetRowsAffected(query, result);
             return Task.FromResult(result);
         }
         catch (OperationCanceledException)

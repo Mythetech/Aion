@@ -79,4 +79,19 @@ public class ToggleChipTests : TestContext
         // Assert
         newValue.ShouldBeTrue();
     }
+
+    [Fact]
+    public void Should_Explain_Why_When_Disabled()
+    {
+        // Act
+        var cut = RenderComponent<ToggleChip>(parameters => parameters
+            .Add(p => p.Text, "Transactions")
+            .Add(p => p.Value, true)
+            .Add(p => p.Disabled, true)
+            .Add(p => p.DisabledTooltip, "Locked while open"));
+
+        // Assert
+        cut.FindComponent<MudChip<string>>().Instance.Disabled.ShouldBeTrue();
+        cut.FindComponent<MudTooltip>().Instance.Text.ShouldBe("Locked while open");
+    }
 }

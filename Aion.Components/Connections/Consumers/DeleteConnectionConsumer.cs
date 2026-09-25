@@ -1,6 +1,7 @@
 using Aion.Components.Connections.Commands;
 using Aion.Components.Shared.Dialogs;
 using Aion.Components.Shared.Dialogs.Commands;
+using Aion.Contracts.Database;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using MudBlazor;
 
@@ -25,7 +26,8 @@ public class DeleteConnectionConsumer : IConsumer<DeleteConnection>
         var parameters = new DialogParameters
         {
             { nameof(DeleteConnectionDialog.ConnectionName), connection.Name },
-            { nameof(DeleteConnectionDialog.ConnectionId), connection.Id }
+            { nameof(DeleteConnectionDialog.ConnectionId), connection.Id },
+            { nameof(DeleteConnectionDialog.DeletesDatabase), _connectionState.GetProvider(connection.Type) is IManagedDatabaseProvider }
         };
 
         var options = AionDialogs.CreateDefaultOptions();

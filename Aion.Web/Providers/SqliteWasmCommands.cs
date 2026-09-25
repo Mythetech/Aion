@@ -1,9 +1,12 @@
 using Aion.Contracts.Database;
+using Aion.Contracts.Database.Dialects;
 
 namespace Aion.Web.Providers;
 
 public class SqliteWasmCommands : IStandardDatabaseCommands
 {
+    private static readonly SqliteDialect Dialect = SqliteDialect.Instance;
+
     public Task<string> GenerateCreateDatabaseScript(string name)
     {
         return Task.FromResult($"-- Database '{name}' created (in-memory)");
@@ -59,32 +62,37 @@ public class SqliteWasmCommands : IStandardDatabaseCommands
 
     public Task<string> GenerateInsertScript(string database, string schema, string table, IEnumerable<ColumnValue> values)
     {
-        var columns = values.Select(v => $"\"{v.Column}\"");
-        var vals = values.Select(v => v.Value == null ? "NULL" : $"'{v.Value}'");
+        var columns = values.ToList();
+        if (columns.Count == 0)
+        {
+            return Task.FromResult($"INSERT INTO {TableName(table)}\nDEFAULT VALUES;");
+        }
 
-        return Task.FromResult($"INSERT INTO \"{table}\" ({string.Join(", ", columns)})\nVALUES ({string.Join(", ", vals)});");
+        return Task.FromResult(
+            $"INSERT INTO {TableName(table)} ({Dialect.BuildColumnList(columns)})\nVALUES ({Dialect.BuildValueList(columns)});");
     }
 
-    public Task<string> GenerateUpdateScript(string database, string schema, string table, IEnumerable<ColumnValue> values, string whereClause)
+    public Task<string> GenerateUpdateScript(string database, string schema, string table, IEnumerable<ColumnValue> values, IEnumerable<ColumnValue> keyValues)
     {
-        var setStatements = values.Select(v =>
-            $"\"{v.Column}\" = {(v.Value == null ? "NULL" : $"'{v.Value}'")}");
-
-        return Task.FromResult($"UPDATE \"{table}\"\nSET {string.Join(",\n    ", setStatements)}\nWHERE {whereClause};");
+        return Task.FromResult(
+            $"UPDATE {TableName(table)}\nSET {Dialect.BuildAssignments(values)}\nWHERE {Dialect.BuildKeyPredicate(keyValues)};");
     }
 
-    public Task<string> GenerateDeleteScript(string database, string schema, string table, string whereClause)
+    public Task<string> GenerateDeleteScript(string database, string schema, string table, IEnumerable<ColumnValue> keyValues)
     {
-        return Task.FromResult($"DELETE FROM \"{table}\"\nWHERE {whereClause};");
+        return Task.FromResult(
+            $"DELETE FROM {TableName(table)}\nWHERE {Dialect.BuildKeyPredicate(keyValues)};");
     }
 
     public Task<string> GenerateSelectTopScript(string database, string schema, string table, int count)
     {
-        return Task.FromResult($"SELECT * FROM \"{table}\"\nLIMIT {count};");
+        return Task.FromResult($"SELECT * FROM {TableName(table)}\nLIMIT {count};");
     }
 
     public Task<string> GenerateCountScript(string database, string schema, string table)
     {
-        return Task.FromResult($"SELECT COUNT(*) FROM \"{table}\";");
+        return Task.FromResult($"SELECT COUNT(*) FROM {TableName(table)};");
     }
+
+    private static string TableName(string table) => Dialect.QuoteIdentifier(table);
 }

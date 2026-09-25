@@ -21,9 +21,8 @@
             <MudText Class="text-truncate" Typo="Typo.h6">@_queryName</MudText>
         </MudPaper>
         <MudPaper Elevation="0" Square="true" Width="3.5rem">
-            <MudTooltip Text="Close">
-                <MudIconButton Icon="@AionIcons.Close" Color="Color.Surface" Variant="Variant.Text" OnClick="@PanelClosed"/>
-            </MudTooltip>
+            <AionIconButton Icon="@AionIcons.Close" Color="Color.Default" Variant="Variant.Text" Tooltip="Close panel"
+                            OnClick="@PanelClosed" />
         </MudPaper>
     </MudStack>
     
