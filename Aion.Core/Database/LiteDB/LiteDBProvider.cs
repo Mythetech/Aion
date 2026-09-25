@@ -266,6 +266,7 @@ public class LiteDBProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
                 }
             }
 
+            SetRowsAffected(query, result);
             return Task.FromResult(result);
         }
         catch (OperationCanceledException)
@@ -277,6 +278,20 @@ public class LiteDBProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
         {
             result.Error = ex.Message;
             return Task.FromResult(result);
+        }
+    }
+
+    // LiteDB answers INSERT, UPDATE and DELETE with a single number: the count of documents it touched.
+    private static void SetRowsAffected(string query, QueryResult result)
+    {
+        var command = query.TrimStart();
+        var isWrite = command.StartsWith("INSERT", StringComparison.OrdinalIgnoreCase)
+            || command.StartsWith("UPDATE", StringComparison.OrdinalIgnoreCase)
+            || command.StartsWith("DELETE", StringComparison.OrdinalIgnoreCase);
+
+        if (isWrite && result.Rows.Count == 1 && result.Rows[0].GetValueOrDefault("Result") is int count)
+        {
+            result.RowsAffected = count;
         }
     }
 
@@ -441,6 +456,7 @@ public class LiteDBProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
                 }
             }
 
+            SetRowsAffected(query, result);
             return Task.FromResult(result);
         }
         catch (OperationCanceledException)

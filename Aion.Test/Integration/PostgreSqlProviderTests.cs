@@ -1,5 +1,8 @@
+using System.Globalization;
 using Aion.Core.Database;
 using Aion.Contracts.Database;
+using Aion.Contracts.Queries;
+using Aion.Contracts.Queries.Editing;
 using Microsoft.Extensions.Logging;
 using Shouldly;
 using Testcontainers.PostgreSql;
@@ -214,6 +217,137 @@ public class PostgreSqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         proc.ShouldNotBeNull();
         proc!.Kind.ShouldBe(RoutineKind.Procedure);
         proc.ReturnType.ShouldBeNull();
+    }
+
+    private const string EditTable = "edit_target";
+    private const string EditSelect = "SELECT * FROM \"public\".\"edit_target\" ORDER BY id";
+
+    private async Task<string> CreateEditTableAsync()
+    {
+        var dbConnectionString = Provider.UpdateConnectionString(ConnectionString, TestDatabase);
+        await ExecuteOrFailAsync(dbConnectionString,
+            $"CREATE TABLE {EditTable} (id integer PRIMARY KEY, name varchar(200) NOT NULL, payload bytea, price numeric(10,2), active boolean)");
+        await ExecuteOrFailAsync(dbConnectionString,
+            $"INSERT INTO {EditTable} (id, name) VALUES (1, 'Ada'), (2, 'Grace'), (3, 'Linus')");
+        return dbConnectionString;
+    }
+
+    private async Task<List<object?>> ReadNamesAsync(string dbConnectionString)
+    {
+        var result = await ExecuteOrFailAsync(dbConnectionString, $"SELECT name FROM {EditTable} ORDER BY id");
+        return result.Rows.Select(r => (object?)r["name"]).ToList();
+    }
+
+    [Fact]
+    public async Task GridEdit_ValueWithApostropheAndInjection_ChangesExactlyOneRow()
+    {
+        // Arrange
+        var dbConnectionString = await CreateEditTableAsync();
+        var editable = await LoadEditableTableAsync(dbConnectionString, "public", EditTable, EditSelect);
+        const string newName = @"O'Brien's Hub \ '; DROP TABLE edit_target; --";
+
+        // Act
+        var (_, result) = await ApplyGridChangeAsync(dbConnectionString, editable, UpdateCell(editable, 1, "name", newName));
+
+        // Assert
+        result.Error.ShouldBeNull();
+        result.RowsAffected.ShouldBe(1);
+        (await ReadNamesAsync(dbConnectionString)).ShouldBe(new object?[] { "Ada", newName, "Linus" });
+    }
+
+    [Fact]
+    public async Task GridEdit_Delete_RemovesOnlyTheTargetRow()
+    {
+        // Arrange
+        var dbConnectionString = await CreateEditTableAsync();
+        var editable = await LoadEditableTableAsync(dbConnectionString, "public", EditTable, EditSelect);
+
+        // Act
+        var (_, result) = await ApplyGridChangeAsync(dbConnectionString, editable, DeleteRow(editable, 0));
+
+        // Assert
+        result.RowsAffected.ShouldBe(1);
+        (await ReadNamesAsync(dbConnectionString)).ShouldBe(new object?[] { "Grace", "Linus" });
+    }
+
+    [Fact]
+    public async Task GridEdit_RowDeletedSinceLoad_ReportsZeroRowsAffected()
+    {
+        // Arrange
+        var dbConnectionString = await CreateEditTableAsync();
+        var editable = await LoadEditableTableAsync(dbConnectionString, "public", EditTable, EditSelect);
+        await ExecuteOrFailAsync(dbConnectionString, $"DELETE FROM {EditTable} WHERE id = 3");
+
+        // Act
+        var (_, result) = await ApplyGridChangeAsync(dbConnectionString, editable, UpdateCell(editable, 2, "name", "gone"));
+
+        // Assert
+        result.Error.ShouldBeNull();
+        result.RowsAffected.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task ExecuteQuery_Select_ReportsNoRowsAffected()
+    {
+        var dbConnectionString = await CreateEditTableAsync();
+
+        var result = await ExecuteOrFailAsync(dbConnectionString, EditSelect);
+
+        result.RowsAffected.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task ExecuteInTransaction_ReportsRowsAffected()
+    {
+        // Arrange
+        var dbConnectionString = await CreateEditTableAsync();
+        var transaction = await Provider.BeginTransactionAsync(dbConnectionString);
+
+        // Act
+        var result = await Provider.ExecuteInTransactionAsync(
+            dbConnectionString, $"UPDATE {EditTable} SET name = name || '!' WHERE id > 1", transaction.Id, CancellationToken.None);
+        await Provider.RollbackTransactionAsync(dbConnectionString, transaction.Id);
+
+        // Assert
+        result.Error.ShouldBeNull();
+        result.RowsAffected.ShouldBe(2);
+        (await ReadNamesAsync(dbConnectionString)).ShouldBe(new object?[] { "Ada", "Grace", "Linus" });
+    }
+
+    [Fact]
+    public async Task GridEdit_TypedValuesRoundTripUnderAnotherCulture()
+    {
+        // Arrange
+        var dbConnectionString = await CreateEditTableAsync();
+        var editable = await LoadEditableTableAsync(dbConnectionString, "public", EditTable, EditSelect);
+        var original = editable.Rows[0].ToDictionary(kvp => kvp.Key, kvp => (object?)kvp.Value);
+        var change = PendingChange.CreateUpdate(0, original, new Dictionary<string, object?>(original)
+        {
+            ["price"] = 1234.5m,
+            ["active"] = true,
+            ["payload"] = new byte[] { 0x00, 0x5C, 0x27 }
+        });
+
+        // Act
+        var previousCulture = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = new CultureInfo("de-DE");
+        QueryResult result;
+        try
+        {
+            (_, result) = await ApplyGridChangeAsync(dbConnectionString, editable, change);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previousCulture;
+        }
+
+        // Assert
+        result.Error.ShouldBeNull();
+        result.RowsAffected.ShouldBe(1);
+        var row = (await ExecuteOrFailAsync(dbConnectionString, $"SELECT price, active, payload FROM {EditTable} WHERE id = 1")).Rows.Single();
+        row["price"].ShouldBe(1234.5m);
+        row["active"].ShouldBe(true);
+        row["payload"].ShouldBe(new byte[] { 0x00, 0x5C, 0x27 });
     }
 
     [Fact]

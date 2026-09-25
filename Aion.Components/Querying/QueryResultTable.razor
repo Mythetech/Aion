@@ -175,31 +175,39 @@
     private string? _contextColumn;
     private object? _contextValue;
 
-    protected override void OnInitialized()
-    {
-        if (EditState != null)
-        {
-            EditState.StateChanged += OnEditStateChanged;
-        }
-        base.OnInitialized();
-    }
+    private EditState? _subscribedEditState;
 
     protected override void OnParametersSet()
     {
-        // Handle EditState changes between renders
+        // Each edit session has its own EditState, so follow the parameter instead of the first instance seen.
+        if (!ReferenceEquals(_subscribedEditState, EditState))
+        {
+            if (_subscribedEditState != null)
+            {
+                _subscribedEditState.StateChanged -= OnEditStateChanged;
+            }
+
+            if (EditState != null)
+            {
+                EditState.StateChanged += OnEditStateChanged;
+            }
+
+            _subscribedEditState = EditState;
+        }
+
         base.OnParametersSet();
     }
 
     private void OnEditStateChanged()
     {
-        InvokeAsync(StateHasChanged);
+        StateHasChanged();
     }
 
     public void Dispose()
     {
-        if (EditState != null)
+        if (_subscribedEditState != null)
         {
-            EditState.StateChanged -= OnEditStateChanged;
+            _subscribedEditState.StateChanged -= OnEditStateChanged;
         }
     }
 

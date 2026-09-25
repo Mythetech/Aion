@@ -6,7 +6,7 @@ using Microsoft.JSInterop;
 
 namespace Aion.Web.Providers;
 
-public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider,
+public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider, IDatabaseRowEditingProvider,
     IEstimatedQueryPlanProvider, IActualQueryPlanProvider
 {
     private const string TransactionNotOpenMessage = "This transaction is no longer open. Roll back to clear it.";
@@ -231,6 +231,14 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
                     }
                 }
                 result.Rows.Add(dict);
+            }
+
+            if (jsResult.TryGetProperty("affectedRows", out var affectedRows) && affectedRows.ValueKind == JsonValueKind.Number)
+            {
+                // PGlite reports 0 for statements that return rows without changing any, so a zero is only a
+                // real count when the statement produced no result set.
+                var count = affectedRows.GetInt32();
+                result.RowsAffected = count > 0 || result.Columns.Count == 0 ? count : null;
             }
 
             return result;

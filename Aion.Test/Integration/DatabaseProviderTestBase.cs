@@ -1,6 +1,7 @@
 using Aion.Core.Database;
 using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
+using Aion.Contracts.Queries.Editing;
 using Microsoft.Extensions.Logging;
 using Shouldly;
 using Xunit;
@@ -51,6 +52,49 @@ public abstract class DatabaseProviderTestBase : IAsyncLifetime
     {
         result.ShouldNotBeNull();
         result.Error.ShouldBeNull();
+    }
+
+    protected async Task<QueryResult> ExecuteOrFailAsync(string connectionString, string sql)
+    {
+        var result = await Provider.ExecuteQueryAsync(connectionString, sql, CancellationToken.None);
+        result.Error.ShouldBeNull($"Executing {sql}");
+        return result;
+    }
+
+    /// <summary>
+    /// Reads a table the way edit mode does: the rows from a SELECT plus the provider's column metadata.
+    /// </summary>
+    protected async Task<EditableQueryResult> LoadEditableTableAsync(string connectionString, string schema, string table, string selectSql)
+    {
+        var rows = await ExecuteOrFailAsync(connectionString, selectSql);
+        var columns = await Provider.GetColumnsAsync(connectionString, TestDatabase, schema, table);
+        return EditableQueryResult.FromQueryResult(rows, table, schema, TestDatabase, null, columns);
+    }
+
+    /// <summary>
+    /// Generates the statement edit mode would run for one pending change and executes it.
+    /// </summary>
+    protected async Task<(string Sql, QueryResult Result)> ApplyGridChangeAsync(string connectionString, EditableQueryResult editable, PendingChange change)
+    {
+        var generation = await new SqlChangeGenerator().GenerateSqlAsync(editable, [change], Provider.Commands);
+        generation.ValidationError.ShouldBeNull();
+
+        var sql = generation.Statements.ShouldHaveSingleItem().Sql;
+        var result = await Provider.ExecuteQueryAsync(connectionString, sql, CancellationToken.None);
+        return (sql, result);
+    }
+
+    protected static PendingChange UpdateCell(EditableQueryResult editable, int rowIndex, string column, object? newValue)
+    {
+        var original = editable.Rows[rowIndex].ToDictionary(kvp => kvp.Key, kvp => (object?)kvp.Value);
+        var updated = new Dictionary<string, object?>(original) { [column] = newValue };
+        return PendingChange.CreateUpdate(rowIndex, original, updated);
+    }
+
+    protected static PendingChange DeleteRow(EditableQueryResult editable, int rowIndex)
+    {
+        var original = editable.Rows[rowIndex].ToDictionary(kvp => kvp.Key, kvp => (object?)kvp.Value);
+        return PendingChange.CreateDelete(rowIndex, original);
     }
 
     protected static string ActualPlanUpdateStatement => $"UPDATE {TestTable} SET name = 'changed' WHERE id = 1";

@@ -8,8 +8,4 @@ public interface ISqlChangeGenerator
         EditableQueryResult result,
         IEnumerable<PendingChange> changes,
         IStandardDatabaseCommands commands);
-
-    string GenerateWhereClause(
-        Dictionary<string, object?> primaryKeyValues,
-        List<string> primaryKeyColumns);
 }

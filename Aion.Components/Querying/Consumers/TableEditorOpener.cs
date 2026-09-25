@@ -3,8 +3,6 @@ using Aion.Components.Querying.Commands;
 using Aion.Components.Querying.Editing;
 using Aion.Components.Shared.Snackbar.Commands;
 using Aion.Contracts.Database;
-using Aion.Contracts.Queries;
-using Aion.Contracts.Queries.Editing;
 using Microsoft.Extensions.Logging;
 using MudBlazor;
 using Mythetech.Framework.Infrastructure.MessageBus;
@@ -12,7 +10,8 @@ using Mythetech.Framework.Infrastructure.MessageBus;
 namespace Aion.Components.Querying.Consumers;
 
 /// <summary>
-/// Handles OpenTableEditor command - creates a query for the table and enters edit mode.
+/// Handles OpenTableEditor command - creates a query for the table and enters edit mode when rows can be
+/// targeted safely, otherwise opens the table read-only and says why.
 /// </summary>
 public class TableEditorOpener : IConsumer<OpenTableEditor>
 {
@@ -52,6 +51,7 @@ public class TableEditorOpener : IConsumer<OpenTableEditor>
         try
         {
             var displayName = string.IsNullOrEmpty(message.Schema) ? message.TableName : $"{message.Schema}.{message.TableName}";
+            var provider = _connectionState.GetProvider(connection.Type);
 
             if (!database.LoadedColumnTables.Contains(displayName))
             {
@@ -60,31 +60,44 @@ public class TableEditorOpener : IConsumer<OpenTableEditor>
 
             var columns = database.TableColumns.GetValueOrDefault(displayName) ?? [];
 
-            if (!columns.Any(c => c.IsPrimaryKey))
+            string? readOnlyReason = null;
+            if (provider is not IDatabaseRowEditingProvider)
             {
-                await _bus.PublishAsync(new AddNotification(
-                    $"Table '{displayName}' has no primary key. Edit mode requires a primary key.",
-                    Severity.Warning));
+                readOnlyReason = $"editing rows is not supported for {connection.Type} connections";
+            }
+            else if (!columns.Any(c => c.IsPrimaryKey))
+            {
+                readOnlyReason = "it has no primary key, so edited rows could not be matched safely";
             }
 
-            var provider = _connectionState.GetProvider(connection.Type);
             var selectSql = await provider.Commands.GenerateSelectTopScript(message.DatabaseName, message.Schema, message.TableName, 1000);
 
-            var query = _queryState.AddQuery($"Edit - {displayName}");
+            var query = _queryState.AddQuery(readOnlyReason == null ? $"Edit - {displayName}" : $"Select Top 1000 - {displayName}");
             query.ConnectionId = connection.Id;
             query.DatabaseName = message.DatabaseName;
             query.Query = selectSql.Trim();
 
-            query.EditMetadata = new QueryEditMetadata
+            if (readOnlyReason == null)
             {
-                SourceTable = message.TableName,
-                SourceSchema = message.Schema,
-                SourceDatabase = message.DatabaseName,
-                ColumnMetadata = columns.ToList(),
-                IsEditMode = true
-            };
+                query.EditMetadata = new QueryEditMetadata
+                {
+                    SourceTable = message.TableName,
+                    SourceSchema = message.Schema,
+                    SourceDatabase = message.DatabaseName,
+                    ConnectionId = connection.Id,
+                    ColumnMetadata = columns.ToList(),
+                    IsEditMode = true
+                };
+            }
 
             await _bus.PublishAsync(new FocusQuery(query));
+
+            if (readOnlyReason != null)
+            {
+                await _bus.PublishAsync(new AddNotification(
+                    $"Opened '{displayName}' read-only: {readOnlyReason}.", Severity.Warning));
+            }
+
             await _bus.PublishAsync(new RunQuery());
 
             _logger.LogInformation("Opened table editor for {Table} in {Database}", displayName, message.DatabaseName);
@@ -98,13 +111,21 @@ public class TableEditorOpener : IConsumer<OpenTableEditor>
 }
 
 /// <summary>
-/// Metadata stored on QueryModel for edit mode support.
+/// Metadata stored on QueryModel for edit mode support. Pending changes live here too, so leaving edit mode
+/// or pointing it at another table can never carry edits over to rows they were not made against.
 /// </summary>
 public class QueryEditMetadata
 {
     public string? SourceTable { get; set; }
     public string? SourceSchema { get; set; }
     public string? SourceDatabase { get; set; }
+
+    /// <summary>
+    /// The connection the edited rows were read from, which may differ from the tab's current connection.
+    /// </summary>
+    public Guid? ConnectionId { get; set; }
+
     public List<ColumnInfo> ColumnMetadata { get; set; } = [];
     public bool IsEditMode { get; set; }
+    public EditState EditState { get; } = new() { IsEditMode = true };
 }

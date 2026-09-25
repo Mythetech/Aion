@@ -9,7 +9,7 @@ using System.Text;
 namespace Aion.Core.Database.SqlServer;
 
 public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider,
-    IEstimatedQueryPlanProvider, IActualQueryPlanProvider
+    IDatabaseRowEditingProvider, IEstimatedQueryPlanProvider, IActualQueryPlanProvider
 {
     private const string TransactionNotOpenMessage = "This transaction is no longer open. Roll back to clear it.";
     private const string ShowplanColumnName = "Microsoft SQL Server 2005 XML Showplan";
@@ -319,6 +319,10 @@ public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDat
                 }
                 result.Rows.Add(row);
             }
+
+            // RecordsAffected is only final once every result set has been consumed, and is -1 when no statement changed rows.
+            await reader.CloseAsync();
+            result.RowsAffected = reader.RecordsAffected >= 0 ? reader.RecordsAffected : null;
 
             return result;
         }
