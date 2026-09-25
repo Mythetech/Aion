@@ -117,6 +117,17 @@ public class QueryHistoryRecorderTests
         _history.Entries[0].ErrorMessage.ShouldBeNull();
     }
 
+    [Fact]
+    public async Task Update_RecordsRowsAffected()
+    {
+        var query = NewTab("UPDATE products SET stock_quantity = 0 WHERE category_id = 2");
+
+        await RunAsync(query, new QueryResult { RowsAffected = 3 });
+
+        var entry = _history.Entries.ShouldHaveSingleItem();
+        entry.RowsAffected.ShouldBe(3);
+    }
+
     private QueryModel NewTab(string sql) => new()
     {
         Name = "Sample: Products by Price",

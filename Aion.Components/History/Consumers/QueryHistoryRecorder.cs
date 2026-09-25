@@ -35,6 +35,7 @@ public class QueryHistoryRecorder : IConsumer<QueryExecuted>
             Status = status,
             ErrorMessage = status == QueryHistoryStatus.Failed ? result?.Error : null,
             RowCount = status == QueryHistoryStatus.Success ? result?.RowCount : null,
+            RowsAffected = status == QueryHistoryStatus.Success ? result?.RowsAffected : null,
             Duration = message.Duration,
             ExecutedAt = message.ExecutedAt
         };

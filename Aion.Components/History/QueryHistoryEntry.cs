@@ -23,6 +23,8 @@ public sealed record QueryHistoryEntry
 
     public int? RowCount { get; init; }
 
+    public int? RowsAffected { get; init; }
+
     public TimeSpan? Duration { get; init; }
 
     public DateTimeOffset ExecutedAt { get; init; }

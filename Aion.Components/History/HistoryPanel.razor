@@ -77,6 +77,10 @@
                                             {
                                                 <span>Cancelled</span>
                                             }
+                                            else if (entry.Status == QueryHistoryStatus.Success && entry.RowsAffected is { } affected)
+                                            {
+                                                <span>@QueryHistoryFormatter.RowsAffected(affected)</span>
+                                            }
                                             else if (entry.Status == QueryHistoryStatus.Success && entry.RowCount is { } rows)
                                             {
                                                 <span>@QueryHistoryFormatter.Rows(rows)</span>
