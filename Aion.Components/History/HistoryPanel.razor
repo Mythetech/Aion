@@ -1,46 +1,212 @@
+@using Aion.Components.History.Commands
+@using Aion.Components.Infrastructure.Commands
+@using Aion.Components.NativeMenu
 @using Aion.Components.Theme
-@using Aion.Components.Shared
+@using Mythetech.Framework.Components.Buttons
+@using Mythetech.Framework.Components.Input
+@using Mythetech.Framework.Infrastructure.MessageBus
 @implements IDisposable
 
-@foreach (var entry in State.Entries)
-{
-    <MudStack Row="true" Class="w-100">
-        <TooltipIcon Text="@entry.ExecutedAt.ToString("G")" Icon="@AionIcons.Round("schedule")"/>
-        <MudText Class="flex-grow-1 text-truncate">@entry.Sql</MudText>
-        @if (entry.Status == QueryHistoryStatus.Cancelled)
+<div class="history-panel">
+    <div class="history-toolbar">
+        <MtTextField T="string"
+                     Class="history-search"
+                     Value="@_search"
+                     ValueChanged="@OnSearchChanged"
+                     Placeholder="Search SQL"
+                     Adornment="Adornment.Start"
+                     AdornmentIcon="@AionIcons.Search"
+                     Clearable="true"
+                     aria-label="Search query history" />
+        <MtButton Class="history-clear"
+                  Variant="Variant.Text"
+                  Color="Color.Primary"
+                  Size="Size.Small"
+                  Text="Clear"
+                  Disabled="@(State.Entries.Count == 0)"
+                  OnClick="@ClearAsync" />
+    </div>
+
+    @if (State.Entries.Count == 0)
+    {
+        <div class="history-empty">
+            <MudText Typo="Typo.body2">No history yet</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">Every query you run is recorded here.</MudText>
+        </div>
+    }
+    else
+    {
+        var now = DateTimeOffset.Now;
+        var groups = QueryHistoryFormatter.GroupByDay(State.Search(_search), now);
+
+        @if (groups.Count == 0)
         {
-            <TooltipIcon Text="Cancelled" Icon="@AionIcons.Round("hide_source")" />
+            <div class="history-empty">
+                <MudText Typo="Typo.body2">No queries match "@_search"</MudText>
+            </div>
         }
         else
         {
-            <TooltipIcon Text="@entry.ErrorMessage"
-                         Color="@(entry.Status == QueryHistoryStatus.Success ? Color.Success : Color.Error)"
-                         Icon="@(entry.Status == QueryHistoryStatus.Success ? AionIcons.Success : AionIcons.Close)" />
+            <div class="history-list">
+                @foreach (var group in groups)
+                {
+                    <section class="history-group">
+                        <h3 class="history-group-label">@group.Label</h3>
+                        <ul class="history-entries">
+                            @foreach (var entry in group.Entries)
+                            {
+                                <li @key="entry.Id"
+                                    class="history-entry"
+                                    data-status="@entry.Status"
+                                    tabindex="0"
+                                    @onkeydown="@(e => OnEntryKeyDownAsync(e, entry))">
+                                    <MudIcon Class="history-status-icon"
+                                             Icon="@StatusIcon(entry.Status)"
+                                             Color="@StatusColor(entry.Status)"
+                                             Size="Size.Small"
+                                             aria-hidden="true" />
+                                    <div class="history-body">
+                                        <span class="history-sr-only">@StatusText(entry.Status)</span>
+                                        <div class="history-sql" title="@entry.Sql">@entry.Sql</div>
+                                        @if (entry.Status == QueryHistoryStatus.Failed)
+                                        {
+                                            <div class="history-error" title="@entry.ErrorMessage">@(entry.ErrorMessage ?? "Failed")</div>
+                                        }
+                                        <div class="history-meta" title="@Describe(entry)">
+                                            @if (entry.Status == QueryHistoryStatus.Cancelled)
+                                            {
+                                                <span>Cancelled</span>
+                                            }
+                                            else if (entry.Status == QueryHistoryStatus.Success && entry.RowCount is { } rows)
+                                            {
+                                                <span>@QueryHistoryFormatter.Rows(rows)</span>
+                                            }
+                                            @if (entry.Duration is { } duration)
+                                            {
+                                                <span>@QueryHistoryFormatter.Duration(duration)</span>
+                                            }
+                                            <span class="history-time">@QueryHistoryFormatter.RelativeTime(entry.ExecutedAt, now)</span>
+                                        </div>
+                                        <div class="history-actions" @onkeydown:stopPropagation="true">
+                                            <MtButton Variant="Variant.Outlined"
+                                                      Size="Size.Small"
+                                                      StartIcon="@AionIcons.OpenInNew"
+                                                      IconSize="Size.Small"
+                                                      Text="Open"
+                                                      OnClick="@(() => OpenAsync(entry))" />
+                                            <MtButton Variant="Variant.Outlined"
+                                                      Size="Size.Small"
+                                                      StartIcon="@AionIcons.Run"
+                                                      IconSize="Size.Small"
+                                                      Text="Run again"
+                                                      OnClick="@(() => RunAgainAsync(entry))" />
+                                            <MudIconButton Class="history-copy"
+                                                           Icon="@AionIcons.Copy"
+                                                           Variant="Variant.Outlined"
+                                                           Size="Size.Small"
+                                                           Ripple="false"
+                                                           aria-label="Copy SQL"
+                                                           title="Copy SQL"
+                                                           OnClick="@(() => CopyAsync(entry))" />
+                                        </div>
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    </section>
+                }
+            </div>
         }
-    </MudStack>
-}
-
-@if (State.Entries.Count < 1)
-{
-    <MudContainer>
-        <MudStack>
-            <MudText>No History</MudText>
-            <MudText Typo="Typo.caption" Class="mud-text-secondary">Queries will automatically be saved to history</MudText>
-        </MudStack>
-    </MudContainer>
-}
+    }
+</div>
 
 @code {
-    [Inject]
-    protected HistoryState State { get; set; } = default!;
+    private static readonly TimeSpan RelativeTimeRefreshInterval = TimeSpan.FromMinutes(1);
+
+    [Inject] protected HistoryState State { get; set; } = default!;
+    [Inject] protected IMessageBus Bus { get; set; } = default!;
+
+    private readonly CancellationTokenSource _refreshCts = new();
+    private string _search = "";
 
     protected override void OnInitialized()
     {
-        State.HistoryChanged += StateHasChanged;
+        State.HistoryChanged += OnHistoryChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // "just now" and "5 min ago" go stale while the panel stays open, so re-render on a timer.
+        var token = _refreshCts.Token;
+        using var timer = new PeriodicTimer(RelativeTimeRefreshInterval);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                StateHasChanged();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void OnHistoryChanged() => StateHasChanged();
+
+    private void OnSearchChanged(string value) => _search = value;
+
+    private async Task ClearAsync() => await Bus.PublishAsync(new ClearHistory());
+
+    private async Task OpenAsync(QueryHistoryEntry entry) => await Bus.PublishAsync(new OpenHistoryEntry(entry));
+
+    private async Task RunAgainAsync(QueryHistoryEntry entry) => await Bus.PublishAsync(new OpenHistoryEntry(entry, Run: true));
+
+    private async Task CopyAsync(QueryHistoryEntry entry) => await Bus.PublishAsync(new CopyToClipboard(entry.Sql));
+
+    private async Task OnEntryKeyDownAsync(KeyboardEventArgs e, QueryHistoryEntry entry)
+    {
+        if (e.Key == "Enter")
+        {
+            await OpenAsync(entry);
+        }
+    }
+
+    private static string StatusIcon(QueryHistoryStatus status) => status switch
+    {
+        QueryHistoryStatus.Failed => AionIcons.Error,
+        QueryHistoryStatus.Cancelled => AionIcons.Cancelled,
+        _ => AionIcons.Success
+    };
+
+    private static Color StatusColor(QueryHistoryStatus status) => status switch
+    {
+        QueryHistoryStatus.Failed => Color.Error,
+        QueryHistoryStatus.Cancelled => Color.Default,
+        _ => Color.Success
+    };
+
+    private static string StatusText(QueryHistoryStatus status) => status switch
+    {
+        QueryHistoryStatus.Failed => "Failed:",
+        QueryHistoryStatus.Cancelled => "Cancelled:",
+        _ => "Succeeded:"
+    };
+
+    private static string Describe(QueryHistoryEntry entry)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(entry.ConnectionName)) parts.Add(entry.ConnectionName);
+        if (!string.IsNullOrWhiteSpace(entry.DatabaseName)) parts.Add(entry.DatabaseName);
+        parts.Add(entry.ExecutedAt.ToLocalTime().ToString("G"));
+        return string.Join(" · ", parts);
     }
 
     public void Dispose()
     {
-        State.HistoryChanged -= StateHasChanged;
+        State.HistoryChanged -= OnHistoryChanged;
+        _refreshCts.Cancel();
+        _refreshCts.Dispose();
     }
 }
