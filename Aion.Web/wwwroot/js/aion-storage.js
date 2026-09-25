@@ -1,5 +1,5 @@
 const DB_NAME = 'aion-storage';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise = null;
 
@@ -19,6 +19,9 @@ function openDb() {
             }
             if (!db.objectStoreNames.contains('databases')) {
                 db.createObjectStore('databases', { keyPath: 'name' });
+            }
+            if (!db.objectStoreNames.contains('history')) {
+                db.createObjectStore('history', { keyPath: 'id' });
             }
         };
 
@@ -122,6 +125,31 @@ export async function deleteDatabaseMeta(name) {
         tx.objectStore('databases').delete(name);
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
+    });
+}
+
+export async function replaceHistory(entriesJson) {
+    const db = await openDb();
+    const entries = JSON.parse(entriesJson);
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('history', 'readwrite');
+        const store = tx.objectStore('history');
+        store.clear();
+        for (const entry of entries) {
+            store.put(entry);
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+export async function loadHistory() {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('history', 'readonly');
+        const request = tx.objectStore('history').getAll();
+        request.onsuccess = () => resolve(JSON.stringify(request.result));
+        request.onerror = () => reject(request.error);
     });
 }
 

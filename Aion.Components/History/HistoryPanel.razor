@@ -2,31 +2,25 @@
 @using Aion.Components.Shared
 @implements IDisposable
 
-@foreach (var query in State.Queries.OrderByDescending(x => x.Timestamp))
+@foreach (var entry in State.Entries)
 {
     <MudStack Row="true" Class="w-100">
-        <TooltipIcon Text="@query.Timestamp.ToString("G")" Icon="@AionIcons.Round("schedule")"/>
-        <MudTooltip Text="@query.Data.Query" RootClass="flex-grow-1">
-        <MudText Class="flex-grow-1">
-            @query.Data.Name
-        </MudText>
-        </MudTooltip>
-        @if (query.Data.Result == null)
-        {
-            <TooltipIcon Text="Unknown" Icon="@AionIcons.Round("circle")" />
-        }
-        else if (query.Data.Result.Cancelled)
+        <TooltipIcon Text="@entry.ExecutedAt.ToString("G")" Icon="@AionIcons.Round("schedule")"/>
+        <MudText Class="flex-grow-1 text-truncate">@entry.Sql</MudText>
+        @if (entry.Status == QueryHistoryStatus.Cancelled)
         {
             <TooltipIcon Text="Cancelled" Icon="@AionIcons.Round("hide_source")" />
         }
         else
         {
-            <TooltipIcon Color="@(query.Data.Result.Success ? Color.Success : Color.Error )" Icon="@(query.Data.Result.Success ? AionIcons.Success : AionIcons.Close )" />
+            <TooltipIcon Text="@entry.ErrorMessage"
+                         Color="@(entry.Status == QueryHistoryStatus.Success ? Color.Success : Color.Error)"
+                         Icon="@(entry.Status == QueryHistoryStatus.Success ? AionIcons.Success : AionIcons.Close)" />
         }
     </MudStack>
 }
 
-@if (State.Queries.Count < 1)
+@if (State.Entries.Count < 1)
 {
     <MudContainer>
         <MudStack>
@@ -38,16 +32,15 @@
 
 @code {
     [Inject]
-    protected HistoryState State { get; set; }
+    protected HistoryState State { get; set; } = default!;
 
     protected override void OnInitialized()
     {
-        State.HistoryStateChanged += StateHasChanged;
+        State.HistoryChanged += StateHasChanged;
     }
 
     public void Dispose()
     {
-        State.HistoryStateChanged -= StateHasChanged;
+        State.HistoryChanged -= StateHasChanged;
     }
-
 }

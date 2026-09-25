@@ -1,4 +1,5 @@
 using Aion.Components;
+using Aion.Components.History;
 using Aion.Components.Infrastructure;
 using Aion.Components.NativeMenu;
 using Aion.Components.Querying;
@@ -35,6 +36,7 @@ builder.Services.AddWebAssemblyServices();
 
 builder.Services.AddSingleton<IQuerySaveService, IndexedDbQuerySaveService>();
 builder.Services.AddSingleton<IndexedDbStorageService>();
+builder.Services.AddSingleton<IQueryHistoryStore, IndexedDbQueryHistoryStore>();
 builder.Services.AddSingleton<INativeMenuService, NoOpNativeMenuService>();
 
 builder.Services.AddSingleton<SqliteWasmProvider>();

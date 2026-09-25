@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Aion.Components.History;
 using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 using Microsoft.JSInterop;
@@ -95,6 +96,20 @@ public class IndexedDbStorageService
     {
         var module = await GetModuleAsync();
         await module.InvokeVoidAsync("deleteDatabaseMeta", name);
+    }
+
+    public async Task ReplaceHistoryAsync(IReadOnlyList<QueryHistoryEntry> entries)
+    {
+        var module = await GetModuleAsync();
+        var json = JsonSerializer.Serialize(entries, JsonOptions);
+        await module.InvokeVoidAsync("replaceHistory", json);
+    }
+
+    public async Task<List<QueryHistoryEntry>> LoadHistoryAsync()
+    {
+        var module = await GetModuleAsync();
+        var json = await module.InvokeAsync<string>("loadHistory");
+        return JsonSerializer.Deserialize<List<QueryHistoryEntry>>(json, JsonOptions) ?? [];
     }
 
     public async Task ClearAllAsync()

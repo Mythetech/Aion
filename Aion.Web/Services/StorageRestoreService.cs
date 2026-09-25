@@ -1,4 +1,5 @@
 using Aion.Components.Connections;
+using Aion.Components.History;
 using Aion.Components.Querying;
 using Aion.Contracts.Database;
 using Aion.Web.Providers;
@@ -12,6 +13,7 @@ public class StorageRestoreService
     private readonly IndexedDbStorageService _storage;
     private readonly ConnectionState _connectionState;
     private readonly QueryState _queryState;
+    private readonly HistoryState _historyState;
     private readonly SqliteWasmProvider _sqliteProvider;
     private readonly PGliteProvider _pgliteProvider;
     private readonly IServiceProvider _serviceProvider;
@@ -23,6 +25,7 @@ public class StorageRestoreService
         IndexedDbStorageService storage,
         ConnectionState connectionState,
         QueryState queryState,
+        HistoryState historyState,
         SqliteWasmProvider sqliteProvider,
         PGliteProvider pgliteProvider,
         IServiceProvider serviceProvider,
@@ -31,6 +34,7 @@ public class StorageRestoreService
         _storage = storage;
         _connectionState = connectionState;
         _queryState = queryState;
+        _historyState = historyState;
         _sqliteProvider = sqliteProvider;
         _pgliteProvider = pgliteProvider;
         _serviceProvider = serviceProvider;
@@ -76,5 +80,7 @@ public class StorageRestoreService
         {
             _logger.LogError(ex, "Failed to restore persisted data");
         }
+
+        await _historyState.InitializeAsync();
     }
 }
