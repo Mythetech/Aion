@@ -234,6 +234,99 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         proc!.Kind.ShouldBe(RoutineKind.Procedure);
     }
 
+    private const string EditTable = "edit_target";
+    private const string EditSelect = "SELECT * FROM [dbo].[edit_target] ORDER BY id";
+
+    // Creates its own database because SetupDatabase above does not create TestDatabase.
+    private async Task<string> CreateEditTableAsync()
+    {
+        var masterConnectionString = Provider.UpdateConnectionString(ConnectionString, "master");
+
+        // The port opens before the server accepts logins, which the container wait strategy does not cover.
+        for (var attempt = 0; attempt < 30; attempt++)
+        {
+            var probe = await Provider.ExecuteQueryAsync(masterConnectionString, "SELECT 1", CancellationToken.None);
+            if (probe.Error == null)
+            {
+                break;
+            }
+            await Task.Delay(TimeSpan.FromSeconds(2));
+        }
+
+        await ExecuteOrFailAsync(masterConnectionString, $"IF DB_ID(N'{TestDatabase}') IS NULL CREATE DATABASE [{TestDatabase}]");
+
+        var dbConnectionString = Provider.UpdateConnectionString(ConnectionString, TestDatabase);
+        await ExecuteOrFailAsync(dbConnectionString,
+            $"CREATE TABLE [dbo].[{EditTable}] (id int PRIMARY KEY, name nvarchar(200) NOT NULL)");
+        await ExecuteOrFailAsync(dbConnectionString,
+            $"INSERT INTO [dbo].[{EditTable}] (id, name) VALUES (0, N'Zero'), (1, N'Ada'), (2, N'Grace')");
+        return dbConnectionString;
+    }
+
+    private async Task<List<object?>> ReadNamesAsync(string dbConnectionString)
+    {
+        var result = await ExecuteOrFailAsync(dbConnectionString, $"SELECT name FROM [dbo].[{EditTable}] ORDER BY id");
+        return result.Rows.Select(r => (object?)r["name"]).ToList();
+    }
+
+    [Fact]
+    public async Task GridEdit_ValueWithApostropheAndInjection_ChangesExactlyOneRow()
+    {
+        // Arrange
+        var dbConnectionString = await CreateEditTableAsync();
+        var editable = await LoadEditableTableAsync(dbConnectionString, "dbo", EditTable, EditSelect);
+        const string newName = @"O'Brien's Hub \ '; DROP TABLE edit_target; --";
+
+        // Act
+        var (_, result) = await ApplyGridChangeAsync(dbConnectionString, editable, UpdateCell(editable, 1, "name", newName));
+
+        // Assert
+        result.Error.ShouldBeNull();
+        result.RowsAffected.ShouldBe(1);
+        (await ReadNamesAsync(dbConnectionString)).ShouldBe(new object?[] { "Zero", newName, "Grace" });
+    }
+
+    [Fact]
+    public async Task GridEdit_Delete_RemovesOnlyTheTargetRow()
+    {
+        // Arrange
+        var dbConnectionString = await CreateEditTableAsync();
+        var editable = await LoadEditableTableAsync(dbConnectionString, "dbo", EditTable, EditSelect);
+
+        // Act
+        var (_, result) = await ApplyGridChangeAsync(dbConnectionString, editable, DeleteRow(editable, 0));
+
+        // Assert
+        result.RowsAffected.ShouldBe(1);
+        (await ReadNamesAsync(dbConnectionString)).ShouldBe(new object?[] { "Ada", "Grace" });
+    }
+
+    [Fact]
+    public async Task GridEdit_RowDeletedSinceLoad_ReportsZeroRowsAffected()
+    {
+        // Arrange
+        var dbConnectionString = await CreateEditTableAsync();
+        var editable = await LoadEditableTableAsync(dbConnectionString, "dbo", EditTable, EditSelect);
+        await ExecuteOrFailAsync(dbConnectionString, $"DELETE FROM [dbo].[{EditTable}] WHERE id = 2");
+
+        // Act
+        var (_, result) = await ApplyGridChangeAsync(dbConnectionString, editable, UpdateCell(editable, 2, "name", "gone"));
+
+        // Assert
+        result.Error.ShouldBeNull();
+        result.RowsAffected.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task ExecuteQuery_Select_ReportsNoRowsAffected()
+    {
+        var dbConnectionString = await CreateEditTableAsync();
+
+        var result = await ExecuteOrFailAsync(dbConnectionString, EditSelect);
+
+        result.RowsAffected.ShouldBeNull();
+    }
+
     protected async Task SetupDatabase(string name = "master")
     {
         // Create database in master context first
