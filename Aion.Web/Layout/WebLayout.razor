@@ -121,7 +121,6 @@
     [Inject] protected IMessageBus Bus { get; set; } = default!;
     [Inject] protected IJSRuntime JS { get; set; } = default!;
     [Inject] protected ILinkOpenService LinkService { get; set; } = default!;
-    [Inject] protected SampleDatabaseProvisioner Provisioner { get; set; } = default!;
     [Inject] protected StorageRestoreService RestoreService { get; set; } = default!;
     [Inject] protected BrowserStorageCleaner StorageCleaner { get; set; } = default!;
 
@@ -193,25 +192,9 @@
             var dialog = await DialogService.ShowAsync<OnboardingDialog>("Welcome", options);
             var result = await dialog.Result;
 
-            if (result is { Canceled: false, Data: OnboardingResult onboarding })
+            if (result is { Canceled: false, Data: OnboardingResult { Choice: OnboardingChoice.Scratch } onboarding })
             {
-                try
-                {
-                    if (onboarding.Choice == OnboardingChoice.Sample)
-                    {
-                        await Provisioner.ProvisionAsync(onboarding.Engine);
-                    }
-                    else
-                    {
-                        await AddConnection();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    await Bus.PublishAsync(new Aion.Components.Shared.Snackbar.Commands.AddNotification(
-                        $"Failed to set up database: {ex.Message}",
-                        MudBlazor.Severity.Error));
-                }
+                await Bus.PublishAsync(new CreateBrowserDatabase(onboarding.Engine));
             }
 
             if (ConnectionState.Connections.Count > 0)
@@ -284,22 +267,12 @@
             FullWidth = true,
             CloseButton = false
         };
-        var dialog = await DialogService.ShowAsync<OnboardingDialog>("Load Sample", options);
-        var result = await dialog.Result;
-
-        if (result is { Canceled: false, Data: OnboardingResult onboarding })
+        var parameters = new MudBlazor.DialogParameters<OnboardingDialog>
         {
-            try
-            {
-                await Provisioner.ProvisionAsync(onboarding.Engine);
-            }
-            catch (Exception ex)
-            {
-                await Bus.PublishAsync(new Aion.Components.Shared.Snackbar.Commands.AddNotification(
-                    $"Failed to set up database: {ex.Message}",
-                    MudBlazor.Severity.Error));
-            }
-        }
+            { x => x.ShowScratchOption, false }
+        };
+        var dialog = await DialogService.ShowAsync<OnboardingDialog>("Load Sample", parameters, options);
+        await dialog.Result;
     }
 
     private async Task ClearDatabase(Guid connectionId)
