@@ -100,20 +100,12 @@ public class QueryState : IConsumer<QueryChanged>
         OnStateChanged();
     }
 
-    public void SetTransactionInfo(TransactionInfo transactionInfo)
-    {
-        Active.Transaction = transactionInfo;
-        OnStateChanged();
-    }
-
     public void SetActive(QueryModel query)
     {
         Active = Queries.FirstOrDefault(x => x.Id.Equals(query?.Id));
 
         if (Active == null) return;
 
-        Active.IsExecuting = false;
-        
         OnStateChanged();
     }
 
