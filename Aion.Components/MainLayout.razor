@@ -304,15 +304,7 @@
     private async Task ContextMenu_EditConnection()
     {
         if (_contextMenuConnection == null) return;
-        var model = new ConnectionDialogModel
-        {
-            EditingConnectionId = _contextMenuConnection.Id,
-            Name = _contextMenuConnection.Name,
-            Type = _contextMenuConnection.Type,
-            ConnectionString = _contextMenuConnection.ConnectionString,
-            SaveCredentials = _contextMenuConnection.SaveCredentials
-        };
-        await Bus.PublishAsync(new PromptCreateConnection(model));
+        await Bus.PublishAsync(new PromptCreateConnection(ConnectionDialogModel.ForEdit(_contextMenuConnection)));
     }
 
     private async Task ContextMenu_DeleteConnection()

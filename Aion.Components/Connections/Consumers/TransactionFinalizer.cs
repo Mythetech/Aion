@@ -1,67 +1,40 @@
 using Aion.Components.Connections.Commands;
+using Aion.Components.Querying.Commands;
 using Mythetech.Framework.Infrastructure.MessageBus;
-using Aion.Components.Querying.Events;
-using Aion.Contracts.Queries;
 
 namespace Aion.Components.Connections.Consumers;
-using Microsoft.Extensions.Logging;
 
-public class TransactionFinalizer : 
+public class TransactionFinalizer :
     IConsumer<CommitTransaction>,
-    IConsumer<RollbackTransaction>
+    IConsumer<RollbackTransaction>,
+    IConsumer<DeleteQuery>
 {
     private readonly ConnectionState _connectionState;
-    private readonly IMessageBus _messageBus;
-    private readonly ILogger<TransactionFinalizer> _logger;
 
-    public TransactionFinalizer(ConnectionState connectionState, IMessageBus messageBus, ILogger<TransactionFinalizer> logger)
+    public TransactionFinalizer(ConnectionState connectionState)
     {
         _connectionState = connectionState;
-        _messageBus = messageBus;
-        _logger = logger;
     }
 
     public async Task Consume(CommitTransaction message)
     {
-        if (message.Query.Transaction?.Status != TransactionStatus.Active) return;
-        
-        var connection = _connectionState.Connections.FirstOrDefault(x => x.Id == message.Query.ConnectionId);
-        if (connection == null) return;
-
-        try
-        {
-            var provider = _connectionState.GetProvider(connection.Type);
-            var connectionString = provider.UpdateConnectionString(connection.ConnectionString, message.Query.DatabaseName);
-            await provider.CommitTransactionAsync(connectionString, message.Query.Transaction.Value.Id);
-            
-            message.Query.Transaction = message.Query.Transaction.Value.WithStatus(TransactionStatus.Committed);
-            await _messageBus.PublishAsync(new TransactionFinished(connection.Id, message.Query.Transaction.Value, true));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to commit transaction");
-        }
+        await _connectionState.CommitTransactionAsync(message.Query);
     }
 
     public async Task Consume(RollbackTransaction message)
     {
-        if (message.Query.Transaction?.Status != TransactionStatus.Active) return;
-        
-        var connection = _connectionState.Connections.FirstOrDefault(x => x.Id == message.Query.ConnectionId);
-        if (connection == null) return;
-
-        try
-        {
-            var provider = _connectionState.GetProvider(connection.Type);
-            var connectionString = provider.UpdateConnectionString(connection.ConnectionString, message.Query.DatabaseName);
-            await provider.RollbackTransactionAsync(connectionString, message.Query.Transaction.Value.Id);
-            
-            message.Query.Transaction = message.Query.Transaction.Value.WithStatus(TransactionStatus.RolledBack);
-            await _messageBus.PublishAsync(new TransactionFinished(connection.Id, message.Query.Transaction.Value, false));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to rollback transaction");
-        }
+        await _connectionState.RollbackTransactionAsync(message.Query);
     }
-} 
+
+    /// <summary>
+    /// A closed tab can no longer commit, so its open transaction is rolled back to release the
+    /// connection and any locks it holds.
+    /// </summary>
+    public async Task Consume(DeleteQuery message)
+    {
+        if (!message.Query.HasOpenTransaction) return;
+
+        await _connectionState.RollbackTransactionAsync(message.Query,
+            $"Rolled back the open transaction in \"{message.Query.Name}\" because its tab was closed.");
+    }
+}

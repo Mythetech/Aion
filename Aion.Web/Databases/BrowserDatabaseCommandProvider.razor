@@ -1,0 +1,81 @@
+@using Aion.Components.Connections
+@using Aion.Components.Scaffolding
+@using Aion.Components.Shared.Dialogs
+@using Aion.Components.Shared.Snackbar.Commands
+@using Aion.Contracts.Database
+@using Aion.Web.Databases.Commands
+@using Aion.Web.Services
+@using Mythetech.Framework.Infrastructure.MessageBus
+@inherits ComponentConsumer<CreateBrowserDatabase, ClearBrowserDatabase>
+
+@code {
+    [Inject] private IDialogService DialogService { get; set; } = default!;
+    [Inject] private SchemaExecutor SchemaExecutor { get; set; } = default!;
+    [Inject] private ConnectionState ConnectionState { get; set; } = default!;
+    [Inject] private IEnumerable<ISupportedTypeProvider> TypeProviders { get; set; } = default!;
+
+    protected override async Task Consume(CreateBrowserDatabase message, CancellationToken cancellationToken)
+    {
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            BackgroundClass = "aion-dialog",
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true,
+            CloseButton = false
+        };
+        var parameters = new DialogParameters<SchemaWizard>
+        {
+            { x => x.TypeProviders, TypeProviders.ToList() },
+            { x => x.InitialEngine, message.Engine }
+        };
+        var dialog = await DialogService.ShowAsync<SchemaWizard>("New Database", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is not { Canceled: false, Data: SchemaWizardModel model })
+            return;
+
+        try
+        {
+            await SchemaExecutor.ExecuteAsync(model);
+        }
+        catch (Exception ex)
+        {
+            await MessageBus.PublishAsync(new AddNotification($"Failed to create database: {ex.Message}", Severity.Error));
+        }
+    }
+
+    protected override async Task Consume(ClearBrowserDatabase message, CancellationToken cancellationToken)
+    {
+        var connection = ConnectionState.Connections.FirstOrDefault(c => c.Id == message.ConnectionId);
+        if (connection == null)
+            return;
+
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            {
+                x => x.ContentText,
+                $"Delete the in-browser database \"{connection.Name}\" and all of its tables and data? " +
+                "Your other databases are not affected. Query tabs that use it stay open without a connection. " +
+                "This cannot be undone."
+            },
+            { x => x.ButtonText, "Clear Database" },
+            { x => x.Color, Color.Error }
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Clear Database", parameters, AionDialogs.CreateDefaultOptions());
+        var result = await dialog.Result;
+
+        if (result is not { Canceled: false })
+            return;
+
+        try
+        {
+            await ConnectionState.RemoveConnection(connection.Id);
+            await MessageBus.PublishAsync(new AddNotification($"Cleared {connection.Name}", Severity.Success));
+        }
+        catch (Exception ex)
+        {
+            await MessageBus.PublishAsync(new AddNotification($"Failed to clear {connection.Name}: {ex.Message}", Severity.Error));
+        }
+    }
+}

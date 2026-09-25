@@ -1,18 +1,15 @@
-@using Aion.Components.Connections
 @using Aion.Components.Connections.Services
-@using Aion.Components.Querying
+@using Aion.Web.Services
 
 <Routes />
 
 @code {
-    [Inject] protected ConnectionState ConnectionState { get; set; } = default!;
-    [Inject] protected QueryState QueryState { get; set; } = default!;
+    [Inject] protected StorageRestoreService RestoreService { get; set; } = default!;
     [Inject] protected IConnectionHealthMonitor HealthMonitor { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
     {
-        await ConnectionState.InitializeAsync();
-        await QueryState.InitializeAsync();
+        await RestoreService.RestoreAsync();
         await HealthMonitor.StartAsync();
         await base.OnInitializedAsync();
     }

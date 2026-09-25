@@ -1,8 +1,10 @@
 using Aion.Components;
+using Aion.Components.Connections;
 using Aion.Components.Infrastructure;
 using Aion.Components.NativeMenu;
 using Aion.Components.Querying;
 using Aion.Contracts.Database;
+using Aion.Web.Databases;
 using Aion.Web.Providers;
 using Aion.Web.Onboarding;
 using Aion.Web.Services;
@@ -46,14 +48,17 @@ builder.Services.AddSingleton<ISupportedTypeProvider, SqliteWasmTypeProvider>();
 builder.Services.AddSingleton<ISupportedTypeProvider, PGliteTypeProvider>();
 builder.Services.AddSingleton<SchemaExecutor>();
 builder.Services.AddSingleton<SampleDatabaseProvisioner>();
+builder.Services.AddSingleton<BrowserStorageCleaner>();
+builder.Services.AddSingleton<ISqliteWasmInitializer, SqliteWasmInitializer>();
 builder.Services.AddSingleton<StorageRestoreService>();
-builder.Services.AddSingleton<WebPersistenceManager>();
+builder.Services.AddSingleton<IConnectionPrompt, BrowserConnectionPrompt>();
 
 builder.Services.AddMessageBus(typeof(WebApp).Assembly, typeof(ComponentsApp).Assembly);
 
-// AddMessageBus re-registers IConsumer<T> types as Transient;
-// restore QueryState as Singleton so all components share one instance
+// AddMessageBus re-registers IConsumer<T> types as Transient; restore the stateful ones as
+// singletons so the bus and every component share one instance
 builder.Services.AddSingleton<QueryState>();
+builder.Services.AddSingleton<WebPersistenceManager>();
 
 var host = builder.Build();
 

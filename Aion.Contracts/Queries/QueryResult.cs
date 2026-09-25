@@ -11,6 +11,12 @@ public class QueryResult
 
     public bool Cancelled { get; set; } = false;
 
+    /// <summary>
+    /// Rows inserted, updated or deleted by the statement, or null when the provider could not report it
+    /// (for example a SELECT, or a driver that does not expose the count).
+    /// </summary>
+    public int? RowsAffected { get; set; }
+
     public QueryResult Clone()
     {
         return new QueryResult()
@@ -19,7 +25,8 @@ public class QueryResult
             Rows = Rows.ToList(),
             ExecutedAt = ExecutedAt,
             Error = Error,
-            Cancelled = Cancelled
+            Cancelled = Cancelled,
+            RowsAffected = RowsAffected
         };
     }
 }

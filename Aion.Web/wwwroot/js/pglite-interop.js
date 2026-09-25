@@ -33,6 +33,21 @@ export async function exec(name, sql) {
     await db.exec(sql);
 }
 
+// db.transaction holds PGlite's transaction lock, so no other query can interleave with this one,
+// and the explicit rollback discards anything the statement changed. Returns the first column of
+// each row as text.
+export async function queryRolledBack(name, sql) {
+    const db = instances[name];
+    if (!db) throw new Error(`Database '${name}' not found`);
+
+    return await db.transaction(async (tx) => {
+        const result = await tx.query(sql);
+        await tx.rollback();
+        const column = result.fields[0]?.name;
+        return column === undefined ? [] : result.rows.map(row => String(row[column]));
+    });
+}
+
 export function listDatabases() {
     return Object.keys(instances);
 }
@@ -45,6 +60,13 @@ export async function close(name) {
     }
 }
 
+// PGlite's idb:// filesystem keeps each database in one IndexedDB database named after its mount
+// point, /pglite/<name>. Only that one may be deleted: matching by substring also deleted unrelated
+// databases, including aion-storage, which holds every saved connection and query.
+export function indexedDbName(name) {
+    return `/pglite/${name}`;
+}
+
 export async function destroy(name) {
     const db = instances[name];
     if (db) {
@@ -52,12 +74,13 @@ export async function destroy(name) {
         delete instances[name];
     }
 
-    const databases = await indexedDB.databases();
-    const pgliteDbNames = databases
-        .map(db => db.name)
-        .filter(n => n && n.includes(name));
-
-    for (const dbName of pgliteDbNames) {
-        indexedDB.deleteDatabase(dbName);
-    }
+    await new Promise((resolve, reject) => {
+        const request = indexedDB.deleteDatabase(indexedDbName(name));
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+        request.onblocked = () => {
+            console.warn(`Deleting PGlite database '${name}' will finish once other tabs close it.`);
+            resolve();
+        };
+    });
 }
