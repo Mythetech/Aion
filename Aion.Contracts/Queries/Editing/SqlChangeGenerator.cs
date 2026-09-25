@@ -2,6 +2,10 @@ using Aion.Contracts.Database;
 
 namespace Aion.Contracts.Queries.Editing;
 
+/// <summary>
+/// Turns pending grid edits into statements. It only decides which columns and key values each change needs;
+/// the provider's <see cref="IStandardDatabaseCommands"/> owns every piece of SQL text, including the WHERE clause.
+/// </summary>
 public class SqlChangeGenerator : ISqlChangeGenerator
 {
     public async Task<SqlGenerationResult> GenerateSqlAsync(
@@ -32,7 +36,14 @@ public class SqlChangeGenerator : ISqlChangeGenerator
             return new SqlGenerationResult([], false, "Cannot generate UPDATE/DELETE statements without primary key columns");
         }
 
-        var statements = new List<string>();
+        var missingKeys = result.MissingPrimaryKeyColumns;
+        if (needsPrimaryKey && missingKeys.Count > 0)
+        {
+            return new SqlGenerationResult([], false,
+                $"The results must include the primary key column(s) {string.Join(", ", missingKeys)} to update or delete rows");
+        }
+
+        var statements = new List<GeneratedStatement>();
         var errors = new List<string>();
 
         foreach (var change in changeList)
@@ -49,12 +60,12 @@ public class SqlChangeGenerator : ISqlChangeGenerator
 
                 if (!string.IsNullOrEmpty(sql))
                 {
-                    statements.Add(sql);
+                    statements.Add(new GeneratedStatement(change, sql));
                 }
             }
             catch (Exception ex)
             {
-                errors.Add($"Failed to generate SQL for {change.Type} at row {change.RowIndex}: {ex.Message}");
+                errors.Add($"Failed to generate SQL for {change.Type} at row {change.RowIndex + 1}: {ex.Message}");
             }
         }
 
@@ -68,7 +79,7 @@ public class SqlChangeGenerator : ISqlChangeGenerator
         return new SqlGenerationResult(statements, requiresTransaction);
     }
 
-    private async Task<string> GenerateInsertAsync(
+    private static async Task<string> GenerateInsertAsync(
         EditableQueryResult result,
         PendingChange change,
         IStandardDatabaseCommands commands)
@@ -79,12 +90,10 @@ public class SqlChangeGenerator : ISqlChangeGenerator
         }
 
         var valuesToInsert = change.NewValues
-            .Where(kvp =>
-            {
-                var colInfo = result.GetColumnInfo(kvp.Key);
-                return colInfo == null || !colInfo.IsIdentity;
-            })
-            .Select(kvp => new ColumnValue(kvp.Key, kvp.Value));
+            .Select(kvp => (Info: ResolveColumn(result, kvp.Key), kvp.Value))
+            .Where(c => !c.Info.IsIdentity)
+            .Select(c => new ColumnValue(c.Info.Name, c.Value))
+            .ToList();
 
         return await commands.GenerateInsertScript(
             result.SourceDatabase!,
@@ -93,7 +102,7 @@ public class SqlChangeGenerator : ISqlChangeGenerator
             valuesToInsert);
     }
 
-    private async Task<string> GenerateUpdateAsync(
+    private static async Task<string> GenerateUpdateAsync(
         EditableQueryResult result,
         PendingChange change,
         IStandardDatabaseCommands commands)
@@ -103,110 +112,83 @@ public class SqlChangeGenerator : ISqlChangeGenerator
             throw new InvalidOperationException("Update change has no new values");
         }
 
-        var modifiedColumns = change.GetModifiedColumns().ToList();
-        if (modifiedColumns.Count == 0)
+        var valuesToUpdate = change.GetModifiedColumns()
+            .Select(col => (Info: ResolveColumn(result, col), Value: change.NewValues.GetValueOrDefault(col)))
+            .Where(c => !c.Info.IsPrimaryKey && !c.Info.IsIdentity)
+            .Select(c => new ColumnValue(c.Info.Name, c.Value))
+            .ToList();
+
+        if (valuesToUpdate.Count == 0)
         {
             return string.Empty;
         }
-
-        var valuesToUpdate = modifiedColumns
-            .Where(col =>
-            {
-                var colInfo = result.GetColumnInfo(col);
-                return colInfo == null || (!colInfo.IsPrimaryKey && !colInfo.IsIdentity);
-            })
-            .Select(col => new ColumnValue(col, change.NewValues.GetValueOrDefault(col)));
-
-        if (!valuesToUpdate.Any())
-        {
-            return string.Empty;
-        }
-
-        var pkValues = new Dictionary<string, object?>();
-        foreach (var pkCol in result.PrimaryKeyColumns)
-        {
-            pkValues[pkCol] = change.OriginalValues.GetValueOrDefault(pkCol);
-        }
-
-        var whereClause = GenerateWhereClause(pkValues, result.PrimaryKeyColumns);
 
         return await commands.GenerateUpdateScript(
             result.SourceDatabase!,
             result.SourceSchema ?? "",
             result.SourceTable!,
             valuesToUpdate,
-            whereClause);
+            GetKeyValues(result, change));
     }
 
-    private async Task<string> GenerateDeleteAsync(
+    private static async Task<string> GenerateDeleteAsync(
         EditableQueryResult result,
         PendingChange change,
         IStandardDatabaseCommands commands)
     {
-        var pkValues = new Dictionary<string, object?>();
-        foreach (var pkCol in result.PrimaryKeyColumns)
-        {
-            pkValues[pkCol] = change.OriginalValues.GetValueOrDefault(pkCol);
-        }
-
-        var whereClause = GenerateWhereClause(pkValues, result.PrimaryKeyColumns);
-
         return await commands.GenerateDeleteScript(
             result.SourceDatabase!,
             result.SourceSchema ?? "",
             result.SourceTable!,
-            whereClause);
+            GetKeyValues(result, change));
     }
 
-    public string GenerateWhereClause(
-        Dictionary<string, object?> primaryKeyValues,
-        List<string> primaryKeyColumns)
+    private static ColumnInfo ResolveColumn(EditableQueryResult result, string column)
     {
-        var conditions = primaryKeyColumns
-            .Select(col =>
-            {
-                var value = primaryKeyValues.GetValueOrDefault(col);
-                return FormatCondition(col, value);
-            });
-
-        return string.Join(" AND ", conditions);
+        return result.GetColumnInfo(column)
+            ?? throw new InvalidOperationException($"'{column}' is not a column of {result.SourceTable}");
     }
 
-    private static string FormatCondition(string column, object? value)
+    private static List<ColumnValue> GetKeyValues(EditableQueryResult result, PendingChange change)
     {
-        if (value == null)
+        var keyValues = new List<ColumnValue>();
+
+        foreach (var keyColumn in result.PrimaryKeyColumns)
         {
-            return $"\"{column}\" IS NULL";
+            if (!TryGetOriginalValue(change, keyColumn, out var value))
+            {
+                throw new InvalidOperationException($"The row has no value for primary key column '{keyColumn}'");
+            }
+
+            // A NULL key would become "IS NULL", which can match many rows in engines that allow it.
+            if (value is null or DBNull)
+            {
+                throw new InvalidOperationException($"Primary key column '{keyColumn}' is NULL, so the row cannot be targeted safely");
+            }
+
+            keyValues.Add(new ColumnValue(keyColumn, value));
         }
 
-        var formattedValue = FormatValue(value);
-        return $"\"{column}\" = {formattedValue}";
+        return keyValues;
     }
 
-    private static string FormatValue(object? value)
+    private static bool TryGetOriginalValue(PendingChange change, string column, out object? value)
     {
-        return value switch
+        if (change.OriginalValues.TryGetValue(column, out value))
         {
-            null => "NULL",
-            string s => $"'{EscapeString(s)}'",
-            bool b => b ? "TRUE" : "FALSE",
-            DateTime dt => $"'{dt:yyyy-MM-dd HH:mm:ss}'",
-            DateTimeOffset dto => $"'{dto:yyyy-MM-dd HH:mm:ss zzz}'",
-            Guid g => $"'{g}'",
-            byte[] bytes => $"E'\\\\x{BitConverter.ToString(bytes).Replace("-", "")}'",
-            _ when IsNumeric(value) => value.ToString() ?? "NULL",
-            _ => $"'{EscapeString(value.ToString() ?? "")}'",
-        };
-    }
+            return true;
+        }
 
-    private static bool IsNumeric(object value)
-    {
-        return value is byte or sbyte or short or ushort or int or uint or long or ulong
-            or float or double or decimal;
-    }
+        foreach (var (key, candidate) in change.OriginalValues)
+        {
+            if (key.Equals(column, StringComparison.OrdinalIgnoreCase))
+            {
+                value = candidate;
+                return true;
+            }
+        }
 
-    private static string EscapeString(string value)
-    {
-        return value.Replace("'", "''");
+        value = null;
+        return false;
     }
 }

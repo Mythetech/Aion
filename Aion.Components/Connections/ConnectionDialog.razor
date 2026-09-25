@@ -1,10 +1,7 @@
-@using Aion.Components.Theme
 @using Aion.Contracts.Database
-@using Microsoft.Extensions.DependencyInjection
-@using MudBlazor.Utilities
 @using Aion.Components.Shared
+@using Aion.Components.Shared.Loaders
 @using Aion.Contracts.Connections
-@using Microsoft.AspNetCore.Components.Forms
 @using Aion.Components.Shared.Switch
 @using Mythetech.Framework.Components.SimpleTabs
 
@@ -12,7 +9,11 @@
     <DialogContent>
         @if (!string.IsNullOrEmpty(ValidationError))
         {
-        <MudAlert Severity="Severity.Error" Class="my-2">@ValidationError</MudAlert>
+            <MudAlert Severity="Severity.Error" Class="my-2 connection-dialog-error">@ValidationError</MudAlert>
+        }
+        else if (!string.IsNullOrEmpty(_testSuccessMessage))
+        {
+            <MudAlert Severity="Severity.Success" Class="my-2 connection-dialog-success">@_testSuccessMessage</MudAlert>
         }
         <SimpleTabs>
             <Tab Name="Basic">
@@ -22,7 +23,8 @@
                                       Label="Connection Name"/>
 
                         <MudSelect T="DatabaseType"
-                                   @bind-Value="Model.Type"
+                                   Value="Model.Type"
+                                   ValueChanged="OnTypeChanged"
                                    Label="Database Type"
                                    Required="true"
                                    RequiredError="Database type is required"
@@ -63,13 +65,23 @@
                                           Label="Port"
                                           Required="true"
                                           RequiredError="Port is required"/>
+
+                            <MudTextField @bind-Value="Model.Database"
+                                          Label="Database (optional)"
+                                          HelperText="@GetDatabaseHelperText()"/>
                         }
 
                         @if (Model.Type == DatabaseType.SQLServer)
                         {
-                            <MudSwitch T="bool" @bind-Checked="Model.UseWindowsAuth"
-                                       Color="Color.Primary"
-                                       Label="Use Windows Authentication"/>
+                            <AionSwitch T="bool" @bind-Value="Model.UseWindowsAuth"
+                                        Color="Color.Primary"
+                                        Label="Use Windows Authentication"/>
+                            <AionSwitch T="bool" @bind-Value="Model.Encrypt"
+                                        Color="Color.Primary"
+                                        Label="Encrypt"/>
+                            <AionSwitch T="bool" @bind-Value="Model.TrustServerCertificate"
+                                        Color="Color.Primary"
+                                        Label="Trust Server Certificate"/>
                         }
 
                         @if (Model.Type == DatabaseType.LiteDB)
@@ -79,7 +91,7 @@
                                           InputType="InputType.Password"
                                           HelperText="Leave empty for unencrypted database"/>
                         }
-                        else if (!Model.UseWindowsAuth)
+                        else if (!UsesWindowsAuth)
                         {
                             <MudTextField @bind-Value="Model.Username"
                                           Label="Username"
@@ -97,7 +109,7 @@
                     </MudStack>
                 </MudForm>
             </Tab>
-            <Tab Name="Connection String">
+            <Tab Name="Connection String" @ref="_connectionStringTab">
                 <MudStack>
                     <MudTextField @bind-Value="Model.Name"
                                   Label="Connection Name"/>
@@ -126,10 +138,23 @@
         }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel" Disabled="@_isConnecting">Cancel</MudButton>
+        <MudButton OnClick="TestConnection" Disabled="@IsBusy" Class="connection-dialog-test">
+            @if (_isTesting)
+            {
+                <span>Testing</span>
+                <LoadingDots />
+            }
+            else
+            {
+                <span>Test Connection</span>
+            }
+        </MudButton>
+        <MudSpacer />
+        <MudButton OnClick="Cancel" Disabled="@IsBusy">Cancel</MudButton>
         <PrimaryActionButton OnClick="Submit"
                              Text="@(IsEditMode ? "Save" : "Connect")"
                              Loading="@_isConnecting"
+                             Disabled="@_isTesting"
                              LoadingText="@(IsEditMode ? "Saving" : "Connecting")"/>
     </DialogActions>
 </MudDialog>
@@ -138,133 +163,21 @@
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
     [Inject] private IDatabaseProviderFactory ProviderFactory { get; set; } = default!;
     [Inject] private ConnectionState ConnectionState { get; set; } = default!;
-    
+
     [Parameter] public ConnectionDialogModel? InitialValues { get; set; }
 
     private MudForm? _form;
+    private Tab? _connectionStringTab;
     private ConnectionDialogModel Model { get; set; } = new();
     private string? ValidationError { get; set; }
+    private string? _testSuccessMessage;
     private bool _isConnecting;
-    
-    private string GetDefaultPort()
-    {
-        var provider = ProviderFactory.GetProvider(Model.Type);
-        return provider.GetDefaultPort().ToString();
-    }
-    
-    private string GetHostLabel() => Model.Type switch
-    {
-        DatabaseType.SQLServer => "Server",
-        _ => "Host"
-    };
-    
-    private async Task Submit()
-    {
-        if (_form != null)
-        {
-            await _form.Validate();
-            if (_form.IsValid)
-            {
-                try
-                {
-                    _isConnecting = true;
-                    StateHasChanged();
-
-                    var connectionString = BuildConnectionString();
-                    var provider = ProviderFactory.GetProvider(Model.Type);
-
-                    if (!provider.ValidateConnectionString(connectionString, out var error))
-                    {
-                        ValidationError = error;
-                        return;
-                    }
-
-                    string name = Model.Name ?? connectionString.Split(";")[0].Split("=")[1];
-
-                    if (IsEditMode)
-                    {
-                        var updated = new ConnectionModel
-                        {
-                            Name = name,
-                            ConnectionString = connectionString,
-                            Type = Model.Type,
-                            SaveCredentials = Model.SaveCredentials
-                        };
-
-                        await ConnectionState.UpdateConnection(Model.EditingConnectionId!.Value, updated);
-                        MudDialog.Close(DialogResult.Ok(updated));
-                    }
-                    else
-                    {
-                        var connection = new ConnectionModel
-                        {
-                            Name = name,
-                            ConnectionString = connectionString,
-                            Type = Model.Type,
-                            Active = false,
-                            SaveCredentials = Model.SaveCredentials
-                        };
-
-                        await ConnectionState.ConnectAsync(connection);
-                        MudDialog.Close(DialogResult.Ok(connection));
-                    }
-                }
-                catch (Exception ex)
-                {
-                    ValidationError = ex.Message;
-                }
-                finally
-                {
-                    _isConnecting = false;
-                    StateHasChanged();
-                }
-            }
-        }
-    }
-    
-    private void Cancel() => MudDialog.Cancel();
-    
-    private string BuildConnectionString()
-    {
-        if (!string.IsNullOrEmpty(Model.ConnectionString))
-            return Model.ConnectionString;
-            
-        return Model.Type switch
-        {
-            DatabaseType.PostgreSQL => $"Host={Model.Host};Port={Model.Port};Username={Model.Username};Password={Model.Password}",
-            DatabaseType.SQLServer => BuildSqlServerConnectionString(),
-            DatabaseType.MySQL => $"Server={Model.Host};Port={Model.Port};User={Model.Username};Password={Model.Password}",
-            DatabaseType.SQLite => $"Data Source={Model.Host}",
-            DatabaseType.LiteDB => BuildLiteDBConnectionString(),
-            _ => throw new ArgumentOutOfRangeException()
-        };
-    }
-    
-    private string BuildSqlServerConnectionString()
-    {
-        var server = Model.Instance != null
-            ? $"{Model.Host}\\{Model.Instance}"
-            : $"{Model.Host},{Model.Port}";
-
-        if (Model.UseWindowsAuth)
-            return $"Server={server};Integrated Security=true";
-
-        return $"Server={server};User Id={Model.Username};Password={Model.Password}";
-    }
-
-    private string BuildLiteDBConnectionString()
-    {
-        var connectionString = $"Filename={Model.Host}";
-
-        if (!string.IsNullOrEmpty(Model.Password))
-        {
-            connectionString += $";Password={Model.Password}";
-        }
-
-        return connectionString;
-    }
+    private bool _isTesting;
 
     private bool IsEditMode => Model.EditingConnectionId.HasValue;
+    private bool IsBusy => _isConnecting || _isTesting;
+    private bool UsesWindowsAuth => Model.Type == DatabaseType.SQLServer && Model.UseWindowsAuth;
+    private bool IsConnectionStringTabActive => _connectionStringTab?.IsActive == true;
 
     protected override void OnInitialized()
     {
@@ -273,11 +186,214 @@
             Model = InitialValues;
         }
 
+        if (string.IsNullOrEmpty(Model.Host) && !string.IsNullOrWhiteSpace(Model.ConnectionString))
+        {
+            ConnectionStringComposer.TryPopulate(Model, Model.ConnectionString);
+        }
+
         if (string.IsNullOrEmpty(Model.Port))
         {
-            Model.Port = GetDefaultPort();
+            Model.Port = GetDefaultPort(Model.Type);
         }
 
         base.OnInitialized();
     }
-} 
+
+    private string GetDefaultPort(DatabaseType type)
+    {
+        if (!ProviderFactory.SupportedDatabases.Contains(type))
+            return string.Empty;
+
+        return ProviderFactory.GetProvider(type).GetDefaultPort().ToString();
+    }
+
+    private string GetHostLabel() => Model.Type switch
+    {
+        DatabaseType.SQLServer => "Server",
+        _ => "Host"
+    };
+
+    private string GetDatabaseHelperText() => Model.Type switch
+    {
+        DatabaseType.PostgreSQL => "Leave empty to connect through the postgres database",
+        DatabaseType.SQLServer => "Leave empty to connect through master",
+        _ => "Leave empty to list every database you can access"
+    };
+
+    private void OnTypeChanged(DatabaseType type)
+    {
+        var previousDefaultPort = GetDefaultPort(Model.Type);
+        Model.Type = type;
+
+        if (string.IsNullOrEmpty(Model.Port) || Model.Port == previousDefaultPort)
+        {
+            Model.Port = GetDefaultPort(type);
+        }
+
+        ClearFeedback();
+    }
+
+    private async Task Submit()
+    {
+        ClearFeedback();
+
+        var connectionString = await PrepareConnectionStringAsync();
+        if (connectionString == null)
+            return;
+
+        _isConnecting = true;
+        StateHasChanged();
+
+        try
+        {
+            var name = ResolveName(connectionString);
+
+            if (IsEditMode)
+            {
+                var updated = new ConnectionModel
+                {
+                    Name = name,
+                    ConnectionString = connectionString,
+                    Type = Model.Type,
+                    SaveCredentials = Model.SaveCredentials
+                };
+
+                var result = await ConnectionState.UpdateConnection(Model.EditingConnectionId!.Value, updated);
+                if (!result.Success)
+                {
+                    ValidationError = $"Changes saved, but Aion could not connect: {DescribeFailure(result.Error)}";
+                    return;
+                }
+
+                MudDialog.Close(DialogResult.Ok(updated));
+            }
+            else
+            {
+                var connection = new ConnectionModel
+                {
+                    Name = name,
+                    ConnectionString = connectionString,
+                    Type = Model.Type,
+                    Active = false,
+                    SaveCredentials = Model.SaveCredentials
+                };
+
+                var result = await ConnectionState.ConnectAsync(connection);
+                if (!result.Success)
+                {
+                    ValidationError = DescribeFailure(result.Error);
+                    return;
+                }
+
+                MudDialog.Close(DialogResult.Ok(connection));
+            }
+        }
+        catch (Exception ex)
+        {
+            ValidationError = ex.Message;
+        }
+        finally
+        {
+            _isConnecting = false;
+        }
+    }
+
+    private async Task TestConnection()
+    {
+        ClearFeedback();
+
+        var connectionString = await PrepareConnectionStringAsync();
+        if (connectionString == null)
+            return;
+
+        _isTesting = true;
+        StateHasChanged();
+
+        try
+        {
+            var result = await ConnectionState.TestConnectionAsync(connectionString, Model.Type);
+
+            if (result.Success)
+            {
+                _testSuccessMessage = result.Databases.Count == 1
+                    ? "Connection succeeded. Found 1 database."
+                    : $"Connection succeeded. Found {result.Databases.Count} databases.";
+            }
+            else
+            {
+                ValidationError = DescribeFailure(result.Error);
+            }
+        }
+        finally
+        {
+            _isTesting = false;
+        }
+    }
+
+    /// <summary>
+    /// Builds the connection string from whichever tab is showing and validates it, reporting problems inline.
+    /// </summary>
+    private async Task<string?> PrepareConnectionStringAsync()
+    {
+        string connectionString;
+
+        if (IsConnectionStringTabActive)
+        {
+            if (string.IsNullOrWhiteSpace(Model.ConnectionString))
+            {
+                ValidationError = "Connection string is required";
+                return null;
+            }
+
+            connectionString = Model.ConnectionString.Trim();
+        }
+        else
+        {
+            if (_form != null)
+            {
+                await _form.ValidateAsync();
+                if (!_form.IsValid)
+                    return null;
+            }
+
+            connectionString = ConnectionStringComposer.Build(Model, Model.ConnectionString);
+        }
+
+        var provider = ProviderFactory.GetProvider(Model.Type);
+        if (!provider.ValidateConnectionString(connectionString, out var error))
+        {
+            ValidationError = error;
+            return null;
+        }
+
+        return connectionString;
+    }
+
+    private string ResolveName(string connectionString)
+    {
+        if (!string.IsNullOrWhiteSpace(Model.Name))
+            return Model.Name.Trim();
+
+        return ConnectionStringComposer.DescribeTarget(Model.Type, connectionString) ?? Model.Type.ToString();
+    }
+
+    private string DescribeFailure(string? error)
+    {
+        var message = string.IsNullOrWhiteSpace(error) ? "Could not connect to the server." : error;
+
+        if (Model.Type == DatabaseType.SQLServer && message.Contains("certificate", StringComparison.OrdinalIgnoreCase))
+        {
+            message += " For local or self-signed servers, turn on Trust Server Certificate (TrustServerCertificate=True).";
+        }
+
+        return message;
+    }
+
+    private void ClearFeedback()
+    {
+        ValidationError = null;
+        _testSuccessMessage = null;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

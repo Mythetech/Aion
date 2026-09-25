@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Aion.Components.Querying.Consumers;
 using Aion.Contracts.Queries;
 using MudBlazor;
@@ -10,6 +11,15 @@ public class QueryModel
     public string Name { get; set; } = "";
     public string Query { get; set; } = "";
     public QueryResult? Result { get; set; }
+
+    /// <summary>
+    /// Informational message shown alongside a successful result, such as how an actual plan was captured.
+    /// </summary>
+    [JsonIgnore]
+    public string? ResultNotice { get; private set; }
+
+    // Not persisted: a saved "executing" flag would leave a tab stuck showing Cancel after a restart.
+    [JsonIgnore]
     public bool IsExecuting { get; set; }
     public DateTime? LastExecuted => Result?.ExecutedAt;
     public Guid? ConnectionId { get; set; }
@@ -20,6 +30,9 @@ public class QueryModel
     public QueryPlan? ActualPlan { get; set; }
     public bool UseTransaction { get; set; }
     public TransactionInfo? Transaction { get; set; }
+
+    [JsonIgnore]
+    public bool HasOpenTransaction => Transaction is { Status: TransactionStatus.Active };
     public DateTimeOffset? ExecutionStartTime { get; private set; }
     public DateTimeOffset? ExecutionEndTime { get; private set; }
     public TimeSpan? ExecutionDuration => ExecutionEndTime - ExecutionStartTime;
@@ -52,9 +65,10 @@ public class QueryModel
         ExecutionEndTime = null;
     }
 
-    public void SetResult(QueryResult result)
+    public void SetResult(QueryResult result, string? notice = null)
     {
         Result = result;
+        ResultNotice = notice;
         IsExecuting = false;
         ExecutionEndTime = DateTimeOffset.Now;
     }
@@ -67,7 +81,8 @@ public class QueryModel
             Name = Name,
             Query = Query,
             Result = Result?.Clone(),
-            IsExecuting = IsExecuting,
+            ResultNotice = ResultNotice,
+            IsExecuting = !newId && IsExecuting,
             ConnectionId = ConnectionId,
             DatabaseName = DatabaseName,
             IncludeEstimatedPlan = IncludeEstimatedPlan,
@@ -75,7 +90,8 @@ public class QueryModel
             EstimatedPlan = EstimatedPlan?.Clone(),
             ActualPlan = ActualPlan?.Clone(),
             UseTransaction = UseTransaction,
-            Transaction = Transaction,
+            // A duplicated tab must not share the original tab's open transaction.
+            Transaction = newId ? null : Transaction,
             ExecutionStartTime = ExecutionStartTime,
             ExecutionEndTime = ExecutionEndTime,
             Order = Order,

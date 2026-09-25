@@ -1,9 +1,12 @@
 using Aion.Contracts.Database;
+using Aion.Contracts.Database.Dialects;
 
 namespace Aion.Web.Providers;
 
 public class PGliteCommands : IStandardDatabaseCommands
 {
+    private static readonly PostgreSqlDialect Dialect = PostgreSqlDialect.Instance;
+
     public Task<string> GenerateCreateDatabaseScript(string name)
     {
         return Task.FromResult($"-- PGlite database '{name}' created (in-browser)");
@@ -54,37 +57,40 @@ public class PGliteCommands : IStandardDatabaseCommands
 
     public Task<string> GenerateInsertScript(string database, string schema, string table, IEnumerable<ColumnValue> values)
     {
-        var schemaPrefix = string.IsNullOrEmpty(schema) || schema == "public" ? "" : $"\"{schema}\".";
-        var columns = values.Select(v => $"\"{v.Column}\"");
-        var vals = values.Select(v => v.Value == null ? "NULL" : $"'{v.Value}'");
+        var columns = values.ToList();
+        if (columns.Count == 0)
+        {
+            return Task.FromResult($"INSERT INTO {TableName(schema, table)}\nDEFAULT VALUES;");
+        }
 
-        return Task.FromResult($"INSERT INTO {schemaPrefix}\"{table}\"\n({string.Join(", ", columns)})\nVALUES ({string.Join(", ", vals)});");
+        return Task.FromResult(
+            $"INSERT INTO {TableName(schema, table)}\n({Dialect.BuildColumnList(columns)})\nVALUES ({Dialect.BuildValueList(columns)});");
     }
 
-    public Task<string> GenerateUpdateScript(string database, string schema, string table, IEnumerable<ColumnValue> values, string whereClause)
+    public Task<string> GenerateUpdateScript(string database, string schema, string table, IEnumerable<ColumnValue> values, IEnumerable<ColumnValue> keyValues)
     {
-        var schemaPrefix = string.IsNullOrEmpty(schema) || schema == "public" ? "" : $"\"{schema}\".";
-        var setStatements = values.Select(v =>
-            $"\"{v.Column}\" = {(v.Value == null ? "NULL" : $"'{v.Value}'")}");
-
-        return Task.FromResult($"UPDATE {schemaPrefix}\"{table}\"\nSET {string.Join(",\n    ", setStatements)}\nWHERE {whereClause};");
+        return Task.FromResult(
+            $"UPDATE {TableName(schema, table)}\nSET {Dialect.BuildAssignments(values)}\nWHERE {Dialect.BuildKeyPredicate(keyValues)};");
     }
 
-    public Task<string> GenerateDeleteScript(string database, string schema, string table, string whereClause)
+    public Task<string> GenerateDeleteScript(string database, string schema, string table, IEnumerable<ColumnValue> keyValues)
     {
-        var schemaPrefix = string.IsNullOrEmpty(schema) || schema == "public" ? "" : $"\"{schema}\".";
-        return Task.FromResult($"DELETE FROM {schemaPrefix}\"{table}\"\nWHERE {whereClause};");
+        return Task.FromResult(
+            $"DELETE FROM {TableName(schema, table)}\nWHERE {Dialect.BuildKeyPredicate(keyValues)};");
     }
 
     public Task<string> GenerateSelectTopScript(string database, string schema, string table, int count)
     {
-        var schemaPrefix = string.IsNullOrEmpty(schema) || schema == "public" ? "" : $"\"{schema}\".";
-        return Task.FromResult($"SELECT * FROM {schemaPrefix}\"{table}\"\nLIMIT {count};");
+        return Task.FromResult($"SELECT * FROM {TableName(schema, table)}\nLIMIT {count};");
     }
 
     public Task<string> GenerateCountScript(string database, string schema, string table)
     {
-        var schemaPrefix = string.IsNullOrEmpty(schema) || schema == "public" ? "" : $"\"{schema}\".";
-        return Task.FromResult($"SELECT COUNT(*) FROM {schemaPrefix}\"{table}\";");
+        return Task.FromResult($"SELECT COUNT(*) FROM {TableName(schema, table)};");
     }
+
+    private static string TableName(string schema, string table) =>
+        string.IsNullOrEmpty(schema) || schema == "public"
+            ? Dialect.QuoteIdentifier(table)
+            : $"{Dialect.QuoteIdentifier(schema)}.{Dialect.QuoteIdentifier(table)}";
 }
