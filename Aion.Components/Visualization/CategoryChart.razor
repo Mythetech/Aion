@@ -1,0 +1,102 @@
+@using System.Globalization
+
+<div class="cchart @(IsLine ? "cchart-line" : "cchart-bars")" style="@LayoutStyle">
+    <div class="cchart-yaxis" aria-hidden="true">
+        @foreach (var tick in Model.Scale.Ticks)
+        {
+            <span class="cchart-tick" style="@(Css($"bottom: {Model.Scale.Percent(tick):0.###}%"))">@Model.Scale.FormatTick(tick)</span>
+        }
+    </div>
+
+    <div class="cchart-scroll">
+        <div class="cchart-canvas">
+            <div class="cchart-plot">
+                <div class="cchart-grid" aria-hidden="true">
+                    @foreach (var tick in Model.Scale.Ticks)
+                    {
+                        <span class="cchart-gridline @(tick == 0 ? "baseline" : "")" style="@(Css($"bottom: {Model.Scale.Percent(tick):0.###}%"))"></span>
+                    }
+                </div>
+
+                @if (IsLine)
+                {
+                    <svg class="cchart-svg" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
+                        <polygon class="cchart-area" points="@AreaPoints" />
+                        <polyline class="cchart-path" points="@LinePoints" vector-effect="non-scaling-stroke" />
+                    </svg>
+                }
+
+                <div class="cchart-columns">
+                    @for (var i = 0; i < Model.Items.Count; i++)
+                    {
+                        var item = Model.Items[i];
+                        var valuePercent = Model.Scale.Percent(item.Value);
+                        var start = Math.Min(valuePercent, Baseline);
+                        var end = Math.Max(valuePercent, Baseline);
+                        var negative = item.Value < 0;
+                        var tipOnLeft = i >= Model.Items.Count / 2 && Model.Items.Count > 1;
+
+                        <div class="cchart-column @(tipOnLeft ? "tip-left" : "tip-right")" tabindex="0" aria-label="@($"{item.Label}: {item.ValueText}")">
+                            @if (IsLine)
+                            {
+                                <span class="cchart-dot" style="@(Css($"bottom: {valuePercent:0.###}%"))"></span>
+                            }
+                            else
+                            {
+                                <span class="cchart-bar @(negative ? "negative" : "")" style="@(Css($"bottom: {start:0.###}%; height: {end - start:0.###}%"))"></span>
+                            }
+
+                            @if (ShowValueLabels)
+                            {
+                                <span class="cchart-value" style="@(negative ? Css($"top: calc({100 - start:0.###}% + 2px)") : Css($"bottom: calc({end:0.###}% + 2px)"))">@item.ValueText</span>
+                            }
+
+                            <ChartTooltip Label="@item.Label" SeriesName="@Model.SeriesName" ValueText="@item.ValueText" />
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="cchart-xlabels" aria-hidden="true">
+                @foreach (var item in Model.Items)
+                {
+                    <span class="cchart-xlabel" title="@item.Label">@item.Label</span>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    // Past this many categories the value labels collide, so values move to the tooltip and table only.
+    private const int MaxLabelledItems = 16;
+
+    [Parameter, EditorRequired]
+    public AnalyzeChartModel Model { get; set; } = default!;
+
+    [Parameter]
+    public bool IsLine { get; set; }
+
+    private double Baseline => Model.Scale.BaselinePercent;
+
+    private bool ShowValueLabels => !IsLine && Model.Items.Count <= MaxLabelledItems;
+
+    private string LayoutStyle
+    {
+        get
+        {
+            var axisWidth = Model.Scale.Ticks.Max(t => Model.Scale.FormatTick(t).Length) * 6.2 + 4;
+            return Css($"--columns: {Model.Items.Count}; --yaxis-width: {axisWidth:0.#}px");
+        }
+    }
+
+    private string LinePoints => string.Join(' ', Model.Items.Select((item, i) => Point(i, Model.Scale.Percent(item.Value))));
+
+    private string AreaPoints
+        => $"{Point(0, Baseline)} {LinePoints} {Point(Model.Items.Count - 1, Baseline)}";
+
+    private string Point(int index, double percent)
+        => Css($"{(index + 0.5) / Model.Items.Count * 1000:0.##},{1000 - percent * 10:0.##}");
+
+    private static string Css(FormattableString style) => style.ToString(CultureInfo.InvariantCulture);
+}

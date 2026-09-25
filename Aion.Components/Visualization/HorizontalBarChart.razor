@@ -1,0 +1,70 @@
+@using System.Globalization
+
+<div class="hbar" style="@LayoutStyle">
+    <div class="hbar-plot">
+        <div class="hbar-grid" aria-hidden="true">
+            @foreach (var tick in Model.Scale.Ticks)
+            {
+                <span class="hbar-gridline @(tick == 0 ? "baseline" : "")" style="@(Css($"left: {Model.Scale.Percent(tick):0.###}%"))"></span>
+            }
+        </div>
+
+        @foreach (var item in Model.Items)
+        {
+            var valuePercent = Model.Scale.Percent(item.Value);
+            var start = Math.Min(valuePercent, Baseline);
+            var end = Math.Max(valuePercent, Baseline);
+            var negative = item.Value < 0;
+
+            <div class="hbar-row" tabindex="0" aria-label="@($"{item.Label}: {item.ValueText}")">
+                <span class="hbar-label" title="@item.Label">@item.Label</span>
+                <span class="hbar-track">
+                    <span class="hbar-bar @(negative ? "negative" : "")" style="@(Css($"left: {start:0.###}%; width: {end - start:0.###}%"))"></span>
+                    <span class="hbar-value @(negative ? "negative" : "")" style="@(negative ? Css($"right: calc({100 - start:0.###}% + 6px)") : Css($"left: calc({end:0.###}% + 6px)"))">@item.ValueText</span>
+                    <ChartTooltip Label="@item.Label" SeriesName="@Model.SeriesName" ValueText="@item.ValueText" Style="@TipStyle(start, end, negative)" />
+                </span>
+            </div>
+        }
+    </div>
+
+    <div class="hbar-axis" aria-hidden="true">
+        <div class="hbar-axis-track">
+            @foreach (var tick in Model.Scale.Ticks)
+            {
+                <span class="hbar-tick" style="@(Css($"left: {Model.Scale.Percent(tick):0.###}%"))">@Model.Scale.FormatTick(tick)</span>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    // Approximate advance of an average glyph at the chart's 12px font, used to size the label and value gutters.
+    private const double CharWidth = 6.6;
+
+    [Parameter, EditorRequired]
+    public AnalyzeChartModel Model { get; set; } = default!;
+
+    private double Baseline => Model.Scale.BaselinePercent;
+
+    private string LayoutStyle
+    {
+        get
+        {
+            var labelWidth = Math.Clamp(Model.Items.Max(i => i.Label.Length) * CharWidth + 4, 40, 240);
+            var valueRoom = Model.Items.Max(i => i.ValueText.Length) * CharWidth + 14;
+            var negativeRoom = Model.Items.Any(i => i.Value < 0) ? valueRoom : 0;
+            return Css($"--rows: {Model.Items.Count}; --label-width: {labelWidth:0.#}px; --value-room: {valueRoom:0.#}px; --negative-room: {negativeRoom:0.#}px");
+        }
+    }
+
+    // Short bars leave space for the tooltip after their value label; long ones show it over the bar instead of past the plot edge.
+    private static string TipStyle(double start, double end, bool negative)
+    {
+        if (negative)
+            return start >= 45 ? Css($"right: calc({100 - start:0.###}% + var(--value-room))") : Css($"left: calc({end:0.###}% + 8px)");
+
+        return end <= 55 ? Css($"left: calc({end:0.###}% + var(--value-room))") : Css($"right: calc({100 - end:0.###}% + 8px)");
+    }
+
+    private static string Css(FormattableString style) => style.ToString(CultureInfo.InvariantCulture);
+}

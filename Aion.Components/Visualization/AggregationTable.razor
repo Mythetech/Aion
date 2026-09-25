@@ -1,0 +1,22 @@
+<MudSimpleTable Dense="true" Hover="true" Elevation="0" Class="aggregation-table">
+    <thead>
+        <tr>
+            <th class="aggregation-cell">@Model.GroupByColumn</th>
+            <th class="aggregation-cell numeric">@Model.SeriesName</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model.AllItems)
+        {
+            <tr>
+                <td class="aggregation-cell">@item.Label</td>
+                <td class="aggregation-cell numeric">@item.ValueText</td>
+            </tr>
+        }
+    </tbody>
+</MudSimpleTable>
+
+@code {
+    [Parameter, EditorRequired]
+    public AnalyzeChartModel Model { get; set; } = default!;
+}

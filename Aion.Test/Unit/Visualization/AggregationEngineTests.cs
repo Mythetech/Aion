@@ -145,22 +145,6 @@ public class AggregationEngineTests
     }
 
     [Fact]
-    public void GetGroupableColumns_ShouldExcludeHighCardinalityColumns()
-    {
-        var rows = Enumerable.Range(0, 100).Select(i => new Dictionary<string, object>
-        {
-            ["id"] = i,
-            ["status"] = i % 3 == 0 ? "active" : "inactive"
-        }).ToList();
-
-        var result = CreateResult(["id", "status"], rows);
-
-        var groupable = _sut.GetGroupableColumns(result);
-
-        groupable.ShouldContain("status");
-    }
-
-    [Fact]
     public void GetMeasurableColumns_ShouldDetectNumericColumns()
     {
         var result = CreateResult(
@@ -175,54 +159,6 @@ public class AggregationEngineTests
         measurable.ShouldContain("age");
         measurable.ShouldContain("score");
         measurable.ShouldNotContain("name");
-    }
-
-    [Fact]
-    public void RecommendedChartType_FewGroupsWithCount_ShouldSuggestPie()
-    {
-        var result = CreateResult(
-            ["status", "count"],
-            [
-                new() { ["status"] = "active", ["count"] = 10 },
-                new() { ["status"] = "inactive", ["count"] = 5 },
-                new() { ["status"] = "pending", ["count"] = 3 }
-            ]);
-
-        var agg = _sut.Aggregate(result, "status", "count", AggregateFunction.Count);
-
-        agg.RecommendedChartType.ShouldBe(ChartTypeRecommendation.Pie);
-    }
-
-    [Fact]
-    public void RecommendedChartType_ManyGroups_ShouldSuggestLine()
-    {
-        var rows = Enumerable.Range(1, 20).Select(i => new Dictionary<string, object>
-        {
-            ["month"] = $"2024-{i:D2}",
-            ["revenue"] = i * 1000
-        }).ToList();
-
-        var result = CreateResult(["month", "revenue"], rows);
-
-        var agg = _sut.Aggregate(result, "month", "revenue", AggregateFunction.Sum);
-
-        agg.RecommendedChartType.ShouldBe(ChartTypeRecommendation.Line);
-    }
-
-    [Fact]
-    public void RecommendedChartType_ModerateGroupsWithSum_ShouldSuggestBar()
-    {
-        var rows = Enumerable.Range(1, 10).Select(i => new Dictionary<string, object>
-        {
-            ["dept"] = $"Dept{i}",
-            ["budget"] = i * 5000
-        }).ToList();
-
-        var result = CreateResult(["dept", "budget"], rows);
-
-        var agg = _sut.Aggregate(result, "dept", "budget", AggregateFunction.Sum);
-
-        agg.RecommendedChartType.ShouldBe(ChartTypeRecommendation.Bar);
     }
 
     [Fact]
@@ -421,7 +357,7 @@ public class AggregationEngineTests
                 new() { ["bucket"] = "1.5" }
             ]);
 
-        var agg = _sut.Aggregate(result, "bucket", "bucket", AggregateFunction.Count);
+        var agg = _sut.Aggregate(result, "bucket", null, AggregateFunction.Count);
 
         agg.Labels.ShouldBe(["1.5", "2", "10"]);
     }
@@ -438,7 +374,7 @@ public class AggregationEngineTests
                 new() { ["code"] = "2" }
             ]);
 
-        var agg = _sut.Aggregate(result, "code", "code", AggregateFunction.Count);
+        var agg = _sut.Aggregate(result, "code", null, AggregateFunction.Count);
 
         agg.Labels.ShouldBe(["10", "2", "b10", "b2"]);
     }
@@ -450,7 +386,7 @@ public class AggregationEngineTests
             ["total"],
             [new() { ["total"] = 259.96999999999997 }]);
 
-        var agg = _sut.Aggregate(result, "total", "total", AggregateFunction.Count);
+        var agg = _sut.Aggregate(result, "total", null, AggregateFunction.Count);
 
         agg.Labels.ShouldBe(["259.97"]);
     }

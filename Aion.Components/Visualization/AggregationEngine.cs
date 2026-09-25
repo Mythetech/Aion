@@ -26,14 +26,6 @@ public class AggregationResult
     public string GroupByColumn { get; set; } = string.Empty;
     public string? MeasureColumn { get; set; }
     public AggregateFunction Function { get; set; }
-    public ChartTypeRecommendation RecommendedChartType { get; set; }
-}
-
-public enum ChartTypeRecommendation
-{
-    Bar,
-    Pie,
-    Line
 }
 
 public sealed record AnalysisSelection(string GroupByColumn, string? MeasureColumn, AggregateFunction Function);
@@ -64,27 +56,15 @@ public class AggregationEngine
             .ToList();
 
         var ordered = Order(groups, sort);
-        var labels = ordered.Select(g => g.Label).ToArray();
 
         return new AggregationResult
         {
-            Labels = labels,
+            Labels = ordered.Select(g => g.Label).ToArray(),
             Values = ordered.Select(g => g.Value).ToArray(),
             GroupByColumn = groupByColumn,
             MeasureColumn = function == AggregateFunction.Count ? null : measureColumn,
-            Function = function,
-            RecommendedChartType = RecommendChartType(labels.Length, function)
+            Function = function
         };
-    }
-
-    public IReadOnlyList<string> GetGroupableColumns(QueryResult result)
-    {
-        if (result.Rows.Count == 0)
-            return [];
-
-        return result.Columns
-            .Where(col => CountDistinct(result, col) <= result.Rows.Count * 0.5 || CountDistinct(result, col) <= 50)
-            .ToList();
     }
 
     public IReadOnlyList<string> GetMeasurableColumns(QueryResult result)
@@ -282,25 +262,6 @@ public class AggregationEngine
         None,
         SortedWithTies,
         Sorted
-    }
-
-    private static int CountDistinct(QueryResult result, string column)
-    {
-        return result.Rows
-            .Select(row => FormatKey(GetValue(row, column)))
-            .Distinct()
-            .Count();
-    }
-
-    private static ChartTypeRecommendation RecommendChartType(int groupCount, AggregateFunction function)
-    {
-        if (function == AggregateFunction.Count && groupCount <= 8)
-            return ChartTypeRecommendation.Pie;
-
-        if (groupCount > 15)
-            return ChartTypeRecommendation.Line;
-
-        return ChartTypeRecommendation.Bar;
     }
 
     private sealed record Group(string Label, double Value);

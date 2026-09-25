@@ -1,0 +1,9 @@
+/* MudSimpleTable sizes cells with element selectors, so a class is needed to match the chart's 12px text. */
+.aggregation-cell {
+    font-size: 12px;
+}
+
+.numeric {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
