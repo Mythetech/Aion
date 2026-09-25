@@ -1,11 +1,12 @@
 @using Aion.Components.Theme
 
-<MudTooltip Text="@($"{Text} ({(Value ? "On" : "Off")})")">
+<MudTooltip Text="@TooltipText">
     <MudChip T="string"
              Icon="@Icon"
              Variant="@(Value ? Variant.Text : Variant.Outlined)"
              @bind-Selected="@Value"
              OnClick="@(async () => { Value = !Value; await ValueChanged.InvokeAsync(Value); })"
+             Disabled="@Disabled"
              Color="Color.Primary">
         @Text
     </MudChip>
@@ -23,4 +24,14 @@
 
     [Parameter]
     public EventCallback<bool> ValueChanged { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public string? DisabledTooltip { get; set; }
+
+    private string TooltipText => Disabled && DisabledTooltip != null
+        ? DisabledTooltip
+        : $"{Text} ({(Value ? "On" : "Off")})";
 } 

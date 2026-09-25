@@ -243,4 +243,144 @@ public class MySqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         proc!.Kind.ShouldBe(RoutineKind.Procedure);
         proc.ReturnType.ShouldBeNull();
     }
+
+    private const string EditTable = "edit_target";
+    private const string EditSelect = "SELECT * FROM `edit_target` ORDER BY id";
+
+    private async Task<string> CreateEditTableAsync()
+    {
+        var dbConnectionString = Provider.UpdateConnectionString(ConnectionString, TestDatabase);
+        await ExecuteOrFailAsync(dbConnectionString,
+            $"CREATE TABLE {EditTable} (id int PRIMARY KEY, name varchar(200) NOT NULL)");
+        await ExecuteOrFailAsync(dbConnectionString,
+            $"INSERT INTO {EditTable} (id, name) VALUES (0, 'Zero'), (1, 'Ada'), (2, 'Grace')");
+        return dbConnectionString;
+    }
+
+    private async Task<List<object?>> ReadNamesAsync(string dbConnectionString)
+    {
+        var result = await ExecuteOrFailAsync(dbConnectionString, $"SELECT name FROM {EditTable} ORDER BY id");
+        return result.Rows.Select(r => (object?)r["name"]).ToList();
+    }
+
+    [Fact]
+    public async Task GridEdit_ValueWithApostropheAndBackslash_ChangesExactlyOneRow()
+    {
+        // Arrange
+        var dbConnectionString = await CreateEditTableAsync();
+        var editable = await LoadEditableTableAsync(dbConnectionString, "", EditTable, EditSelect);
+        const string newName = @"O'Brien's Hub \' ; DROP TABLE edit_target; --";
+
+        // Act
+        var (_, result) = await ApplyGridChangeAsync(dbConnectionString, editable, UpdateCell(editable, 1, "name", newName));
+
+        // Assert
+        result.Error.ShouldBeNull();
+        result.RowsAffected.ShouldBe(1);
+        (await ReadNamesAsync(dbConnectionString)).ShouldBe(new object?[] { "Zero", newName, "Grace" });
+    }
+
+    [Fact]
+    public async Task GridEdit_PrimaryKeyZero_ChangesOnlyThatRow()
+    {
+        // Arrange
+        var dbConnectionString = await CreateEditTableAsync();
+        var editable = await LoadEditableTableAsync(dbConnectionString, "", EditTable, EditSelect);
+
+        // Act
+        var (sql, result) = await ApplyGridChangeAsync(dbConnectionString, editable, UpdateCell(editable, 0, "name", "Renamed"));
+
+        // Assert
+        sql.ShouldContain("WHERE `id` = 0");
+        result.Error.ShouldBeNull();
+        result.RowsAffected.ShouldBe(1);
+        (await ReadNamesAsync(dbConnectionString)).ShouldBe(new object?[] { "Renamed", "Ada", "Grace" });
+    }
+
+    [Fact]
+    public async Task GridEdit_DeletePrimaryKeyZero_RemovesOnlyThatRow()
+    {
+        // Arrange
+        var dbConnectionString = await CreateEditTableAsync();
+        var editable = await LoadEditableTableAsync(dbConnectionString, "", EditTable, EditSelect);
+
+        // Act
+        var (_, result) = await ApplyGridChangeAsync(dbConnectionString, editable, DeleteRow(editable, 0));
+
+        // Assert
+        result.RowsAffected.ShouldBe(1);
+        (await ReadNamesAsync(dbConnectionString)).ShouldBe(new object?[] { "Ada", "Grace" });
+    }
+
+    [Fact]
+    public async Task GridEdit_RowDeletedSinceLoad_ReportsZeroRowsAffected()
+    {
+        // Arrange
+        var dbConnectionString = await CreateEditTableAsync();
+        var editable = await LoadEditableTableAsync(dbConnectionString, "", EditTable, EditSelect);
+        await ExecuteOrFailAsync(dbConnectionString, $"DELETE FROM {EditTable} WHERE id = 2");
+
+        // Act
+        var (_, result) = await ApplyGridChangeAsync(dbConnectionString, editable, UpdateCell(editable, 2, "name", "gone"));
+
+        // Assert
+        result.Error.ShouldBeNull();
+        result.RowsAffected.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task ExecuteQuery_Select_ReportsNoRowsAffected()
+    {
+        var dbConnectionString = await CreateEditTableAsync();
+
+        var result = await ExecuteOrFailAsync(dbConnectionString, EditSelect);
+
+        result.RowsAffected.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Transaction_WithDdl_ShouldBeRefusedSoEarlierWorkIsNotImplicitlyCommitted()
+    {
+        // Arrange
+        var transaction = await Provider.BeginTransactionAsync(DatabaseConnectionString);
+        await Provider.ExecuteInTransactionAsync(DatabaseConnectionString,
+            $"INSERT INTO {TestTable} (id, name) VALUES (1, 'pending')", transaction.Id, CancellationToken.None);
+
+        // Act
+        var ddl = await Provider.ExecuteInTransactionAsync(DatabaseConnectionString,
+            "CREATE TABLE implicit_commit_probe (id int)", transaction.Id, CancellationToken.None);
+        await Provider.RollbackTransactionAsync(DatabaseConnectionString, transaction.Id);
+
+        // Assert
+        ddl.Error.ShouldNotBeNull();
+        (await CountRowsAsync()).ShouldBe(0);
+        var tables = await Provider.GetTablesAsync(DatabaseConnectionString, TestDatabase);
+        tables.ShouldNotContain(t => t.Name == "implicit_commit_probe");
+    }
+
+    [Fact]
+    public async Task ActualPlan_ForDdl_ShouldBeRefused()
+    {
+        // Arrange
+        var plans = (IActualQueryPlanProvider)Provider;
+
+        // Act & Assert
+        await Should.ThrowAsync<InvalidOperationException>(() => plans.GetActualPlanAsync(
+            DatabaseConnectionString, $"DROP TABLE {TestTable}", CancellationToken.None));
+        var tables = await Provider.GetTablesAsync(DatabaseConnectionString, TestDatabase);
+        tables.ShouldContain(t => t.Name == TestTable);
+    }
+
+    [Fact]
+    public async Task EstimatedPlan_WithMultipleStatements_ShouldNotRunLaterStatements()
+    {
+        // Arrange
+        await InsertRowAsync(1, "original");
+        var plans = (IEstimatedQueryPlanProvider)Provider;
+
+        // Act & Assert
+        await Should.ThrowAsync<InvalidOperationException>(() => plans.GetEstimatedPlanAsync(
+            DatabaseConnectionString, $"SELECT 1; DELETE FROM {TestTable}", CancellationToken.None));
+        (await CountRowsAsync()).ShouldBe(1);
+    }
 }

@@ -2,13 +2,20 @@ using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
+using System.Data;
 using System.Text;
 
 namespace Aion.Core.Database.SqlServer;
 
-public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider
+public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider,
+    IDatabaseRowEditingProvider, IEstimatedQueryPlanProvider, IActualQueryPlanProvider
 {
+    private const string TransactionNotOpenMessage = "This transaction is no longer open. Roll back to clear it.";
+    private const string ShowplanColumnName = "Microsoft SQL Server 2005 XML Showplan";
+
     private readonly ILogger<SqlServerProvider> _logger;
+    private readonly ConcurrentDictionary<string, OpenTransaction> _activeTransactions = new();
 
     public SqlServerProvider(ILogger<SqlServerProvider> logger)
     {
@@ -307,6 +314,10 @@ public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDat
                 result.Rows.Add(row);
             }
 
+            // RecordsAffected is only final once every result set has been consumed, and is -1 when no statement changed rows.
+            await reader.CloseAsync();
+            result.RowsAffected = reader.RecordsAffected >= 0 ? reader.RecordsAffected : null;
+
             return result;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -351,88 +362,217 @@ public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDat
 
     public async Task<QueryPlan> GetEstimatedPlanAsync(string connectionString, string query)
     {
-        var plan = new QueryPlan
-        {
-            PlanType = "Estimated",
-            PlanFormat = "XML"
-        };
-
         try
         {
-            using var conn = new SqlConnection(connectionString);
-            await conn.OpenAsync();
-
-            using var cmd = new SqlCommand($"SET SHOWPLAN_XML ON; {query}", conn);
-            using var reader = await cmd.ExecuteReaderAsync();
-
-            if (await reader.ReadAsync())
-            {
-                plan.PlanContent = reader.GetString(0);
-            }
-
-            return plan;
+            return await GetEstimatedPlanAsync(connectionString, query, CancellationToken.None);
         }
         catch (Exception ex)
         {
-            plan.PlanContent = $"Error getting plan: {ex.Message}";
-            return plan;
+            return new QueryPlan { PlanType = "Estimated", PlanFormat = "XML", PlanContent = $"Error getting plan: {ex.Message}" };
+        }
+    }
+
+    public async Task<QueryPlan> GetEstimatedPlanAsync(string connectionString, string query, CancellationToken cancellationToken)
+    {
+        await using var conn = await OpenPlanConnectionAsync(connectionString, cancellationToken);
+
+        // SET SHOWPLAN_XML must be the only statement in its batch, so it gets its own command on the
+        // same session. While it is on, the query is compiled but never executed.
+        await ExecuteNonQueryAsync(conn, null, "SET SHOWPLAN_XML ON", cancellationToken);
+        try
+        {
+            await using var cmd = new SqlCommand(query, conn);
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+
+            var planXml = await ReadShowplanXmlAsync(reader, cancellationToken)
+                          ?? throw new InvalidOperationException("SQL Server returned no plan for this statement.");
+
+            return new QueryPlan { PlanType = "Estimated", PlanFormat = "XML", PlanContent = planXml };
+        }
+        finally
+        {
+            if (conn.State == ConnectionState.Open)
+            {
+                await ExecuteNonQueryAsync(conn, null, "SET SHOWPLAN_XML OFF", CancellationToken.None);
+            }
         }
     }
 
     public async Task<QueryPlan> GetActualPlanAsync(string connectionString, string query)
     {
-        var plan = new QueryPlan
-        {
-            PlanType = "Actual",
-            PlanFormat = "XML"
-        };
-
         try
         {
-            using var conn = new SqlConnection(connectionString);
-            await conn.OpenAsync();
-
-            using var cmd = new SqlCommand($"SET STATISTICS XML ON; {query}", conn);
-            using var reader = await cmd.ExecuteReaderAsync();
-
-            // Skip the result set
-            while (await reader.NextResultAsync())
-            {
-                if (reader.GetName(0) == "Microsoft SQL Server 2005 XML Showplan")
-                {
-                    await reader.ReadAsync();
-                    plan.PlanContent = reader.GetString(0);
-                    break;
-                }
-            }
-
-            return plan;
+            return await GetActualPlanAsync(connectionString, query, CancellationToken.None);
         }
         catch (Exception ex)
         {
-            plan.PlanContent = $"Error getting plan: {ex.Message}";
-            return plan;
+            return new QueryPlan { PlanType = "Actual", PlanFormat = "XML", PlanContent = $"Error getting plan: {ex.Message}" };
         }
+    }
+
+    public async Task<QueryPlan> GetActualPlanAsync(string connectionString, string query, CancellationToken cancellationToken)
+    {
+        var refusal = QueryPlanStatementGuard.RejectTransactionControl(query);
+        if (refusal != null) throw new InvalidOperationException(refusal);
+
+        await using var conn = await OpenPlanConnectionAsync(connectionString, cancellationToken);
+
+        // Disposing an uncommitted SqlTransaction (and closing the unpooled session) rolls it back,
+        // which covers the failure paths.
+        await using var transaction = (SqlTransaction)await conn.BeginTransactionAsync(cancellationToken);
+        await ExecuteNonQueryAsync(conn, transaction, "SET STATISTICS XML ON", cancellationToken);
+
+        string? planXml;
+        await using (var cmd = new SqlCommand(query, conn, transaction))
+        await using (var reader = await cmd.ExecuteReaderAsync(cancellationToken))
+        {
+            planXml = await ReadShowplanXmlAsync(reader, cancellationToken);
+        }
+
+        await transaction.RollbackAsync(CancellationToken.None);
+
+        return new QueryPlan
+        {
+            PlanType = "Actual",
+            PlanFormat = "XML",
+            PlanContent = planXml ?? throw new InvalidOperationException("SQL Server returned no plan for this statement.")
+        };
+    }
+
+    /// <summary>
+    /// Plan sessions change SET options, so they bypass the pool: a session that failed before the
+    /// options were reset must never be handed to a later query, where SHOWPLAN_XML would silently
+    /// stop statements from executing.
+    /// </summary>
+    private static async Task<SqlConnection> OpenPlanConnectionAsync(string connectionString, CancellationToken cancellationToken)
+    {
+        var builder = new SqlConnectionStringBuilder(connectionString) { Pooling = false };
+        var conn = new SqlConnection(builder.ConnectionString);
+        try
+        {
+            await conn.OpenAsync(cancellationToken);
+            return conn;
+        }
+        catch
+        {
+            await conn.DisposeAsync();
+            throw;
+        }
+    }
+
+    private static async Task ExecuteNonQueryAsync(SqlConnection conn, SqlTransaction? transaction, string sql, CancellationToken cancellationToken)
+    {
+        await using var cmd = new SqlCommand(sql, conn, transaction);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task<string?> ReadShowplanXmlAsync(SqlDataReader reader, CancellationToken cancellationToken)
+    {
+        string? planXml = null;
+        do
+        {
+            if (planXml == null && reader.FieldCount == 1 && reader.GetName(0) == ShowplanColumnName
+                && await reader.ReadAsync(cancellationToken))
+            {
+                planXml = reader.GetString(0);
+            }
+        } while (await reader.NextResultAsync(cancellationToken));
+
+        return planXml;
     }
 
     public async Task<TransactionInfo> BeginTransactionAsync(string connectionString)
     {
-        throw new NotImplementedException();
+        var conn = new SqlConnection(connectionString);
+        try
+        {
+            await conn.OpenAsync();
+            var dbTransaction = (SqlTransaction)await conn.BeginTransactionAsync();
+
+            var transaction = new TransactionInfo();
+            _activeTransactions[transaction.Id] = new OpenTransaction(conn, dbTransaction);
+            return transaction;
+        }
+        catch
+        {
+            await conn.DisposeAsync();
+            throw;
+        }
     }
 
     public async Task CommitTransactionAsync(string connectionString, string transactionId)
     {
-        throw new NotImplementedException();
+        if (!_activeTransactions.TryRemove(transactionId, out var open))
+        {
+            throw new InvalidOperationException(TransactionNotOpenMessage);
+        }
+
+        await using (open)
+        {
+            await open.Transaction.CommitAsync();
+        }
     }
 
     public async Task RollbackTransactionAsync(string connectionString, string transactionId)
     {
-        throw new NotImplementedException();
+        if (!_activeTransactions.TryRemove(transactionId, out var open)) return;
+
+        await using (open)
+        {
+            await open.Transaction.RollbackAsync();
+        }
     }
 
     public async Task<QueryResult> ExecuteInTransactionAsync(string connectionString, string query, string transactionId,
         CancellationToken cancellationToken)
     {
-        throw new NotImplementedException();
+        if (!_activeTransactions.TryGetValue(transactionId, out var open))
+        {
+            return new QueryResult { Error = TransactionNotOpenMessage };
+        }
+
+        var result = new QueryResult();
+
+        try
+        {
+            await using var cmd = new SqlCommand(query, open.Connection, open.Transaction);
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                result.Columns.Add(reader.GetName(i));
+            }
+
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var row = new Dictionary<string, object>();
+                for (int i = 0; i < reader.FieldCount; i++)
+                {
+                    var value = reader.GetValue(i);
+                    row[result.Columns[i]] = value == DBNull.Value ? null : value;
+                }
+                result.Rows.Add(row);
+            }
+
+            // Grid edits apply multi-row changes in a transaction and check each statement changed exactly one row.
+            await reader.CloseAsync();
+            result.RowsAffected = reader.RecordsAffected >= 0 ? reader.RecordsAffected : null;
+
+            return result;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            result.Error = ex.Message;
+            return result;
+        }
+    }
+
+    private sealed record OpenTransaction(SqlConnection Connection, SqlTransaction Transaction) : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync()
+        {
+            await Transaction.DisposeAsync();
+            await Connection.DisposeAsync();
+        }
     }
 }

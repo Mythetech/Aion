@@ -1,3 +1,4 @@
+using System.Xml.Linq;
 using Aion.Contracts.Database;
 using Aion.Core.Database.SqlServer;
 using DotNet.Testcontainers.Builders;
@@ -24,7 +25,6 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
             .WithEnvironment("ACCEPT_EULA", "Y")
             .WithEnvironment("MSSQL_PID", "Developer")
             .WithPortBinding(1433, true)
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(1433))
             .WithAutoRemove(true)
             .Build();
     }
@@ -36,7 +36,7 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
             await _container.StartAsync();
             ConnectionString = _container.GetConnectionString();
             await SqlServerReadiness.WaitForLoginAsync(Provider, ConnectionString);
-            await SetupDatabase();
+            await base.InitializeAsync();
         }
         catch (Exception ex)
         {
@@ -148,13 +148,31 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         var actualPlan = await Provider.GetActualPlanAsync(dbConnectionString, query);
 
         // Assert
-        estimatedPlan.ShouldNotBeNull();
-        estimatedPlan.PlanContent.ShouldNotBeNullOrEmpty();
         estimatedPlan.PlanFormat.ShouldBe("XML");
-        
-        actualPlan.ShouldNotBeNull();
-        actualPlan.PlanContent.ShouldNotBeNullOrEmpty();
+        estimatedPlan.PlanContent.ShouldNotStartWith("Error");
+        XDocument.Parse(estimatedPlan.PlanContent).Root!.Name.LocalName.ShouldBe("ShowPlanXML");
+
         actualPlan.PlanFormat.ShouldBe("XML");
+        actualPlan.PlanContent.ShouldNotStartWith("Error");
+        XDocument.Parse(actualPlan.PlanContent).Root!.Name.LocalName.ShouldBe("ShowPlanXML");
+    }
+
+    [Fact]
+    public async Task EstimatedPlan_ForUpdate_ShouldNotExecuteIt()
+    {
+        // Arrange
+        await InsertRowAsync(1, "original");
+
+        // Act
+        var plan = await Provider.GetEstimatedPlanAsync(DatabaseConnectionString, ActualPlanUpdateStatement);
+        var afterPlan = await ReadNameAsync(1);
+        var update = await Provider.ExecuteQueryAsync(DatabaseConnectionString, ActualPlanUpdateStatement, CancellationToken.None);
+
+        // Assert
+        XDocument.Parse(plan.PlanContent).Root!.Name.LocalName.ShouldBe("ShowPlanXML");
+        afterPlan.ShouldBe("original");
+        ValidateQueryResult(update);
+        (await ReadNameAsync(1)).ShouldBe("changed");
     }
 
     [Fact]
@@ -260,16 +278,96 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         proc!.Kind.ShouldBe(RoutineKind.Procedure);
     }
 
-    protected async Task SetupDatabase(string name = "master")
-    {
-        // Create database in master context first
-        var masterConnection = Provider.UpdateConnectionString(ConnectionString, name);
-        var createDbScript = await Provider.Commands.GenerateCreateDatabaseScript(name);
-        await Provider.ExecuteQueryAsync(masterConnection, createDbScript, CancellationToken.None);
+    private const string EditTable = "edit_target";
+    private const string EditSelect = "SELECT * FROM [dbo].[edit_target] ORDER BY id";
 
-        if (name.Equals("master"))
+    // Creates the database itself if needed so these tests don't depend on the shared setup order.
+    private async Task<string> CreateEditTableAsync()
+    {
+        var masterConnectionString = Provider.UpdateConnectionString(ConnectionString, "master");
+
+        // The port opens before the server accepts logins, which the container wait strategy does not cover.
+        for (var attempt = 0; attempt < 30; attempt++)
         {
-         //   await SetupDatabase(TestDatabase);
+            var probe = await Provider.ExecuteQueryAsync(masterConnectionString, "SELECT 1", CancellationToken.None);
+            if (probe.Error == null)
+            {
+                break;
+            }
+            await Task.Delay(TimeSpan.FromSeconds(2));
         }
+
+        await ExecuteOrFailAsync(masterConnectionString, $"IF DB_ID(N'{TestDatabase}') IS NULL CREATE DATABASE [{TestDatabase}]");
+
+        var dbConnectionString = Provider.UpdateConnectionString(ConnectionString, TestDatabase);
+        await ExecuteOrFailAsync(dbConnectionString,
+            $"CREATE TABLE [dbo].[{EditTable}] (id int PRIMARY KEY, name nvarchar(200) NOT NULL)");
+        await ExecuteOrFailAsync(dbConnectionString,
+            $"INSERT INTO [dbo].[{EditTable}] (id, name) VALUES (0, N'Zero'), (1, N'Ada'), (2, N'Grace')");
+        return dbConnectionString;
+    }
+
+    private async Task<List<object?>> ReadNamesAsync(string dbConnectionString)
+    {
+        var result = await ExecuteOrFailAsync(dbConnectionString, $"SELECT name FROM [dbo].[{EditTable}] ORDER BY id");
+        return result.Rows.Select(r => (object?)r["name"]).ToList();
+    }
+
+    [Fact]
+    public async Task GridEdit_ValueWithApostropheAndInjection_ChangesExactlyOneRow()
+    {
+        // Arrange
+        var dbConnectionString = await CreateEditTableAsync();
+        var editable = await LoadEditableTableAsync(dbConnectionString, "dbo", EditTable, EditSelect);
+        const string newName = @"O'Brien's Hub \ '; DROP TABLE edit_target; --";
+
+        // Act
+        var (_, result) = await ApplyGridChangeAsync(dbConnectionString, editable, UpdateCell(editable, 1, "name", newName));
+
+        // Assert
+        result.Error.ShouldBeNull();
+        result.RowsAffected.ShouldBe(1);
+        (await ReadNamesAsync(dbConnectionString)).ShouldBe(new object?[] { "Zero", newName, "Grace" });
+    }
+
+    [Fact]
+    public async Task GridEdit_Delete_RemovesOnlyTheTargetRow()
+    {
+        // Arrange
+        var dbConnectionString = await CreateEditTableAsync();
+        var editable = await LoadEditableTableAsync(dbConnectionString, "dbo", EditTable, EditSelect);
+
+        // Act
+        var (_, result) = await ApplyGridChangeAsync(dbConnectionString, editable, DeleteRow(editable, 0));
+
+        // Assert
+        result.RowsAffected.ShouldBe(1);
+        (await ReadNamesAsync(dbConnectionString)).ShouldBe(new object?[] { "Ada", "Grace" });
+    }
+
+    [Fact]
+    public async Task GridEdit_RowDeletedSinceLoad_ReportsZeroRowsAffected()
+    {
+        // Arrange
+        var dbConnectionString = await CreateEditTableAsync();
+        var editable = await LoadEditableTableAsync(dbConnectionString, "dbo", EditTable, EditSelect);
+        await ExecuteOrFailAsync(dbConnectionString, $"DELETE FROM [dbo].[{EditTable}] WHERE id = 2");
+
+        // Act
+        var (_, result) = await ApplyGridChangeAsync(dbConnectionString, editable, UpdateCell(editable, 2, "name", "gone"));
+
+        // Assert
+        result.Error.ShouldBeNull();
+        result.RowsAffected.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task ExecuteQuery_Select_ReportsNoRowsAffected()
+    {
+        var dbConnectionString = await CreateEditTableAsync();
+
+        var result = await ExecuteOrFailAsync(dbConnectionString, EditSelect);
+
+        result.RowsAffected.ShouldBeNull();
     }
 } 
