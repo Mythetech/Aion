@@ -23,19 +23,13 @@ public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDat
     {
         var databases = new List<string>();
 
+        // Contained users (Azure SQL) can only open their own database, so keep the one the user chose.
         var builder = new SqlConnectionStringBuilder(connectionString);
-        builder.InitialCatalog = "master";
+        if (string.IsNullOrWhiteSpace(builder.InitialCatalog))
+            builder.InitialCatalog = "master";
 
         using var conn = new SqlConnection(builder.ConnectionString);
-        try
-        {
-            await conn.OpenAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to connect to SQL Server");
-            return null;
-        }
+        await conn.OpenAsync();
 
         const string sql = @"
             SELECT name

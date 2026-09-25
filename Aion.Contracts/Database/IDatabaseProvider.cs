@@ -7,6 +7,10 @@ public interface IDatabaseProvider
     IStandardDatabaseCommands Commands { get; }
     DatabaseType DatabaseType { get; }
     IReadOnlyList<string> SystemSchemas { get; }
+    /// <summary>
+    /// Lists the databases visible to the login. Throws with the driver's error when the server
+    /// cannot be reached or rejects the credentials; implementations never return null for that.
+    /// </summary>
     Task<List<string>?> GetDatabasesAsync(string connectionString);
     Task<List<TableInfo>> GetTablesAsync(string connectionString, string database);
     Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string schema, string table);
