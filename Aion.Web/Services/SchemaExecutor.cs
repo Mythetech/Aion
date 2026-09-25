@@ -1,52 +1,47 @@
 using Aion.Components.Connections;
 using Aion.Components.Querying;
+using Aion.Components.Querying.Commands;
 using Aion.Components.Scaffolding;
 using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
-using Aion.Web.Providers;
+using Mythetech.Framework.Infrastructure.MessageBus;
 
 namespace Aion.Web.Services;
 
 public class SchemaExecutor
 {
-    private readonly SqliteWasmProvider _sqliteProvider;
-    private readonly PGliteProvider _pgliteProvider;
+    private readonly IDatabaseProviderFactory _providerFactory;
     private readonly ConnectionState _connectionState;
     private readonly QueryState _queryState;
     private readonly IndexedDbStorageService _storage;
+    private readonly IMessageBus _bus;
 
     public SchemaExecutor(
-        SqliteWasmProvider sqliteProvider,
-        PGliteProvider pgliteProvider,
+        IDatabaseProviderFactory providerFactory,
         ConnectionState connectionState,
         QueryState queryState,
-        IndexedDbStorageService storage)
+        IndexedDbStorageService storage,
+        IMessageBus bus)
     {
-        _sqliteProvider = sqliteProvider;
-        _pgliteProvider = pgliteProvider;
+        _providerFactory = providerFactory;
         _connectionState = connectionState;
         _queryState = queryState;
         _storage = storage;
+        _bus = bus;
     }
 
     public async Task<ConnectionModel> ExecuteAsync(SchemaWizardModel model)
     {
-        var (provider, connectionString) = model.EngineType switch
+        var connectionString = model.EngineType switch
         {
-            DatabaseType.WasmSQLite => ((IDatabaseProvider)_sqliteProvider, $"Data Source={model.DatabaseName};Mode=Memory;Cache=Shared"),
-            DatabaseType.WasmPostgreSQL => (_pgliteProvider, $"pglite://{model.DatabaseName}"),
+            DatabaseType.WasmSQLite => $"Data Source={model.DatabaseName};Mode=Memory;Cache=Shared",
+            DatabaseType.WasmPostgreSQL => $"pglite://{model.DatabaseName}",
             _ => throw new NotSupportedException($"Unsupported engine type: {model.EngineType}")
         };
 
-        switch (model.EngineType)
-        {
-            case DatabaseType.WasmSQLite:
-                await _sqliteProvider.EnsureDatabaseAsync(model.DatabaseName);
-                break;
-            case DatabaseType.WasmPostgreSQL:
-                await _pgliteProvider.EnsureDatabaseAsync(model.DatabaseName);
-                break;
-        }
+        var provider = _providerFactory.GetProvider(model.EngineType);
+        if (provider is IManagedDatabaseProvider managed)
+            await managed.EnsureDatabaseAsync(model.DatabaseName);
 
         foreach (var table in model.Tables)
         {
@@ -78,7 +73,9 @@ public class SchemaExecutor
         var query = _queryState.AddQuery(model.DatabaseName);
         query.ConnectionId = connection.Id;
         query.DatabaseName = model.DatabaseName;
-        _queryState.SetActive(query);
+
+        // The editor only swaps in a tab's text when it is told to focus that tab.
+        await _bus.PublishAsync(new FocusQuery(query));
 
         await _storage.SaveDatabaseMetaAsync(model.DatabaseName, model.EngineType);
 

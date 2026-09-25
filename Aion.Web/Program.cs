@@ -1,8 +1,10 @@
 using Aion.Components;
+using Aion.Components.Connections;
 using Aion.Components.Infrastructure;
 using Aion.Components.NativeMenu;
 using Aion.Components.Querying;
 using Aion.Contracts.Database;
+using Aion.Web.Databases;
 using Aion.Web.Providers;
 using Aion.Web.Onboarding;
 using Aion.Web.Services;
@@ -46,8 +48,10 @@ builder.Services.AddSingleton<ISupportedTypeProvider, SqliteWasmTypeProvider>();
 builder.Services.AddSingleton<ISupportedTypeProvider, PGliteTypeProvider>();
 builder.Services.AddSingleton<SchemaExecutor>();
 builder.Services.AddSingleton<SampleDatabaseProvisioner>();
+builder.Services.AddSingleton<BrowserStorageCleaner>();
 builder.Services.AddSingleton<StorageRestoreService>();
 builder.Services.AddSingleton<WebPersistenceManager>();
+builder.Services.AddSingleton<IConnectionPrompt, BrowserConnectionPrompt>();
 
 builder.Services.AddMessageBus(typeof(WebApp).Assembly, typeof(ComponentsApp).Assembly);
 

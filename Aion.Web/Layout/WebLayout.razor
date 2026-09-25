@@ -12,7 +12,8 @@
 @using Aion.Contracts.Database
 @using Aion.Web.Services
 @using Aion.Web.Onboarding
-@using Aion.Web.Providers
+@using Aion.Web.Databases
+@using Aion.Web.Databases.Commands
 @using Microsoft.JSInterop
 @using Mythetech.Framework.Infrastructure.MessageBus
 @using Mythetech.Framework.Components.AppContextDrawer
@@ -32,6 +33,7 @@
 <MudSnackbarProvider />
 <GlobalCommandSnackbarProvider />
 <DialogCommandProvider />
+<BrowserDatabaseCommandProvider />
 <JsApiCommandProvider />
 <CommandPaletteHost BackgroundClass="aion-dialog" />
 
@@ -117,14 +119,11 @@
     [Inject] protected ConnectionState ConnectionState { get; set; } = default!;
     [Inject] protected IDialogService DialogService { get; set; } = default!;
     [Inject] protected IMessageBus Bus { get; set; } = default!;
-    [Inject] protected QueryState QueryState { get; set; } = default!;
     [Inject] protected IJSRuntime JS { get; set; } = default!;
-    [Inject] protected SchemaExecutor SchemaExecutor { get; set; } = default!;
-    [Inject] protected IEnumerable<ISupportedTypeProvider> TypeProviders { get; set; } = default!;
-    [Inject] protected SampleDatabaseProvisioner Provisioner { get; set; } = default!;
     [Inject] protected ILinkOpenService LinkService { get; set; } = default!;
+    [Inject] protected SampleDatabaseProvisioner Provisioner { get; set; } = default!;
     [Inject] protected StorageRestoreService RestoreService { get; set; } = default!;
-    [Inject] protected IndexedDbStorageService StorageService { get; set; } = default!;
+    [Inject] protected BrowserStorageCleaner StorageCleaner { get; set; } = default!;
 
     private MudThemeProvider _theme = default!;
     private MudTheme Theme { get; } = new AionTheme();
@@ -259,34 +258,7 @@
 
     private async Task AddConnection()
     {
-        var options = new DialogOptions
-        {
-            CloseOnEscapeKey = true,
-            BackgroundClass = "aion-dialog",
-            MaxWidth = MaxWidth.Medium,
-            FullWidth = true,
-            CloseButton = false
-        };
-        var parameters = new MudBlazor.DialogParameters<SchemaWizard>
-        {
-            { x => x.TypeProviders, TypeProviders.ToList() }
-        };
-        var dialog = await DialogService.ShowAsync<SchemaWizard>("New Database", parameters, options);
-        var result = await dialog.Result;
-
-        if (result is { Canceled: false, Data: SchemaWizardModel model })
-        {
-            try
-            {
-                await SchemaExecutor.ExecuteAsync(model);
-            }
-            catch (Exception ex)
-            {
-                await Bus.PublishAsync(new Aion.Components.Shared.Snackbar.Commands.AddNotification(
-                    $"Failed to create database: {ex.Message}",
-                    MudBlazor.Severity.Error));
-            }
-        }
+        await Bus.PublishAsync(new CreateBrowserDatabase());
     }
 
     private async Task OpenSettingsDialog()
@@ -332,32 +304,7 @@
 
     private async Task ClearDatabase(Guid connectionId)
     {
-        var connection = ConnectionState.Connections.FirstOrDefault(c => c.Id == connectionId);
-        if (connection == null) return;
-
-        foreach (var db in connection.Databases)
-        {
-            var provider = ConnectionState.GetProvider(connection.Type);
-            if (provider is SqliteWasmProvider sqlite)
-                await sqlite.DeleteDatabaseAsync(db.Name);
-            else if (provider is PGliteProvider pglite)
-                await pglite.DeleteDatabaseAsync(db.Name);
-
-            await StorageService.DeleteDatabaseMetaAsync(db.Name);
-        }
-
-        var queriesToClose = QueryState.Queries
-            .Where(q => q.ConnectionId == connectionId)
-            .ToList();
-        foreach (var q in queriesToClose)
-        {
-            await QueryState.Remove(q);
-        }
-
-        await ConnectionState.RemoveConnection(connectionId);
-
-        await Bus.PublishAsync(new Aion.Components.Shared.Snackbar.Commands.AddNotification(
-            $"Cleared {connection.Name}", MudBlazor.Severity.Success));
+        await Bus.PublishAsync(new ClearBrowserDatabase(connectionId));
     }
 
     private async Task ClearAllData()
@@ -370,22 +317,7 @@
 
         if (confirmed == true)
         {
-            foreach (var connection in ConnectionState.Connections.ToList())
-            {
-                foreach (var db in connection.Databases)
-                {
-                    var provider = ConnectionState.GetProvider(connection.Type);
-                    if (provider is SqliteWasmProvider sqlite)
-                        await sqlite.DeleteDatabaseAsync(db.Name);
-                    else if (provider is PGliteProvider pglite)
-                        await pglite.DeleteDatabaseAsync(db.Name);
-                }
-            }
-
-            await StorageService.ClearAllAsync();
-            await QueryState.CloseAllTabs();
-
-            ConnectionState.Connections.Clear();
+            await StorageCleaner.ClearAllAsync();
 
             await JS.InvokeVoidAsync("localStorage.removeItem", "aion_onboarded");
 
