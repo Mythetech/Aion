@@ -5,11 +5,19 @@ using SqliteWasmBlazor;
 
 namespace Aion.Web.Providers;
 
-public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider
+public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider,
+    IEstimatedQueryPlanProvider
 {
+    private const string TransactionNotOpenMessage = "This transaction is no longer open. Roll back to clear it.";
+
     private readonly ISqliteWasmDatabaseService _databaseService;
     private readonly HashSet<string> _knownDatabases = new();
     private readonly Dictionary<string, (SqliteWasmConnection Connection, SqliteWasmTransaction Transaction)> _activeTransactions = new();
+
+    // The SQLite worker shares one handle per database across every connection, so an open BEGIN
+    // would silently absorb statements from other tabs. Only one transaction per database is allowed
+    // and everything else is refused until it ends. Keyed by database name, valued by transaction id.
+    private readonly Dictionary<string, string> _transactionByDatabase = new();
 
     public SqliteWasmProvider(ISqliteWasmDatabaseService databaseService)
     {
@@ -126,6 +134,12 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQu
             using var conn = new SqliteWasmConnection(BuildConnectionString(dbName));
             await conn.OpenAsync(cancellationToken);
 
+            if (_transactionByDatabase.ContainsKey(dbName))
+            {
+                result.Error = OpenTransactionMessage(dbName);
+                return result;
+            }
+
             using var cmd = conn.CreateCommand();
             cmd.CommandText = query;
 
@@ -175,32 +189,37 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQu
 
     public async Task<QueryPlan> GetEstimatedPlanAsync(string connectionString, string query)
     {
-        var plan = new QueryPlan { PlanType = "Estimated", PlanFormat = "TEXT" };
-
         try
         {
-            var dbName = ExtractDatabaseName(connectionString);
-
-            using var conn = new SqliteWasmConnection(BuildConnectionString(dbName!));
-            await conn.OpenAsync();
-
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = $"EXPLAIN QUERY PLAN {query}";
-
-            using var reader = await cmd.ExecuteReaderAsync();
-            var sb = new StringBuilder();
-            while (await reader.ReadAsync())
-            {
-                sb.AppendLine(reader.GetString(3));
-            }
-            plan.PlanContent = sb.ToString();
+            return await GetEstimatedPlanAsync(connectionString, query, CancellationToken.None);
         }
         catch (Exception ex)
         {
-            plan.PlanContent = $"Error getting plan: {ex.Message}";
+            return new QueryPlan { PlanType = "Estimated", PlanFormat = "TEXT", PlanContent = $"Error getting plan: {ex.Message}" };
+        }
+    }
+
+    public async Task<QueryPlan> GetEstimatedPlanAsync(string connectionString, string query, CancellationToken cancellationToken)
+    {
+        var refusal = QueryPlanStatementGuard.RequireSingleStatement(query);
+        if (refusal != null) throw new InvalidOperationException(refusal);
+
+        var dbName = ExtractDatabaseName(connectionString);
+
+        using var conn = new SqliteWasmConnection(BuildConnectionString(dbName!));
+        await conn.OpenAsync(cancellationToken);
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"EXPLAIN QUERY PLAN {QueryPlanStatementGuard.TrimTrailingTerminators(query)}";
+
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        var sb = new StringBuilder();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            sb.AppendLine(reader.GetString(3));
         }
 
-        return plan;
+        return new QueryPlan { PlanType = "Estimated", PlanFormat = "TEXT", PlanContent = sb.ToString() };
     }
 
     public async Task<QueryPlan> GetActualPlanAsync(string connectionString, string query)
@@ -210,41 +229,74 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQu
 
     public async Task<TransactionInfo> BeginTransactionAsync(string connectionString)
     {
+        var dbName = ExtractDatabaseName(connectionString)!;
+        if (_transactionByDatabase.ContainsKey(dbName))
+        {
+            throw new InvalidOperationException(OpenTransactionMessage(dbName));
+        }
+
         var transaction = new TransactionInfo();
-        var dbName = ExtractDatabaseName(connectionString);
-        var conn = new SqliteWasmConnection(BuildConnectionString(dbName!));
-        await conn.OpenAsync();
-        var dbTransaction = (SqliteWasmTransaction)await conn.BeginTransactionAsync();
-        _activeTransactions[transaction.Id] = (conn, dbTransaction);
-        return transaction;
+        _transactionByDatabase[dbName] = transaction.Id;
+
+        var conn = new SqliteWasmConnection(BuildConnectionString(dbName));
+        try
+        {
+            await conn.OpenAsync();
+            var dbTransaction = (SqliteWasmTransaction)await conn.BeginTransactionAsync();
+            _activeTransactions[transaction.Id] = (conn, dbTransaction);
+            return transaction;
+        }
+        catch
+        {
+            _transactionByDatabase.Remove(dbName);
+            conn.Dispose();
+            throw;
+        }
     }
 
     public async Task CommitTransactionAsync(string connectionString, string transactionId)
     {
-        if (_activeTransactions.TryGetValue(transactionId, out var entry))
+        if (!_activeTransactions.TryGetValue(transactionId, out var entry))
         {
-            await entry.Transaction.CommitAsync();
-            entry.Transaction.Dispose();
-            entry.Connection.Dispose();
-            _activeTransactions.Remove(transactionId);
+            throw new InvalidOperationException(TransactionNotOpenMessage);
         }
+
+        // Tracking is only released once COMMIT succeeds, so after a failure Rollback can still end
+        // the shared session's transaction instead of leaving it open for other tabs to fall into.
+        await entry.Transaction.CommitAsync();
+        ReleaseTransaction(transactionId, entry);
     }
 
     public async Task RollbackTransactionAsync(string connectionString, string transactionId)
     {
-        if (_activeTransactions.TryGetValue(transactionId, out var entry))
+        if (!_activeTransactions.TryGetValue(transactionId, out var entry)) return;
+
+        try
         {
             await entry.Transaction.RollbackAsync();
-            entry.Transaction.Dispose();
-            entry.Connection.Dispose();
-            _activeTransactions.Remove(transactionId);
         }
+        finally
+        {
+            ReleaseTransaction(transactionId, entry);
+        }
+    }
+
+    private void ReleaseTransaction(string transactionId, (SqliteWasmConnection Connection, SqliteWasmTransaction Transaction) entry)
+    {
+        _activeTransactions.Remove(transactionId);
+        foreach (var database in _transactionByDatabase.Where(pair => pair.Value == transactionId).Select(pair => pair.Key).ToList())
+        {
+            _transactionByDatabase.Remove(database);
+        }
+
+        entry.Transaction.Dispose();
+        entry.Connection.Dispose();
     }
 
     public async Task<QueryResult> ExecuteInTransactionAsync(string connectionString, string query, string transactionId, CancellationToken cancellationToken)
     {
         if (!_activeTransactions.TryGetValue(transactionId, out var entry))
-            return new QueryResult { Error = "Transaction not found" };
+            return new QueryResult { Error = TransactionNotOpenMessage };
 
         var result = new QueryResult();
         try
@@ -343,6 +395,10 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQu
         await _databaseService.DeleteDatabaseAsync($"{name}.db");
         _knownDatabases.Remove(name);
     }
+
+    private static string OpenTransactionMessage(string dbName) =>
+        $"Database '{dbName}' has an open transaction in a query tab. SQLite runs every tab on one session here, " +
+        "so commit or roll back that transaction first.";
 
     private static bool IsNonQuery(string query)
     {

@@ -33,6 +33,21 @@ export async function exec(name, sql) {
     await db.exec(sql);
 }
 
+// db.transaction holds PGlite's transaction lock, so no other query can interleave with this one,
+// and the explicit rollback discards anything the statement changed. Returns the first column of
+// each row as text.
+export async function queryRolledBack(name, sql) {
+    const db = instances[name];
+    if (!db) throw new Error(`Database '${name}' not found`);
+
+    return await db.transaction(async (tx) => {
+        const result = await tx.query(sql);
+        await tx.rollback();
+        const column = result.fields[0]?.name;
+        return column === undefined ? [] : result.rows.map(row => String(row[column]));
+    });
+}
+
 export function listDatabases() {
     return Object.keys(instances);
 }
