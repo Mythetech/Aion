@@ -9,6 +9,7 @@ using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
 using Aion.Test.TestDoubles;
+using System.Data.Common;
 using Bunit;
 using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.Extensions.DependencyInjection;
@@ -186,6 +187,44 @@ public abstract class ConnectionStateTestBase : TestContext, IAsyncLifetime
         result.Error.ShouldBeNull();
         TestQuery.EstimatedPlan.ShouldNotBeNull();
         TestQuery.EstimatedPlan.PlanContent.ShouldNotBeEmpty();
+    }
+
+    [Fact]
+    public async Task ConnectAsync_WrongPassword_ReportsFailureAndSavesNothing()
+    {
+        var builder = new DbConnectionStringBuilder { ConnectionString = ConnectionString };
+        builder["Password"] = "Definitely_Wrong_123!";
+        var connection = new ConnectionModel
+        {
+            Type = Provider.DatabaseType,
+            ConnectionString = builder.ConnectionString,
+            Name = "Wrong Password"
+        };
+
+        var result = await ConnectionState.ConnectAsync(connection);
+
+        result.Success.ShouldBeFalse();
+        result.Error.ShouldNotBeNullOrWhiteSpace();
+        connection.Active.ShouldBeFalse();
+        ConnectionState.Connections.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task ConnectAsync_ValidCredentials_ConnectsAndListsDatabases()
+    {
+        var connection = new ConnectionModel
+        {
+            Type = Provider.DatabaseType,
+            ConnectionString = ConnectionString,
+            Name = "Test Connection"
+        };
+
+        var result = await ConnectionState.ConnectAsync(connection);
+
+        result.Success.ShouldBeTrue(result.Error);
+        connection.Active.ShouldBeTrue();
+        connection.Databases.ShouldContain(d => d.Name == TestDatabase);
+        ConnectionState.Connections.ShouldContain(connection);
     }
 
     protected virtual async Task SetupTestDatabase()

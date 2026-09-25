@@ -1,6 +1,7 @@
 using Aion.Contracts.Database;
 using Aion.Core.Database.SqlServer;
 using DotNet.Testcontainers.Builders;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Shouldly;
 using Testcontainers.MsSql;
@@ -34,6 +35,7 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         {
             await _container.StartAsync();
             ConnectionString = _container.GetConnectionString();
+            await SqlServerReadiness.WaitForLoginAsync(Provider, ConnectionString);
             await SetupDatabase();
         }
         catch (Exception ex)
@@ -167,6 +169,30 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         isValid = Provider.ValidateConnectionString("Data Source=;", out error);
         isValid.ShouldBeFalse();
         error.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task GetDatabases_WrongPassword_ThrowsDriverError()
+    {
+        var wrongPassword = new SqlConnectionStringBuilder(ConnectionString) { Password = "Definitely_Wrong_123!" }.ConnectionString;
+
+        var ex = await Should.ThrowAsync<SqlException>(() => Provider.GetDatabasesAsync(wrongPassword));
+
+        ex.Message.ShouldContain("Login failed");
+    }
+
+    [Fact]
+    public async Task GetDatabases_ListsUserDatabases()
+    {
+        const string database = "aion_listing_db";
+        var created = await Provider.ExecuteQueryAsync(ConnectionString, $"CREATE DATABASE [{database}]", CancellationToken.None);
+        created.Error.ShouldBeNull();
+
+        var databases = await Provider.GetDatabasesAsync(ConnectionString);
+
+        databases.ShouldNotBeNull();
+        databases.ShouldContain(database);
+        databases.ShouldNotContain("master");
     }
 
     [Fact]

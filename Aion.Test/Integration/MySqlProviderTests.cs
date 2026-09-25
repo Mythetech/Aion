@@ -2,6 +2,7 @@ using Aion.Core.Database;
 using Aion.Contracts.Database;
 using DotNet.Testcontainers.Builders;
 using Microsoft.Extensions.Logging;
+using MySql.Data.MySqlClient;
 using Shouldly;
 using Testcontainers.MySql;
 using Xunit;
@@ -61,6 +62,16 @@ public class MySqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         // Assert
         databases.ShouldNotBeNull();
         databases.ShouldContain(TestDatabase);
+    }
+
+    [Fact]
+    public async Task GetDatabases_WrongPassword_ThrowsDriverError()
+    {
+        var wrongPassword = new MySqlConnectionStringBuilder(ConnectionString) { Password = "definitely-wrong" }.ConnectionString;
+
+        var ex = await Should.ThrowAsync<MySqlException>(() => Provider.GetDatabasesAsync(wrongPassword));
+
+        ex.Message.ShouldContain("Access denied");
     }
 
     [Fact]
