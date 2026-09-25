@@ -1,0 +1,74 @@
+@using Aion.Components.Connections.Commands
+@using Aion.Components.Theme
+@using Aion.Contracts.Queries
+@using Mythetech.Framework.Infrastructure.MessageBus
+
+@if (Query.Transaction is { Status: TransactionStatus.Active } transaction)
+{
+    <div class="transaction-bar" role="status">
+        <MudIcon Icon="@AionIcons.Transaction" Size="Size.Small" Color="Color.Warning" />
+        <MudText Typo="Typo.body2" Class="transaction-bar-title">Transaction open</MudText>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">@FormatStatements(transaction.StatementCount)</MudText>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">Started @transaction.StartTime.ToLocalTime().ToString("T")</MudText>
+        <MudSpacer />
+        <MudButton Class="transaction-bar-rollback"
+                   Size="Size.Small"
+                   Variant="Variant.Text"
+                   Color="Color.Error"
+                   StartIcon="@AionIcons.RollbackTransaction"
+                   Disabled="@IsBusy"
+                   OnClick="RollbackAsync">
+            Rollback
+        </MudButton>
+        <MudButton Class="transaction-bar-commit"
+                   Size="Size.Small"
+                   Variant="Variant.Filled"
+                   Color="Color.Success"
+                   DropShadow="false"
+                   StartIcon="@AionIcons.CommitTransaction"
+                   Disabled="@IsBusy"
+                   OnClick="CommitAsync">
+            Commit
+        </MudButton>
+    </div>
+}
+
+@code {
+    [Inject] protected IMessageBus Bus { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public QueryModel Query { get; set; } = default!;
+
+    private bool _finishing;
+
+    // Ending the transaction while a statement is still running on its connection would fail, so wait.
+    private bool IsBusy => _finishing || Query.IsExecuting;
+
+    private static string FormatStatements(int count) => count == 1 ? "1 statement" : $"{count} statements";
+
+    private async Task CommitAsync()
+    {
+        _finishing = true;
+        try
+        {
+            await Bus.PublishAsync(new CommitTransaction(Query));
+        }
+        finally
+        {
+            _finishing = false;
+        }
+    }
+
+    private async Task RollbackAsync()
+    {
+        _finishing = true;
+        try
+        {
+            await Bus.PublishAsync(new RollbackTransaction(Query));
+        }
+        finally
+        {
+            _finishing = false;
+        }
+    }
+}

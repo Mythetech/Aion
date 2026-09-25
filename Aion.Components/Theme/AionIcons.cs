@@ -94,6 +94,10 @@ public static class AionIcons
 
     public static string TransactionOff => Round("lock_open");
 
+    public static string CommitTransaction => Round("check");
+
+    public static string RollbackTransaction => Round("undo");
+
     public static string EstimatedQueryPlan => Round("query_stats");
     
     public static string ActualQueryPlan => Round("monitoring");
