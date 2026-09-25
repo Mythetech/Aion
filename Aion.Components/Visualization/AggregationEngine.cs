@@ -24,7 +24,7 @@ public class AggregationResult
     public string[] Labels { get; set; } = [];
     public double[] Values { get; set; } = [];
     public string GroupByColumn { get; set; } = string.Empty;
-    public string MeasureColumn { get; set; } = string.Empty;
+    public string? MeasureColumn { get; set; }
     public AggregateFunction Function { get; set; }
     public ChartTypeRecommendation RecommendedChartType { get; set; }
 }
@@ -36,14 +36,22 @@ public enum ChartTypeRecommendation
     Line
 }
 
+public sealed record AnalysisSelection(string GroupByColumn, string? MeasureColumn, AggregateFunction Function);
+
 public class AggregationEngine
 {
     public const string NullLabel = "(null)";
 
+    // Enough rows to classify a column without scanning very large results on every redraw.
+    private const int ProfileSampleSize = 200;
+
+    // A few stray non-numeric values (for example "N/A") shouldn't hide an otherwise numeric column.
+    private const double NumericShareThreshold = 0.9;
+
     public AggregationResult Aggregate(
         QueryResult result,
         string groupByColumn,
-        string measureColumn,
+        string? measureColumn,
         AggregateFunction function,
         AggregationSort sort = AggregationSort.Label)
     {
@@ -63,7 +71,7 @@ public class AggregationEngine
             Labels = labels,
             Values = ordered.Select(g => g.Value).ToArray(),
             GroupByColumn = groupByColumn,
-            MeasureColumn = measureColumn,
+            MeasureColumn = function == AggregateFunction.Count ? null : measureColumn,
             Function = function,
             RecommendedChartType = RecommendChartType(labels.Length, function)
         };
@@ -85,8 +93,43 @@ public class AggregationEngine
             return [];
 
         return result.Columns
-            .Where(col => IsNumericColumn(result, col))
+            .Where(col => ProfileColumn(result, col).IsNumeric)
             .ToList();
+    }
+
+    public AnalysisSelection? SuggestSelection(QueryResult result)
+    {
+        if (result.Columns.Count == 0 || result.Rows.Count == 0)
+            return null;
+
+        var profiles = result.Columns.Select(col => ProfileColumn(result, col)).ToList();
+        var textColumns = profiles.Where(p => p.IsTextLike).ToList();
+        var measureCandidates = profiles.Where(p => p.IsNumeric && !IsIdLike(p.Name)).ToList();
+
+        var groupBy = ChooseGroupBy(profiles, textColumns, hasMeasure: measureCandidates.Count > 0);
+
+        var eligibleMeasures = measureCandidates.Where(p => p.Name != groupBy).ToList();
+        var measure = eligibleMeasures.OrderByDescending(p => p.SortOrder).FirstOrDefault();
+
+        return measure is null
+            ? new AnalysisSelection(groupBy, null, AggregateFunction.Count)
+            : new AnalysisSelection(groupBy, measure.Name, AggregateFunction.Sum);
+    }
+
+    public static bool IsIdLike(string columnName)
+    {
+        var name = columnName.Trim();
+        if (name.Length < 2)
+            return false;
+
+        var lower = name.ToLowerInvariant();
+        if (lower is "id" or "uuid" or "guid" || lower.EndsWith("_id") || lower.EndsWith(" id") || lower.EndsWith("-id"))
+            return true;
+
+        // camelCase and PascalCase keys (customerId, CustomerID) end in "Id" or "ID" after a lowercase letter.
+        return name.Length > 2
+               && (name.EndsWith("Id", StringComparison.Ordinal) || name.EndsWith("ID", StringComparison.Ordinal))
+               && char.IsLower(name[^3]);
     }
 
     public static double? ToNumber(object? value) => value switch
@@ -108,6 +151,23 @@ public class AggregationEngine
             : null,
         _ => null
     };
+
+    private static string ChooseGroupBy(List<ColumnProfile> profiles, List<ColumnProfile> textColumns, bool hasMeasure)
+    {
+        var namedText = textColumns.Where(p => !IsIdLike(p.Name)).ToList();
+
+        // Counting rows per unique value draws one bar of height 1 per row, so without a measure prefer a column that repeats.
+        if (!hasMeasure)
+        {
+            var repeating = namedText.FirstOrDefault(p => p.HasRepeats);
+            if (repeating is not null)
+                return repeating.Name;
+        }
+
+        return namedText.FirstOrDefault()?.Name
+               ?? textColumns.FirstOrDefault()?.Name
+               ?? profiles[0].Name;
+    }
 
     private static List<Group> Order(List<Group> groups, AggregationSort sort)
     {
@@ -171,11 +231,57 @@ public class AggregationEngine
         _ => value.ToString() ?? NullLabel
     };
 
-    private static bool IsNumericColumn(QueryResult result, string column)
+    private static bool IsMissing(object? value) => value is null || value is string s && string.IsNullOrWhiteSpace(s);
+
+    private static ColumnProfile ProfileColumn(QueryResult result, string column)
     {
-        var sample = result.Rows.Take(20).ToList();
-        var numericCount = sample.Count(row => ToNumber(GetValue(row, column)).HasValue);
-        return numericCount > sample.Count * 0.5;
+        var sample = result.Rows
+            .Take(ProfileSampleSize)
+            .Select(row => GetValue(row, column))
+            .ToList();
+        var values = sample.Where(v => !IsMissing(v)).ToList();
+
+        var numbers = values.Select(ToNumber).ToList();
+        var numericCount = numbers.Count(n => n.HasValue);
+        var isNumeric = numericCount > 0 && numericCount >= values.Count * NumericShareThreshold;
+
+        return new ColumnProfile(
+            column,
+            IsNumeric: isNumeric,
+            IsTextLike: values.Count > 0 && !isNumeric,
+            SortOrder: isNumeric ? DetectSortOrder(numbers) : SortOrder.None,
+            HasRepeats: sample.Select(FormatKey).Distinct().Count() < sample.Count);
+    }
+
+    // A result ordered by a numeric column (ORDER BY revenue DESC) signals the value the query is about.
+    // Small counts next to it are often in order by coincidence, but rarely without ties.
+    private static SortOrder DetectSortOrder(List<double?> numbers)
+    {
+        var present = numbers.Where(n => n.HasValue).Select(n => n!.Value).ToList();
+        if (present.Count < 3 || present.Distinct().Count() < 2)
+            return SortOrder.None;
+
+        var ascending = true;
+        var descending = true;
+        var ties = false;
+        for (var i = 1; i < present.Count; i++)
+        {
+            if (present[i] < present[i - 1]) ascending = false;
+            if (present[i] > present[i - 1]) descending = false;
+            if (present[i] == present[i - 1]) ties = true;
+        }
+
+        if (!ascending && !descending)
+            return SortOrder.None;
+
+        return ties ? SortOrder.SortedWithTies : SortOrder.Sorted;
+    }
+
+    private enum SortOrder
+    {
+        None,
+        SortedWithTies,
+        Sorted
     }
 
     private static int CountDistinct(QueryResult result, string column)
@@ -198,4 +304,6 @@ public class AggregationEngine
     }
 
     private sealed record Group(string Label, double Value);
+
+    private sealed record ColumnProfile(string Name, bool IsNumeric, bool IsTextLike, SortOrder SortOrder, bool HasRepeats);
 }
