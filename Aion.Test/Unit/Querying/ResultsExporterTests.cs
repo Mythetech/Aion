@@ -23,7 +23,7 @@ public class ResultsExporterTests
     public ResultsExporterTests()
     {
         _state = new QueryState(_bus, Substitute.For<IQuerySaveService>());
-        _bus.PublishAsync(Arg.Do<AddNotification>(n => _notifications.Add(n)));
+        _bus.PublishAsync(Arg.Do<AddNotification>(n => _notifications.Add(n))).Returns(Task.CompletedTask);
     }
 
     private static QueryResult SampleResult() => new()
