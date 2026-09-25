@@ -1,4 +1,5 @@
 using Aion.Components.Connections;
+using Aion.Components.History;
 using Aion.Components.Querying;
 using Aion.Contracts.Database;
 using Aion.Web.Services;
@@ -9,17 +10,20 @@ public class BrowserStorageCleaner
 {
     private readonly ConnectionState _connectionState;
     private readonly QueryState _queryState;
+    private readonly HistoryState _historyState;
     private readonly IndexedDbStorageService _storage;
     private readonly IDatabaseProviderFactory _providerFactory;
 
     public BrowserStorageCleaner(
         ConnectionState connectionState,
         QueryState queryState,
+        HistoryState historyState,
         IndexedDbStorageService storage,
         IDatabaseProviderFactory providerFactory)
     {
         _connectionState = connectionState;
         _queryState = queryState;
+        _historyState = historyState;
         _storage = storage;
         _providerFactory = providerFactory;
     }
@@ -44,5 +48,6 @@ public class BrowserStorageCleaner
 
         await _storage.ClearAllAsync();
         await _queryState.CloseAllTabs();
+        await _historyState.ClearAsync();
     }
 }
