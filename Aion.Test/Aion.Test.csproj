@@ -32,6 +32,12 @@
       <Folder Include="Integration\" />
     </ItemGroup>
 
+    <!-- Referencing Aion.Desktop pulls in its WebView static web assets, which conflict with Aion.Web's.
+         Desktop services that only depend on Aion.Components are compiled in directly instead. -->
+    <ItemGroup>
+      <Compile Include="..\Aion.Desktop\Services\FileQueryHistoryStore.cs" Link="Desktop\FileQueryHistoryStore.cs" />
+    </ItemGroup>
+
     <ItemGroup>
       <ProjectReference Include="..\Aion.Components\Aion.Components.csproj" />
       <ProjectReference Include="..\Aion.Contracts\Aion.Contracts.csproj" />
