@@ -8,6 +8,7 @@ using Aion.Components.Search;
 using Aion.Components.Settings;
 using Aion.Components.Settings.Domains;
 using Aion.Components.Shared.Snackbar;
+using Aion.Components.Theme;
 using Aion.Contracts.Database;
 using Microsoft.Extensions.DependencyInjection;
 using MudBlazor;
@@ -48,6 +49,7 @@ public static class RegistrationExtensions
         services.AddPluginFramework();
 
         services.AddSingleton<SettingsState>();
+        services.AddSingleton<ThemeState>();
 
         services.AddSingleton<IConnectionService, TConnectionService>();
         services.AddSingleton<IConnectionHealthMonitor, ConnectionHealthMonitor>();

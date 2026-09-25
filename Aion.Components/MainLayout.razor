@@ -26,7 +26,7 @@
 @using Mythetech.Framework.Infrastructure.Settings
 @implements IDisposable
 
-<MudThemeProvider @ref="_theme" @bind-IsDarkMode="@AppState.IsDarkMode" Theme="@Theme" />
+<AionThemeProvider @ref="_themeProvider" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -78,22 +78,7 @@
             </PanelNavContent>
 
             <PanelFooterContent>
-                <MudMenu ActivationEvent="MouseEvent.MouseOver" AnchorOrigin="Origin.TopRight">
-                    <ActivatorContent>
-                        <MudIconButton Class="ml-1"
-                                       Icon="@(AppState.IsDarkMode ? AionIcons.DarkMode : AionIcons.LightMode)"
-                                       Color="Color.Primary" Variant="Variant.Text"
-                                       OnClick="@(() => AppState.IsDarkMode = !AppState.IsDarkMode)" />
-                    </ActivatorContent>
-                    <ChildContent>
-                        <MudToggleGroup T="string" Size="Size.Small" Value="@SelectedColorMode"
-                                        ValueChanged="HandleColorModeChanged" Style="align-items: center">
-                            <ToggleIcon Value="light" Icon="@AionIcons.LightMode" Text="Light Mode" />
-                            <ToggleIcon Value="dark" Icon="@AionIcons.DarkMode" Text="Dark Mode" />
-                            <ToggleIcon Value="system" Icon="@AionIcons.Round("laptop")" Text="System Default" />
-                        </MudToggleGroup>
-                    </ChildContent>
-                </MudMenu>
+                <ThemeModeMenu />
                 <MtIconButton Class="ml-1" Color="Color.Primary" Icon="@AionIcons.Settings" OnClick="OpenSettingsDialog"
                               Tooltip="Settings" TooltipPlacement="Placement.Right" />
                 <MudIconButton Class="ml-1"
@@ -135,20 +120,16 @@
     [Inject] protected IMessageBus Bus { get; set; } = default!;
     [Inject] protected QueryState QueryState { get; set; } = default!;
 
-    protected MudThemeProvider _theme { get; set; } = default!;
+    private AionThemeProvider _themeProvider = default!;
     private bool _assetsLoaded = false;
     private string? _activePanelId;
     private MudMenu? _connectionContextMenu;
     private ConnectionModel? _contextMenuConnection;
 
-    private string SelectedColorMode => AppState.IsDarkMode ? "dark" : "light";
-
     private bool _aionInitialized = false;
-    private MudTheme Theme { get; } = new AionTheme();
 
     protected override void OnInitialized()
     {
-        AppState.OnDarkModeChanged += HandleDarkModeChange;
         Settings.SettingsChanged += HandleSettingsChanged;
         Plugins.StateChanged += OnPluginStateChanged;
         ConnectionState.ConnectionStateChanged += HandleConnectionStateChanged;
@@ -157,16 +138,6 @@
     }
 
     private void HandleSettingsChanged(SettingsState s) => StateHasChanged();
-
-    protected override void OnAfterRender(bool firstRender)
-    {
-        if (firstRender)
-        {
-            AppState.SetThemeProvider(_theme);
-        }
-
-        base.OnAfterRender(firstRender);
-    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -186,7 +157,7 @@
         {
             try
             {
-                await AppState.SetSystemColorMode();
+                await _themeProvider.RefreshSystemPreferenceAsync();
                 await JS.InvokeVoidAsync("aionSplash.hide");
             
                 _aionInitialized = true;
@@ -199,23 +170,8 @@
         await base.OnAfterRenderAsync(firstRender);
     }
 
-    protected async void HandleDarkModeChange(bool isDarkMode)
-    {
-        await Task.Yield();
-
-        try
-        {
-            await BlazorMonaco.Editor.Global.SetTheme(JS, isDarkMode ? "vs-dark" : "vs");
-            StateHasChanged();
-        }
-        catch
-        {
-        }
-    }
-
     public void Dispose()
     {
-        AppState.OnDarkModeChanged -= HandleDarkModeChange;
         Settings.SettingsChanged -= HandleSettingsChanged;
         Plugins.StateChanged -= OnPluginStateChanged;
         ConnectionState.ConnectionStateChanged -= HandleConnectionStateChanged;
@@ -241,17 +197,6 @@
         {
             _activePanelId = null;
         }
-
-        StateHasChanged();
-    }
-
-    protected async Task HandleColorModeChanged(string s)
-    {
-        if (!AppState.IsDarkMode && s.Equals("light", StringComparison.OrdinalIgnoreCase))
-            return;
-
-        AppState.IsDarkMode = s.Equals("dark", StringComparison.OrdinalIgnoreCase) ||
-                              s.Equals("system", StringComparison.OrdinalIgnoreCase);
 
         StateHasChanged();
     }
