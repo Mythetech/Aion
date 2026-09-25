@@ -1,0 +1,9 @@
+.aion-update-banner {
+    position: fixed;
+    top: 46px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: min(640px, calc(100vw - 32px));
+    z-index: 1350;
+}
