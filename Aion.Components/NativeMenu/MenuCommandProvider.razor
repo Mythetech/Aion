@@ -2,11 +2,9 @@
 @using Mythetech.Framework.Infrastructure.Plugins
 @using Mythetech.Framework.Infrastructure.Plugins.Components
 @using Mythetech.Framework.Infrastructure.Files
-@using Aion.Components.History
 @using Aion.Components.Shared.Dialogs
 @using MudBlazor
 @implements IDisposable
-@implements IConsumer<ClearHistory>
 @implements IConsumer<OpenPluginDirectory>
 @implements IConsumer<ImportPlugin>
 @implements IConsumer<ShowAboutPlugin>
@@ -14,9 +12,7 @@
 
 @code {
     [Inject] private IMessageBus Bus { get; set; } = default!;
-    [Inject] private ISnackbar Snackbar { get; set; } = default!;
     [Inject] private IDialogService DialogService { get; set; } = default!;
-    [Inject] private HistoryState HistoryState { get; set; } = default!;
     [Inject] private PluginState Plugins { get; set; } = default!;
     [Inject] private PluginLoader PluginLoader { get; set; } = default!;
     [Inject] private IShowFileService ShowFileService { get; set; } = default!;
@@ -24,28 +20,10 @@
 
     protected override void OnInitialized()
     {
-        Bus.Subscribe<ClearHistory>(this);
         Bus.Subscribe<OpenPluginDirectory>(this);
         Bus.Subscribe<ImportPlugin>(this);
         Bus.Subscribe<ShowAboutPlugin>(this);
         Bus.Subscribe<TogglePlugin>(this);
-    }
-
-    public async Task Consume(ClearHistory message)
-    {
-        await InvokeAsync(async () =>
-        {
-            bool? result = await DialogService.ShowMessageBoxAsync(
-                "Clear History",
-                "Are you sure you want to clear all query history?",
-                yesText: "Clear", cancelText: "Cancel");
-
-            if (result == true)
-            {
-                HistoryState.ClearHistory();
-                Snackbar.Add("History cleared", Severity.Success);
-            }
-        });
     }
 
     public async Task Consume(OpenPluginDirectory message)
@@ -115,7 +93,6 @@
 
     public void Dispose()
     {
-        Bus.Unsubscribe<ClearHistory>(this);
         Bus.Unsubscribe<OpenPluginDirectory>(this);
         Bus.Unsubscribe<ImportPlugin>(this);
         Bus.Unsubscribe<ShowAboutPlugin>(this);

@@ -19,8 +19,9 @@ public class WebConnectionService : IConnectionService
 
     public async Task InitializeAsync()
     {
-        _connections.Clear();
+        // Load before clearing so two overlapping calls can't both clear and then both append.
         var records = await _storage.LoadConnectionsAsync();
+        _connections.Clear();
         _connections.AddRange(records.Select(r => r.ToConnectionModel()));
     }
 
@@ -35,6 +36,10 @@ public class WebConnectionService : IConnectionService
 
     public async Task RemoveConnection(Guid id)
     {
+        var connection = _connections.FirstOrDefault(c => c.Id == id);
+        if (connection != null)
+            await DeleteDatabasesAsync(connection);
+
         _connections.RemoveAll(c => c.Id == id);
         await _storage.DeleteConnectionAsync(id);
     }
@@ -63,5 +68,43 @@ public class WebConnectionService : IConnectionService
     {
         var provider = _providerFactory.GetProvider(type);
         return await provider.ExecuteQueryAsync(connectionString, query, cancellationToken);
+    }
+
+    // In the browser a connection is the only way to reach its database, so removing the connection but keeping
+    // the data would strand it in browser storage. A database another connection still uses is kept.
+    private async Task DeleteDatabasesAsync(ConnectionModel connection)
+    {
+        if (_providerFactory.GetProvider(connection.Type) is not IManagedDatabaseProvider managed)
+            return;
+
+        var databases = await GetDatabasesAsync(connection.ConnectionString, connection.Type) ?? [];
+        foreach (var database in databases)
+        {
+            var sharing = await GetOtherConnectionsUsingAsync(connection, database);
+
+            if (!sharing.Any(c => c.Type == connection.Type))
+                await managed.DeleteDatabaseAsync(database);
+
+            // Database metadata is keyed by name alone, so a same-named database on the other engine keeps it.
+            if (sharing.Count == 0)
+                await _storage.DeleteDatabaseMetaAsync(database);
+            else
+                await _storage.SaveDatabaseMetaAsync(database, sharing[0].Type);
+        }
+    }
+
+    private async Task<List<ConnectionModel>> GetOtherConnectionsUsingAsync(ConnectionModel connection, string database)
+    {
+        var sharing = new List<ConnectionModel>();
+        foreach (var other in _connections.Where(c => c.Id != connection.Id))
+        {
+            if (!_providerFactory.SupportedDatabases.Contains(other.Type))
+                continue;
+
+            var databases = await GetDatabasesAsync(other.ConnectionString, other.Type) ?? [];
+            if (databases.Contains(database))
+                sharing.Add(other);
+        }
+        return sharing;
     }
 }

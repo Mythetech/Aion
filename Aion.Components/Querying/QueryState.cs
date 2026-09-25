@@ -100,20 +100,12 @@ public class QueryState : IConsumer<QueryChanged>
         OnStateChanged();
     }
 
-    public void SetTransactionInfo(TransactionInfo transactionInfo)
-    {
-        Active.Transaction = transactionInfo;
-        OnStateChanged();
-    }
-
     public void SetActive(QueryModel query)
     {
         Active = Queries.FirstOrDefault(x => x.Id.Equals(query?.Id));
 
         if (Active == null) return;
 
-        Active.IsExecuting = false;
-        
         OnStateChanged();
     }
 
@@ -227,6 +219,20 @@ public class QueryState : IConsumer<QueryChanged>
         }
 
         NormalizeOrder();
+        OnStateChanged();
+    }
+
+    public void DetachConnection(Guid connectionId)
+    {
+        var attached = Queries.Where(q => q.ConnectionId == connectionId).ToList();
+        if (attached.Count == 0) return;
+
+        foreach (var query in attached)
+        {
+            query.ConnectionId = null;
+            query.DatabaseName = null;
+        }
+
         OnStateChanged();
     }
 

@@ -15,9 +15,14 @@ public interface IConnectionHealthMonitor : IDisposable
     Task StopAsync();
 
     /// <summary>
-    /// Manually check the health of a specific connection.
+    /// Manually check the health of a specific connection without updating its state.
     /// </summary>
     Task<ConnectionHealthCheckResult> CheckConnectionHealthAsync(ConnectionModel connection);
+
+    /// <summary>
+    /// Check and update the health of one connection, or of every server connection when <paramref name="connectionId"/> is null.
+    /// </summary>
+    Task RefreshAsync(Guid? connectionId = null);
 
     /// <summary>
     /// Update the last activity time for a connection, marking it as recently used.

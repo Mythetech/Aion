@@ -1,0 +1,30 @@
+@using Aion.Components.Shared.Snackbar.Commands
+@using Mythetech.Framework.Infrastructure.MessageBus
+
+<MudDialog Class="aion-transparent-dialog">
+    <DialogContent>
+        <MudText>Clear @EntryCount @(EntryCount == 1 ? "query" : "queries") from history? This cannot be undone.</MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton OnClick="ClearAsync" Color="Color.Error" Variant="Variant.Filled">Clear History</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Inject] private HistoryState State { get; set; } = default!;
+    [Inject] private IMessageBus Bus { get; set; } = default!;
+
+    [Parameter] public int EntryCount { get; set; }
+
+    private async Task ClearAsync()
+    {
+        await State.ClearAsync();
+        await Bus.PublishAsync(new AddNotification("History cleared", Severity.Success));
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

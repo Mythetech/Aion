@@ -1,4 +1,6 @@
 using Aion.Components;
+using Aion.Components.Connections;
+using Aion.Components.History;
 using Aion.Components.Infrastructure;
 using Hermes;
 using Hermes.Blazor;
@@ -10,6 +12,7 @@ using Mythetech.Framework.Infrastructure.Plugins;
 using Mythetech.Framework.Infrastructure.Settings;
 using Mythetech.Framework.Infrastructure.Initialization;
 using Aion.Components.Querying;
+using Aion.Components.Settings;
 using Aion.Desktop.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,6 +29,7 @@ using Aion.Core.Database.LiteDB;
 using Aion.Core.Database.SqlServer;
 using Aion.Desktop.Configuration;
 using Mythetech.Framework.Desktop.Updates;
+using Aion.Desktop.Updates;
 using Mythetech.Framework.Infrastructure.Guards;
 
 namespace Aion.Desktop
@@ -77,6 +81,7 @@ namespace Aion.Desktop
             appBuilder.Services.AddPlatformDiagnostics();
 
             appBuilder.RootComponents.Add<Components.App>("#app");
+            appBuilder.RootComponents.Add<UpdateBannerHost>("#aion-update-banner");
 
             // Framework services
             appBuilder.Services.AddDesktopServices(DesktopHost.Hermes);
@@ -88,6 +93,7 @@ namespace Aion.Desktop
             appBuilder.Services.AddRuntimeEnvironment(isProd ? DesktopRuntimeEnvironment.Production() : DesktopRuntimeEnvironment.Development());
 
             appBuilder.Services.AddAionComponents<ConnectionService>();
+            appBuilder.Services.AddSingleton<IConnectionPrompt, ConnectionDialogPrompt>();
 
             appBuilder.Services.AddScoped<IDatabaseProvider, PostgreSqlProvider>();
             appBuilder.Services.AddScoped<IDatabaseProvider, MySqlProvider>();
@@ -96,7 +102,8 @@ namespace Aion.Desktop
 
             // Settings
             appBuilder.Services.AddSettingsStorage<AionSettingsStorage>();
-            appBuilder.Services.RegisterSettingsFromAssembly(typeof(UpdateSettings).Assembly);
+            appBuilder.Services.AddAionDesktopSettings();
+            appBuilder.Services.AddSettingsSection<UpdateSettings>();
 
             // Update service
             appBuilder.Services.AddUpdateService(options =>
@@ -116,9 +123,13 @@ namespace Aion.Desktop
             appBuilder.Services.AddInitializationHook<SettingsInitializationHook>();
             appBuilder.Services.AddInitializationHook<CrashReportingHook>();
             appBuilder.Services.AddInitializationHook<ErrorReportingHook>();
+            appBuilder.Services.AddSingleton<StartupUpdateCheck>();
+            appBuilder.Services.AddInitializationHook(sp => sp.GetRequiredService<StartupUpdateCheck>());
+            appBuilder.Services.AddInitializationHook<QueryHistoryInitializationHook>();
 
             appBuilder.Services.AddSingleton<IConnectionStorage, FileConnectionStorage>();
             appBuilder.Services.AddSingleton<IQuerySaveService, FileQuerySaveService>();
+            appBuilder.Services.AddSingleton<IQueryHistoryStore>(_ => new FileQueryHistoryStore(FileQueryHistoryStore.DefaultFilePath));
             
             // Native menu services
             appBuilder.Services.AddSingleton<INativeMenuService, Desktop.NativeMenu.NativeMenuService>();

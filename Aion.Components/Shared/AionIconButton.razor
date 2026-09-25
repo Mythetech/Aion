@@ -12,7 +12,8 @@
                        Icon="@Icon"
                        Size="@Size"
                        Disabled="@Disabled"
-                       Variant="@Variant" />
+                       Variant="@Variant"
+                       aria-label="@AccessibleName" />
     </MudTooltip>
 }
 else
@@ -25,7 +26,8 @@ else
                    Icon="@Icon"
                    Size="@Size"
                    Disabled="@Disabled"
-                   Variant="@Variant" />
+                   Variant="@Variant"
+                   aria-label="@AccessibleName" />
 }
 
 
@@ -51,6 +53,18 @@ else
     [Parameter]
     public string Tooltip { get; set; } = "";
 
+    /// <summary>
+    /// The button's accessible name. Icon-only buttons otherwise announce their icon ligature,
+    /// so this falls back to <see cref="Tooltip"/> when not set.
+    /// </summary>
+    [Parameter]
+    public string? AriaLabel { get; set; }
+
     [Parameter]
     public bool Disabled { get; set; } = false;
+
+    private string? AccessibleName =>
+        !string.IsNullOrWhiteSpace(AriaLabel) ? AriaLabel
+        : !string.IsNullOrWhiteSpace(Tooltip) ? Tooltip
+        : null;
 }

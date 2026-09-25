@@ -14,11 +14,21 @@ public static class AionIcons
 
     public static string DarkMode => Round("dark_mode");
 
+    public static string SystemTheme => Round("laptop");
+
+    public static string Appearance => Round("palette");
+
+    public static string SchemaExplorer => Round("account_tree");
+
     public static string Search => Round("search");
 
     public static string Close => Round("close");
     
     public static string Success => Round("check_circle");
+
+    public static string Error => Round("error");
+
+    public static string Cancelled => Round("cancel");
     
     public static string Back => Round("arrow_back");
     
@@ -93,6 +103,10 @@ public static class AionIcons
     public static string Transaction => Round("lock");
 
     public static string TransactionOff => Round("lock_open");
+
+    public static string CommitTransaction => Round("check");
+
+    public static string RollbackTransaction => Round("undo");
 
     public static string EstimatedQueryPlan => Round("query_stats");
     

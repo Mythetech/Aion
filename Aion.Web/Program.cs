@@ -1,8 +1,11 @@
 using Aion.Components;
+using Aion.Components.Connections;
+using Aion.Components.History;
 using Aion.Components.Infrastructure;
 using Aion.Components.NativeMenu;
 using Aion.Components.Querying;
 using Aion.Contracts.Database;
+using Aion.Web.Databases;
 using Aion.Web.Providers;
 using Aion.Web.Onboarding;
 using Aion.Web.Services;
@@ -10,6 +13,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using Mythetech.Framework.Infrastructure.Guards;
+using Mythetech.Framework.Infrastructure.Initialization;
 using Mythetech.Framework.Infrastructure.Plugins;
 using Mythetech.Framework.Infrastructure.Settings;
 using Mythetech.Framework.WebAssembly;
@@ -30,11 +34,15 @@ builder.Services.AddHttpClient();
 builder.Services.AddSingleton<IDatabaseProviderFactory, DatabaseProviderFactory>();
 builder.Services.AddJsGuards();
 
-builder.Services.AddSettingsStorage<InMemorySettingsStorage>();
+builder.Services.AddSettingsStorage<IndexedDbSettingsStorage>();
+builder.Services.AddAsyncInitialization();
+builder.Services.AddInitializationHook<SettingsInitializationHook>();
 builder.Services.AddWebAssemblyServices();
+builder.Services.AddRuntimeEnvironment();
 
 builder.Services.AddSingleton<IQuerySaveService, IndexedDbQuerySaveService>();
 builder.Services.AddSingleton<IndexedDbStorageService>();
+builder.Services.AddSingleton<IQueryHistoryStore, IndexedDbQueryHistoryStore>();
 builder.Services.AddSingleton<INativeMenuService, NoOpNativeMenuService>();
 
 builder.Services.AddSingleton<SqliteWasmProvider>();
@@ -46,14 +54,17 @@ builder.Services.AddSingleton<ISupportedTypeProvider, SqliteWasmTypeProvider>();
 builder.Services.AddSingleton<ISupportedTypeProvider, PGliteTypeProvider>();
 builder.Services.AddSingleton<SchemaExecutor>();
 builder.Services.AddSingleton<SampleDatabaseProvisioner>();
+builder.Services.AddSingleton<BrowserStorageCleaner>();
+builder.Services.AddSingleton<ISqliteWasmInitializer, SqliteWasmInitializer>();
 builder.Services.AddSingleton<StorageRestoreService>();
-builder.Services.AddSingleton<WebPersistenceManager>();
+builder.Services.AddSingleton<IConnectionPrompt, BrowserConnectionPrompt>();
 
 builder.Services.AddMessageBus(typeof(WebApp).Assembly, typeof(ComponentsApp).Assembly);
 
-// AddMessageBus re-registers IConsumer<T> types as Transient;
-// restore QueryState as Singleton so all components share one instance
+// AddMessageBus re-registers IConsumer<T> types as Transient; restore the stateful ones as
+// singletons so the bus and every component share one instance
 builder.Services.AddSingleton<QueryState>();
+builder.Services.AddSingleton<WebPersistenceManager>();
 
 var host = builder.Build();
 

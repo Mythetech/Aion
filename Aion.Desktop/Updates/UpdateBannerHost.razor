@@ -1,0 +1,15 @@
+@using Mythetech.Framework.Desktop.Updates.Components
+
+<div class="aion-update-banner">
+    <UpdateNotificationBanner />
+</div>
+
+@code {
+    [Inject] private StartupUpdateCheck StartupUpdateCheck { get; set; } = default!;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await StartupUpdateCheck.RunAsync();
+    }
+}

@@ -1,5 +1,7 @@
 const DB_NAME = 'aion-storage';
-const DB_VERSION = 1;
+// Version 3 re-runs the upgrade for databases created by builds that added only one of the settings
+// and history stores at version 2; every store creation below is guarded, so re-running is safe.
+const DB_VERSION = 3;
 
 let dbPromise = null;
 
@@ -19,6 +21,12 @@ function openDb() {
             }
             if (!db.objectStoreNames.contains('databases')) {
                 db.createObjectStore('databases', { keyPath: 'name' });
+            }
+            if (!db.objectStoreNames.contains('settings')) {
+                db.createObjectStore('settings', { keyPath: 'settingsId' });
+            }
+            if (!db.objectStoreNames.contains('history')) {
+                db.createObjectStore('history', { keyPath: 'id' });
             }
         };
 
@@ -125,10 +133,65 @@ export async function deleteDatabaseMeta(name) {
     });
 }
 
+export async function saveSettings(settingsId, json) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('settings', 'readwrite');
+        tx.objectStore('settings').put({ settingsId, json, updatedAt: new Date().toISOString() });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+export async function replaceHistory(entriesJson) {
+    const db = await openDb();
+    const entries = JSON.parse(entriesJson);
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('history', 'readwrite');
+        const store = tx.objectStore('history');
+        store.clear();
+        for (const entry of entries) {
+            store.put(entry);
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+export async function loadSettings(settingsId) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('settings', 'readonly');
+        const request = tx.objectStore('settings').get(settingsId);
+        request.onsuccess = () => resolve(request.result ? request.result.json : null);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+export async function loadAllSettings() {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('settings', 'readonly');
+        const request = tx.objectStore('settings').getAll();
+        request.onsuccess = () => resolve(JSON.stringify(request.result.map(r => ({ settingsId: r.settingsId, json: r.json }))));
+        request.onerror = () => reject(request.error);
+    });
+}
+
+export async function loadHistory() {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('history', 'readonly');
+        const request = tx.objectStore('history').getAll();
+        request.onsuccess = () => resolve(JSON.stringify(request.result));
+        request.onerror = () => reject(request.error);
+    });
+}
+
 export async function clearAll() {
     const db = await openDb();
     return new Promise((resolve, reject) => {
-        const storeNames = ['connections', 'queries', 'databases'];
+        const storeNames = ['connections', 'queries', 'databases', 'history'];
         const tx = db.transaction(storeNames, 'readwrite');
         for (const name of storeNames) {
             tx.objectStore(name).clear();

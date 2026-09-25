@@ -115,6 +115,9 @@
     [Parameter]
     public IReadOnlyList<ISupportedTypeProvider> TypeProviders { get; set; } = [];
 
+    [Parameter]
+    public DatabaseType? InitialEngine { get; set; }
+
     private MudStepper _stepper = default!;
     private int _activeIndex;
     private readonly SchemaWizardModel _model = new();
@@ -122,7 +125,9 @@
 
     protected override void OnInitialized()
     {
-        if (TypeProviders.Count > 0)
+        if (InitialEngine is { } engine && TypeProviders.Any(p => p.DatabaseType == engine))
+            _model.EngineType = engine;
+        else if (TypeProviders.Count > 0)
             _model.EngineType = TypeProviders[0].DatabaseType;
     }
 

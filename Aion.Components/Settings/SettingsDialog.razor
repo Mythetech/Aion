@@ -1,9 +1,10 @@
 @using MudBlazor
 @using Mythetech.Framework.Components.Settings
-@using Mythetech.Framework.Components.Switch
+@using Mythetech.Framework.Infrastructure.Guards
 @using Mythetech.Framework.Infrastructure.Settings
 @using Aion.Components.Theme
 
+@* Every edit is saved as it is made, so Done, the close button, Esc and the backdrop all just close. *@
 <MudDialog Class="mf-settings-dialog">
     <TitleContent>
         <MudStack Row="true" AlignItems="AlignItems.Center">
@@ -12,47 +13,22 @@
                 Settings
             </MudText>
             <MudSpacer />
-            <MudIconButton Icon="@AionIcons.Close" OnClick="Cancel" />
+            <MudIconButton Icon="@AionIcons.Close" OnClick="Close" aria-label="Close settings" />
         </MudStack>
     </TitleContent>
     <DialogContent>
         <div class="mf-settings-dialog-content">
-            <SettingsPanel @ref="_settingsPanel" ShowTitle="false" AdditionalSectionIds="@(new[] { "Appearance" })"
-                           @bind-ActiveSection="_activeSection">
-                <NavPrefix>
-                    <SettingsNavLink SettingsId="Appearance" DisplayName="Appearance"
-                                     Icon="@Icons.Material.Filled.Palette" IsActive="@(_activeSection == "Appearance")"
-                                     OnClick="@(() => ScrollToSection("Appearance"))" />
-                </NavPrefix>
-                <ContentPrefix>
-                    @* Appearance section - custom dark mode toggle *@
-                    <div id="section-Appearance" class="mf-settings-section">
-                        <div class="mf-settings-section-header">
-                            <MudIcon Icon="@Icons.Material.Filled.Palette" Class="mr-2" />
-                            <MudText Typo="Typo.h6">Appearance</MudText>
-                        </div>
-                        <div class="mf-settings-group">
-                            <MudText Class="mf-settings-group-header mud-text-secondary">Theme</MudText>
-                            <div class="mf-setting-item">
-                                <div class="mf-dynamic-setting-control">
-                                    <div class="mf-setting-label-row">
-                                        <MudText Class="mf-setting-label">Dark Mode</MudText>
-                                    </div>
-                                    <div class="mf-setting-control">
-                                        <MtSwitch T="bool" Value="@_isDarkMode" ValueChanged="@OnDarkModeChanged"
-                                                  Color="Color.Primary" />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </ContentPrefix>
-            </SettingsPanel>
+            <SettingsPanel ShowTitle="false" OnSettingsChanged="SaveChangesAsync" />
         </div>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel" Variant="Variant.Text">Cancel</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save">Done</MudButton>
+        <WebAssemblyOnly>
+            <div class="settings-storage-note">
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">Settings are saved in this browser.</MudText>
+            </div>
+        </WebAssemblyOnly>
+        <MudSpacer />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Close">Done</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -64,45 +40,22 @@
     private SettingsState Settings { get; set; } = default!;
 
     [Inject]
-    private GlobalAppState AppState { get; set; } = default!;
+    private ISettingsProvider SettingsProvider { get; set; } = default!;
 
-    private SettingsPanel _settingsPanel = default!;
-    private string _activeSection = "Appearance";
-    private bool _isDarkMode;
-    private bool _initialDarkMode;
+    private SettingsChangeTracker _changes = default!;
 
     protected override void OnInitialized()
     {
-        _isDarkMode = AppState.IsDarkMode;
-        _initialDarkMode = _isDarkMode;
+        _changes = new SettingsChangeTracker(SettingsProvider.GetAllSettings());
     }
 
-    private void OnDarkModeChanged(bool value)
+    private async Task SaveChangesAsync()
     {
-        _isDarkMode = value;
-        AppState.IsDarkMode = value;
+        foreach (var settings in _changes.TakeChanged(SettingsProvider.GetAllSettings()))
+        {
+            await Settings.SaveAsync(settings);
+        }
     }
 
-    private void Cancel()
-    {
-        // Revert dark mode to initial value
-        AppState.IsDarkMode = _initialDarkMode;
-
-        // Revert all framework settings
-        _settingsPanel.RevertChanges();
-        MudDialog.Close(DialogResult.Cancel());
-    }
-
-    private async Task Save()
-    {
-        await _settingsPanel.CommitChangesAsync();
-        Settings.NotifyChanged();
-        MudDialog.Close(DialogResult.Ok(true));
-    }
-
-    private async Task ScrollToSection(string sectionId)
-    {
-        _activeSection = sectionId;
-        await _settingsPanel.ScrollToSection(sectionId);
-    }
+    private void Close() => MudDialog.Close(DialogResult.Ok(true));
 }

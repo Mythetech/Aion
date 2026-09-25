@@ -28,6 +28,7 @@ public class SqlServerConnectionStateTests : ConnectionStateTestBase
     public override async Task InitializeAsync()
     {
         await _container.StartAsync();
+        await SqlServerReadiness.WaitForLoginAsync(Provider, ConnectionString);
         await SetupTestDatabase();
     }
 

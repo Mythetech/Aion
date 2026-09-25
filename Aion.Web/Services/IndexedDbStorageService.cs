@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Aion.Components.History;
 using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 using Microsoft.JSInterop;
@@ -97,6 +98,39 @@ public class IndexedDbStorageService
         await module.InvokeVoidAsync("deleteDatabaseMeta", name);
     }
 
+    public async Task SaveSettingsAsync(string settingsId, string json)
+    {
+        var module = await GetModuleAsync();
+        await module.InvokeVoidAsync("saveSettings", settingsId, json);
+    }
+
+    public async Task<string?> LoadSettingsAsync(string settingsId)
+    {
+        var module = await GetModuleAsync();
+        return await module.InvokeAsync<string?>("loadSettings", settingsId);
+    }
+
+    public async Task<List<SettingsRecord>> LoadAllSettingsAsync()
+    {
+        var module = await GetModuleAsync();
+        var json = await module.InvokeAsync<string>("loadAllSettings");
+        return JsonSerializer.Deserialize<List<SettingsRecord>>(json, JsonOptions) ?? [];
+    }
+
+    public async Task ReplaceHistoryAsync(IReadOnlyList<QueryHistoryEntry> entries)
+    {
+        var module = await GetModuleAsync();
+        var json = JsonSerializer.Serialize(entries, JsonOptions);
+        await module.InvokeVoidAsync("replaceHistory", json);
+    }
+
+    public async Task<List<QueryHistoryEntry>> LoadHistoryAsync()
+    {
+        var module = await GetModuleAsync();
+        var json = await module.InvokeAsync<string>("loadHistory");
+        return JsonSerializer.Deserialize<List<QueryHistoryEntry>>(json, JsonOptions) ?? [];
+    }
+
     public async Task ClearAllAsync()
     {
         var module = await GetModuleAsync();
@@ -157,3 +191,5 @@ public record QueryRecord
 }
 
 public record DatabaseMeta(string Name, DatabaseType Type, DateTime CreatedAt);
+
+public record SettingsRecord(string SettingsId, string Json);
