@@ -1,7 +1,7 @@
 @using Aion.Components.Querying.Commands
 @using Aion.Components.Querying.Editing
 @using Aion.Contracts.Queries.Editing
-@using Mythetech.Framework.Infrastructure.MessageBus
+@implements IDisposable
 
 <MudPaper Class="pa-3" Elevation="1">
     <MudStack Spacing="2">
@@ -32,7 +32,7 @@
         {
             <MudDivider />
             <MudText Typo="Typo.caption" Class="mud-text-secondary">SQL Preview</MudText>
-            <MudPaper Class="pa-2" Style="background-color: var(--mud-palette-surface); font-family: monospace; white-space: pre-wrap; max-height: 200px; overflow-y: auto;">
+            <div class="sql-preview">
                 @if (!string.IsNullOrEmpty(_previewError))
                 {
                     <MudText Color="Color.Error">@_previewError</MudText>
@@ -45,10 +45,10 @@
                 {
                     @foreach (var statement in _previewStatements)
                     {
-                        <MudText Style="margin-bottom: 8px;">@statement;</MudText>
+                        <pre class="sql-statement">@statement</pre>
                     }
                 }
-            </MudPaper>
+            </div>
         }
 
         <MudStack Row="true" Justify="Justify.SpaceBetween">
@@ -89,25 +89,44 @@
     [Parameter] public EventCallback OnDiscardChanges { get; set; }
     [Parameter] public EventCallback OnExitEditMode { get; set; }
 
-    [Inject] protected IMessageBus Bus { get; set; } = default!;
+    [Inject] protected PendingChangesSqlBuilder SqlBuilder { get; set; } = default!;
 
     private bool _showPreview;
     private bool _isApplying;
+    private bool _previewStale = true;
     private List<string> _previewStatements = [];
     private string? _previewError;
+    private EditState? _subscribedEditState;
 
-    protected override void OnInitialized()
+    protected override void OnParametersSet()
     {
-        EditState.StateChanged += OnEditStateChanged;
+        if (!ReferenceEquals(_subscribedEditState, EditState))
+        {
+            if (_subscribedEditState != null)
+            {
+                _subscribedEditState.StateChanged -= OnEditStateChanged;
+            }
+
+            EditState.StateChanged += OnEditStateChanged;
+            _subscribedEditState = EditState;
+        }
+
+        _previewStale = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_showPreview && _previewStale)
+        {
+            await GeneratePreviewAsync();
+            StateHasChanged();
+        }
     }
 
     private void OnEditStateChanged()
     {
-        if (_showPreview)
-        {
-            _ = GeneratePreviewAsync();
-        }
-        InvokeAsync(StateHasChanged);
+        _previewStale = true;
+        StateHasChanged();
     }
 
     private async Task TogglePreview()
@@ -122,6 +141,8 @@
 
     private async Task GeneratePreviewAsync()
     {
+        _previewStale = false;
+
         if (EditableResult == null || !EditState.HasChanges)
         {
             _previewStatements = [];
@@ -131,74 +152,15 @@
 
         try
         {
-            var generator = new SqlChangeGenerator();
-            // Note: In a real implementation, you'd get the commands from the provider
-            // For preview, we'll just show a simplified version
-            _previewStatements = GenerateSimplePreview();
-            _previewError = null;
+            var plan = await SqlBuilder.BuildAsync(EditableResult, EditState.PendingChanges);
+            _previewStatements = plan.Generation.Statements.Select(s => s.Sql).ToList();
+            _previewError = plan.Generation.ValidationError;
         }
         catch (Exception ex)
         {
             _previewError = ex.Message;
             _previewStatements = [];
         }
-
-        await Task.CompletedTask;
-    }
-
-    private List<string> GenerateSimplePreview()
-    {
-        var statements = new List<string>();
-
-        if (EditableResult == null) return statements;
-
-        foreach (var change in EditState.PendingChanges)
-        {
-            switch (change.Type)
-            {
-                case ChangeType.Insert:
-                    if (change.NewValues != null)
-                    {
-                        var insertCols = string.Join(", ", change.NewValues.Keys);
-                        var insertVals = string.Join(", ", change.NewValues.Values.Select(FormatValueForPreview));
-                        statements.Add($"INSERT INTO \"{EditableResult.SourceTable}\" ({insertCols}) VALUES ({insertVals})");
-                    }
-                    break;
-
-                case ChangeType.Update:
-                    var setClauses = change.GetModifiedColumns()
-                        .Select(col => $"\"{col}\" = {FormatValueForPreview(change.NewValues?.GetValueOrDefault(col))}");
-                    var updateWhere = GenerateWherePreview(change.OriginalValues, EditableResult.PrimaryKeyColumns);
-                    statements.Add($"UPDATE \"{EditableResult.SourceTable}\" SET {string.Join(", ", setClauses)} WHERE {updateWhere}");
-                    break;
-
-                case ChangeType.Delete:
-                    var deleteWhere = GenerateWherePreview(change.OriginalValues, EditableResult.PrimaryKeyColumns);
-                    statements.Add($"DELETE FROM \"{EditableResult.SourceTable}\" WHERE {deleteWhere}");
-                    break;
-            }
-        }
-
-        return statements;
-    }
-
-    private string GenerateWherePreview(Dictionary<string, object?> values, List<string> pkCols)
-    {
-        var conditions = pkCols
-            .Select(col => $"\"{col}\" = {FormatValueForPreview(values.GetValueOrDefault(col))}");
-        return string.Join(" AND ", conditions);
-    }
-
-    private static string FormatValueForPreview(object? value)
-    {
-        return value switch
-        {
-            null => "NULL",
-            string s => $"'{s.Replace("'", "''")}'",
-            bool b => b ? "TRUE" : "FALSE",
-            DateTime dt => $"'{dt:yyyy-MM-dd HH:mm:ss}'",
-            _ => value.ToString() ?? "NULL"
-        };
     }
 
     private async Task ApplyChanges()
@@ -213,6 +175,7 @@
         finally
         {
             _isApplying = false;
+            _previewStale = true;
             StateHasChanged();
         }
     }
@@ -225,6 +188,9 @@
 
     public void Dispose()
     {
-        EditState.StateChanged -= OnEditStateChanged;
+        if (_subscribedEditState != null)
+        {
+            _subscribedEditState.StateChanged -= OnEditStateChanged;
+        }
     }
 }
