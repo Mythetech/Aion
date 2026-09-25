@@ -47,6 +47,7 @@ public class EditableQueryResult : QueryResult
             ExecutedAt = result.ExecutedAt,
             Error = result.Error,
             Cancelled = result.Cancelled,
+            RowsAffected = result.RowsAffected,
             SourceTable = sourceTable,
             SourceSchema = sourceSchema,
             SourceDatabase = sourceDatabase,

@@ -108,7 +108,7 @@
         }
         <MudStack Row="true" AlignItems="AlignItems.Center">
             <MudText Typo="Typo.caption" Class="mud-text-secondary ml-4">
-                @(State?.Active?.Result?.RowCount ?? 0) Results
+                @DescribeResult(queryResult)
             </MudText>
             <MudDivider Vertical="true" />
             <QueryTimer StartTime="@State.Active.ExecutionStartTime" EndTime="@State.Active.ExecutionEndTime" Typo="Typo.caption" />
@@ -159,6 +159,11 @@ else if (State?.Active?.IsExecuting ?? false)
         _selectionState.ClearSelection();
         StateHasChanged();
     }
+
+    private static string DescribeResult(QueryResult result) =>
+        result.Columns.Count == 0 && result.RowsAffected is { } affected
+            ? $"{affected} row{(affected == 1 ? "" : "s")} affected"
+            : $"{result.RowCount} Results";
 
     private DatabaseType GetActiveDatabaseType()
     {

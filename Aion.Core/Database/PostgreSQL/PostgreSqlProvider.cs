@@ -6,7 +6,7 @@ using System.Text;
 
 namespace Aion.Core.Database;
 
-public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider
+public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider, IDatabaseRowEditingProvider
 {
     private readonly Dictionary<string, NpgsqlTransaction> _activeTransactions = new();
     private readonly PostgreSqlPlanParser _planParser = new();
@@ -102,6 +102,10 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
                 }
                 result.Rows.Add(row);
             }
+
+            // RecordsAffected is only final once every result set has been consumed, and is -1 when no statement changed rows.
+            await reader.CloseAsync();
+            result.RowsAffected = reader.RecordsAffected >= 0 ? reader.RecordsAffected : null;
 
             return result;
         }
@@ -489,6 +493,10 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
                 }
                 result.Rows.Add(row);
             }
+
+            // RecordsAffected is only final once every result set has been consumed, and is -1 when no statement changed rows.
+            await reader.CloseAsync();
+            result.RowsAffected = reader.RecordsAffected >= 0 ? reader.RecordsAffected : null;
 
             return result;
         }
