@@ -50,5 +50,8 @@ public static class QueryHistoryFormatter
     public static string Rows(int count) =>
         count == 1 ? "1 row" : $"{count.ToString("N0", CultureInfo.CurrentCulture)} rows";
 
+    public static string RowsAffected(int count) =>
+        count == 1 ? "1 row affected" : $"{count.ToString("N0", CultureInfo.CurrentCulture)} rows affected";
+
     private static DateTime LocalDate(DateTimeOffset executedAt, DateTimeOffset now) => executedAt.ToOffset(now.Offset).Date;
 }

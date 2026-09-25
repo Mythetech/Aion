@@ -51,6 +51,18 @@ public class HistoryPanelTests : TestContext
     }
 
     [Fact]
+    public async Task Update_ShowsRowsAffectedInsteadOfRowsReturned()
+    {
+        await _history.AddAsync(HistoryEntries.Success("UPDATE products SET price = 1 WHERE id = 1", DateTimeOffset.Now, rows: 0) with { RowsAffected = 1 });
+
+        var cut = RenderComponent<HistoryPanel>();
+
+        var meta = cut.Find("li.history-entry .history-meta").TextContent;
+        meta.ShouldContain("1 row affected");
+        meta.ShouldNotContain("0 rows");
+    }
+
+    [Fact]
     public async Task Entries_AreGroupedByDay()
     {
         var now = DateTimeOffset.Now;
