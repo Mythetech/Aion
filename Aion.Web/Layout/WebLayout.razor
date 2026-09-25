@@ -341,7 +341,7 @@
             if (provider is SqliteWasmProvider sqlite)
                 await sqlite.DeleteDatabaseAsync(db.Name);
             else if (provider is PGliteProvider pglite)
-                await pglite.DestroyDatabaseAsync(db.Name);
+                await pglite.DeleteDatabaseAsync(db.Name);
 
             await StorageService.DeleteDatabaseMetaAsync(db.Name);
         }
@@ -378,7 +378,7 @@
                     if (provider is SqliteWasmProvider sqlite)
                         await sqlite.DeleteDatabaseAsync(db.Name);
                     else if (provider is PGliteProvider pglite)
-                        await pglite.DestroyDatabaseAsync(db.Name);
+                        await pglite.DeleteDatabaseAsync(db.Name);
                 }
             }
 
