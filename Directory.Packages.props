@@ -16,6 +16,7 @@
     <PackageVersion Include="MySql.Data" Version="9.5.0" />
     <PackageVersion Include="Npgsql" Version="9.0.2" />
     <!-- Aion.Web -->
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.12" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.12" />
     <PackageVersion Include="SqliteWasmBlazor" Version="0.9.0-pre" />
     <PackageVersion Include="Mythetech.Framework.WebAssembly" Version="0.19.8" />
