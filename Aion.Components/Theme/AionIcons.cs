@@ -18,6 +18,8 @@ public static class AionIcons
 
     public static string Appearance => Round("palette");
 
+    public static string SchemaExplorer => Round("account_tree");
+
     public static string Search => Round("search");
 
     public static string Close => Round("close");

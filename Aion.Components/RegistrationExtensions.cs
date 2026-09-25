@@ -6,16 +6,13 @@ using Aion.Components.History;
 using Aion.Components.Querying;
 using Aion.Components.Search;
 using Aion.Components.Settings;
-using Aion.Components.Settings.Domains;
 using Aion.Components.Shared.Snackbar;
-using Aion.Components.Theme;
 using Aion.Contracts.Database;
 using Microsoft.Extensions.DependencyInjection;
 using MudBlazor;
 using MudBlazor.Services;
 using Mythetech.Framework.Components.CommandPalette;
 using Mythetech.Framework.Infrastructure.Plugins;
-using Mythetech.Framework.Infrastructure.Settings;
 
 namespace Aion.Components;
 
@@ -42,14 +39,8 @@ public static class RegistrationExtensions
         services.AddSingleton<QueryState>();
         services.AddSingleton<HistoryState>();
 
-        services.AddSettingsFramework();
-        services.RegisterSettingsFromAssemblies(
-            typeof(ConnectionSettings).Assembly,
-            typeof(PluginSettings).Assembly);
+        services.AddAionSettings();
         services.AddPluginFramework();
-
-        services.AddSingleton<SettingsState>();
-        services.AddSingleton<ThemeState>();
 
         services.AddSingleton<IConnectionService, TConnectionService>();
         services.AddSingleton<IConnectionHealthMonitor, ConnectionHealthMonitor>();

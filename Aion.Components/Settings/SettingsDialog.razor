@@ -1,5 +1,6 @@
 @using MudBlazor
 @using Mythetech.Framework.Components.Settings
+@using Mythetech.Framework.Infrastructure.Guards
 @using Mythetech.Framework.Infrastructure.Settings
 @using Aion.Components.Theme
 
@@ -21,6 +22,12 @@
         </div>
     </DialogContent>
     <DialogActions>
+        <WebAssemblyOnly>
+            <div class="settings-storage-note">
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">Settings are saved in this browser.</MudText>
+            </div>
+        </WebAssemblyOnly>
+        <MudSpacer />
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Close">Done</MudButton>
     </DialogActions>
 </MudDialog>

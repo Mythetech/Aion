@@ -35,6 +35,7 @@ builder.Services.AddSettingsStorage<IndexedDbSettingsStorage>();
 builder.Services.AddAsyncInitialization();
 builder.Services.AddInitializationHook<SettingsInitializationHook>();
 builder.Services.AddWebAssemblyServices();
+builder.Services.AddRuntimeEnvironment();
 
 builder.Services.AddSingleton<IQuerySaveService, IndexedDbQuerySaveService>();
 builder.Services.AddSingleton<IndexedDbStorageService>();
