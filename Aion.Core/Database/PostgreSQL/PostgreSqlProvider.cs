@@ -18,8 +18,11 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
     {
         var databases = new List<string>();
 
+        // On Supabase and most Docker images "postgres" is the working database, so it stays in the list.
+        // Users without access to it (managed hosts) can still list databases through the one they chose.
         var builder = new NpgsqlConnectionStringBuilder(connectionString);
-        builder.Database = "postgres";
+        if (string.IsNullOrWhiteSpace(builder.Database))
+            builder.Database = "postgres";
 
         using var conn = new NpgsqlConnection(builder.ConnectionString);
         await conn.OpenAsync();
@@ -28,7 +31,6 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
             SELECT datname
             FROM pg_database
             WHERE datistemplate = false
-            AND datname NOT IN ('postgres')
             ORDER BY datname";
 
         using var cmd = new NpgsqlCommand(sql, conn);
