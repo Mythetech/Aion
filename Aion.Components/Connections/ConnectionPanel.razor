@@ -333,16 +333,7 @@
 
     private async Task EditConnection()
     {
-        var model = new ConnectionDialogModel
-        {
-            EditingConnectionId = Connection.Id,
-            Name = Connection.Name,
-            Type = Connection.Type,
-            ConnectionString = Connection.ConnectionString,
-            SaveCredentials = Connection.SaveCredentials
-        };
-
-        await MessageBus.PublishAsync(new PromptCreateConnection(model));
+        await MessageBus.PublishAsync(new PromptCreateConnection(ConnectionDialogModel.ForEdit(Connection)));
     }
 
     private async Task DeleteConnection()
