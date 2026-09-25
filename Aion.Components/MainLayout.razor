@@ -17,6 +17,7 @@
 @using Aion.Components.Shared.Dialogs
 @using Aion.Components.Infrastructure
 @using Aion.Components.Settings
+@using Aion.Components.Settings.Commands
 @using Microsoft.JSInterop
 @using Color = MudBlazor.Color
 @using MouseEvent = MudBlazor.MouseEvent
@@ -79,7 +80,7 @@
 
             <PanelFooterContent>
                 <ThemeModeMenu />
-                <MtIconButton Class="ml-1" Color="Color.Primary" Icon="@AionIcons.Settings" OnClick="OpenSettingsDialog"
+                <MtIconButton Class="ml-1" Color="Color.Primary" Icon="@AionIcons.Settings" OnClick="OpenSettings"
                               Tooltip="Settings" TooltipPlacement="Placement.Right" />
                 <MudIconButton Class="ml-1"
                                Icon="@(AppState.SideBarOpen ? AionIcons.CollapseLeft : AionIcons.ExpandRight)"
@@ -213,17 +214,9 @@
         await Bus.PublishAsync(new PromptCreateConnection());
     }
 
-    protected async Task OpenSettingsDialog()
+    protected async Task OpenSettings()
     {
-        var options = new DialogOptions
-        {
-            CloseOnEscapeKey = true,
-            BackgroundClass = "aion-dialog",
-            MaxWidth = MaxWidth.Large,
-            FullWidth = true,
-            CloseButton = false
-        };
-        await DialogService.ShowAsync<Settings.SettingsDialog>("Settings", options);
+        await Bus.PublishAsync(new OpenSettingsDialog());
     }
 
     private async Task ShowConnectionContextMenu(MouseEventArgs e, ConnectionModel connection)

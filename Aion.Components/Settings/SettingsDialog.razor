@@ -3,6 +3,7 @@
 @using Mythetech.Framework.Infrastructure.Settings
 @using Aion.Components.Theme
 
+@* Every edit is saved as it is made, so Done, the close button, Esc and the backdrop all just close. *@
 <MudDialog Class="mf-settings-dialog">
     <TitleContent>
         <MudStack Row="true" AlignItems="AlignItems.Center">
@@ -11,17 +12,16 @@
                 Settings
             </MudText>
             <MudSpacer />
-            <MudIconButton Icon="@AionIcons.Close" OnClick="Cancel" />
+            <MudIconButton Icon="@AionIcons.Close" OnClick="Close" aria-label="Close settings" />
         </MudStack>
     </TitleContent>
     <DialogContent>
         <div class="mf-settings-dialog-content">
-            <SettingsPanel @ref="_settingsPanel" ShowTitle="false" />
+            <SettingsPanel ShowTitle="false" OnSettingsChanged="SaveChangesAsync" />
         </div>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel" Variant="Variant.Text">Cancel</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save">Done</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Close">Done</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -32,18 +32,23 @@
     [Inject]
     private SettingsState Settings { get; set; } = default!;
 
-    private SettingsPanel _settingsPanel = default!;
+    [Inject]
+    private ISettingsProvider SettingsProvider { get; set; } = default!;
 
-    private void Cancel()
+    private SettingsChangeTracker _changes = default!;
+
+    protected override void OnInitialized()
     {
-        _settingsPanel.RevertChanges();
-        MudDialog.Close(DialogResult.Cancel());
+        _changes = new SettingsChangeTracker(SettingsProvider.GetAllSettings());
     }
 
-    private async Task Save()
+    private async Task SaveChangesAsync()
     {
-        await _settingsPanel.CommitChangesAsync();
-        Settings.NotifyChanged();
-        MudDialog.Close(DialogResult.Ok(true));
+        foreach (var settings in _changes.TakeChanged(SettingsProvider.GetAllSettings()))
+        {
+            await Settings.SaveAsync(settings);
+        }
     }
+
+    private void Close() => MudDialog.Close(DialogResult.Ok(true));
 }

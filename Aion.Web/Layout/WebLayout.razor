@@ -5,7 +5,7 @@
 @using Aion.Components.Querying
 @using Aion.Components.Shared.Snackbar
 @using Aion.Components.Shared.Dialogs
-@using Aion.Components.Settings
+@using Aion.Components.Settings.Commands
 @using Aion.Components.Infrastructure
 @using Aion.Components.Search
 @using Aion.Components.Scaffolding
@@ -83,7 +83,7 @@
 
             <PanelFooterContent>
                 <ThemeModeMenu />
-                <MtIconButton Class="ml-1" Color="Color.Primary" Icon="@AionIcons.Settings" OnClick="OpenSettingsDialog"
+                <MtIconButton Class="ml-1" Color="Color.Primary" Icon="@AionIcons.Settings" OnClick="OpenSettings"
                               Tooltip="Settings" TooltipPlacement="Placement.Right" />
                 <MudIconButton Class="ml-1"
                                Icon="@(AppState.SideBarOpen ? AionIcons.CollapseLeft : AionIcons.ExpandRight)"
@@ -245,17 +245,9 @@
         }
     }
 
-    private async Task OpenSettingsDialog()
+    private async Task OpenSettings()
     {
-        var options = new DialogOptions
-        {
-            CloseOnEscapeKey = true,
-            BackgroundClass = "aion-dialog",
-            MaxWidth = MaxWidth.Large,
-            FullWidth = true,
-            CloseButton = false
-        };
-        await DialogService.ShowAsync<SettingsDialog>("Settings", options);
+        await Bus.PublishAsync(new OpenSettingsDialog());
     }
 
     private async Task LoadSampleDatabase()
