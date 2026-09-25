@@ -19,8 +19,9 @@ public class WebConnectionService : IConnectionService
 
     public async Task InitializeAsync()
     {
-        _connections.Clear();
+        // Load before clearing so two overlapping calls can't both clear and then both append.
         var records = await _storage.LoadConnectionsAsync();
+        _connections.Clear();
         _connections.AddRange(records.Select(r => r.ToConnectionModel()));
     }
 

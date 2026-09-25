@@ -95,4 +95,25 @@ public class WebConnectionServiceTests
         await _sqliteFiles.Received(1).DeleteDatabaseAsync("notes.db", Arg.Any<CancellationToken>());
         _js.CallsTo("deleteDatabaseMeta").ShouldHaveSingleItem().ShouldBe(["notes"]);
     }
+
+    [Fact]
+    public async Task InitializeAsync_OverlappingCalls_DoNotDuplicateConnections()
+    {
+        var id = Guid.NewGuid();
+        var json = $$"""[{"id":"{{id}}","name":"sales","connectionString":"pglite://sales","type":6}]""";
+        var firstLoad = new TaskCompletionSource<string>();
+        var secondLoad = new TaskCompletionSource<string>();
+        var loads = new Queue<TaskCompletionSource<string>>([firstLoad, secondLoad]);
+        _js.Module.InvokeAsync<string>("loadConnections", Arg.Any<object?[]?>())
+            .Returns(_ => new ValueTask<string>(loads.Dequeue().Task));
+
+        var first = _sut.InitializeAsync();
+        var second = _sut.InitializeAsync();
+        firstLoad.SetResult(json);
+        await first;
+        secondLoad.SetResult(json);
+        await second;
+
+        (await _sut.GetSavedConnections()).ShouldHaveSingleItem().Id.ShouldBe(id);
+    }
 }
