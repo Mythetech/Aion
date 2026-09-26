@@ -343,7 +343,7 @@
     private static string IndexDescription(IndexInfo index)
     {
         var kind = index.IsPrimary ? "primary key" : index.IsUnique ? "unique index" : "index";
-        return $"{kind} on ({string.Join(", ", index.Columns)})";
+        return index.Columns.Count == 0 ? kind : $"{kind} on ({string.Join(", ", index.Columns)})";
     }
 
     private IEnumerable<TableInfo> GetVisibleTables(DatabaseModel database)

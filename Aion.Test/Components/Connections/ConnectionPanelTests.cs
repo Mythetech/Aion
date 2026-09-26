@@ -201,6 +201,21 @@ public class ConnectionPanelTests : TestContext
         group.FindAll(".tree-row-name").Select(name => name.TextContent).ShouldBe(["idx_products_category"]);
     }
 
+    [Theory]
+    [InlineData(new[] { "email" }, "unique index on (email)")]
+    [InlineData(new string[0], "unique index")]
+    public void IndexRow_HoverTextNamesItsKindAndColumnsWhenKnown(string[] columns, string expected)
+    {
+        // PGlite lists indexes without their columns.
+        var connection = ConnectionWithLoadedColumns(ProductColumns());
+        connection.Databases[0].Indexes = [new IndexInfo("", "", "products", "idx_products_email", true, false, columns)];
+        connection.Databases[0].IndexesLoaded = true;
+
+        var cut = Render(connection);
+
+        GroupItem(cut, "Indexes").Find(".detail-row").GetAttribute("title").ShouldBe(expected);
+    }
+
     [Fact]
     public async Task IndexesGroup_LeavesCountOutUntilExpandedThenLoadsIndexes()
     {
