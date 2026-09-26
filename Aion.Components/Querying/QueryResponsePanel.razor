@@ -16,6 +16,7 @@
 @using Aion.Components.Querying.Results
 @using Aion.Components.Visualization
 @using Aion.Components.Querying.Errors
+@using Aion.Components.Querying.Messages
 @implements IDisposable
 
 @if (State?.Active?.Result != null && (!State?.Active?.IsExecuting ?? false))
@@ -99,20 +100,44 @@
         }
         else if (_activeTab == Messages)
         {
-            <div class="query-messages">
-                <span class="query-message-time">@queryResult.ExecutedAt.ToString("T")</span>
-                @if (queryResult.Cancelled)
-                {
-                    <span class="query-message-text">Query cancelled</span>
-                }
-                else if (!queryResult.Success)
-                {
-                    <span class="query-message-text query-message-error">@QueryErrorText.LogLine(queryResult.ErrorDetail ?? QueryErrorNormalizer.Normalize(queryResult.Error!))</span>
-                }
-                else
-                {
-                    <span class="query-message-text">@DescribeResult(queryResult)</span>
-                }
+            var messages = MessageLog.For(State.Active.Id);
+            @* The reversed flex column keeps the scroll pinned to the newest line without scripting the scroll position. *@
+            <div class="query-messages" role="log" aria-label="Messages">
+                <div class="query-messages-lines">
+                    @if (messages.Count > 0)
+                    {
+                        @foreach (var message in messages)
+                        {
+                            <div class="query-message">
+                                <span class="query-message-time">@message.Time.ToLocalTime().ToString("T")</span>
+                                <span class="query-message-text @MessageClass(message.Kind)" title="@message.Detail">@message.Text</span>
+                                @if (message.Duration is { } duration)
+                                {
+                                    <span class="query-message-duration">(@QueryTimer.FormatDuration(duration))</span>
+                                }
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        @* The log lives only as long as the session, while a tab's last result is saved with it. *@
+                        <div class="query-message">
+                            <span class="query-message-time">@queryResult.ExecutedAt.ToString("T")</span>
+                            @if (queryResult.Cancelled)
+                            {
+                                <span class="query-message-text">Query cancelled</span>
+                            }
+                            else if (!queryResult.Success)
+                            {
+                                <span class="query-message-text query-message-error">@QueryErrorText.LogLine(queryResult.ErrorDetail ?? QueryErrorNormalizer.Normalize(queryResult.Error!))</span>
+                            }
+                            else
+                            {
+                                <span class="query-message-text">@DescribeResult(queryResult)</span>
+                            }
+                        </div>
+                    }
+                </div>
             </div>
         }
         else if (_activeTab == EstimatedPlan)
@@ -178,6 +203,7 @@ else if (State?.Active?.IsExecuting ?? false)
     [Inject] protected QueryState State { get; set; } = default!;
     [Inject] protected IMessageBus Bus { get; set; } = default!;
     [Inject] protected ConnectionState Connections { get; set; } = default!;
+    [Inject] protected QueryMessageLog MessageLog { get; set; } = default!;
 
     private string? _search = "";
     private const string Results = "results";
@@ -199,6 +225,7 @@ else if (State?.Active?.IsExecuting ?? false)
     protected override void OnInitialized()
     {
         State.StateChanged += OnStateChanged;
+        MessageLog.MessagesChanged += OnMessagesChanged;
         _selectionState.SelectionChanged += StateHasChanged;
         _selectionQueryId = State.Active?.Id;
         _selectionResult = State.Active?.Result;
@@ -223,6 +250,23 @@ else if (State?.Active?.IsExecuting ?? false)
 
         StateHasChanged();
     }
+
+    private void OnMessagesChanged(Guid queryId)
+    {
+        if (_activeTab == Messages && queryId == State.Active?.Id)
+        {
+            StateHasChanged();
+        }
+    }
+
+    private static string MessageClass(QueryMessageKind kind) => kind switch
+    {
+        QueryMessageKind.Transaction => "query-message-transaction",
+        QueryMessageKind.Statement => "query-message-statement",
+        QueryMessageKind.Success => "query-message-success",
+        QueryMessageKind.Error => "query-message-error",
+        _ => "query-message-info"
+    };
 
     // Exports follow find in results, so they hold the rows the grid shows rather than every row fetched.
     private QueryResult RowsToExport(QueryResult result) => ResultRowFilter.Apply(result, _search);
@@ -299,6 +343,7 @@ else if (State?.Active?.IsExecuting ?? false)
     public void Dispose()
     {
         State.StateChanged -= OnStateChanged;
+        MessageLog.MessagesChanged -= OnMessagesChanged;
         _selectionState.SelectionChanged -= StateHasChanged;
     }
 }

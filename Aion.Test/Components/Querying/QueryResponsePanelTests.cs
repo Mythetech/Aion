@@ -3,6 +3,7 @@ using Aion.Components.Infrastructure.Commands;
 using Aion.Components.Querying;
 using Aion.Components.Settings.Domains;
 using Aion.Components.Querying.Errors;
+using Aion.Components.Querying.Messages;
 using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
@@ -23,6 +24,7 @@ public class QueryResponsePanelTests : TestContext
     private readonly QueryState _state;
     private readonly ConnectionState _connections;
     private readonly QueryModel _query;
+    private readonly QueryMessageLog _log = new();
 
     public QueryResponsePanelTests()
     {
@@ -37,6 +39,7 @@ public class QueryResponsePanelTests : TestContext
         Services.AddSingleton(new ResultsSettings());
         Services.AddSingleton(_state);
         Services.AddSingleton(_connections);
+        Services.AddSingleton(_log);
         Services.AddSingleton(new SqlCompletionService(_connections));
         Services.AddSingleton(new QueryErrorSuggester(_connections, NullLogger<QueryErrorSuggester>.Instance));
 
@@ -378,5 +381,78 @@ public class QueryResponsePanelTests : TestContext
 
         // Assert
         cut.Find(".query-message-error").TextContent.ShouldContain("no such table: prodcts");
+    }
+
+    private static async Task OpenMessagesAsync(IRenderedComponent<QueryResponsePanel> cut) =>
+        await cut.FindAll(".mud-tab").First(t => t.TextContent.Contains("Messages")).ClickAsync(new());
+
+    private static readonly DateTimeOffset At = new(2026, 9, 26, 14, 2, 0, TimeSpan.Zero);
+
+    [Fact]
+    public async Task MessagesTab_ShowsTheTabsLogInOrder()
+    {
+        // Arrange
+        Complete(new QueryResult { RowsAffected = 1 });
+        _log.RecordBegin(_query.Id, At);
+        _log.RecordRun(_query.Id, "UPDATE products SET stock = 0 WHERE id = 1", new QueryResult { RowsAffected = 1 }, At, TimeSpan.FromMilliseconds(43));
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act
+        await OpenMessagesAsync(cut);
+
+        // Assert
+        cut.FindAll(".query-message .query-message-text").Select(e => e.TextContent).ShouldBe(
+            ["BEGIN", "UPDATE products SET stock = 0 WHERE id = 1", "1 row affected"]);
+        cut.FindAll(".query-message")[0].QuerySelector(".query-message-time")!.TextContent
+            .ShouldBe(At.ToLocalTime().ToString("T"));
+        cut.Find(".query-message-duration").TextContent.ShouldBe("(43ms)");
+    }
+
+    [Fact]
+    public async Task MessagesTab_ShowsOnlyTheActiveTabsLog()
+    {
+        // Arrange
+        Complete(new QueryResult { RowsAffected = 1 });
+        _log.RecordBegin(Guid.NewGuid(), At);
+        _log.RecordRun(_query.Id, "DELETE FROM carts", new QueryResult { RowsAffected = 1 }, At, TimeSpan.Zero);
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act
+        await OpenMessagesAsync(cut);
+
+        // Assert
+        cut.FindAll(".query-message .query-message-text").Select(e => e.TextContent).ShouldBe(["DELETE FROM carts", "1 row affected"]);
+    }
+
+    [Fact]
+    public async Task MessagesTab_ShowsLinesAsTheyAreLogged()
+    {
+        // Arrange
+        Complete(new QueryResult { RowsAffected = 1 });
+        _log.RecordBegin(_query.Id, At);
+        var cut = RenderComponent<QueryResponsePanel>();
+        await OpenMessagesAsync(cut);
+
+        // Act
+        await cut.InvokeAsync(() => _log.RecordEnd(_query.Id, committed: true, At));
+
+        // Assert
+        cut.FindAll(".query-message .query-message-text").Select(e => e.TextContent).ShouldBe(["BEGIN", "COMMIT"]);
+    }
+
+    [Fact]
+    public async Task MessagesTab_MarksErrorsAndShowsTheWholeStatementOnHover()
+    {
+        // Arrange
+        Complete(new QueryResult { Error = "no such table: prodcts" });
+        _log.RecordRun(_query.Id, "SELECT *\nFROM prodcts", new QueryResult { Error = "no such table: prodcts" }, At, TimeSpan.Zero);
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act
+        await OpenMessagesAsync(cut);
+
+        // Assert
+        cut.Find(".query-message-text.query-message-statement").GetAttribute("title").ShouldBe("SELECT *\nFROM prodcts");
+        cut.Find(".query-message-error").TextContent.ShouldBe("Error: no such table: prodcts");
     }
 }

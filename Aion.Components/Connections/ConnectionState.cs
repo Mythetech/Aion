@@ -290,7 +290,7 @@ public class ConnectionState
         }
 
         _logger.LogInformation("Started transaction {TransactionId} for query {QueryId}", query.Transaction.Value.Id, query.Id);
-        await _messageBus.PublishAsync(new TransactionStarted(connection.Id, query.Transaction.Value));
+        await _messageBus.PublishAsync(new TransactionStarted(connection.Id, query.Id, query.Transaction.Value));
         return null;
     }
 
