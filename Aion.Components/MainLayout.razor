@@ -89,7 +89,7 @@
             </PanelFooterContent>
         </AppContextDrawer>
 
-        <MudMenu @ref="_connectionContextMenu" Dense="true" AnchorOrigin="Origin.BottomLeft"
+        <AionMenu @ref="_connectionContextMenu" AnchorOrigin="Origin.BottomLeft"
                  TransformOrigin="Origin.TopLeft" PositionAtCursor="true">
             <ChildContent>
                 <MudMenuItem Icon="@AionIcons.Query" OnClick="ContextMenu_NewQuery">New Query</MudMenuItem>
@@ -99,7 +99,7 @@
                     <MudText Color="Color.Error">Delete Connection</MudText>
                 </MudMenuItem>
             </ChildContent>
-        </MudMenu>
+        </AionMenu>
     </MudDrawer>
     <MudMainContent Class="pl-2 pr-0 pt-0" Style="max-height:100dvh;max-width:100vw;overflow:hidden;">
         <MudContainer Class="px-0 mud-width-full" MaxWidth="MaxWidth.ExtraLarge" Style="height:100%;overflow:hidden;">
@@ -126,7 +126,7 @@
     private AionThemeProvider _themeProvider = default!;
     private bool _assetsLoaded = false;
     private string? _activePanelId;
-    private MudMenu? _connectionContextMenu;
+    private AionMenu? _connectionContextMenu;
     private ConnectionModel? _contextMenuConnection;
 
     private bool _aionInitialized = false;
