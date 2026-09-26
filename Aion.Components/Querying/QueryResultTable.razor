@@ -10,11 +10,13 @@
 @using Aion.Components.Theme
 @using Aion.Contracts.Database
 @using Aion.Contracts.Queries
+@using Microsoft.JSInterop
+@using MudBlazor.Services
 @using Mythetech.Framework.Infrastructure.MessageBus
 @inherits ComponentBaseWithState
-@implements IDisposable
+@implements IAsyncDisposable
 
-<div class="result-grid">
+<div class="result-grid" id="@_gridId">
 <MudDataGrid T="ResultRow"
              Items="@_shownRows"
              Dense="true"
@@ -65,7 +67,8 @@
         {
             var col = column.Key;
             var direction = _sort?.Key == col ? _sort.Direction : (ResultSortDirection?)null;
-            <TemplateColumn T="ResultRow" Title="@column.Header" Resizable="true" Sortable="false">
+            <TemplateColumn T="ResultRow" Title="@column.Header" Resizable="true" Sortable="false"
+                            CellClassFunc="@(row => EditCellClass(row, col))">
                 <HeaderTemplate>
                     <button type="button"
                             class="column-heading @(column.IsNumeric ? "numeric" : null)"
@@ -87,63 +90,35 @@
                     </button>
                 </HeaderTemplate>
                 <CellTemplate>
-                    @{
-                        var row = context.Item.Values;
-                        var value = row.GetValueOrDefault(col);
-                        var rowIndex = context.Item.Index;
-                        var effectiveValue = EditState?.GetEffectiveValue(rowIndex, col, row) ?? value;
-                        var cellClass = GetCellClass(rowIndex, col);
-                        var rowClass = GetRowClass(rowIndex);
+                    @if (IsEditing)
+                    {
+                        @EditCell(context.Item, column)
                     }
-                    <div class="cell-content @(column.IsNumeric ? "numeric" : null) @cellClass @rowClass"
-                         @oncontextmenu="@(e => ShowContextMenu(e, context.Item, col, value))"
-                         @oncontextmenu:preventDefault="true"
-                         @onclick="@(e => HandleCellClick(rowIndex, e))">
-                        @if (EditMetadata?.IsEditMode == true && !IsRowDeleted(rowIndex))
-                        {
-                            @* Foreign key metadata only exists in edit mode, so the editable cell is where the reference opens from. *@
-                            var editForeignKey = effectiveValue != null && IsForeignKeyColumn(col, out var fk) ? fk : null;
-                            <MudTextField T="string"
-                                          Value="@(effectiveValue?.ToString() ?? "")"
-                                          ValueChanged="@(newValue => OnCellValueChanged(rowIndex, col, newValue, row))"
-                                          Variant="Variant.Text"
-                                          Margin="Margin.Dense"
-                                          Dense="true"
-                                          Immediate="false"
-                                          DisableUnderLine="true"
-                                          Disabled="@IsPrimaryKeyColumn(col)"
-                                          Adornment="@(editForeignKey is null ? Adornment.None : Adornment.End)"
-                                          AdornmentIcon="@(editForeignKey is null ? null : AionIcons.ForeignKey)"
-                                          AdornmentAriaLabel="@(editForeignKey is null ? null : $"Show {col} reference")"
-                                          OnAdornmentClick="@(() => editForeignKey is null ? Task.CompletedTask : OpenForeignKeyView(col, editForeignKey, effectiveValue!, context.Item))"
-                                          Class="cell-editing" />
-                        }
-                        else if (effectiveValue != null && effectiveValue.ToString()!.StartsWith('{') && effectiveValue.ToString()!.EndsWith('}'))
-                        {
-                            <MudLink Class="cell-link"
-                                     OnClick="@(async () => await OpenJsonDetailView(col, effectiveValue.ToString()!))">
-                                @effectiveValue
-                            </MudLink>
-                        }
-                        else if (IsForeignKeyColumn(col, out var fkInfo) && effectiveValue != null)
-                        {
-                            <MudLink Class="cell-link"
-                                     OnClick="@(async () => await OpenForeignKeyView(col, fkInfo!, effectiveValue, context.Item))">
-                                @effectiveValue
-                                <MudIcon Icon="@AionIcons.ForeignKey" Size="Size.Small" Class="ml-1" />
-                            </MudLink>
-                        }
-                        else if (effectiveValue is null)
-                        {
-                            <span class="cell-null">NULL</span>
-                        }
-                        else
-                        {
-                            var shown = ResultValueFormatter.Display(effectiveValue, column.Type);
-                            var full = ResultValueFormatter.Full(effectiveValue);
-                            <span class="cell-value" title="@(shown == full && shown?.Length <= LongValueLength ? null : full)">@shown</span>
-                        }
-                    </div>
+                    else
+                    {
+                        var value = context.Item.Values.GetValueOrDefault(col);
+                        var rowIndex = context.Item.Index;
+                        <div class="cell-content @(column.IsNumeric ? "numeric" : null)"
+                             @oncontextmenu="@(e => ShowContextMenu(e, context.Item, col, value))"
+                             @oncontextmenu:preventDefault="true"
+                             @onclick="@(e => HandleCellClick(rowIndex, e))">
+                            @if (value != null && value.ToString()!.StartsWith('{') && value.ToString()!.EndsWith('}'))
+                            {
+                                <MudLink Class="cell-link"
+                                         OnClick="@(async () => await OpenJsonDetailView(col, value.ToString()!))">
+                                    @value
+                                </MudLink>
+                            }
+                            else if (value is null)
+                            {
+                                <span class="cell-null">NULL</span>
+                            }
+                            else
+                            {
+                                @CellValue(value, column)
+                            }
+                        </div>
+                    }
                 </CellTemplate>
             </TemplateColumn>
         }
@@ -197,9 +172,15 @@
             </MudMenuItem>
         }
 
-        @if (EditMetadata?.IsEditMode == true && _contextRow != null)
+        @if (IsEditing && _contextRow != null)
         {
             <MudDivider />
+            @if (IsContextCellModified)
+            {
+                <MudMenuItem OnClick="@RevertContextCell" Icon="@AionIcons.Undo">
+                    Revert Cell
+                </MudMenuItem>
+            }
             @if (IsRowDeleted(_contextRow.Index))
             {
                 <MudMenuItem OnClick="@UndeleteContextRow" Icon="@AionIcons.Undo" IconColor="Color.Success">
@@ -210,6 +191,13 @@
             {
                 <MudMenuItem OnClick="@DeleteContextRow" Icon="@AionIcons.Delete" IconColor="Color.Error">
                     Delete Row
+                </MudMenuItem>
+            }
+            var selectedToDelete = SelectedRowsToDelete;
+            @if (selectedToDelete.Count > 1)
+            {
+                <MudMenuItem OnClick="@(() => DeleteRows(selectedToDelete))" Icon="@AionIcons.Delete" IconColor="Color.Error">
+                    Delete @selectedToDelete.Count Selected Rows
                 </MudMenuItem>
             }
         }
@@ -229,11 +217,14 @@
 
     [Inject] protected IMessageBus Bus { get; set; } = default!;
     [Inject] protected ResultsSettings ResultsSettings { get; set; } = default!;
+    [Inject] private IKeyInterceptorService KeyInterceptor { get; set; } = default!;
 
     private const int RowHeight = 28;
 
     // Values longer than this may be cut short by the column, so their cell carries the full text as a title.
     private const int LongValueLength = 40;
+
+    private readonly string _gridId = $"result-grid-{Guid.NewGuid():N}";
 
     private AionMenu? _contextMenu;
 
@@ -243,6 +234,14 @@
     private object? _contextValue;
 
     private EditState? _subscribedEditState;
+
+    // Edit mode: the cell being edited, the cell keyboard focus is on, and each rendered cell so focus can move to it.
+    private CellEditSession? _editSession;
+    private (int Row, string Column)? _activeCell;
+    private bool _focusActiveCell;
+    private readonly Dictionary<(int Row, string Column), ElementReference> _cellElements = [];
+    private QueryEditMetadata? _rulesMetadata;
+    private readonly Dictionary<string, EditableColumn> _columnRules = [];
 
     private QueryResult? _viewResult;
     private IReadOnlyList<ResultGridColumn> _columns = [];
@@ -274,6 +273,11 @@
             _columns = ResultGridColumn.From(Result, DatabaseType);
             _rows = ResultRow.Wrap(Result.Rows);
             _shownLimit = RowLimit;
+
+            // Cells are identified by their row's place in the result, which means nothing in a new result.
+            _editSession = null;
+            _activeCell = null;
+            _cellElements.Clear();
 
             // Running the query again keeps its sort; a result without that column starts unsorted.
             if (_sort != null && !Result.Columns.Contains(_sort.Key))
@@ -320,22 +324,56 @@
     protected override void OnParametersSet()
     {
         // Each edit session has its own EditState, so follow the parameter instead of the first instance seen.
-        if (!ReferenceEquals(_subscribedEditState, EditState))
+        var edits = Edits;
+        if (!ReferenceEquals(_subscribedEditState, edits))
         {
             if (_subscribedEditState != null)
             {
                 _subscribedEditState.StateChanged -= OnEditStateChanged;
             }
 
-            if (EditState != null)
+            if (edits != null)
             {
-                EditState.StateChanged += OnEditStateChanged;
+                edits.StateChanged += OnEditStateChanged;
             }
 
-            _subscribedEditState = EditState;
+            _subscribedEditState = edits;
+            _editSession = null;
         }
 
         base.OnParametersSet();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Arrow keys and Space would scroll the grid while they move between cells or start an edit.
+            await KeyInterceptor.SubscribeAsync(_gridId,
+                new KeyInterceptorOptions("cell-nav",
+                    new KeyOptions("ArrowUp", preventDown: "key+none"),
+                    new KeyOptions("ArrowDown", preventDown: "key+none"),
+                    new KeyOptions("ArrowLeft", preventDown: "key+none"),
+                    new KeyOptions("ArrowRight", preventDown: "key+none"),
+                    new KeyOptions(" ", preventDown: "key+none")),
+                keyDown: (Func<KeyboardEventArgs, Task>?)null);
+        }
+
+        if (_focusActiveCell && _editSession == null && _activeCell is { } active)
+        {
+            _focusActiveCell = false;
+            if (_cellElements.TryGetValue(active, out var element))
+            {
+                try
+                {
+                    await element.FocusAsync();
+                }
+                catch (JSException)
+                {
+                    // The cell's row scrolled out of view and was removed, so there is nothing to focus.
+                }
+            }
+        }
     }
 
     private void OnEditStateChanged()
@@ -343,53 +381,362 @@
         StateHasChanged();
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         if (_subscribedEditState != null)
         {
             _subscribedEditState.StateChanged -= OnEditStateChanged;
         }
+
+        await KeyInterceptor.UnsubscribeAsync(_gridId);
     }
 
-    // Edit mode helper methods
-    private bool IsPrimaryKeyColumn(string column) =>
-        EditMetadata?.ColumnMetadata.Any(c => c.Name == column && c.IsPrimaryKey) == true;
+    // The table's own pending changes, from the metadata when the host doesn't pass them separately.
+    private EditState? Edits => EditState ?? (EditMetadata?.IsEditMode == true ? EditMetadata.EditState : null);
+
+    private bool IsEditing => EditMetadata?.IsEditMode == true && Edits != null;
 
     private bool IsRowDeleted(int rowIndex) =>
-        EditState?.IsRowDeleted(rowIndex) == true;
+        Edits?.IsRowDeleted(rowIndex) == true;
 
-    private string GetRowClass(int rowIndex)
+    private EditableColumn RulesFor(string column)
     {
-        if (EditState?.IsRowDeleted(rowIndex) == true) return "row-deleted";
-        if (EditState?.IsRowInserted(rowIndex) == true) return "row-inserted";
-        return "";
+        if (!ReferenceEquals(_rulesMetadata, EditMetadata))
+        {
+            _rulesMetadata = EditMetadata;
+            _columnRules.Clear();
+        }
+
+        if (!_columnRules.TryGetValue(column, out var rules))
+        {
+            rules = EditableColumn.For(column, EditMetadata?.ColumnMetadata ?? []);
+            _columnRules[column] = rules;
+        }
+
+        return rules;
     }
 
-    private string GetCellClass(int rowIndex, string column)
+    private bool CanEditCell(ResultRow row, string column) =>
+        IsEditing
+        && !IsRowDeleted(row.Index)
+        && RulesFor(column).IsEditable
+        && CellEditText.CanEdit(row.Values.GetValueOrDefault(column));
+
+    private bool IsEditingCell(int rowIndex, string column) =>
+        _editSession is { } session && session.RowIndex == rowIndex && session.Column == column;
+
+    // With no cell focused yet, the first cell is where Tab enters the grid.
+    private bool IsTabStop(int rowIndex, string column) => _activeCell is { } active
+        ? active.Row == rowIndex && active.Column == column
+        : _shownRows.Count > 0 && _columns.Count > 0 && _shownRows[0].Index == rowIndex && _columns[0].Key == column;
+
+    private string EditCellClass(ResultRow row, string column)
     {
-        if (EditState?.IsCellModified(rowIndex, column) == true) return "cell-modified";
-        return "";
+        if (!IsEditing)
+        {
+            return string.Empty;
+        }
+
+        if (IsEditingCell(row.Index, column))
+        {
+            return "cell-editing";
+        }
+
+        return Edits!.IsCellModified(row.Index, column) ? "cell-modified" : string.Empty;
     }
 
-    private void OnCellValueChanged(int rowIndex, string column, string? newValue, Dictionary<string, object> originalRow)
+    private string? ReadOnlyReason(ResultRow row, string column)
     {
-        if (EditState == null) return;
+        if (IsRowDeleted(row.Index))
+        {
+            return "This row will be deleted. Restore it to edit it.";
+        }
 
-        // Convert empty string to null for nullable columns
-        object? valueToSet = string.IsNullOrEmpty(newValue) ? null : newValue;
-        EditState.UpdateCell(rowIndex, column, valueToSet, originalRow);
+        var rules = RulesFor(column);
+        if (!rules.IsEditable)
+        {
+            return rules.ReadOnlyReason;
+        }
+
+        return CellEditText.CanEdit(row.Values.GetValueOrDefault(column)) ? null : "Binary values can't be edited as text";
     }
+
+    private RenderFragment EditCell(ResultRow row, ResultGridColumn column) => __builder =>
+    {
+        var col = column.Key;
+        var rowIndex = row.Index;
+
+        if (_editSession is { } session && IsEditingCell(rowIndex, col))
+        {
+            <GridCellEditor @key="session"
+                            Session="@session"
+                            ColumnName="@column.Header"
+                            IsNumeric="@column.IsNumeric"
+                            OnCommit="@(move => CommitEdit(session, move))"
+                            OnCancel="@(() => CancelEdit(session))" />
+        }
+        else
+        {
+            var readOnlyReason = ReadOnlyReason(row, col);
+            <div @ref="_cellElements[(rowIndex, col)]"
+                 class="cell-content cell-nav @(column.IsNumeric ? "numeric" : null) @(readOnlyReason is null ? null : "cell-readonly")"
+                 tabindex="@(IsTabStop(rowIndex, col) ? 0 : -1)"
+                 title="@readOnlyReason"
+                 @onclick="@(e => OnEditCellClick(e, row, col))"
+                 @onfocus="@(() => _activeCell = (rowIndex, col))"
+                 @onkeydown="@(e => OnEditCellKeyDown(e, row, col))"
+                 @oncontextmenu="@(e => ShowContextMenu(e, row, col, row.Values.GetValueOrDefault(col)))"
+                 @oncontextmenu:preventDefault="true">
+                @EditCellValue(row, column)
+            </div>
+        }
+    };
+
+    // A changed cell shows its new value with the original struck through, so the change is visible where it was made.
+    private RenderFragment EditCellValue(ResultRow row, ResultGridColumn column) => __builder =>
+    {
+        var col = column.Key;
+        var original = row.Values.GetValueOrDefault(col);
+        var modified = Edits!.IsCellModified(row.Index, col);
+        var value = modified ? Edits.GetEffectiveValue(row.Index, col, row.Values) : original;
+
+        if (value is null)
+        {
+            <span class="cell-null">NULL</span>
+        }
+        else
+        {
+            @CellValue(value, column)
+        }
+
+        if (modified)
+        {
+            var was = original is null ? "NULL" : ResultValueFormatter.Display(original, column.Type);
+            <s class="cell-original" title="@($"Was {was}")">@was</s>
+        }
+
+        if (value is not null && IsForeignKeyColumn(col, out var foreignKey))
+        {
+            @* Foreign key metadata only exists in edit mode, so the editable cell is where the reference opens from. *@
+            <button type="button"
+                    class="cell-fk"
+                    aria-label="@($"Show {col} reference")"
+                    title="@($"Show {foreignKey!.ReferencedTable} row")"
+                    @onclick="@(() => OpenForeignKeyView(col, foreignKey, value, row))"
+                    @onclick:stopPropagation="true">
+                <MudIcon Icon="@AionIcons.ForeignKey" Size="Size.Small" />
+            </button>
+        }
+    };
+
+    private RenderFragment CellValue(object value, ResultGridColumn column) => __builder =>
+    {
+        var shown = ResultValueFormatter.Display(value, column.Type);
+        var full = ResultValueFormatter.Full(value);
+        <span class="cell-value" title="@(shown == full && shown?.Length <= LongValueLength ? null : full)">@shown</span>
+    };
+
+    private void OnEditCellClick(MouseEventArgs e, ResultRow row, string column)
+    {
+        HandleCellClick(row.Index, e);
+
+        if (_editSession is { } open && !IsEditingCell(row.Index, column))
+        {
+            // The editor's blur normally commits it before this click; this covers a click that arrives first.
+            EndEdit(open);
+        }
+
+        if (CanEditCell(row, column))
+        {
+            BeginEdit(row, column);
+        }
+        else
+        {
+            FocusCell(row.Index, column);
+        }
+    }
+
+    private void OnEditCellKeyDown(KeyboardEventArgs e, ResultRow row, string column)
+    {
+        switch (e.Key)
+        {
+            case "ArrowUp":
+                MoveFocus(row.Index, column, CellEditMove.Up);
+                break;
+            case "ArrowDown":
+                MoveFocus(row.Index, column, CellEditMove.Down);
+                break;
+            case "ArrowLeft":
+                MoveFocus(row.Index, column, CellEditMove.Left);
+                break;
+            case "ArrowRight":
+                MoveFocus(row.Index, column, CellEditMove.Right);
+                break;
+            case "Enter" or "F2" when CanEditCell(row, column):
+                BeginEdit(row, column);
+                break;
+            case { Length: 1 } when !e.CtrlKey && !e.MetaKey && !e.AltKey && CanEditCell(row, column):
+                BeginEdit(row, column, typed: e.Key);
+                break;
+        }
+    }
+
+    private void BeginEdit(ResultRow row, string column, string? typed = null)
+    {
+        var current = Edits!.GetEffectiveValue(row.Index, column, row.Values);
+        var text = typed ?? CellEditText.From(current, ColumnType(column));
+        _editSession = new CellEditSession(row.Index, column, text, RulesFor(column), selectOnOpen: typed is null);
+        _activeCell = (row.Index, column);
+    }
+
+    private void CommitEdit(CellEditSession session, CellEditMove move)
+    {
+        if (!ReferenceEquals(session, _editSession))
+        {
+            return;
+        }
+
+        EndEdit(session);
+
+        if (move is CellEditMove.Next or CellEditMove.Previous)
+        {
+            if (NextEditableCell(session.RowIndex, session.Column, move == CellEditMove.Next) is { } next)
+            {
+                BeginEdit(next.Row, next.Column);
+                return;
+            }
+
+            move = CellEditMove.None;
+        }
+
+        MoveFocus(session.RowIndex, session.Column, move);
+    }
+
+    private void CancelEdit(CellEditSession session)
+    {
+        if (!ReferenceEquals(session, _editSession))
+        {
+            return;
+        }
+
+        _editSession = null;
+        FocusCell(session.RowIndex, session.Column);
+    }
+
+    // Commits what the session holds and closes the editor.
+    private void EndEdit(CellEditSession session)
+    {
+        _editSession = null;
+        if (session.RowIndex < _rows.Count)
+        {
+            var row = _rows[session.RowIndex];
+            SetCell(row, session.Column, CellEditText.Resolve(session.CommitText, row.Values.GetValueOrDefault(session.Column), ColumnType(session.Column)));
+        }
+    }
+
+    private void SetCell(ResultRow row, string column, object? value) =>
+        Edits?.UpdateCell(row.Index, column, value, row.Values);
+
+    private string? ColumnType(string column) => _columns.FirstOrDefault(c => c.Key == column)?.Type;
+
+    private void FocusCell(int rowIndex, string column)
+    {
+        _activeCell = (rowIndex, column);
+        _focusActiveCell = true;
+    }
+
+    private void MoveFocus(int rowIndex, string column, CellEditMove move)
+    {
+        var columnIndex = ColumnIndex(column);
+        var position = _view.PositionOf(rowIndex);
+        if (columnIndex < 0 || position < 0)
+        {
+            return;
+        }
+
+        (position, columnIndex) = move switch
+        {
+            CellEditMove.Up => (Math.Max(position - 1, 0), columnIndex),
+            CellEditMove.Down => (Math.Min(position + 1, _shownRows.Count - 1), columnIndex),
+            CellEditMove.Left => (position, Math.Max(columnIndex - 1, 0)),
+            CellEditMove.Right => (position, Math.Min(columnIndex + 1, _columns.Count - 1)),
+            _ => (position, columnIndex)
+        };
+
+        FocusCell(_shownRows[position].Index, _columns[columnIndex].Key);
+    }
+
+    // Tab walks the editable cells row by row, the way a form's fields go, skipping keys and deleted rows.
+    private (ResultRow Row, string Column)? NextEditableCell(int rowIndex, string column, bool forward)
+    {
+        var step = forward ? 1 : -1;
+        var position = _view.PositionOf(rowIndex);
+        var columnIndex = ColumnIndex(column) + step;
+
+        while (position >= 0 && position < _shownRows.Count)
+        {
+            var row = _shownRows[position];
+            for (; columnIndex >= 0 && columnIndex < _columns.Count; columnIndex += step)
+            {
+                if (CanEditCell(row, _columns[columnIndex].Key))
+                {
+                    return (row, _columns[columnIndex].Key);
+                }
+            }
+
+            position += step;
+            columnIndex = forward ? 0 : _columns.Count - 1;
+        }
+
+        return null;
+    }
+
+    private int ColumnIndex(string column)
+    {
+        for (var i = 0; i < _columns.Count; i++)
+        {
+            if (_columns[i].Key == column)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private bool IsContextCellModified =>
+        _contextRow != null && _contextColumn != null && Edits?.IsCellModified(_contextRow.Index, _contextColumn) == true;
+
+    private void RevertContextCell()
+    {
+        if (_contextRow == null || _contextColumn == null) return;
+        SetCell(_contextRow, _contextColumn, _contextRow.Values.GetValueOrDefault(_contextColumn));
+    }
+
+    // The selected rows that the context menu's row belongs to, in the order shown, without those already deleted.
+    private IReadOnlyList<ResultRow> SelectedRowsToDelete =>
+        _contextRow != null && SelectionState.IsSelected(_contextRow.Index)
+            ? _view.Rows.Where(r => SelectionState.IsSelected(r.Index) && !IsRowDeleted(r.Index)).ToList()
+            : [];
 
     private void DeleteContextRow()
     {
-        if (_contextRow == null || EditState == null) return;
-        EditState.DeleteRow(_contextRow.Index, _contextRow.Values);
+        if (_contextRow == null) return;
+        Edits?.DeleteRow(_contextRow.Index, _contextRow.Values);
+    }
+
+    private void DeleteRows(IReadOnlyList<ResultRow> rows)
+    {
+        foreach (var row in rows)
+        {
+            Edits?.DeleteRow(row.Index, row.Values);
+        }
     }
 
     private void UndeleteContextRow()
     {
-        if (_contextRow == null || EditState == null) return;
-        EditState.UndeleteRow(_contextRow.Index);
+        if (_contextRow == null) return;
+        Edits?.UndeleteRow(_contextRow.Index);
     }
 
     private void HandleCellClick(int rowIndex, MouseEventArgs e)
@@ -416,8 +763,18 @@
         }
     }
 
-    private string? RowClass(ResultRow row, int position) =>
-        SelectionState.IsSelected(row.Index) ? "row-selected" : null;
+    private string? RowClass(ResultRow row, int position)
+    {
+        var selected = SelectionState.IsSelected(row.Index) ? "row-selected" : null;
+        var edit = Edits switch
+        {
+            { } edits when edits.IsRowDeleted(row.Index) => "row-deleted",
+            { } edits when edits.IsRowInserted(row.Index) => "row-inserted",
+            _ => null
+        };
+
+        return selected != null && edit != null ? $"{selected} {edit}" : selected ?? edit;
+    }
 
     private async Task ShowContextMenu(MouseEventArgs e, ResultRow row, string column, object? value)
     {
@@ -501,7 +858,7 @@
 
         var choices = (EditMetadata?.ColumnMetadata ?? [])
             .Where(c => c.ForeignKey != null && Result.Columns.Contains(c.Name))
-            .Select(c => (Column: c, Value: EditState?.GetEffectiveValue(row.Index, c.Name, row.Values) ?? row.Values.GetValueOrDefault(c.Name)))
+            .Select(c => (Column: c, Value: Edits?.GetEffectiveValue(row.Index, c.Name, row.Values) ?? row.Values.GetValueOrDefault(c.Name)))
             .Where(choice => choice.Value != null)
             .Select(choice => choice.Column.Name == column ? detail : ForeignKeyDetailFor(choice.Column.Name, choice.Column.ForeignKey!, choice.Value!))
             .ToList();

@@ -1,0 +1,37 @@
+/* The editor takes the whole cell, which drops its padding while editing, so the text stays where it was. */
+.cell-editor {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    box-sizing: border-box;
+    width: 100%;
+    height: 27px;
+    padding-right: 4px;
+}
+
+.cell-editor-input {
+    flex: 1 1 auto;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    padding: 0 12px;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--mud-palette-text-primary);
+    font: inherit;
+    /* Focusing the editor scrolls it into view; this keeps it clear of the grid's sticky header. */
+    scroll-margin-top: 48px;
+}
+
+.cell-editor.numeric .cell-editor-input {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.cell-editor-input::placeholder {
+    color: var(--mud-palette-text-disabled);
+    font-style: italic;
+    opacity: 1;
+}

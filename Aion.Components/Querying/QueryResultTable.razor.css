@@ -201,28 +201,106 @@
     background-color: rgba(var(--mud-palette-primary-rgb), 0.04);
 }
 
-/* Edit mode styles (for future use) */
-.cell-modified {
-    background-color: rgba(255, 193, 7, 0.2) !important; /* Yellow tint for modified */
+/* Edit mode. Cells read like the read grid until one is edited; each fills its whole cell, padding included,
+   so any point in the cell starts an edit and the focus ring outlines the cell. */
+.query-result-table .cell-content.cell-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-sizing: border-box;
+    height: 27px;
+    width: calc(100% + 24px);
+    max-width: calc(32rem + 24px);
+    margin: 0 -12px;
+    padding: 0 12px;
+    cursor: text;
+    outline: none;
+    /* Moving focus scrolls the cell into view; this keeps it clear of the sticky header. */
+    scroll-margin-top: 48px;
 }
 
-.row-inserted {
-    background-color: rgba(76, 175, 80, 0.2) !important; /* Green tint for new rows */
+.query-result-table .cell-content.cell-nav.numeric {
+    justify-content: flex-end;
 }
 
-.row-deleted {
-    background-color: rgba(244, 67, 54, 0.1) !important; /* Red tint for deleted */
+.query-result-table .cell-content.cell-nav:focus {
+    box-shadow: inset 0 0 0 2px var(--mud-palette-primary);
 }
 
-.row-deleted .cell-content {
+.query-result-table .cell-content.cell-readonly {
+    cursor: default;
+    color: var(--mud-palette-text-secondary);
+}
+
+.cell-nav .cell-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* The original value stays in view, muted and struck through: after the new text, or before a right-aligned
+   number so the new values keep lining up. */
+.cell-original {
+    flex: 0 1 auto;
+    min-width: 0;
+    margin-left: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.75rem;
+    color: var(--mud-palette-text-disabled);
+}
+
+.cell-nav.numeric .cell-original {
+    order: -1;
+    margin-left: 0;
+    margin-right: auto;
+}
+
+.cell-fk {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    padding: 1px;
+    border: 0;
+    border-radius: 4px;
+    background: none;
+    color: var(--mud-palette-primary);
+    cursor: pointer;
+}
+
+.cell-fk:hover,
+.cell-fk:focus-visible {
+    background-color: rgba(var(--mud-palette-primary-rgb), 0.12);
+    outline: none;
+}
+
+.result-grid ::deep .cell-fk .mud-icon-root {
+    font-size: 1rem;
+    width: 1rem;
+    height: 1rem;
+}
+
+.result-grid ::deep .mud-table-body .mud-table-row .mud-table-cell.cell-modified {
+    background-color: color-mix(in srgb, var(--mud-palette-warning) 14%, var(--mud-palette-surface));
+    box-shadow: inset 3px 0 0 var(--mud-palette-warning);
+}
+
+.result-grid ::deep .mud-table-body .mud-table-row .mud-table-cell.cell-editing {
+    padding: 0;
+    padding-inline: 0;
+    background-color: var(--mud-palette-surface);
+    box-shadow: inset 0 0 0 2px var(--mud-palette-primary);
+}
+
+.result-grid ::deep .mud-table-body .row-deleted > .mud-table-cell {
+    background-color: color-mix(in srgb, var(--mud-palette-error) 8%, var(--mud-palette-surface));
+}
+
+.result-grid ::deep .row-deleted .cell-content {
     text-decoration: line-through;
-    opacity: 0.7;
+    color: var(--mud-palette-text-secondary);
 }
 
-.cell-editing {
-    padding: 0 !important;
-}
-
-.cell-editing .mud-input {
-    margin: 0;
+.result-grid ::deep .mud-table-body .row-inserted > .mud-table-cell {
+    background-color: color-mix(in srgb, var(--mud-palette-success) 12%, var(--mud-palette-surface));
 }

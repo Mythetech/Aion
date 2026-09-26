@@ -1,0 +1,114 @@
+@using Aion.Components.Querying.Editing
+@using MudBlazor.Services
+@implements IAsyncDisposable
+
+<span id="@_id" class="cell-editor @(IsNumeric ? "numeric" : null)">
+    <input @ref="_input"
+           type="text"
+           size="1"
+           class="cell-editor-input"
+           value="@(Session.Text ?? "")"
+           placeholder="@(Session.CommitText is null ? "NULL" : null)"
+           aria-label="@($"Edit {ColumnName}")"
+           spellcheck="false"
+           autocomplete="off"
+           @oninput="OnInput"
+           @onkeydown="OnKeyDownAsync"
+           @onblur="OnBlurAsync" />
+</span>
+
+@code {
+    [Parameter, EditorRequired] public CellEditSession Session { get; set; } = default!;
+    [Parameter, EditorRequired] public string ColumnName { get; set; } = "";
+    [Parameter] public bool IsNumeric { get; set; }
+    [Parameter] public EventCallback<CellEditMove> OnCommit { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    [Inject] private IKeyInterceptorService KeyInterceptor { get; set; } = default!;
+
+    private readonly string _id = $"cell-editor-{Guid.NewGuid():N}";
+    private ElementReference _input;
+    private CellEditSession? _openedSession;
+    private bool _closed;
+
+    protected override void OnParametersSet()
+    {
+        // The grid could hand this editor another cell's session; that is a fresh edit.
+        if (!ReferenceEquals(_openedSession, Session))
+        {
+            _closed = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Tab would move focus out of the grid.
+            await KeyInterceptor.SubscribeAsync(_id,
+                new KeyInterceptorOptions("cell-editor-input",
+                    new KeyOptions("Tab", preventDown: "key+none|key+shift")),
+                keyDown: (Func<KeyboardEventArgs, Task>?)null);
+        }
+
+        if (ReferenceEquals(_openedSession, Session))
+        {
+            return;
+        }
+
+        _openedSession = Session;
+        await _input.FocusAsync();
+        if (Session.SelectOnOpen)
+        {
+            await _input.MudSelectAsync();
+        }
+    }
+
+    private void OnInput(ChangeEventArgs e) => Session.Type(e.Value?.ToString() ?? "");
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "Enter":
+                await CommitAsync(e.ShiftKey ? CellEditMove.Up : CellEditMove.Down);
+                break;
+            case "Tab":
+                await CommitAsync(e.ShiftKey ? CellEditMove.Previous : CellEditMove.Next);
+                break;
+            case "Escape":
+                await CancelAsync();
+                break;
+        }
+    }
+
+    // Enter, Tab and Escape close the editor before the input goes away, so a blur that follows finds nothing to do.
+    private Task OnBlurAsync() => CommitAsync(CellEditMove.None);
+
+    private async Task CommitAsync(CellEditMove move)
+    {
+        if (_closed)
+        {
+            return;
+        }
+
+        _closed = true;
+        await OnCommit.InvokeAsync(move);
+    }
+
+    private async Task CancelAsync()
+    {
+        if (_closed)
+        {
+            return;
+        }
+
+        _closed = true;
+        await OnCancel.InvokeAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await KeyInterceptor.UnsubscribeAsync(_id);
+    }
+}
