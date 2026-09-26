@@ -117,13 +117,13 @@ public class SchemaExecutorTests
     }
 
     [Fact]
-    public async Task Execute_WhenTheEngineGivesOnlyRawErrorText_ReportsThatText()
+    public async Task Execute_WhenTheEngineGivesOnlyRawErrorText_ReportsItWithoutTheDriversPrefix()
     {
-        FailTable("orders", new QueryResult { Error = "SQLite Error 1: 'near \"(\": syntax error'." });
+        FailTable("orders", new QueryResult { Error = "Worker error: SQLITE_ERROR: sqlite3 result code 1: near \"(\": syntax error" });
 
         var result = await _sut.ExecuteAsync(Model("orders"));
 
-        result.Error.ShouldBe("Could not create table \"orders\": SQLite Error 1: 'near \"(\": syntax error'.");
+        result.Error.ShouldBe("Could not create table \"orders\": near \"(\": syntax error");
     }
 
     [Fact]

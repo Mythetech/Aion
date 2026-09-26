@@ -124,7 +124,9 @@ public class SchemaExecutor : ISchemaExecutor
             string.IsNullOrWhiteSpace(c.DefaultValue) ? null : c.DefaultValue,
             c.IsPrimaryKey));
 
-    private static string EngineMessage(QueryResult result) => result.ErrorDetail?.Message ?? result.Error ?? "unknown error";
+    // Some providers only report the driver's text, which carries prefixes such as "Worker error: SQLITE_ERROR:".
+    private static string EngineMessage(QueryResult result) =>
+        (result.ErrorDetail ?? QueryErrorNormalizer.Normalize(result.Error ?? "unknown error")).Message;
 
     private static string CouldNotCreate(Exception ex) => $"Could not create the tables: {ex.Message}";
 
