@@ -312,7 +312,8 @@
             @foreach (var index in indexes)
             {
                 <MudTreeViewItem Value="@($"{tableKey}/indexes/{index.Name}")"
-                                 Icon="@(index.IsPrimary ? AionIcons.PrimaryKey : AionIcons.Index)">
+                                 Icon="@(index.IsPrimary ? AionIcons.PrimaryKey : AionIcons.Index)"
+                                 IconColor="@(index.IsPrimary ? Color.Warning : Color.Default)">
                     <BodyContent Context="ctx">
                         <div class="tree-row detail-row" title="@IndexDescription(index)">
                             <span class="tree-row-name">@index.Name</span>
