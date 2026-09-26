@@ -51,8 +51,7 @@
             <MudSpacer />
             <SearchBar />
             <MudSpacer />
-            <MtIconButton Icon="@AionIcons.Round("bug_report")" Tooltip="Report Bug"
-                          OnClick="@(async () => await LinkService.OpenLinkAsync("https://github.com/Mythetech/Aion/issues/new"))" />
+            <MtIconButton Icon="@AionIcons.Bug" Tooltip="Report Bug" OnClick="@BugReporter.OpenAsync" />
         </MudStack>
     </MudAppBar>
     <MudDrawer @bind-Open="@AppState.SideBarOpen" Variant="DrawerVariant.Mini" Style="overflow: hidden;">
@@ -107,7 +106,7 @@
     [Inject] protected IDialogService DialogService { get; set; } = default!;
     [Inject] protected IMessageBus Bus { get; set; } = default!;
     [Inject] protected IJSRuntime JS { get; set; } = default!;
-    [Inject] protected ILinkOpenService LinkService { get; set; } = default!;
+    [Inject] protected BugReporter BugReporter { get; set; } = default!;
     [Inject] protected StorageRestoreService RestoreService { get; set; } = default!;
     [Inject] protected BrowserStorageCleaner StorageCleaner { get; set; } = default!;
     [Inject] protected ILogger<WebLayout> Logger { get; set; } = default!;
