@@ -12,6 +12,15 @@
 
     <span class="tab-name">@Query.Name</span>
 
+    @if (Query.HasOpenTransaction)
+    {
+        <MudTooltip Text="@TransactionOpen" RootClass="tab-transaction">
+            <span class="tab-transaction-badge" role="img" aria-label="@TransactionOpen">
+                <MudIcon Icon="@AionIcons.Transaction" Size="Size.Small" Color="Color.Warning" />
+            </span>
+        </MudTooltip>
+    }
+
     <AionIconButton Icon="@AionIcons.Close"
                     Size="Size.Small"
                     Class="close-btn"
@@ -65,6 +74,8 @@
 
     [Parameter]
     public EventCallback<(QueryModel Query, string Color)> OnEmphasisColorChanged { get; set; }
+
+    private const string TransactionOpen = "Transaction open";
 
     private bool _menuOpen;
 

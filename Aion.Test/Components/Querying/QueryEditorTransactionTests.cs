@@ -85,12 +85,12 @@ public class QueryEditorTransactionTests : TestContext
         _state.SetActive(_query);
     }
 
-    private void OpenTransaction(int statements = 0)
+    private void OpenTransaction(int statements = 0, int rowsEach = 0)
     {
         var transaction = new TransactionInfo();
         for (var i = 0; i < statements; i++)
         {
-            transaction = transaction.WithStatementExecuted();
+            transaction = transaction.WithStatementExecuted(rowsEach);
         }
 
         _query.UseTransaction = true;
@@ -131,6 +131,33 @@ public class QueryEditorTransactionTests : TestContext
         bar.TextContent.ShouldContain("2 statements");
         cut.FindAll(".transaction-bar-commit").Count.ShouldBe(1);
         cut.FindAll(".transaction-bar-rollback").Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public void TransactionBar_ShowsTheRowsChangedSoFar()
+    {
+        // Arrange
+        OpenTransaction(statements: 3, rowsEach: 2);
+        var started = _query.Transaction!.Value.StartTime.ToLocalTime().ToString("t");
+
+        // Act
+        var cut = RenderComponent<QueryEditor>();
+
+        // Assert
+        cut.Find(".transaction-bar-summary").TextContent.ShouldBe($"3 statements · 6 rows changed · started {started}");
+    }
+
+    [Fact]
+    public void TransactionBar_SaysOneRowInTheSingular()
+    {
+        // Arrange
+        OpenTransaction(statements: 1, rowsEach: 1);
+
+        // Act
+        var cut = RenderComponent<QueryEditor>();
+
+        // Assert
+        cut.Find(".transaction-bar-summary").TextContent.ShouldStartWith("1 statement · 1 row changed · started");
     }
 
     [Fact]
@@ -252,7 +279,7 @@ public class QueryEditorTransactionTests : TestContext
     }
 
     [Fact]
-    public async Task ActualPlanRun_ShowsRolledBackNoticeInsteadOfError()
+    public async Task ActualPlanRun_IsMarkedAsTheActualPlanInsteadOfAnError()
     {
         // Arrange
         _query.IncludeActualPlan = true;
@@ -265,8 +292,9 @@ public class QueryEditorTransactionTests : TestContext
         await cut.Find(".run-query-button").ClickAsync(new MouseEventArgs());
 
         // Assert
-        cut.Find(".mud-alert-text-info").TextContent.ShouldContain("rolled back");
-        cut.FindAll(".mud-alert-text-error").ShouldBeEmpty();
+        _query.Result!.Success.ShouldBeTrue();
+        _query.ResultKind.ShouldBe(QueryResultKind.ActualPlan);
+        cut.FindAll(".mud-alert").ShouldBeEmpty();
         await _provider.DidNotReceive().ExecuteQueryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 }

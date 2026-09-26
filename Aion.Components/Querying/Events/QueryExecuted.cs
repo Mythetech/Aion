@@ -22,6 +22,11 @@ public record QueryExecuted(QueryModel Query)
     // must not be reported as the outcome of this one.
     public QueryResult? Result { get; init; } = Query.ExecutionEndTime is null ? null : Query.Result;
 
+    public QueryResultKind ResultKind { get; init; } = Query.ResultKind;
+
+    /// <summary>The open transaction the statement ran in, or null when it ran on its own.</summary>
+    public string? TransactionId { get; init; } = Query.Transaction is { Status: TransactionStatus.Active } transaction ? transaction.Id : null;
+
     public TimeSpan? Duration { get; init; } = Query.ExecutionDuration;
 
     public DateTimeOffset ExecutedAt { get; init; } = Query.ExecutionStartTime ?? DateTimeOffset.Now;

@@ -172,10 +172,11 @@ public class InBrowserProviderTests
     // Answers each catalog query with the JSON the PGlite interop would return for it.
     private void CatalogReturns(Func<string, string> jsonFor)
     {
-        _js.Module.InvokeAsync<JsonElement>("query", Arg.Any<object?[]?>())
+        // Catalog reads go through the overload that takes a cancellation token, so the arguments are third.
+        _js.Module.InvokeAsync<JsonElement>("query", Arg.Any<CancellationToken>(), Arg.Any<object?[]?>())
             .Returns(call =>
             {
-                var sql = (string)call.ArgAt<object?[]>(1)[1]!;
+                var sql = (string)call.ArgAt<object?[]>(2)[1]!;
                 _catalogQueries.Add(sql);
                 return new ValueTask<JsonElement>(JsonDocument.Parse(jsonFor(sql)).RootElement.Clone());
             });

@@ -3,6 +3,7 @@ using Aion.Components.Infrastructure.Commands;
 using Aion.Components.Querying;
 using Aion.Components.Settings.Domains;
 using Aion.Components.Querying.Errors;
+using Aion.Components.Querying.Messages;
 using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
@@ -23,6 +24,7 @@ public class QueryResponsePanelTests : TestContext
     private readonly QueryState _state;
     private readonly ConnectionState _connections;
     private readonly QueryModel _query;
+    private readonly QueryMessageLog _log = new();
 
     public QueryResponsePanelTests()
     {
@@ -30,13 +32,16 @@ public class QueryResponsePanelTests : TestContext
         JSInterop.Mode = JSRuntimeMode.Loose;
 
         _state = new QueryState(_bus, Substitute.For<IQuerySaveService>());
+        var providers = Substitute.For<IDatabaseProviderFactory>();
         _connections = new ConnectionState(
-            Substitute.For<IConnectionService>(), Substitute.For<IDatabaseProviderFactory>(), _bus, new NullLogger<ConnectionState>());
+            Substitute.For<IConnectionService>(), providers, _bus, new NullLogger<ConnectionState>());
 
         Services.AddSingleton(_bus);
         Services.AddSingleton(new ResultsSettings());
         Services.AddSingleton(_state);
         Services.AddSingleton(_connections);
+        Services.AddSingleton(_log);
+        Services.AddSingleton(providers);
         Services.AddSingleton(new SqlCompletionService(_connections));
         Services.AddSingleton(new QueryErrorSuggester(_connections, NullLogger<QueryErrorSuggester>.Instance));
 
@@ -44,10 +49,10 @@ public class QueryResponsePanelTests : TestContext
         _state.SetActive(_query);
     }
 
-    private void Complete(QueryResult result)
+    private void Complete(QueryResult result, QueryResultKind kind = QueryResultKind.Results)
     {
         _query.StartExecution();
-        _query.SetResult(result);
+        _query.SetResult(result, kind);
         _state.SetResult(_query, result);
     }
 
@@ -378,5 +383,245 @@ public class QueryResponsePanelTests : TestContext
 
         // Assert
         cut.Find(".query-message-error").TextContent.ShouldContain("no such table: prodcts");
+    }
+
+    private static async Task OpenMessagesAsync(IRenderedComponent<QueryResponsePanel> cut) =>
+        await cut.FindAll(".mud-tab").First(t => t.TextContent.Contains("Messages")).ClickAsync(new());
+
+    private static readonly DateTimeOffset At = new(2026, 9, 26, 14, 2, 0, TimeSpan.Zero);
+
+    [Fact]
+    public async Task MessagesTab_ShowsTheTabsLogInOrder()
+    {
+        // Arrange
+        Complete(new QueryResult { RowsAffected = 1 });
+        _log.RecordBegin(_query.Id, At);
+        _log.RecordRun(_query.Id, "UPDATE products SET stock = 0 WHERE id = 1", new QueryResult { RowsAffected = 1 }, At, TimeSpan.FromMilliseconds(43));
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act
+        await OpenMessagesAsync(cut);
+
+        // Assert
+        cut.FindAll(".query-message .query-message-text").Select(e => e.TextContent).ShouldBe(
+            ["BEGIN", "UPDATE products SET stock = 0 WHERE id = 1", "1 row affected"]);
+        cut.FindAll(".query-message")[0].QuerySelector(".query-message-time")!.TextContent
+            .ShouldBe(At.ToLocalTime().ToString("T"));
+        cut.Find(".query-message-duration").TextContent.ShouldBe("(43ms)");
+    }
+
+    [Fact]
+    public async Task MessagesTab_ShowsOnlyTheActiveTabsLog()
+    {
+        // Arrange
+        Complete(new QueryResult { RowsAffected = 1 });
+        _log.RecordBegin(Guid.NewGuid(), At);
+        _log.RecordRun(_query.Id, "DELETE FROM carts", new QueryResult { RowsAffected = 1 }, At, TimeSpan.Zero);
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act
+        await OpenMessagesAsync(cut);
+
+        // Assert
+        cut.FindAll(".query-message .query-message-text").Select(e => e.TextContent).ShouldBe(["DELETE FROM carts", "1 row affected"]);
+    }
+
+    [Fact]
+    public async Task MessagesTab_ShowsLinesAsTheyAreLogged()
+    {
+        // Arrange
+        Complete(new QueryResult { RowsAffected = 1 });
+        _log.RecordBegin(_query.Id, At);
+        var cut = RenderComponent<QueryResponsePanel>();
+        await OpenMessagesAsync(cut);
+
+        // Act
+        await cut.InvokeAsync(() => _log.RecordEnd(_query.Id, committed: true, At));
+
+        // Assert
+        cut.FindAll(".query-message .query-message-text").Select(e => e.TextContent).ShouldBe(["BEGIN", "COMMIT"]);
+    }
+
+    [Fact]
+    public async Task MessagesTab_MarksErrorsAndShowsTheWholeStatementOnHover()
+    {
+        // Arrange
+        Complete(new QueryResult { Error = "no such table: prodcts" });
+        _log.RecordRun(_query.Id, "SELECT *\nFROM prodcts", new QueryResult { Error = "no such table: prodcts" }, At, TimeSpan.Zero);
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act
+        await OpenMessagesAsync(cut);
+
+        // Assert
+        cut.Find(".query-message-text.query-message-statement").GetAttribute("title").ShouldBe("SELECT *\nFROM prodcts");
+        cut.Find(".query-message-error").TextContent.ShouldBe("Error: no such table: prodcts");
+    }
+
+    private static readonly QueryPlan Plan = new() { PlanType = "Estimated", PlanFormat = "TEXT", PlanContent = "Seq Scan on products" };
+
+    // A run shows the running view in between, which rebuilds the results tabs, as the app does.
+    private async Task RunAsync(IRenderedComponent<QueryResponsePanel> cut, QueryResult result, QueryResultKind kind = QueryResultKind.Results)
+    {
+        await cut.InvokeAsync(() =>
+        {
+            _query.StartExecution();
+            _state.SetActive(_query);
+        });
+        await cut.InvokeAsync(() =>
+        {
+            if (kind == QueryResultKind.EstimatedPlan) _query.EstimatedPlan = Plan;
+            if (kind == QueryResultKind.ActualPlan) _query.ActualPlan = Plan;
+            _query.SetResult(result, kind);
+            _state.SetResult(_query, result);
+        });
+    }
+
+    private static string ActiveResultsTab(IRenderedComponent<QueryResponsePanel> cut) =>
+        cut.Find(".mud-tab.mud-tab-active").TextContent.Trim();
+
+    [Fact]
+    public async Task Explain_OpensTheEstimatedPlanTab()
+    {
+        // Arrange
+        Complete(Rows(3));
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act
+        await RunAsync(cut, new QueryResult(), QueryResultKind.EstimatedPlan);
+
+        // Assert
+        cut.WaitForAssertion(() => ActiveResultsTab(cut).ShouldBe("Estimated Plan"));
+        cut.FindComponent<QueryPlanVisualizer>().Instance.Plan.ShouldBe(Plan);
+    }
+
+    [Fact]
+    public async Task ExplainAnalyze_OpensTheActualPlanTab()
+    {
+        // Arrange
+        Complete(Rows(3));
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act
+        await RunAsync(cut, new QueryResult(), QueryResultKind.ActualPlan);
+
+        // Assert
+        cut.WaitForAssertion(() => ActiveResultsTab(cut).ShouldBe("Actual Plan"));
+        cut.FindComponent<QueryPlanVisualizer>().Instance.Plan.ShouldBe(Plan);
+    }
+
+    [Fact]
+    public async Task Explain_WhileTheResultsTabsStayOnScreen_StillOpensThePlan()
+    {
+        // Arrange
+        Complete(Rows(3));
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act
+        await cut.InvokeAsync(() =>
+        {
+            _query.EstimatedPlan = Plan;
+            Complete(new QueryResult(), QueryResultKind.EstimatedPlan);
+        });
+
+        // Assert
+        cut.WaitForAssertion(() => ActiveResultsTab(cut).ShouldBe("Estimated Plan"));
+    }
+
+    [Fact]
+    public async Task Run_AfterExplain_LandsOnResults()
+    {
+        // Arrange
+        Complete(Rows(3));
+        var cut = RenderComponent<QueryResponsePanel>();
+        await RunAsync(cut, new QueryResult(), QueryResultKind.EstimatedPlan);
+        cut.WaitForAssertion(() => ActiveResultsTab(cut).ShouldBe("Estimated Plan"));
+
+        // Act
+        await RunAsync(cut, Rows(2));
+
+        // Assert
+        cut.WaitForAssertion(() => ActiveResultsTab(cut).ShouldBe("Results"));
+        cut.FindComponents<QueryResultTable>().Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Run_WhileReadingMessages_KeepsMessagesOpen()
+    {
+        // Arrange
+        Complete(Rows(3));
+        var cut = RenderComponent<QueryResponsePanel>();
+        await OpenMessagesAsync(cut);
+
+        // Act
+        await RunAsync(cut, Rows(2));
+
+        // Assert
+        cut.WaitForAssertion(() => ActiveResultsTab(cut).ShouldBe("Messages"));
+        cut.FindAll(".query-messages").Count.ShouldBe(1);
+    }
+
+    [Theory]
+    [InlineData(QueryResultKind.EstimatedPlan, "Estimated plan, statement not run")]
+    [InlineData(QueryResultKind.ActualPlan, "Actual plan, changes rolled back")]
+    public async Task PlanRun_FooterSaysWhatHappenedToTheStatement(QueryResultKind kind, string expected)
+    {
+        // Arrange
+        Complete(Rows(3));
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act
+        await RunAsync(cut, new QueryResult(), kind);
+
+        // Assert
+        var footer = cut.Find(".query-response-footer").TextContent;
+        footer.ShouldContain(expected);
+        footer.ShouldNotContain("Results");
+    }
+
+    private static string FooterCount(IRenderedComponent<QueryResponsePanel> cut) =>
+        cut.Find(".query-response-footer .query-result-count").TextContent.Trim();
+
+    [Fact]
+    public async Task Footer_WhileFiltering_SaysHowManyOfTheResultsMatch()
+    {
+        // Arrange
+        Complete(Rows(10));
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act: ids 1 and 10 contain "1".
+        await FindInResultsAsync(cut, "1", expectedRows: 2);
+
+        // Assert
+        cut.WaitForAssertion(() => FooterCount(cut).ShouldBe("2 of 10 results"));
+    }
+
+    [Fact]
+    public async Task Footer_AfterTheFilterIsCleared_CountsEveryResultAgain()
+    {
+        // Arrange
+        Complete(Rows(10));
+        var cut = RenderComponent<QueryResponsePanel>();
+        await FindInResultsAsync(cut, "1", expectedRows: 2);
+
+        // Act
+        await FindInResultsAsync(cut, "", expectedRows: 10);
+
+        // Assert
+        cut.WaitForAssertion(() => FooterCount(cut).ShouldBe("10 Results"));
+    }
+
+    [Fact]
+    public async Task Footer_WhileFilteringAStatementThatChangedRows_StillSaysRowsAffected()
+    {
+        // Arrange
+        Complete(new QueryResult { RowsAffected = 4 });
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act
+        await cut.Find("input[placeholder='Find in results...']").InputAsync(new ChangeEventArgs { Value = "x" });
+
+        // Assert
+        cut.WaitForAssertion(() => FooterCount(cut).ShouldBe("4 rows affected"));
     }
 }

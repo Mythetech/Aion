@@ -12,6 +12,9 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
 {
     private const string TransactionNotOpenMessage = "This transaction is no longer open. Roll back to clear it.";
 
+    public const string AbortedTransactionReadMessage =
+        "A statement in the open transaction on this database failed, so PGlite can't read anything until it's rolled back.";
+
     private readonly IJSRuntime _js;
     private IJSObjectReference? _module;
     private readonly HashSet<string> _databases = new();
@@ -65,9 +68,8 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
     public async Task<List<TableInfo>> GetTablesAsync(string connectionString, string database)
     {
         await EnsureDatabaseAsync(database);
-        var module = await GetModuleAsync();
 
-        var result = await module.InvokeAsync<JsonElement>("query", database,
+        var result = await ReadCatalogAsync(database,
             "SELECT schemaname, tablename FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema') ORDER BY schemaname, tablename");
 
         var tables = new List<TableInfo>();
@@ -82,7 +84,7 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
         // databases are small enough in a browser tab to count exactly.
         if (tables.Count > 0)
         {
-            var counts = await module.InvokeAsync<JsonElement>("query", database, PGliteCatalogSql.CountRows(tables));
+            var counts = await ReadCatalogAsync(database, PGliteCatalogSql.CountRows(tables));
             foreach (var row in counts.GetProperty("rows").EnumerateArray())
             {
                 var index = row.GetProperty("i").GetInt32();
@@ -96,9 +98,8 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
     public async Task<List<TableInfo>> GetViewsAsync(string connectionString, string database)
     {
         await EnsureDatabaseAsync(database);
-        var module = await GetModuleAsync();
 
-        var result = await module.InvokeAsync<JsonElement>("query", database,
+        var result = await ReadCatalogAsync(database,
             "SELECT table_schema, table_name FROM information_schema.views WHERE table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY table_schema, table_name");
 
         return result.GetProperty("rows").EnumerateArray()
@@ -108,8 +109,6 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
 
     public async Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string schema, string table)
     {
-        var module = await GetModuleAsync();
-
         var sql = $@"
             SELECT
                 c.column_name,
@@ -134,7 +133,7 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
             AND c.table_schema = {PGliteCatalogSql.Literal(schema)}
             ORDER BY c.ordinal_position";
 
-        var result = await module.InvokeAsync<JsonElement>("query", database, sql);
+        var result = await ReadCatalogAsync(database, sql);
 
         var columns = new List<ColumnInfo>();
         foreach (var row in result.GetProperty("rows").EnumerateArray())
@@ -167,8 +166,6 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
 
     public async Task<List<ForeignKeyInfo>> GetForeignKeysAsync(string connectionString, string database, string schema, string table)
     {
-        var module = await GetModuleAsync();
-
         var sql = $@"
             SELECT
                 tc.constraint_name,
@@ -187,7 +184,7 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
                 AND tc.table_name = {PGliteCatalogSql.Literal(table)}
                 AND tc.table_schema = {PGliteCatalogSql.Literal(schema)}";
 
-        var result = await module.InvokeAsync<JsonElement>("query", database, sql);
+        var result = await ReadCatalogAsync(database, sql);
 
         var foreignKeys = new List<ForeignKeyInfo>();
         foreach (var row in result.GetProperty("rows").EnumerateArray())
@@ -328,9 +325,7 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
         if (refusal != null) throw new InvalidOperationException(refusal);
 
         var dbName = ExtractDatabaseName(connectionString);
-        var module = await GetModuleAsync();
-        var result = await module.InvokeAsync<JsonElement>("query", cancellationToken,
-            new object?[] { dbName, $"EXPLAIN {QueryPlanStatementGuard.TrimTrailingTerminators(query)}" });
+        var result = await ReadCatalogAsync(dbName, $"EXPLAIN {QueryPlanStatementGuard.TrimTrailingTerminators(query)}", cancellationToken);
 
         var sb = new StringBuilder();
         foreach (var row in result.GetProperty("rows").EnumerateArray())
@@ -456,12 +451,36 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
         {
             await module.InvokeAsync<JsonElement>("query", dbName, "SELECT 1");
         }
-        catch (JSException ex) when (ex.Message.Contains("current transaction is aborted", StringComparison.OrdinalIgnoreCase))
+        catch (JSException ex) when (IsAbortedTransaction(ex))
         {
             throw new InvalidOperationException(
                 "An earlier statement failed, so PostgreSQL aborted this transaction and nothing can be committed. Roll back to end it.", ex);
         }
     }
+
+    /// <summary>
+    /// Runs a read that isn't the user's statement, such as the schema tree's or a plan's. While a tab holds a
+    /// transaction on the database the read joins it, since PGlite has one session per database, so the
+    /// interop module wraps it in a savepoint: a read that fails is undone instead of aborting the transaction.
+    /// </summary>
+    private async Task<JsonElement> ReadCatalogAsync(string? database, string sql, CancellationToken cancellationToken = default)
+    {
+        var module = await GetModuleAsync();
+        try
+        {
+            return await module.InvokeAsync<JsonElement>(CatalogReadFunction(database), cancellationToken, new object?[] { database, sql });
+        }
+        catch (JSException ex) when (IsAbortedTransaction(ex))
+        {
+            throw new InvalidOperationException(AbortedTransactionReadMessage, ex);
+        }
+    }
+
+    private static bool IsAbortedTransaction(JSException ex) =>
+        ex.Message.Contains("current transaction is aborted", StringComparison.OrdinalIgnoreCase);
+
+    private string CatalogReadFunction(string? database) =>
+        database != null && _openTransactions.ContainsKey(database) ? "readInSavepoint" : "query";
 
     private string? FindTransactionDatabase(string transactionId) =>
         _openTransactions.FirstOrDefault(entry => entry.Value == transactionId).Key;
@@ -472,8 +491,6 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
 
     public async Task<List<IndexInfo>> GetIndexesAsync(string connectionString, string database)
     {
-        var module = await GetModuleAsync();
-
         var sql = @"
             SELECT
                 schemaname,
@@ -485,7 +502,7 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
             WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
             ORDER BY schemaname, tablename, indexname";
 
-        var result = await module.InvokeAsync<JsonElement>("query", database, sql);
+        var result = await ReadCatalogAsync(database, sql);
         var indexes = new List<IndexInfo>();
 
         foreach (var row in result.GetProperty("rows").EnumerateArray())

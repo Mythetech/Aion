@@ -7,6 +7,7 @@ using Aion.Components.Infrastructure;
 using Aion.Components.Querying;
 using Aion.Components.Querying.Editing;
 using Aion.Components.Querying.Errors;
+using Aion.Components.Querying.Messages;
 using Aion.Components.Search;
 using Aion.Components.Settings;
 using Aion.Components.Shared.Snackbar;
@@ -42,8 +43,10 @@ public static class RegistrationExtensions
 
         services.AddSingleton<GlobalAppState>();
         services.AddSingleton<ConnectionState>();
+        services.AddSingleton<PendingSchemaChanges>();
         services.AddSingleton<QueryState>();
         services.AddSingleton<HistoryState>();
+        services.AddSingleton<QueryMessageLog>();
 
         services.AddAionSettings();
         services.AddPluginFramework();
