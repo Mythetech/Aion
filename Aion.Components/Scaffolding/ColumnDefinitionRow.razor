@@ -1,3 +1,4 @@
+@using Aion.Components.Shared
 @using Aion.Components.Theme
 
 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="py-1">
@@ -8,17 +9,17 @@
                   Margin="Margin.Dense"
                   Style="min-width: 160px;" />
 
-    <MudSelect @bind-Value="Column.DataType"
-               @bind-Value:after="NotifyChangedAsync"
-               Label="Data Type"
-               Variant="Variant.Outlined"
-               Margin="Margin.Dense"
-               Style="min-width: 160px;">
+    <AionSelect @bind-Value="Column.DataType"
+                @bind-Value:after="NotifyChangedAsync"
+                Label="Data Type"
+                Variant="Variant.Outlined"
+                Margin="Margin.Dense"
+                Style="min-width: 160px;">
         @foreach (var type in SupportedTypes)
         {
             <MudSelectItem Value="@type">@type</MudSelectItem>
         }
-    </MudSelect>
+    </AionSelect>
 
     <MudCheckBox @bind-Value="Column.IsNullable"
                  Label="Nullable"
