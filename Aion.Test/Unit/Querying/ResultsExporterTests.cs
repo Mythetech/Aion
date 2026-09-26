@@ -36,6 +36,9 @@ public class ResultsExporterTests
     private JsonResultsExporter CreateJsonExporter() =>
         new(_state, Substitute.For<ILogger<JsonResultsExporter>>(), _bus, _saveService);
 
+    private CsvResultsExporter CreateCsvExporter() =>
+        new(_state, Substitute.For<ILogger<CsvResultsExporter>>(), _bus, _saveService);
+
     private ExcelResultsExporter CreateExcelExporter() =>
         new(_state, Substitute.For<ILogger<ExcelResultsExporter>>(), _bus, _saveService);
 
@@ -46,6 +49,18 @@ public class ResultsExporterTests
     {
         var workbook = new XLWorkbook(new MemoryStream(data));
         return workbook.Worksheets.First();
+    }
+
+    [Fact]
+    public async Task CsvExport_Cancelled_SaysCsv()
+    {
+        _saveService.SaveFileAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
+
+        await CreateCsvExporter().Consume(new ExportResultsToCsv(SampleResult()));
+
+        var notification = _notifications.ShouldHaveSingleItem();
+        notification.Message.ShouldBe("CSV export cancelled");
+        notification.Severity.ShouldBe(Severity.Info);
     }
 
     [Fact]
