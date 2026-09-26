@@ -229,6 +229,20 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetViews_ListsViewsApartFromTablesWithColumnsThatLoadLikeATables()
+    {
+        await ExecuteOrFailAsync(DatabaseConnectionString, $"CREATE VIEW dbo.named_rows AS SELECT id, name FROM dbo.{TestTable}");
+
+        var views = await ((IDatabaseViewProvider)Provider).GetViewsAsync(DatabaseConnectionString, TestDatabase);
+        var tables = await Provider.GetTablesAsync(DatabaseConnectionString, TestDatabase);
+        var columns = await Provider.GetColumnsAsync(DatabaseConnectionString, TestDatabase, "dbo", "named_rows");
+
+        views.ShouldBe([new TableInfo("dbo", "named_rows")]);
+        tables.ShouldNotContain(t => t.Name == "named_rows");
+        columns.Select(c => c.Name).ShouldBe(["id", "name"]);
+    }
+
+    [Fact]
     public void ValidateConnectionString_ShouldValidateCorrectly()
     {
         // Valid connection string

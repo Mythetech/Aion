@@ -18,6 +18,12 @@ public sealed class LiteDBProviderTests : IDisposable
     }
 
     [Fact]
+    public void HasNoViews()
+    {
+        _provider.ShouldNotBeAssignableTo<IDatabaseViewProvider>();
+    }
+
+    [Fact]
     public async Task GetTablesAsync_CountsEachCollectionsDocumentsExactly()
     {
         using (var db = new LiteDatabase(ConnectionString))

@@ -147,6 +147,20 @@ public class PostgreSqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetViews_ListsViewsApartFromTablesWithColumnsThatLoadLikeATables()
+    {
+        await ExecuteOrFailAsync(DatabaseConnectionString, $"CREATE VIEW named_rows AS SELECT id, name FROM {TestTable}");
+
+        var views = await ((IDatabaseViewProvider)Provider).GetViewsAsync(DatabaseConnectionString, TestDatabase);
+        var tables = await Provider.GetTablesAsync(DatabaseConnectionString, TestDatabase);
+        var columns = await Provider.GetColumnsAsync(DatabaseConnectionString, TestDatabase, "public", "named_rows");
+
+        views.ShouldContain(new TableInfo("public", "named_rows"));
+        tables.ShouldNotContain(t => t.Name == "named_rows");
+        columns.Select(c => c.Name).ShouldBe(["id", "name"]);
+    }
+
+    [Fact]
     public async Task GetColumns_ShouldReturnColumns()
     {
         // Arrange

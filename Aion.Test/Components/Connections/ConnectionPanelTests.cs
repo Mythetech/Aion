@@ -1,6 +1,7 @@
 using Aion.Components.Connections;
 using Aion.Components.Connections.Commands;
 using Aion.Components.Querying;
+using Aion.Components.Querying.Commands;
 using Aion.Components.Settings.Domains;
 using Aion.Components.Theme;
 using Aion.Contracts.Connections;
@@ -24,7 +25,9 @@ public class ConnectionPanelTests : TestContext
     private static readonly TableInfo Products = new("", "products");
 
     private readonly IDatabaseProvider _provider;
+    private readonly IDatabaseProvider _liteDbProvider = Substitute.For<IDatabaseProvider>();
     private readonly IConnectionService _connectionService = Substitute.For<IConnectionService>();
+    private readonly IMessageBus _bus = Substitute.For<IMessageBus>();
     private readonly ConnectionState _connectionState;
 
     public ConnectionPanelTests()
@@ -32,20 +35,23 @@ public class ConnectionPanelTests : TestContext
         Services.AddMudServices(options => options.PopoverOptions.CheckForPopoverProvider = false);
         JSInterop.Mode = JSRuntimeMode.Loose;
 
-        _provider = Substitute.For<IDatabaseProvider, IDatabaseIndexProvider>();
+        _provider = Substitute.For<IDatabaseProvider, IDatabaseIndexProvider, IDatabaseViewProvider>();
         _provider.DatabaseType.Returns(DatabaseType.WasmSQLite);
         _provider.SystemSchemas.Returns([]);
         _provider.GetColumnsAsync(default!, default!, default!, default!).ReturnsForAnyArgs(_ => new List<ColumnInfo>());
         ((IDatabaseIndexProvider)_provider).GetIndexesAsync(default!, default!).ReturnsForAnyArgs(_ => new List<IndexInfo>());
+        Views.GetViewsAsync(default!, default!).ReturnsForAnyArgs(_ => new List<TableInfo>());
+        _liteDbProvider.DatabaseType.Returns(DatabaseType.LiteDB);
+        _liteDbProvider.SystemSchemas.Returns([]);
 
         var factory = Substitute.For<IDatabaseProviderFactory>();
         factory.GetProvider(Arg.Any<DatabaseType>()).Returns(_provider);
+        factory.GetProvider(DatabaseType.LiteDB).Returns(_liteDbProvider);
 
-        var bus = Substitute.For<IMessageBus>();
-        Services.AddSingleton(bus);
-        _connectionState = new ConnectionState(_connectionService, factory, bus, NullLogger<ConnectionState>.Instance);
+        Services.AddSingleton(_bus);
+        _connectionState = new ConnectionState(_connectionService, factory, _bus, NullLogger<ConnectionState>.Instance);
         Services.AddSingleton(_connectionState);
-        Services.AddSingleton(new QueryState(bus, Substitute.For<IQuerySaveService>()));
+        Services.AddSingleton(new QueryState(_bus, Substitute.For<IQuerySaveService>()));
         Services.AddSingleton(new BrowserSettings());
     }
 
@@ -545,6 +551,117 @@ public class ConnectionPanelTests : TestContext
         await FilterAsync(cut, "");
 
         cut.WaitForAssertion(() => IsOpen(NamedItem(cut, Database)).ShouldBeFalse());
+    }
+
+    private IDatabaseViewProvider Views => (IDatabaseViewProvider)_provider;
+
+    private static readonly TableInfo ActiveCustomers = new("", "active_customers");
+    private static readonly TableInfo BigOrders = new("", "big_orders");
+
+    private static ConnectionModel ConnectionWithViews(params TableInfo[] views)
+    {
+        var connection = ConnectionWithTables(Products);
+        connection.Databases[0].Views = [.. views];
+        connection.Databases[0].ViewsState = SchemaLoadState.Loaded;
+        return connection;
+    }
+
+    private static IRenderedComponent<MudTreeViewItem<string>> ViewItem(IRenderedComponent<ConnectionPanel> cut, TableInfo view) =>
+        NamedItem(cut, $"{Database}/Views|{view.DisplayName}");
+
+    private static List<string> ListedViews(IRenderedComponent<ConnectionPanel> cut) =>
+        cut.FindComponents<MudTreeViewItem<string>>()
+            .Select(item => item.Instance.Value ?? "")
+            .Where(value => value.StartsWith($"{Database}/Views|") && !value[$"{Database}/Views|".Length..].Contains('/'))
+            .Select(value => value[$"{Database}/Views|".Length..])
+            .ToList();
+
+    [Fact]
+    public void ViewsGroup_ListsTheViewsAndCountsThem()
+    {
+        var cut = Render(ConnectionWithViews(ActiveCustomers, BigOrders));
+
+        ListedViews(cut).ShouldBe(["active_customers", "big_orders"]);
+        NamedItem(cut, $"{Database}/Views").Instance.EndText.ShouldBe("2");
+    }
+
+    [Fact]
+    public void DatabaseWithNoViews_SaysSo()
+    {
+        var cut = Render(ConnectionWithViews());
+
+        NamedItem(cut, $"{Database}/Views").Find(".tree-status-empty").TextContent.ShouldBe("No views");
+    }
+
+    [Fact]
+    public async Task ExpandingTheViewsGroup_ListsTheViews()
+    {
+        Views.GetViewsAsync(Arg.Any<string>(), Database).Returns([ActiveCustomers]);
+        var cut = Render(ConnectionWithTables(Products));
+
+        await ToggleAsync(NamedItem(cut, $"{Database}/Views"));
+
+        cut.WaitForAssertion(() => ListedViews(cut).ShouldBe(["active_customers"]));
+    }
+
+    [Fact]
+    public async Task ExpandingTables_AlsoListsTheViewsSoTheirCountShows()
+    {
+        _connectionService.GetTablesAsync(Arg.Any<string>(), Database, DatabaseType.WasmSQLite).Returns([Products]);
+        Views.GetViewsAsync(Arg.Any<string>(), Database).Returns([ActiveCustomers]);
+        var cut = Render(ConnectionWithUnloadedDatabase());
+
+        await ToggleAsync(NamedItem(cut, $"{Database}/Tables"));
+
+        cut.WaitForAssertion(() => NamedItem(cut, $"{Database}/Views").Instance.EndText.ShouldBe("1"));
+    }
+
+    [Fact]
+    public async Task ExpandingAView_ListsItsColumnsWithoutTableGroups()
+    {
+        _provider.GetColumnsAsync(Arg.Any<string>(), Database, "", "active_customers")
+            .Returns([new ColumnInfo { Name = "email", DataType = "TEXT" }]);
+        var cut = Render(ConnectionWithViews(ActiveCustomers));
+
+        await ToggleAsync(ViewItem(cut, ActiveCustomers));
+
+        cut.WaitForAssertion(() => ColumnNames(ViewItem(cut, ActiveCustomers)).ShouldBe(["email"]));
+        ViewItem(cut, ActiveCustomers).FindAll(".tree-group-label").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task ViewMenu_SelectsTheFirstRowsOfTheView()
+    {
+        var popovers = RenderComponent<MudPopoverProvider>();
+        var connection = ConnectionWithViews(ActiveCustomers);
+        var cut = Render(connection);
+
+        await ViewItem(cut, ActiveCustomers).Find("button[aria-label='active_customers actions']").ClickAsync(new());
+        await popovers.WaitForElement(".mud-menu-item").ClickAsync(new());
+
+        await _bus.Received(1).PublishAsync(new OpenTableRows(connection.Id, Database, "", "active_customers"));
+    }
+
+    [Fact]
+    public async Task Filter_NarrowsViewsByNameToo()
+    {
+        var cut = Render(ConnectionWithViews(ActiveCustomers, BigOrders));
+
+        await FilterAsync(cut, "ACTIVE");
+
+        cut.WaitForAssertion(() => ListedViews(cut).ShouldBe(["active_customers"]));
+        NamedItem(cut, $"{Database}/Views").Instance.EndText.ShouldBe("1 of 2");
+    }
+
+    [Fact]
+    public void EngineWithoutViews_HasNoViewsGroup()
+    {
+        var connection = ConnectionWithTables(Products);
+        connection.Type = DatabaseType.LiteDB;
+
+        var cut = Render(connection);
+
+        cut.FindComponents<MudTreeViewItem<string>>().ShouldNotContain(item => item.Instance.Value == $"{Database}/Views");
     }
 
     [Fact]

@@ -8,7 +8,7 @@ using Microsoft.JSInterop;
 namespace Aion.Web.Providers;
 
 public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider, IDatabaseRowEditingProvider,
-    IEstimatedQueryPlanProvider, IActualQueryPlanProvider, IManagedDatabaseProvider, ISqlDialectProvider
+    IEstimatedQueryPlanProvider, IActualQueryPlanProvider, IManagedDatabaseProvider, ISqlDialectProvider, IDatabaseViewProvider
 {
     private const string TransactionNotOpenMessage = "This transaction is no longer open. Roll back to clear it.";
 
@@ -91,6 +91,19 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
         }
 
         return tables;
+    }
+
+    public async Task<List<TableInfo>> GetViewsAsync(string connectionString, string database)
+    {
+        await EnsureDatabaseAsync(database);
+        var module = await GetModuleAsync();
+
+        var result = await module.InvokeAsync<JsonElement>("query", database,
+            "SELECT table_schema, table_name FROM information_schema.views WHERE table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY table_schema, table_name");
+
+        return result.GetProperty("rows").EnumerateArray()
+            .Select(row => new TableInfo(row.GetProperty("table_schema").GetString() ?? "", row.GetProperty("table_name").GetString() ?? ""))
+            .ToList();
     }
 
     public async Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string schema, string table)

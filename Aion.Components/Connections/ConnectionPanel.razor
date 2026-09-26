@@ -78,12 +78,15 @@
             var tablesKey = $"{database.Name}/Tables";
             var indexesKey = $"{database.Name}/Indexes";
             var functionsKey = $"{database.Name}/Functions";
-            var visibleTables = database.TablesState.IsLoaded ? GetVisibleTables(database).ToList() : [];
+            var viewsKey = $"{database.Name}/Views";
+            var visibleTables = database.TablesState.IsLoaded ? WithoutSystemSchemas(database.Tables) : [];
             var tableMatches = _filter.Apply(visibleTables, database);
+            var visibleViews = database.ViewsState.IsLoaded ? WithoutSystemSchemas(database.Views) : [];
+            var viewMatches = _filter.Apply(visibleViews, database);
 
             <MudTreeViewItem @key="database.Name" Text="@database.Name" Value="@database.Name" @ref="_databases[database.Name]"
                              Icon="@AionIcons.Connection"
-                             Expanded="@(_openDatabases.Contains(database.Name) || (_filter.IsActive && tableMatches.Count > 0))"
+                             Expanded="@(_openDatabases.Contains(database.Name) || (_filter.IsActive && tableMatches.Count + viewMatches.Count > 0))"
                              ExpandedChanged="@(open => OnDatabaseExpandedChanged(database, open))">
                 @* Database level *@
                 <BodyContent Context="ctx">
@@ -164,12 +167,67 @@
                                     }
                                     else
                                     {
-                                        @TableContents(database, table, tableKey, columnsState)
+                                        @RelationContents(database, table, tableKey, columnsState, withTableGroups: true)
                                     }
                                 </ChildContent>
                             </MudTreeViewItem>
                         }
                     </MudTreeViewItem>
+
+                    @* Views level *@
+                    @if (ConnectionState.SupportsViews(Connection.Type))
+                    {
+                        <MudTreeViewItem Text="Views" Value="@viewsKey" Icon="@AionIcons.View"
+                                         EndText="@GroupCount(database.ViewsState, viewMatches.Count, visibleViews.Count)"
+                                         EndTextTypo="Typo.caption" EndTextClass="tree-group-count"
+                                         Expanded="@(IsExpanded(viewsKey, database.ViewsState) || (_filter.IsActive && viewMatches.Count > 0))"
+                                         ExpandedChanged="@(expanded => OnLazyItemExpandedChanged(viewsKey, expanded, () => LoadViews(database)))">
+                            <SchemaStatusItem Value="@($"{viewsKey}/status")" State="@database.ViewsState"
+                                              IsEmpty="@(viewMatches.Count == 0)" EmptyText="@(_filter.IsActive ? "No views match" : "No views")"
+                                              OnRetry="@(() => LoadViews(database))" />
+
+                            @foreach (var match in viewMatches)
+                            {
+                                var view = match.Table;
+                                var viewKey = $"{viewsKey}|{view.DisplayName}";
+                                var columnsState = database.ColumnsState(view.DisplayName);
+
+                                <MudTreeViewItem @key="viewKey" Value="@viewKey" Icon="@AionIcons.View"
+                                                 Expanded="@(match.MatchedByColumns || IsExpanded(viewKey, columnsState))"
+                                                 ExpandedChanged="@(expanded => OnLazyItemExpandedChanged(viewKey, expanded, () => LoadColumns(database, view)))">
+                                    <BodyContent Context="ctx">
+                                        <div class="relation-row">
+                                            <MudText Typo="Typo.body2" Class="relation-name" title="@view.DisplayName">@view.DisplayName</MudText>
+                                            <div class="relation-actions">
+                                                <AionMenu AnchorOrigin="Origin.BottomRight">
+                                                    <ActivatorContent>
+                                                        <MudIconButton Size="Size.Small" Icon="@AionIcons.More"
+                                                                       aria-label="@($"{view.DisplayName} actions")"
+                                                                       OnClick="@context.ToggleAsync" />
+                                                    </ActivatorContent>
+                                                    <ChildContent>
+                                                        <MudMenuItem OnClick="@(() => OpenFirstRows(database.Name, view))">Select first 1000 rows</MudMenuItem>
+                                                        <MudMenuItem OnClick="@(() => RefreshSchema(database))">Refresh</MudMenuItem>
+                                                    </ChildContent>
+                                                </AionMenu>
+                                            </div>
+                                        </div>
+                                    </BodyContent>
+
+                                    <ChildContent>
+                                        @if (match.MatchedByColumns)
+                                        {
+                                            @ColumnRows(viewKey, match.MatchingColumns!)
+                                        }
+                                        else
+                                        {
+                                            @RelationContents(database, view, viewKey, columnsState, withTableGroups: false)
+                                        }
+                                    </ChildContent>
+                                </MudTreeViewItem>
+                            }
+                        </MudTreeViewItem>
+                    }
 
                     @* Indexes level *@
                     @if (ConnectionState.SupportsIndexes(Connection.Type))
@@ -298,7 +356,7 @@
         _filter = new SchemaTreeFilter("");
     }
 
-    // The filter only reads what is loaded, so it lists the tables of the databases it can show: the only one,
+    // The filter only reads what is loaded, so it lists the tables and views of the databases it can show: the only one,
     // or the ones open in the tree. Other databases on a server are left alone so typing never queries them all.
     private async Task LoadTablesToFilterAsync()
     {
@@ -308,7 +366,7 @@
 
         foreach (var database in databases.Where(database => database.TablesState.Status == SchemaLoadStatus.NotLoaded))
         {
-            await ConnectionState.LoadTablesAsync(Connection, database);
+            await LoadTables(database);
         }
     }
 
@@ -328,8 +386,8 @@
         }
     </text>;
 
-    // Columns, then the table's indexes and foreign keys.
-    private RenderFragment TableContents(DatabaseModel database, TableInfo table, string tableKey, SchemaLoadState columnsState)
+    // Columns, then for a table its indexes and foreign keys. Views have neither.
+    private RenderFragment RelationContents(DatabaseModel database, TableInfo table, string tableKey, SchemaLoadState columnsState, bool withTableGroups)
     {
         var columns = columnsState.IsLoaded ? database.TableColumns.GetValueOrDefault(table.DisplayName) ?? [] : [];
 
@@ -341,7 +399,10 @@
             @if (columnsState.IsLoaded)
             {
                 @ColumnRows(tableKey, columns)
+            }
 
+            @if (columnsState.IsLoaded && withTableGroups)
+            {
                 @if (ConnectionState.SupportsIndexes(Connection.Type))
                 {
                     var tableIndexesKey = $"{tableKey}/indexes";
@@ -453,18 +514,17 @@
         return index.Columns.Count == 0 ? kind : $"{kind} on ({string.Join(", ", index.Columns)})";
     }
 
-    private IEnumerable<TableInfo> GetVisibleTables(DatabaseModel database)
+    private List<TableInfo> WithoutSystemSchemas(List<TableInfo> relations)
     {
         if (BrowserSettings.ShowSystemTables)
-            return database.Tables;
+            return relations;
 
-        var provider = ConnectionState.GetProvider(Connection.Type);
-        var systemSchemas = provider.SystemSchemas;
+        var systemSchemas = ConnectionState.GetProvider(Connection.Type).SystemSchemas;
 
         if (systemSchemas.Count == 0)
-            return database.Tables;
+            return relations;
 
-        return database.Tables.Where(t => !systemSchemas.Contains(t.Schema, StringComparer.OrdinalIgnoreCase));
+        return relations.Where(t => !systemSchemas.Contains(t.Schema, StringComparer.OrdinalIgnoreCase)).ToList();
     }
 
     private static string ColumnIcon(ColumnInfo column) =>
@@ -598,9 +658,18 @@
         await ConnectionState.RefreshSchemaAsync(Connection, database);
     }
 
+    // Views are listed with the tables so the Views group shows its count without being opened.
     private async Task LoadTables(DatabaseModel database)
     {
         await ConnectionState.LoadTablesAsync(Connection, database);
+
+        if (ConnectionState.SupportsViews(Connection.Type) && database.ViewsState.Status == SchemaLoadStatus.NotLoaded)
+            await ConnectionState.LoadViewsAsync(Connection, database);
+    }
+
+    private async Task LoadViews(DatabaseModel database)
+    {
+        await ConnectionState.LoadViewsAsync(Connection, database);
     }
 
     private async Task LoadIndexes(DatabaseModel database)

@@ -216,6 +216,18 @@ public class InBrowserProviderTests
     }
 
     [Fact]
+    public async Task PGlite_GetViewsAsync_ListsUserViewsBySchema()
+    {
+        CatalogReturns(_ => """{"rows": [{"table_schema": "public", "table_name": "active_customers"}, {"table_schema": "sales", "table_name": "big_orders"}]}""");
+        var provider = new PGliteProvider(_js.Runtime);
+
+        var views = await provider.GetViewsAsync("pglite://shop", "shop");
+
+        views.ShouldBe([new TableInfo("public", "active_customers"), new TableInfo("sales", "big_orders")]);
+        _catalogQueries.ShouldHaveSingleItem().ShouldContain("information_schema.views");
+    }
+
+    [Fact]
     public async Task SqliteWasm_GetDatabasesAsync_ListsOnlyTheConnectionsOwnDatabase()
     {
         var provider = new SqliteWasmProvider(Substitute.For<ISqliteWasmDatabaseService>());

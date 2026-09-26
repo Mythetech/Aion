@@ -102,6 +102,8 @@ public static class AionIcons
     
     public static string TableView => Round("table_view");
 
+    public static string View => Round("table_eye");
+
     public static string EditTable => Round("table_edit");
     public static string Column => Round("view_column"); 
     public static string Index => Round("sort");

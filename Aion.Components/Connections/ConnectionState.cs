@@ -454,6 +454,8 @@ public class ConnectionState
 
     public bool SupportsRoutines(DatabaseType type) => _providerFactory.GetProvider(type) is IDatabaseRoutineProvider;
 
+    public bool SupportsViews(DatabaseType type) => _providerFactory.GetProvider(type) is IDatabaseViewProvider;
+
     public bool SupportsEstimatedPlan(DatabaseType type) => _providerFactory.GetProvider(type) is IEstimatedQueryPlanProvider;
 
     public bool SupportsActualPlan(DatabaseType type) => _providerFactory.GetProvider(type) is IActualQueryPlanProvider;
@@ -470,6 +472,9 @@ public class ConnectionState
 
     public Task<SchemaLoadState> LoadIndexesAsync(ConnectionModel connection, DatabaseModel database) =>
         database.IndexesState.IsLoaded ? Task.FromResult(database.IndexesState) : FetchIndexesAsync(connection, database);
+
+    public Task<SchemaLoadState> LoadViewsAsync(ConnectionModel connection, DatabaseModel database) =>
+        database.ViewsState.IsLoaded ? Task.FromResult(database.ViewsState) : FetchViewsAsync(connection, database);
 
     public Task<SchemaLoadState> LoadRoutinesAsync(ConnectionModel connection, DatabaseModel database) =>
         database.RoutinesState.IsLoaded ? Task.FromResult(database.RoutinesState) : FetchRoutinesAsync(connection, database);
@@ -492,9 +497,16 @@ public class ConnectionState
             await FetchTablesAsync(connection, database);
         }
 
-        var tables = database.TablesState.IsLoaded
-            ? database.Tables.DistinctBy(t => t.DisplayName).ToDictionary(t => t.DisplayName)
-            : [];
+        if (database.ViewsState.Status != SchemaLoadStatus.NotLoaded)
+        {
+            await FetchViewsAsync(connection, database);
+        }
+
+        // Views keep their columns in the same place as tables, so a column load is kept while either lists it.
+        var tables = (database.TablesState.IsLoaded ? database.Tables : [])
+            .Concat(database.ViewsState.IsLoaded ? database.Views : [])
+            .DistinctBy(t => t.DisplayName)
+            .ToDictionary(t => t.DisplayName);
 
         // Sequential on purpose: the loads share the model's collections, and a refresh only reloads what
         // the user has open.
@@ -638,6 +650,34 @@ public class ConnectionState
 
         OnConnectionStateChanged();
         return database.IndexesState;
+    }
+
+    private async Task<SchemaLoadState> FetchViewsAsync(ConnectionModel connection, DatabaseModel database)
+    {
+        var provider = GetProvider(connection.Type);
+        if (provider is not IDatabaseViewProvider viewProvider)
+        {
+            database.ViewsState = SchemaLoadState.Loaded;
+            OnConnectionStateChanged();
+            return database.ViewsState;
+        }
+
+        database.ViewsState = SchemaLoadState.Loading;
+
+        try
+        {
+            var connectionString = provider.UpdateConnectionString(connection.ConnectionString, database.Name);
+            database.Views = await viewProvider.GetViewsAsync(connectionString, database.Name);
+            database.ViewsState = SchemaLoadState.Loaded;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not load the views of database {Database}", database.Name);
+            database.ViewsState = SchemaLoadFailure(ex);
+        }
+
+        OnConnectionStateChanged();
+        return database.ViewsState;
     }
 
     private async Task<SchemaLoadState> FetchRoutinesAsync(ConnectionModel connection, DatabaseModel database)

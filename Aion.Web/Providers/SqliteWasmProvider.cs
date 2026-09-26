@@ -7,7 +7,7 @@ using SqliteWasmBlazor;
 namespace Aion.Web.Providers;
 
 public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider, IDatabaseRowEditingProvider,
-    IEstimatedQueryPlanProvider, IManagedDatabaseProvider, ISqlDialectProvider
+    IEstimatedQueryPlanProvider, IManagedDatabaseProvider, ISqlDialectProvider, IDatabaseViewProvider
 {
     private const string TransactionNotOpenMessage = "This transaction is no longer open. Roll back to clear it.";
 
@@ -83,6 +83,25 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQu
                 RowCount = counts.TryGetValue(name, out var rows) ? TableRowCount.Exact(rows) : null
             })
             .ToList();
+    }
+
+    public async Task<List<TableInfo>> GetViewsAsync(string connectionString, string database)
+    {
+        var views = new List<TableInfo>();
+
+        using var conn = new SqliteWasmConnection(BuildConnectionString(database));
+        await conn.OpenAsync();
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='view' ORDER BY name";
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            views.Add(new TableInfo("", reader.GetString(0)));
+        }
+
+        return views;
     }
 
     public async Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string schema, string table)

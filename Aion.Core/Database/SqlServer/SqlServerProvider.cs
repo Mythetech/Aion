@@ -10,7 +10,8 @@ using System.Text;
 namespace Aion.Core.Database.SqlServer;
 
 public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider,
-    IDatabaseRowEditingProvider, IEstimatedQueryPlanProvider, IActualQueryPlanProvider, ISqlDialectProvider, IDatabaseCreationProvider
+    IDatabaseRowEditingProvider, IEstimatedQueryPlanProvider, IActualQueryPlanProvider, ISqlDialectProvider, IDatabaseCreationProvider,
+    IDatabaseViewProvider
 {
     private const string TransactionNotOpenMessage = "This transaction is no longer open. Roll back to clear it.";
     private const string ShowplanColumnName = "Microsoft SQL Server 2005 XML Showplan";
@@ -92,6 +93,29 @@ public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDat
         }
 
         return tables;
+    }
+
+    public async Task<List<TableInfo>> GetViewsAsync(string connectionString, string database)
+    {
+        var views = new List<TableInfo>();
+
+        using var conn = new SqlConnection(connectionString);
+        await conn.OpenAsync();
+
+        const string sql = @"
+            SELECT TABLE_SCHEMA, TABLE_NAME
+            FROM INFORMATION_SCHEMA.VIEWS
+            ORDER BY TABLE_SCHEMA, TABLE_NAME";
+
+        using var cmd = new SqlCommand(sql, conn);
+        using var reader = await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            views.Add(new TableInfo(reader.GetString(0), reader.GetString(1)));
+        }
+
+        return views;
     }
 
     public async Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string schema, string table)

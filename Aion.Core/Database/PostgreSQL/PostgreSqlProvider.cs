@@ -9,7 +9,8 @@ using System.Text;
 namespace Aion.Core.Database;
 
 public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider,
-    IDatabaseRowEditingProvider, IEstimatedQueryPlanProvider, IActualQueryPlanProvider, ISqlDialectProvider, IDatabaseCreationProvider
+    IDatabaseRowEditingProvider, IEstimatedQueryPlanProvider, IActualQueryPlanProvider, ISqlDialectProvider, IDatabaseCreationProvider,
+    IDatabaseViewProvider
 {
     private const string TransactionNotOpenMessage = "This transaction is no longer open. Roll back to clear it.";
 
@@ -89,6 +90,31 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
         }
 
         return tables;
+    }
+
+    // Like the table list, this includes the catalog's own views; the tree hides system schemas unless asked.
+    public async Task<List<TableInfo>> GetViewsAsync(string connectionString, string database)
+    {
+        var views = new List<TableInfo>();
+
+        using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync();
+
+        const string sql = @"
+            SELECT table_schema, table_name
+            FROM information_schema.views
+            WHERE table_schema NOT LIKE 'pg_temp_%'
+            ORDER BY table_schema, table_name";
+
+        using var cmd = new NpgsqlCommand(sql, conn);
+        using var reader = await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            views.Add(new TableInfo(reader.GetString(0), reader.GetString(1)));
+        }
+
+        return views;
     }
 
     public async Task<QueryResult> ExecuteQueryAsync(string connectionString, string query, CancellationToken cancellationToken)

@@ -12,6 +12,13 @@ public class DatabaseModel
         set => TablesState = value ? SchemaLoadState.Loaded : SchemaLoadState.NotLoaded;
     }
 
+    public List<TableInfo> Views { get; set; } = [];
+    public SchemaLoadState ViewsState { get; set; } = SchemaLoadState.NotLoaded;
+
+    /// <summary>
+    /// Columns of tables and views by display name. The two share a namespace in every engine Aion supports,
+    /// so a name never means both.
+    /// </summary>
     public Dictionary<string, List<ColumnInfo>> TableColumns { get; set; } = [];
     public HashSet<string> LoadedColumnTables { get; set; } = [];
 

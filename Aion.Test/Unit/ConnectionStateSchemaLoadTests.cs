@@ -13,7 +13,8 @@ public class ConnectionStateSchemaLoadTests
     private const string Database = "shop";
 
     private readonly IConnectionService _connectionService = Substitute.For<IConnectionService>();
-    private readonly IDatabaseProvider _provider = Substitute.For<IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider>();
+    private readonly IDatabaseProvider _provider = (IDatabaseProvider)Substitute.For(
+        [typeof(IDatabaseProvider), typeof(IDatabaseIndexProvider), typeof(IDatabaseRoutineProvider), typeof(IDatabaseViewProvider)], []);
     private readonly ConnectionState _sut;
     private readonly ConnectionModel _connection;
     private readonly DatabaseModel _database = new() { Name = Database };
@@ -41,6 +42,8 @@ public class ConnectionStateSchemaLoadTests
 
     private IDatabaseRoutineProvider Routines => (IDatabaseRoutineProvider)_provider;
 
+    private IDatabaseViewProvider Views => (IDatabaseViewProvider)_provider;
+
     private void TablesAre(params TableInfo[] tables) =>
         _connectionService.GetTablesAsync(Arg.Any<string>(), Database, DatabaseType.PostgreSQL).Returns(tables.ToList());
 
@@ -50,6 +53,7 @@ public class ConnectionStateSchemaLoadTests
 
     private static readonly TableInfo Products = new("public", "products");
     private static readonly TableInfo Orders = new("public", "orders");
+    private static readonly TableInfo ActiveCustomers = new("public", "active_customers");
 
     [Fact]
     public void NothingRequested_EveryPartIsNotLoaded()
@@ -191,6 +195,79 @@ public class ConnectionStateSchemaLoadTests
         await _provider.Received(1).GetColumnsAsync(Arg.Any<string>(), Database, "public", "products");
         await Indexes.DidNotReceiveWithAnyArgs().GetIndexesAsync(default!, default!);
         await Routines.DidNotReceiveWithAnyArgs().GetRoutinesAsync(default!, default!);
+        await Views.DidNotReceiveWithAnyArgs().GetViewsAsync(default!, default!);
+    }
+
+    [Fact]
+    public async Task LoadViews_ListsTheDatabasesViews()
+    {
+        Views.GetViewsAsync(Arg.Any<string>(), Database).Returns([ActiveCustomers]);
+
+        var state = await _sut.LoadViewsAsync(_connection, _database);
+
+        state.ShouldBe(SchemaLoadState.Loaded);
+        _database.ViewsState.ShouldBe(SchemaLoadState.Loaded);
+        _database.Views.ShouldBe([ActiveCustomers]);
+    }
+
+    [Fact]
+    public async Task LoadViews_WhenTheServerFails_RecordsTheFailure()
+    {
+        Views.GetViewsAsync(Arg.Any<string>(), Database)
+            .Returns<List<TableInfo>>(_ => throw new InvalidOperationException("permission denied for view active_customers"));
+
+        var state = await _sut.LoadViewsAsync(_connection, _database);
+
+        state.ShouldBe(SchemaLoadState.Failed("permission denied for view active_customers"));
+        _database.ViewsState.ShouldBe(state);
+    }
+
+    [Fact]
+    public async Task LoadViews_OnAnEngineWithoutViews_FinishesWithNone()
+    {
+        var provider = Substitute.For<IDatabaseProvider>();
+        var factory = Substitute.For<IDatabaseProviderFactory>();
+        factory.GetProvider(Arg.Any<DatabaseType>()).Returns(provider);
+        var sut = new ConnectionState(_connectionService, factory, Substitute.For<IMessageBus>(), NullLogger<ConnectionState>.Instance);
+
+        var state = await sut.LoadViewsAsync(_connection, _database);
+
+        state.ShouldBe(SchemaLoadState.Loaded);
+        _database.Views.ShouldBeEmpty();
+        sut.SupportsViews(DatabaseType.LiteDB).ShouldBeFalse();
+        _sut.SupportsViews(DatabaseType.PostgreSQL).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task RefreshSchema_ReloadsLoadedViewsAndTheColumnsOfOpenOnes()
+    {
+        TablesAre(Products);
+        Views.GetViewsAsync(Arg.Any<string>(), Database).Returns([ActiveCustomers]);
+        _provider.GetColumnsAsync(Arg.Any<string>(), Database, "public", "active_customers").Returns([new ColumnInfo { Name = "id" }]);
+        await _sut.LoadTablesAsync(_connection, _database);
+        await _sut.LoadViewsAsync(_connection, _database);
+        await _sut.LoadColumnsAsync(_connection, _database, "public", "active_customers");
+        _provider.ClearReceivedCalls();
+
+        await _sut.RefreshSchemaAsync(_connection, _database);
+
+        await Views.Received(1).GetViewsAsync(Arg.Any<string>(), Database);
+        await _provider.Received(1).GetColumnsAsync(Arg.Any<string>(), Database, "public", "active_customers");
+        _database.ColumnsState(ActiveCustomers.DisplayName).ShouldBe(SchemaLoadState.Loaded);
+    }
+
+    [Fact]
+    public async Task RefreshSchema_ForgetsTheColumnsOfADroppedView()
+    {
+        Views.GetViewsAsync(Arg.Any<string>(), Database).Returns([ActiveCustomers], new List<TableInfo>());
+        _provider.GetColumnsAsync(Arg.Any<string>(), Database, "public", "active_customers").Returns([new ColumnInfo { Name = "id" }]);
+        await _sut.LoadViewsAsync(_connection, _database);
+        await _sut.LoadColumnsAsync(_connection, _database, "public", "active_customers");
+
+        await _sut.RefreshSchemaAsync(_connection, _database);
+
+        _database.Views.ShouldBeEmpty();
+        _database.TableColumns.ShouldNotContainKey(ActiveCustomers.DisplayName);
     }
 
     [Fact]
