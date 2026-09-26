@@ -2,13 +2,17 @@ using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
 using Aion.Core.Database.PostgreSQL;
 using Npgsql;
+using System.Collections.Concurrent;
 using System.Text;
 
 namespace Aion.Core.Database;
 
-public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider, IDatabaseRowEditingProvider
+public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider,
+    IDatabaseRowEditingProvider, IEstimatedQueryPlanProvider, IActualQueryPlanProvider
 {
-    private readonly Dictionary<string, NpgsqlTransaction> _activeTransactions = new();
+    private const string TransactionNotOpenMessage = "This transaction is no longer open. Roll back to clear it.";
+
+    private readonly ConcurrentDictionary<string, OpenTransaction> _activeTransactions = new();
     private readonly PostgreSqlPlanParser _planParser = new();
     public IStandardDatabaseCommands Commands { get; } = new PostgreSqlCommands();
     public DatabaseType DatabaseType => DatabaseType.PostgreSQL;
@@ -157,66 +161,81 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
 
     public async Task<QueryPlan> GetEstimatedPlanAsync(string connectionString, string query)
     {
-        var plan = new QueryPlan
-        {
-            PlanType = "Estimated",
-            PlanFormat = "TEXT"
-        };
-
         try
         {
-            using var conn = new NpgsqlConnection(connectionString);
-            await conn.OpenAsync();
-
-            using var cmd = new NpgsqlCommand($"EXPLAIN {query}", conn);
-            using var reader = await cmd.ExecuteReaderAsync();
-
-            var planText = new StringBuilder();
-            while (await reader.ReadAsync())
-            {
-                planText.AppendLine(reader.GetString(0));
-            }
-
-            plan.PlanContent = planText.ToString();
-            return plan;
+            return await GetEstimatedPlanAsync(connectionString, query, CancellationToken.None);
         }
         catch (Exception ex)
         {
-            plan.PlanContent = $"Error getting plan: {ex.Message}";
-            return plan;
+            return new QueryPlan { PlanType = "Estimated", PlanFormat = "TEXT", PlanContent = $"Error getting plan: {ex.Message}" };
         }
+    }
+
+    public async Task<QueryPlan> GetEstimatedPlanAsync(string connectionString, string query, CancellationToken cancellationToken)
+    {
+        var refusal = QueryPlanStatementGuard.RequireSingleStatement(query);
+        if (refusal != null) throw new InvalidOperationException(refusal);
+
+        await using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        await using var cmd = new NpgsqlCommand($"EXPLAIN {QueryPlanStatementGuard.TrimTrailingTerminators(query)}", conn);
+
+        return new QueryPlan
+        {
+            PlanType = "Estimated",
+            PlanFormat = "TEXT",
+            PlanContent = await ReadPlanTextAsync(cmd, cancellationToken)
+        };
     }
 
     public async Task<QueryPlan> GetActualPlanAsync(string connectionString, string query)
     {
-        var plan = new QueryPlan
-        {
-            PlanType = "Actual",
-            PlanFormat = "TEXT"
-        };
-
         try
         {
-            using var conn = new NpgsqlConnection(connectionString);
-            await conn.OpenAsync();
-
-            using var cmd = new NpgsqlCommand($"EXPLAIN ANALYZE {query}", conn);
-            using var reader = await cmd.ExecuteReaderAsync();
-
-            var planText = new StringBuilder();
-            while (await reader.ReadAsync())
-            {
-                planText.AppendLine(reader.GetString(0));
-            }
-
-            plan.PlanContent = planText.ToString();
-            return plan;
+            return await GetActualPlanAsync(connectionString, query, CancellationToken.None);
         }
         catch (Exception ex)
         {
-            plan.PlanContent = $"Error getting plan: {ex.Message}";
-            return plan;
+            return new QueryPlan { PlanType = "Actual", PlanFormat = "TEXT", PlanContent = $"Error getting plan: {ex.Message}" };
         }
+    }
+
+    public async Task<QueryPlan> GetActualPlanAsync(string connectionString, string query, CancellationToken cancellationToken)
+    {
+        var refusal = QueryPlanStatementGuard.GetActualPlanRefusal(query);
+        if (refusal != null) throw new InvalidOperationException(refusal);
+
+        await using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        // Disposing an uncommitted NpgsqlTransaction rolls it back, which covers the failure paths.
+        await using var transaction = await conn.BeginTransactionAsync(cancellationToken);
+        await using var cmd = new NpgsqlCommand(
+            $"EXPLAIN (ANALYZE) {QueryPlanStatementGuard.TrimTrailingTerminators(query)}", conn, transaction);
+
+        var planText = await ReadPlanTextAsync(cmd, cancellationToken);
+        await transaction.RollbackAsync(CancellationToken.None);
+
+        return new QueryPlan
+        {
+            PlanType = "Actual",
+            PlanFormat = "TEXT",
+            PlanContent = planText
+        };
+    }
+
+    private static async Task<string> ReadPlanTextAsync(NpgsqlCommand cmd, CancellationToken cancellationToken)
+    {
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+
+        var planText = new StringBuilder();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            planText.AppendLine(reader.GetString(0));
+        }
+
+        return planText.ToString();
     }
 
     public async Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string schema, string table)
@@ -434,48 +453,79 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
 
     public async Task<TransactionInfo> BeginTransactionAsync(string connectionString)
     {
-        var transaction = new TransactionInfo();
-
         var conn = new NpgsqlConnection(connectionString);
-        await conn.OpenAsync();
-        var dbTransaction = await conn.BeginTransactionAsync();
+        try
+        {
+            await conn.OpenAsync();
+            var dbTransaction = await conn.BeginTransactionAsync();
 
-        _activeTransactions[transaction.Id] = dbTransaction;
-
-        return transaction;
+            var transaction = new TransactionInfo();
+            _activeTransactions[transaction.Id] = new OpenTransaction(conn, dbTransaction);
+            return transaction;
+        }
+        catch
+        {
+            await conn.DisposeAsync();
+            throw;
+        }
     }
 
     public async Task CommitTransactionAsync(string connectionString, string transactionId)
     {
-        if (_activeTransactions.TryGetValue(transactionId, out var transaction))
+        if (!_activeTransactions.TryGetValue(transactionId, out var open))
         {
-            await transaction.CommitAsync();
-            await transaction.Connection!.DisposeAsync();
-            _activeTransactions.Remove(transactionId);
+            throw new InvalidOperationException(TransactionNotOpenMessage);
+        }
+
+        await EnsureNotAbortedAsync(open);
+
+        _activeTransactions.TryRemove(transactionId, out _);
+        await using (open)
+        {
+            await open.Transaction.CommitAsync();
         }
     }
 
     public async Task RollbackTransactionAsync(string connectionString, string transactionId)
     {
-        if (_activeTransactions.TryGetValue(transactionId, out var transaction))
+        if (!_activeTransactions.TryRemove(transactionId, out var open)) return;
+
+        await using (open)
         {
-            await transaction.RollbackAsync();
-            await transaction.Connection!.DisposeAsync();
-            _activeTransactions.Remove(transactionId);
+            await open.Transaction.RollbackAsync();
+        }
+    }
+
+    /// <summary>
+    /// PostgreSQL answers COMMIT on a transaction that an earlier error aborted with a silent ROLLBACK.
+    /// Probing first lets the user see that nothing would be committed and keeps the transaction open
+    /// so they can roll it back deliberately.
+    /// </summary>
+    private static async Task EnsureNotAbortedAsync(OpenTransaction open)
+    {
+        try
+        {
+            await using var probe = new NpgsqlCommand("SELECT 1", open.Connection, open.Transaction);
+            await probe.ExecuteScalarAsync();
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.InFailedSqlTransaction)
+        {
+            throw new InvalidOperationException(
+                "An earlier statement failed, so PostgreSQL aborted this transaction and nothing can be committed. Roll back to end it.", ex);
         }
     }
 
     public async Task<QueryResult> ExecuteInTransactionAsync(string connectionString, string query, string transactionId, CancellationToken cancellationToken)
     {
-        if (!_activeTransactions.TryGetValue(transactionId, out var transaction))
+        if (!_activeTransactions.TryGetValue(transactionId, out var open))
         {
-            return new QueryResult { Error = "Transaction not found" };
+            return new QueryResult { Error = TransactionNotOpenMessage };
         }
 
         var result = new QueryResult();
         try
         {
-            using var cmd = new NpgsqlCommand(query, transaction.Connection, transaction);
+            using var cmd = new NpgsqlCommand(query, open.Connection, open.Transaction);
             using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
             for (int i = 0; i < reader.FieldCount; i++)
@@ -513,5 +563,14 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
             return null;
 
         return _planParser.Parse(plan);
+    }
+
+    private sealed record OpenTransaction(NpgsqlConnection Connection, NpgsqlTransaction Transaction) : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync()
+        {
+            await Transaction.DisposeAsync();
+            await Connection.DisposeAsync();
+        }
     }
 }

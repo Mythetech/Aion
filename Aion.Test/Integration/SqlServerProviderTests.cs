@@ -1,3 +1,4 @@
+using System.Xml.Linq;
 using Aion.Contracts.Database;
 using Aion.Core.Database.SqlServer;
 using DotNet.Testcontainers.Builders;
@@ -23,7 +24,6 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
             .WithEnvironment("ACCEPT_EULA", "Y")
             .WithEnvironment("MSSQL_PID", "Developer")
             .WithPortBinding(1433, true)
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(1433))
             .WithAutoRemove(true)
             .Build();
     }
@@ -34,7 +34,7 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         {
             await _container.StartAsync();
             ConnectionString = _container.GetConnectionString();
-            await SetupDatabase();
+            await base.InitializeAsync();
         }
         catch (Exception ex)
         {
@@ -146,13 +146,31 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         var actualPlan = await Provider.GetActualPlanAsync(dbConnectionString, query);
 
         // Assert
-        estimatedPlan.ShouldNotBeNull();
-        estimatedPlan.PlanContent.ShouldNotBeNullOrEmpty();
         estimatedPlan.PlanFormat.ShouldBe("XML");
-        
-        actualPlan.ShouldNotBeNull();
-        actualPlan.PlanContent.ShouldNotBeNullOrEmpty();
+        estimatedPlan.PlanContent.ShouldNotStartWith("Error");
+        XDocument.Parse(estimatedPlan.PlanContent).Root!.Name.LocalName.ShouldBe("ShowPlanXML");
+
         actualPlan.PlanFormat.ShouldBe("XML");
+        actualPlan.PlanContent.ShouldNotStartWith("Error");
+        XDocument.Parse(actualPlan.PlanContent).Root!.Name.LocalName.ShouldBe("ShowPlanXML");
+    }
+
+    [Fact]
+    public async Task EstimatedPlan_ForUpdate_ShouldNotExecuteIt()
+    {
+        // Arrange
+        await InsertRowAsync(1, "original");
+
+        // Act
+        var plan = await Provider.GetEstimatedPlanAsync(DatabaseConnectionString, ActualPlanUpdateStatement);
+        var afterPlan = await ReadNameAsync(1);
+        var update = await Provider.ExecuteQueryAsync(DatabaseConnectionString, ActualPlanUpdateStatement, CancellationToken.None);
+
+        // Assert
+        XDocument.Parse(plan.PlanContent).Root!.Name.LocalName.ShouldBe("ShowPlanXML");
+        afterPlan.ShouldBe("original");
+        ValidateQueryResult(update);
+        (await ReadNameAsync(1)).ShouldBe("changed");
     }
 
     [Fact]
@@ -237,7 +255,7 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
     private const string EditTable = "edit_target";
     private const string EditSelect = "SELECT * FROM [dbo].[edit_target] ORDER BY id";
 
-    // Creates its own database because SetupDatabase above does not create TestDatabase.
+    // Creates the database itself if needed so these tests don't depend on the shared setup order.
     private async Task<string> CreateEditTableAsync()
     {
         var masterConnectionString = Provider.UpdateConnectionString(ConnectionString, "master");
@@ -325,18 +343,5 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         var result = await ExecuteOrFailAsync(dbConnectionString, EditSelect);
 
         result.RowsAffected.ShouldBeNull();
-    }
-
-    protected async Task SetupDatabase(string name = "master")
-    {
-        // Create database in master context first
-        var masterConnection = Provider.UpdateConnectionString(ConnectionString, name);
-        var createDbScript = await Provider.Commands.GenerateCreateDatabaseScript(name);
-        await Provider.ExecuteQueryAsync(masterConnection, createDbScript, CancellationToken.None);
-
-        if (name.Equals("master"))
-        {
-         //   await SetupDatabase(TestDatabase);
-        }
     }
 } 

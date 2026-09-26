@@ -5,6 +5,7 @@ public readonly struct TransactionInfo
     public string Id { get; init; }
     public DateTime StartTime { get; init; }
     public TransactionStatus Status { get; init; }
+    public int StatementCount { get; init; }
 
     public TransactionInfo()
     {
@@ -13,8 +14,9 @@ public readonly struct TransactionInfo
         Status = TransactionStatus.Active;
     }
 
-    public TransactionInfo WithStatus(TransactionStatus newStatus) =>
-        new() { Id = Id, StartTime = StartTime, Status = newStatus };
+    public TransactionInfo WithStatus(TransactionStatus newStatus) => this with { Status = newStatus };
+
+    public TransactionInfo WithStatementExecuted() => this with { StatementCount = StatementCount + 1 };
 }
 
 public enum TransactionStatus

@@ -349,4 +349,53 @@ public class PostgreSqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         row["active"].ShouldBe(true);
         row["payload"].ShouldBe(new byte[] { 0x00, 0x5C, 0x27 });
     }
+
+    [Fact]
+    public async Task Transaction_CommitAfterFailedStatement_ShouldRefuseAndKeepTransactionForRollback()
+    {
+        // Arrange
+        var transaction = await Provider.BeginTransactionAsync(DatabaseConnectionString);
+        await Provider.ExecuteInTransactionAsync(DatabaseConnectionString,
+            $"INSERT INTO {TestTable} (id, name) VALUES (1, 'pending')", transaction.Id, CancellationToken.None);
+        var failed = await Provider.ExecuteInTransactionAsync(DatabaseConnectionString,
+            "SELECT * FROM table_that_does_not_exist", transaction.Id, CancellationToken.None);
+
+        // Act
+        var commit = await Should.ThrowAsync<InvalidOperationException>(() =>
+            Provider.CommitTransactionAsync(DatabaseConnectionString, transaction.Id));
+        await Provider.RollbackTransactionAsync(DatabaseConnectionString, transaction.Id);
+
+        // Assert
+        failed.Error.ShouldNotBeNull();
+        commit.Message.ShouldContain("aborted");
+        (await CountRowsAsync()).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task EstimatedPlan_WithMultipleStatements_ShouldNotRunLaterStatements()
+    {
+        // Arrange
+        await InsertRowAsync(1, "original");
+        var plans = (IEstimatedQueryPlanProvider)Provider;
+
+        // Act & Assert
+        await Should.ThrowAsync<InvalidOperationException>(() => plans.GetEstimatedPlanAsync(
+            DatabaseConnectionString, $"SELECT 1; DELETE FROM {TestTable}", CancellationToken.None));
+        (await CountRowsAsync()).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task ActualPlan_ForUpdate_ShouldReportActualTimings()
+    {
+        // Arrange
+        await InsertRowAsync(1, "original");
+        var plans = (IActualQueryPlanProvider)Provider;
+
+        // Act
+        var plan = await plans.GetActualPlanAsync(DatabaseConnectionString, ActualPlanUpdateStatement, CancellationToken.None);
+
+        // Assert
+        plan.PlanContent.ShouldContain("Update on");
+        plan.PlanContent.ShouldContain("actual time");
+    }
 }

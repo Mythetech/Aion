@@ -326,4 +326,50 @@ public class MySqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
 
         result.RowsAffected.ShouldBeNull();
     }
+
+    [Fact]
+    public async Task Transaction_WithDdl_ShouldBeRefusedSoEarlierWorkIsNotImplicitlyCommitted()
+    {
+        // Arrange
+        var transaction = await Provider.BeginTransactionAsync(DatabaseConnectionString);
+        await Provider.ExecuteInTransactionAsync(DatabaseConnectionString,
+            $"INSERT INTO {TestTable} (id, name) VALUES (1, 'pending')", transaction.Id, CancellationToken.None);
+
+        // Act
+        var ddl = await Provider.ExecuteInTransactionAsync(DatabaseConnectionString,
+            "CREATE TABLE implicit_commit_probe (id int)", transaction.Id, CancellationToken.None);
+        await Provider.RollbackTransactionAsync(DatabaseConnectionString, transaction.Id);
+
+        // Assert
+        ddl.Error.ShouldNotBeNull();
+        (await CountRowsAsync()).ShouldBe(0);
+        var tables = await Provider.GetTablesAsync(DatabaseConnectionString, TestDatabase);
+        tables.ShouldNotContain(t => t.Name == "implicit_commit_probe");
+    }
+
+    [Fact]
+    public async Task ActualPlan_ForDdl_ShouldBeRefused()
+    {
+        // Arrange
+        var plans = (IActualQueryPlanProvider)Provider;
+
+        // Act & Assert
+        await Should.ThrowAsync<InvalidOperationException>(() => plans.GetActualPlanAsync(
+            DatabaseConnectionString, $"DROP TABLE {TestTable}", CancellationToken.None));
+        var tables = await Provider.GetTablesAsync(DatabaseConnectionString, TestDatabase);
+        tables.ShouldContain(t => t.Name == TestTable);
+    }
+
+    [Fact]
+    public async Task EstimatedPlan_WithMultipleStatements_ShouldNotRunLaterStatements()
+    {
+        // Arrange
+        await InsertRowAsync(1, "original");
+        var plans = (IEstimatedQueryPlanProvider)Provider;
+
+        // Act & Assert
+        await Should.ThrowAsync<InvalidOperationException>(() => plans.GetEstimatedPlanAsync(
+            DatabaseConnectionString, $"SELECT 1; DELETE FROM {TestTable}", CancellationToken.None));
+        (await CountRowsAsync()).ShouldBe(1);
+    }
 }
