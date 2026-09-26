@@ -299,26 +299,7 @@ public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDat
 
             using var cmd = new SqlCommand(query, conn);
             using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-
-            for (int i = 0; i < reader.FieldCount; i++)
-            {
-                result.Columns.Add(reader.GetName(i));
-            }
-
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                var row = new Dictionary<string, object>();
-                for (int i = 0; i < reader.FieldCount; i++)
-                {
-                    var value = reader.GetValue(i);
-                    row[result.Columns[i]] = value == DBNull.Value ? null : value;
-                }
-                result.Rows.Add(row);
-            }
-
-            // RecordsAffected is only final once every result set has been consumed, and is -1 when no statement changed rows.
-            await reader.CloseAsync();
-            result.RowsAffected = reader.RecordsAffected >= 0 ? reader.RecordsAffected : null;
+            await ReadResultAsync(reader, result, cancellationToken);
 
             return result;
         }
@@ -540,25 +521,8 @@ public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDat
             await using var cmd = new SqlCommand(query, open.Connection, open.Transaction);
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
-            for (int i = 0; i < reader.FieldCount; i++)
-            {
-                result.Columns.Add(reader.GetName(i));
-            }
-
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                var row = new Dictionary<string, object>();
-                for (int i = 0; i < reader.FieldCount; i++)
-                {
-                    var value = reader.GetValue(i);
-                    row[result.Columns[i]] = value == DBNull.Value ? null : value;
-                }
-                result.Rows.Add(row);
-            }
-
             // Grid edits apply multi-row changes in a transaction and check each statement changed exactly one row.
-            await reader.CloseAsync();
-            result.RowsAffected = reader.RecordsAffected >= 0 ? reader.RecordsAffected : null;
+            await ReadResultAsync(reader, result, cancellationToken);
 
             return result;
         }
@@ -567,6 +531,27 @@ public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDat
             result.SetError(SqlServerErrors.ToQueryError(ex, query));
             return result;
         }
+    }
+
+    /// <summary>
+    /// Reads the first result set into <paramref name="result"/>, then steps through the rest of the batch.
+    /// SqlClient raises an error from a later statement only when its result is reached, and closing the
+    /// reader skips it silently, so a batch whose second statement fails would otherwise report success.
+    /// </summary>
+    private static async Task ReadResultAsync(SqlDataReader reader, QueryResult result, CancellationToken cancellationToken)
+    {
+        await QueryResultReader.ReadAsync(reader, result, cancellationToken);
+
+        while (await reader.NextResultAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+            }
+        }
+
+        // RecordsAffected is only final once every result set has been consumed, and is -1 when no statement changed rows.
+        await reader.CloseAsync();
+        result.RowsAffected = reader.RecordsAffected >= 0 ? reader.RecordsAffected : null;
     }
 
     private sealed record OpenTransaction(SqlConnection Connection, SqlTransaction Transaction) : IAsyncDisposable

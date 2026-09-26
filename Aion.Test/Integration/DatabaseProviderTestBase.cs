@@ -130,6 +130,48 @@ public abstract class DatabaseProviderTestBase : IAsyncLifetime
     /// <summary>The engine's code for an unknown column, as the provider formats it.</summary>
     protected abstract string UnknownColumnCode { get; }
 
+    /// <summary>The short types the results grid shows for the test table's id, name and description columns.</summary>
+    protected abstract string[] TestTableResultTypes { get; }
+
+    [Fact]
+    public async Task Select_ReportsEachColumnsType()
+    {
+        // Arrange
+        await InsertRowAsync(1, "a");
+
+        // Act
+        var result = await ExecuteOrFailAsync(DatabaseConnectionString, $"SELECT id, name, description FROM {TestTable}");
+
+        // Assert
+        result.ColumnTypes.Select(type => ColumnTypeText.Short(type, Provider.DatabaseType)).ShouldBe(TestTableResultTypes);
+    }
+
+    [Fact]
+    public async Task Select_WithRepeatedColumnNames_KeepsEachColumnsValue()
+    {
+        // Act
+        var result = await ExecuteOrFailAsync(DatabaseConnectionString, "SELECT 1 AS id, 2 AS id, 3 AS id");
+
+        // Assert
+        result.ColumnNames.ShouldBe(["id", "id", "id"]);
+        result.Columns.ShouldBe(["id", "id_2", "id_3"]);
+        var row = result.Rows.ShouldHaveSingleItem();
+        Convert.ToInt32(row["id"]).ShouldBe(1);
+        Convert.ToInt32(row["id_2"]).ShouldBe(2);
+        Convert.ToInt32(row["id_3"]).ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task Select_WithoutRows_StillReportsEachColumnsType()
+    {
+        // Act
+        var result = await ExecuteOrFailAsync(DatabaseConnectionString, $"SELECT id, name, description FROM {TestTable}");
+
+        // Assert
+        result.Rows.ShouldBeEmpty();
+        result.ColumnTypes.Select(type => ColumnTypeText.Short(type, Provider.DatabaseType)).ShouldBe(TestTableResultTypes);
+    }
+
     [Fact]
     public async Task FirstRowsSelect_RunsOnTheEngineAndStopsAtTheLimit()
     {
@@ -228,6 +270,44 @@ public abstract class DatabaseProviderTestBase : IAsyncLifetime
         result.ErrorDetail.Line.ShouldBe(2);
         result.ErrorDetail.Column.ShouldBe(3);
         result.ErrorDetail.EndColumn.ShouldBe(13);
+    }
+
+    // Each engine resolves the missing table only when that statement runs, after the first result set
+    // has been returned, so this checks the provider reads past the first result set.
+    private const string LaterStatementFails = $"SELECT id FROM {TestTable};\nSELECT id FROM missing_table";
+
+    [Fact]
+    public async Task FailureInALaterStatement_IsReported()
+    {
+        // Arrange
+        await InsertRowAsync(1, "first");
+
+        // Act
+        var result = await Provider.ExecuteQueryAsync(DatabaseConnectionString, LaterStatementFails, CancellationToken.None);
+
+        // Assert
+        result.Success.ShouldBeFalse();
+        result.ErrorDetail.ShouldNotBeNull();
+        result.ErrorDetail.Kind.ShouldBe(QueryErrorKind.UnknownTable);
+        result.ErrorDetail.Token.ShouldNotBeNull().ShouldEndWith("missing_table");
+    }
+
+    [Fact]
+    public async Task Transaction_FailureInALaterStatement_IsReported()
+    {
+        // Arrange
+        await InsertRowAsync(1, "first");
+        var transaction = await Provider.BeginTransactionAsync(DatabaseConnectionString);
+
+        // Act
+        var result = await Provider.ExecuteInTransactionAsync(
+            DatabaseConnectionString, LaterStatementFails, transaction.Id, CancellationToken.None);
+        await Provider.RollbackTransactionAsync(DatabaseConnectionString, transaction.Id);
+
+        // Assert
+        result.Success.ShouldBeFalse();
+        result.ErrorDetail.ShouldNotBeNull();
+        result.ErrorDetail.Kind.ShouldBe(QueryErrorKind.UnknownTable);
     }
 
     [Fact]

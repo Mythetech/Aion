@@ -41,7 +41,7 @@ public class ExcelResultsExporter : IConsumer<ExportResultsToExcel>
 
             for (int i = 0; i < result.Columns.Count; i++)
             {
-                worksheet.Cell(1, i + 1).Value = result.Columns[i];
+                worksheet.Cell(1, i + 1).Value = result.ColumnName(i);
             }
 
             for (int row = 0; row < result.Rows.Count; row++)
@@ -68,7 +68,7 @@ public class ExcelResultsExporter : IConsumer<ExportResultsToExcel>
             }
 
             _logger.LogInformation("Exported query results to Excel: {FileName}", fileName);
-            await _bus.PublishAsync(new AddNotification($"Exported results to {fileName}", Severity.Success));
+            await _bus.PublishAsync(new AddNotification(ResultExportText.Exported(result.Rows.Count, message.TotalRows, fileName), Severity.Success));
         }
         catch (Exception ex)
         {

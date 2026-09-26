@@ -1,11 +1,13 @@
 using Aion.Components.Connections;
 using Aion.Components.Infrastructure.Commands;
 using Aion.Components.Querying;
+using Aion.Components.Settings.Domains;
 using Aion.Components.Querying.Errors;
 using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
 using Bunit;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using MudBlazor.Services;
@@ -32,6 +34,7 @@ public class QueryResponsePanelTests : TestContext
             Substitute.For<IConnectionService>(), Substitute.For<IDatabaseProviderFactory>(), _bus, new NullLogger<ConnectionState>());
 
         Services.AddSingleton(_bus);
+        Services.AddSingleton(new ResultsSettings());
         Services.AddSingleton(_state);
         Services.AddSingleton(_connections);
         Services.AddSingleton(new SqlCompletionService(_connections));
@@ -152,7 +155,7 @@ public class QueryResponsePanelTests : TestContext
         Complete(Rows(3));
         var cut = RenderComponent<QueryResponsePanel>();
         var selection = cut.FindComponent<QueryResultTable>().Instance.SelectionState;
-        await cut.InvokeAsync(() => selection.ToggleSelection(1, ctrlKey: true, shiftKey: false, totalRows: 3));
+        await cut.InvokeAsync(() => selection.ToggleSelection(1, ctrlKey: true, shiftKey: false, order: [0, 1, 2]));
 
         // Act
         await cut.InvokeAsync(() => _state.RenameQuery(_query, "Renamed"));
@@ -168,13 +171,70 @@ public class QueryResponsePanelTests : TestContext
         Complete(Rows(3));
         var cut = RenderComponent<QueryResponsePanel>();
         var selection = cut.FindComponent<QueryResultTable>().Instance.SelectionState;
-        await cut.InvokeAsync(() => selection.ToggleSelection(1, ctrlKey: true, shiftKey: false, totalRows: 3));
+        await cut.InvokeAsync(() => selection.ToggleSelection(1, ctrlKey: true, shiftKey: false, order: [0, 1, 2]));
 
         // Act
         await cut.InvokeAsync(() => Complete(Rows(2)));
 
         // Assert
         selection.SelectedIndices.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task ExportCsv_ExportsEveryFetchedRow_NotJustTheRowsShown()
+    {
+        // Arrange
+        Services.GetRequiredService<ResultsSettings>().RowLimit = 2;
+        Complete(Rows(5));
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act
+        await cut.Find("[aria-label='Export to CSV']").ClickAsync(new());
+
+        // Assert
+        await _bus.Received(1).PublishAsync(Arg.Is<Aion.Components.Querying.Commands.ExportResultsToCsv>(c => c.Result!.Rows.Count == 5));
+    }
+
+    // The find box waits for typing to pause, so the filter applies once the grid shows the matching rows.
+    private static async Task FindInResultsAsync(IRenderedComponent<QueryResponsePanel> cut, string text, int expectedRows)
+    {
+        await cut.Find("input[placeholder='Find in results...']").InputAsync(new ChangeEventArgs { Value = text });
+        cut.WaitForAssertion(() => cut.FindAll("tbody tr.mud-table-row").Count.ShouldBe(expectedRows));
+    }
+
+    [Fact]
+    public async Task ExportCsv_WhileFiltering_ExportsOnlyMatchingRows()
+    {
+        // Arrange
+        Complete(Rows(15));
+        var cut = RenderComponent<QueryResponsePanel>();
+        await FindInResultsAsync(cut, "1", expectedRows: 7);
+
+        // Act
+        await cut.Find("[aria-label='Export to CSV']").ClickAsync(new());
+
+        // Assert: ids 1 and 10 to 15 contain "1".
+        await _bus.Received(1).PublishAsync(Arg.Is<Aion.Components.Querying.Commands.ExportResultsToCsv>(c =>
+            c.Result!.Rows.Select(r => (int)r["id"]).SequenceEqual(new[] { 1, 10, 11, 12, 13, 14, 15 }) && c.TotalRows == 15));
+    }
+
+    [Fact]
+    public async Task ExportJsonAndExcel_WhileFiltering_ExportOnlyMatchingRows()
+    {
+        // Arrange
+        Complete(Rows(15));
+        var cut = RenderComponent<QueryResponsePanel>();
+        await FindInResultsAsync(cut, "12", expectedRows: 1);
+
+        // Act
+        await cut.Find("[aria-label='Export to JSON']").ClickAsync(new());
+        await cut.Find("[aria-label='Export to Excel']").ClickAsync(new());
+
+        // Assert
+        await _bus.Received(1).PublishAsync(Arg.Is<Aion.Components.Querying.Commands.ExportResultsToJson>(c =>
+            c.Result!.Rows.Count == 1 && c.TotalRows == 15));
+        await _bus.Received(1).PublishAsync(Arg.Is<Aion.Components.Querying.Commands.ExportResultsToExcel>(c =>
+            c.Result!.Rows.Count == 1 && c.TotalRows == 15));
     }
 
     private static string Collapse(string text) => System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();

@@ -29,7 +29,7 @@ public class SettingsRegistrationTests
     {
         var ids = ListedSections().Select(s => s.SettingsId);
 
-        ids.ShouldBe(["Appearance", "Browser", "Editor"]);
+        ids.ShouldBe(["Appearance", "Browser", "Editor", "Results"]);
     }
 
     [Fact]
@@ -40,6 +40,7 @@ public class SettingsRegistrationTests
         ids.ShouldContain("Appearance");
         ids.ShouldContain("Browser");
         ids.ShouldContain("Editor");
+        ids.ShouldContain("Results");
         ids.ShouldContain("Connections");
         ids.ShouldContain("Plugins");
         ids.ShouldContain("privacy");
@@ -63,6 +64,20 @@ public class SettingsRegistrationTests
         using var provider = services.BuildServiceProvider();
 
         provider.GetService<ConnectionSettings>().ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void ResultsSection_ShowsAThousandRowsAtFirst()
+    {
+        new ResultsSettings().RowLimit.ShouldBe(1000);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-5)]
+    public void ResultsSection_FallsBackToTheDefaultForALimitBelowOne(int saved)
+    {
+        new ResultsSettings { RowLimit = saved }.EffectiveRowLimit.ShouldBe(ResultsSettings.DefaultRowLimit);
     }
 
     [Fact]

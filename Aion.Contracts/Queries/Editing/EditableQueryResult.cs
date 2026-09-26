@@ -43,6 +43,8 @@ public class EditableQueryResult : QueryResult
         return new EditableQueryResult
         {
             Columns = result.Columns,
+            ColumnNames = result.ColumnNames,
+            ColumnTypes = result.ColumnTypes,
             Rows = result.Rows,
             ExecutedAt = result.ExecutedAt,
             Error = result.Error,

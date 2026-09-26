@@ -154,19 +154,7 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQu
 
             using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
-            for (int i = 0; i < reader.FieldCount; i++)
-                result.Columns.Add(reader.GetName(i));
-
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                var row = new Dictionary<string, object>();
-                for (int i = 0; i < reader.FieldCount; i++)
-                {
-                    var value = reader.GetValue(i);
-                    row[result.Columns[i]] = value == DBNull.Value ? null! : value;
-                }
-                result.Rows.Add(row);
-            }
+            await QueryResultReader.ReadAsync(reader, result, cancellationToken);
 
             return result;
         }
@@ -308,19 +296,7 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQu
 
             using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
-            for (int i = 0; i < reader.FieldCount; i++)
-                result.Columns.Add(reader.GetName(i));
-
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                var row = new Dictionary<string, object>();
-                for (int i = 0; i < reader.FieldCount; i++)
-                {
-                    var value = reader.GetValue(i);
-                    row[result.Columns[i]] = value == DBNull.Value ? null! : value;
-                }
-                result.Rows.Add(row);
-            }
+            await QueryResultReader.ReadAsync(reader, result, cancellationToken);
 
             if (IsDataModification(query))
             {

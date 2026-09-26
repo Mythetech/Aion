@@ -214,34 +214,33 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
                 return result;
             }
 
-            var columns = jsResult.GetProperty("columns");
-            foreach (var col in columns.EnumerateArray())
+            var types = jsResult.TryGetProperty("types", out var typeIds) && typeIds.ValueKind == JsonValueKind.Array
+                ? typeIds.EnumerateArray().Select(t => t.ValueKind == JsonValueKind.Number ? PGliteTypeNames.For(t.GetInt32()) : null).ToList()
+                : [];
+
+            var keys = new List<string>();
+            foreach (var column in jsResult.GetProperty("columns").EnumerateArray())
             {
-                result.Columns.Add(col.GetString() ?? "");
+                keys.Add(result.AddColumn(column.GetString() ?? "", keys.Count < types.Count ? types[keys.Count] : null));
             }
 
             foreach (var row in jsResult.GetProperty("rows").EnumerateArray())
             {
-                var dict = new Dictionary<string, object>();
-                foreach (var colName in result.Columns)
+                var values = new Dictionary<string, object>(keys.Count);
+                var ordinal = 0;
+                foreach (var value in row.EnumerateArray())
                 {
-                    if (row.TryGetProperty(colName, out var val))
-                    {
-                        dict[colName] = val.ValueKind switch
-                        {
-                            JsonValueKind.Null => null!,
-                            JsonValueKind.Number => val.TryGetInt64(out var l) ? l : val.GetDouble(),
-                            JsonValueKind.True => true,
-                            JsonValueKind.False => false,
-                            _ => val.GetString() ?? ""
-                        };
-                    }
-                    else
-                    {
-                        dict[colName] = null!;
-                    }
+                    if (ordinal < keys.Count)
+                        values[keys[ordinal]] = ToValue(value);
+                    ordinal++;
                 }
-                result.Rows.Add(dict);
+
+                for (; ordinal < keys.Count; ordinal++)
+                {
+                    values[keys[ordinal]] = null!;
+                }
+
+                result.Rows.Add(values);
             }
 
             if (jsResult.TryGetProperty("affectedRows", out var affectedRows) && affectedRows.ValueKind == JsonValueKind.Number)
@@ -260,6 +259,17 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
             return result;
         }
     }
+
+    // Arrays and composite values arrive as JSON; their text is what the grid shows and the JSON viewer opens.
+    private static object ToValue(JsonElement value) => value.ValueKind switch
+    {
+        JsonValueKind.Null or JsonValueKind.Undefined => null!,
+        JsonValueKind.Number => value.TryGetInt64(out var whole) ? whole : value.GetDouble(),
+        JsonValueKind.True => true,
+        JsonValueKind.False => false,
+        JsonValueKind.String => value.GetString() ?? "",
+        _ => value.GetRawText()
+    };
 
     public string UpdateConnectionString(string connectionString, string database)
         => $"pglite://{database}";

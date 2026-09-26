@@ -65,8 +65,7 @@ public class SelectedRowsExporter : IConsumer<ExportSelectedRows>
     {
         var csv = new StringBuilder();
 
-        // Header
-        csv.AppendLine(string.Join(",", message.Columns.Select(EscapeCsvField)));
+        csv.AppendLine(string.Join(",", (message.Headers ?? message.Columns).Select(EscapeCsvField)));
 
         // Data rows
         foreach (var row in message.Rows)
@@ -113,10 +112,10 @@ public class SelectedRowsExporter : IConsumer<ExportSelectedRows>
         using var workbook = new XLWorkbook();
         var worksheet = workbook.Worksheets.Add("Selected Rows");
 
-        // Header row
-        for (var i = 0; i < message.Columns.Count; i++)
+        var headers = message.Headers ?? message.Columns;
+        for (var i = 0; i < headers.Count; i++)
         {
-            worksheet.Cell(1, i + 1).Value = message.Columns[i];
+            worksheet.Cell(1, i + 1).Value = headers[i];
         }
 
         // Data rows

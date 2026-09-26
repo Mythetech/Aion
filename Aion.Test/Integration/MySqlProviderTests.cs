@@ -34,6 +34,9 @@ public class MySqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
 
     protected override string UnknownColumnCode => "Error 1054";
 
+    // MySql.Data names TEXT columns VARCHAR in result metadata.
+    protected override string[] TestTableResultTypes => ["int", "varchar", "varchar"];
+
     public override async Task InitializeAsync()
     {
         try 

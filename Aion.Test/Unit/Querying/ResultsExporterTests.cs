@@ -157,4 +157,119 @@ public class ResultsExporterTests
         notification.Message.ShouldBe("Excel export cancelled");
         notification.Severity.ShouldBe(Severity.Info);
     }
+
+    private CsvResultsExporter CreateCsvExporter() =>
+        new(_state, Substitute.For<ILogger<CsvResultsExporter>>(), _bus, _saveService);
+
+    [Fact]
+    public async Task CsvExport_OfFilteredRows_SaysHowManyOfTheFetchedRows()
+    {
+        _saveService.SaveFileAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+
+        await CreateCsvExporter().Consume(new ExportResultsToCsv(SampleResult(), TotalRows: 15));
+
+        var notification = _notifications.ShouldHaveSingleItem();
+        notification.Severity.ShouldBe(Severity.Success);
+        notification.Message.ShouldStartWith("Exported 1 of 15 rows to query_results_");
+        notification.Message.ShouldEndWith(".csv");
+    }
+
+    [Fact]
+    public async Task JsonExport_OfFilteredRows_SaysHowManyOfTheFetchedRows()
+    {
+        _saveService.SaveFileAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+
+        await CreateJsonExporter().Consume(new ExportResultsToJson(SampleResult(), TotalRows: 15));
+
+        _notifications.ShouldHaveSingleItem().Message.ShouldStartWith("Exported 1 of 15 rows to query_results_");
+    }
+
+    [Fact]
+    public async Task ExcelExport_OfFilteredRows_SaysHowManyOfTheFetchedRows()
+    {
+        _saveService.SaveFileAsync(Arg.Any<string>(), Arg.Any<byte[]>()).Returns(true);
+
+        await CreateExcelExporter().Consume(new ExportResultsToExcel(SampleResult(), TotalRows: 15));
+
+        _notifications.ShouldHaveSingleItem().Message.ShouldStartWith("Exported 1 of 15 rows to query_results_");
+    }
+
+    [Fact]
+    public async Task CsvExport_OfEveryRow_KeepsTheUsualMessage()
+    {
+        _saveService.SaveFileAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+
+        await CreateCsvExporter().Consume(new ExportResultsToCsv(SampleResult(), TotalRows: 1));
+
+        _notifications.ShouldHaveSingleItem().Message.ShouldStartWith("Exported results to query_results_");
+    }
+
+    private static QueryResult RepeatedIds()
+    {
+        var result = new QueryResult();
+        var first = result.AddColumn("id");
+        var second = result.AddColumn("id");
+        result.Rows.Add(new Dictionary<string, object> { [first] = 1, [second] = 2 });
+        return result;
+    }
+
+    [Fact]
+    public async Task CsvExport_WritesTheColumnNamesAsHeaders_AndEachColumnsOwnValue()
+    {
+        string? csv = null;
+        _saveService.SaveFileAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(call => { csv = call.ArgAt<string>(1); return true; });
+
+        await CreateCsvExporter().Consume(new ExportResultsToCsv(RepeatedIds()));
+
+        csv.ShouldNotBeNull().ReplaceLineEndings("\n").ShouldBe("id,id\n1,2\n");
+    }
+
+    [Fact]
+    public async Task ExcelExport_WritesTheColumnNamesAsHeaders_AndEachColumnsOwnValue()
+    {
+        byte[]? data = null;
+        _saveService.SaveFileAsync(Arg.Any<string>(), Arg.Any<byte[]>()).Returns(call => { data = call.ArgAt<byte[]>(1); return true; });
+
+        await CreateExcelExporter().Consume(new ExportResultsToExcel(RepeatedIds()));
+
+        var sheet = OpenWorksheet(data.ShouldNotBeNull());
+        (sheet.Cell(1, 1).GetString(), sheet.Cell(1, 2).GetString()).ShouldBe(("id", "id"));
+        (sheet.Cell(2, 1).GetString(), sheet.Cell(2, 2).GetString()).ShouldBe(("1", "2"));
+    }
+
+    [Fact]
+    public async Task SelectedRowsCsvExport_WritesTheGivenHeaders()
+    {
+        string? csv = null;
+        _saveService.SaveFileAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(call => { csv = call.ArgAt<string>(1); return true; });
+        var result = RepeatedIds();
+
+        await CreateSelectedRowsExporter().Consume(new ExportSelectedRows(result.Rows, result.Columns, "Csv", result.ColumnNames));
+
+        csv.ShouldNotBeNull().ReplaceLineEndings("\n").ShouldBe("id,id\n1,2\n");
+    }
+
+    [Fact]
+    public async Task CopyRowAsCsv_WritesTheGivenHeaders()
+    {
+        var result = RepeatedIds();
+        var handler = new ResultClipboardHandler(_bus);
+
+        await handler.Consume(new CopyRowToClipboard(result.Rows[0], result.Columns, "Csv", result.ColumnNames));
+
+        await _bus.Received(1).PublishAsync(Arg.Is<Aion.Components.Infrastructure.Commands.CopyToClipboard>(c =>
+            c.Text.ReplaceLineEndings("\n") == "id,id\n1,2\n"));
+    }
+
+    [Fact]
+    public async Task CopySelectedRows_WritesTheGivenHeaders()
+    {
+        var result = RepeatedIds();
+        var handler = new ResultClipboardHandler(_bus);
+
+        await handler.Consume(new CopySelectedRowsToClipboard(result.Rows, result.Columns, "Csv", result.ColumnNames));
+
+        await _bus.Received(1).PublishAsync(Arg.Is<Aion.Components.Infrastructure.Commands.CopyToClipboard>(c =>
+            c.Text.ReplaceLineEndings("\n") == "id,id\n1,2\n"));
+    }
 }

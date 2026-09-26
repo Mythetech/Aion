@@ -32,6 +32,8 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
 
     protected override string UnknownColumnCode => "Msg 207";
 
+    protected override string[] TestTableResultTypes => ["int", "varchar", "text"];
+
     public override async Task InitializeAsync()
     {
         try 
@@ -406,4 +408,16 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
 
         result.RowsAffected.ShouldBeNull();
     }
-} 
+
+    [Fact]
+    public async Task Select_WithUnnamedColumns_KeepsEachColumnsValue()
+    {
+        // Act
+        var result = await ExecuteOrFailAsync(DatabaseConnectionString, "SELECT 1, 2");
+
+        // Assert
+        result.ColumnNames.ShouldBe(["", ""]);
+        result.Columns.ShouldBe(["column1", "column2"]);
+        Convert.ToInt32(result.Rows.Single()["column2"]).ShouldBe(2);
+    }
+}

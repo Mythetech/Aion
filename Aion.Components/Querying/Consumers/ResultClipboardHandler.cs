@@ -34,7 +34,7 @@ public class ResultClipboardHandler :
     {
         var text = message.Format.Equals("Json", StringComparison.OrdinalIgnoreCase)
             ? FormatRowAsJson(message.Row)
-            : FormatRowAsCsv(message.Row, message.Columns);
+            : FormatRowAsCsv(message.Row, message.Columns, message.Headers ?? message.Columns);
 
         await _bus.PublishAsync(new CopyToClipboard(text));
         await _bus.PublishAsync(new AddNotification("Row copied to clipboard", Severity.Info));
@@ -50,7 +50,7 @@ public class ResultClipboardHandler :
 
         var text = message.Format.Equals("Json", StringComparison.OrdinalIgnoreCase)
             ? FormatRowsAsJson(message.Rows)
-            : FormatRowsAsCsv(message.Rows, message.Columns);
+            : FormatRowsAsCsv(message.Rows, message.Columns, message.Headers ?? message.Columns);
 
         await _bus.PublishAsync(new CopyToClipboard(text));
         await _bus.PublishAsync(new AddNotification($"{message.Rows.Count} row(s) copied to clipboard", Severity.Info));
@@ -66,12 +66,11 @@ public class ResultClipboardHandler :
         return JsonSerializer.Serialize(rows, new JsonSerializerOptions { WriteIndented = true });
     }
 
-    private static string FormatRowAsCsv(Dictionary<string, object> row, List<string> columns)
+    private static string FormatRowAsCsv(Dictionary<string, object> row, List<string> columns, List<string> headers)
     {
         var sb = new StringBuilder();
 
-        // Header
-        sb.AppendLine(string.Join(",", columns.Select(EscapeCsvField)));
+        sb.AppendLine(string.Join(",", headers.Select(EscapeCsvField)));
 
         // Data row
         var values = columns.Select(c => row.TryGetValue(c, out var val) ? val?.ToString() ?? "" : "");
@@ -80,12 +79,11 @@ public class ResultClipboardHandler :
         return sb.ToString();
     }
 
-    private static string FormatRowsAsCsv(List<Dictionary<string, object>> rows, List<string> columns)
+    private static string FormatRowsAsCsv(List<Dictionary<string, object>> rows, List<string> columns, List<string> headers)
     {
         var sb = new StringBuilder();
 
-        // Header
-        sb.AppendLine(string.Join(",", columns.Select(EscapeCsvField)));
+        sb.AppendLine(string.Join(",", headers.Select(EscapeCsvField)));
 
         // Data rows
         foreach (var row in rows)

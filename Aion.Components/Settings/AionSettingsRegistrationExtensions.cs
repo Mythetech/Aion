@@ -23,6 +23,7 @@ public static class AionSettingsRegistrationExtensions
         services.AddSettingsSection<AppearanceSettings>();
         services.AddSettingsSection<EditorSettings>();
         services.AddSettingsSection<BrowserSettings>();
+        services.AddSettingsSection<ResultsSettings>();
 
         // The health monitor reads these on every host, but only the desktop polls real servers,
         // so the section is listed by AddAionDesktopSettings alone.

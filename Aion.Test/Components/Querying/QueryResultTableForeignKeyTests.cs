@@ -1,4 +1,5 @@
 using Aion.Components.Querying;
+using Aion.Components.Settings.Domains;
 using Aion.Components.Querying.Consumers;
 using Aion.Components.RequestContextPanel;
 using Aion.Components.RequestContextPanel.Commands;
@@ -23,6 +24,7 @@ public class QueryResultTableForeignKeyTests : TestContext
         Services.AddMudServices(options => options.PopoverOptions.CheckForPopoverProvider = false);
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddSingleton(_bus);
+        Services.AddSingleton(new ResultsSettings());
     }
 
     private static List<ColumnInfo> OrderColumns() =>

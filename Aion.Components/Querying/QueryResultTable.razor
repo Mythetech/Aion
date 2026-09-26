@@ -2,64 +2,100 @@
 @using Aion.Components.Querying.Commands
 @using Aion.Components.Querying.Consumers
 @using Aion.Components.Querying.Editing
+@using Aion.Components.Querying.Results
 @using Aion.Components.RequestContextPanel
 @using Aion.Components.RequestContextPanel.Commands
+@using Aion.Components.Settings.Domains
 @using Aion.Components.Shared
 @using Aion.Components.Theme
 @using Aion.Contracts.Database
 @using Aion.Contracts.Queries
 @using Mythetech.Framework.Infrastructure.MessageBus
+@inherits ComponentBaseWithState
 @implements IDisposable
 
-<MudDataGrid T="Dictionary<string, object>"
-             @ref="_dataGrid"
-             Items="@Result.Rows"
+<div class="result-grid">
+<MudDataGrid T="ResultRow"
+             Items="@_shownRows"
              Dense="true"
              Hover="true"
-             Filterable="true"
-             QuickFilter="FilterResults"
+             Filterable="false"
+             SortMode="SortMode.None"
+             ShowColumnOptions="false"
+             Virtualize="true"
+             ItemSize="@RowHeight"
+             OverscanCount="20"
              ColumnResizeMode="ResizeMode.Container"
+             RowClassFunc="@RowClass"
              Class="query-result-table">
     <Columns>
-        @* Selection column *@
-        <TemplateColumn T="Dictionary<string, object>"
+        @* Row numbers, which also select rows *@
+        <TemplateColumn T="ResultRow"
                         Title=""
                         Sortable="false"
                         Filterable="false"
                         Resizable="false"
-                        CellStyle="width: 40px; min-width: 40px; max-width: 40px;">
+                        HeaderClass="row-number-header"
+                        CellClass="row-number-cell">
             <HeaderTemplate>
-                <MudCheckBox T="bool"
-                             Value="@SelectionState.SelectAllChecked"
-                             ValueChanged="@ToggleSelectAll"
-                             Size="Size.Small"
-                             Dense="true" />
+                @{
+                    var allSelected = SelectionState.AreAllSelected(_view.Order);
+                }
+                <button type="button"
+                        class="row-number-toggle"
+                        aria-pressed="@(allSelected ? "true" : "false")"
+                        aria-label="@(allSelected ? "Clear selection" : SelectAllLabel)"
+                        title="@(allSelected ? "Clear selection" : SelectAllLabel)"
+                        @onclick="ToggleSelectAll">#</button>
             </HeaderTemplate>
             <CellTemplate>
                 @{
-                    var rowIndex = GetRowIndex(context.Item);
+                    var rowIndex = context.Item.Index;
+                    var selected = SelectionState.IsSelected(rowIndex);
                 }
-                <MudCheckBox T="bool"
-                             Value="@SelectionState.IsSelected(rowIndex)"
-                             ValueChanged="@(v => HandleRowSelect(rowIndex, v))"
-                             Size="Size.Small"
-                             Dense="true" />
+                <button type="button"
+                        class="row-number"
+                        aria-pressed="@(selected ? "true" : "false")"
+                        @onclick="@(e => HandleRowNumberClick(rowIndex, e))">@(_view.PositionOf(rowIndex) + 1)</button>
             </CellTemplate>
         </TemplateColumn>
 
         @* Data columns *@
-        @foreach (var col in Result.Columns)
+        @foreach (var column in _columns)
         {
-            <TemplateColumn T="Dictionary<string, object>" Title="@col" Resizable="true">
+            var col = column.Key;
+            var direction = _sort?.Key == col ? _sort.Direction : (ResultSortDirection?)null;
+            <TemplateColumn T="ResultRow" Title="@column.Header" Resizable="true" Sortable="false">
+                <HeaderTemplate>
+                    <button type="button"
+                            class="column-heading @(column.IsNumeric ? "numeric" : null)"
+                            aria-label="@SortLabel(column.Header, direction)"
+                            title="@SortLabel(column.Header, direction)"
+                            @onclick="@(() => ToggleSort(col))">
+                        <span class="column-name-line">
+                            <span class="column-name @(column.Name.Length == 0 ? "unnamed" : null)">@column.Header</span>
+                            @if (direction is { } sortDirection)
+                            {
+                                <MudIcon Icon="@(sortDirection == ResultSortDirection.Ascending ? AionIcons.SortAscending : AionIcons.SortDescending)"
+                                         Class="column-sort-icon" />
+                            }
+                        </span>
+                        @if (column.TypeLabel.Length > 0)
+                        {
+                            <span class="column-type">@column.TypeLabel</span>
+                        }
+                    </button>
+                </HeaderTemplate>
                 <CellTemplate>
                     @{
-                        var value = context.Item.GetValueOrDefault(col);
-                        var rowIndex = GetRowIndex(context.Item);
-                        var effectiveValue = EditState?.GetEffectiveValue(rowIndex, col, context.Item) ?? value;
+                        var row = context.Item.Values;
+                        var value = row.GetValueOrDefault(col);
+                        var rowIndex = context.Item.Index;
+                        var effectiveValue = EditState?.GetEffectiveValue(rowIndex, col, row) ?? value;
                         var cellClass = GetCellClass(rowIndex, col);
                         var rowClass = GetRowClass(rowIndex);
                     }
-                    <div class="cell-content @cellClass @rowClass"
+                    <div class="cell-content @(column.IsNumeric ? "numeric" : null) @cellClass @rowClass"
                          @oncontextmenu="@(e => ShowContextMenu(e, context.Item, col, value))"
                          @oncontextmenu:preventDefault="true"
                          @onclick="@(e => HandleCellClick(rowIndex, e))">
@@ -69,7 +105,7 @@
                             var editForeignKey = effectiveValue != null && IsForeignKeyColumn(col, out var fk) ? fk : null;
                             <MudTextField T="string"
                                           Value="@(effectiveValue?.ToString() ?? "")"
-                                          ValueChanged="@(newValue => OnCellValueChanged(rowIndex, col, newValue, context.Item))"
+                                          ValueChanged="@(newValue => OnCellValueChanged(rowIndex, col, newValue, row))"
                                           Variant="Variant.Text"
                                           Margin="Margin.Dense"
                                           Dense="true"
@@ -84,22 +120,28 @@
                         }
                         else if (effectiveValue != null && effectiveValue.ToString()!.StartsWith('{') && effectiveValue.ToString()!.EndsWith('}'))
                         {
-                            <MudLink Class="overflow-x-auto d-flex"
+                            <MudLink Class="cell-link"
                                      OnClick="@(async () => await OpenJsonDetailView(col, effectiveValue.ToString()!))">
                                 @effectiveValue
                             </MudLink>
                         }
                         else if (IsForeignKeyColumn(col, out var fkInfo) && effectiveValue != null)
                         {
-                            <MudLink Class="overflow-x-auto d-flex"
+                            <MudLink Class="cell-link"
                                      OnClick="@(async () => await OpenForeignKeyView(col, fkInfo!, effectiveValue, context.Item))">
                                 @effectiveValue
                                 <MudIcon Icon="@AionIcons.ForeignKey" Size="Size.Small" Class="ml-1" />
                             </MudLink>
                         }
+                        else if (effectiveValue is null)
+                        {
+                            <span class="cell-null">NULL</span>
+                        }
                         else
                         {
-                            <MudText Class="overflow-x-auto d-flex">@effectiveValue</MudText>
+                            var shown = ResultValueFormatter.Display(effectiveValue, column.Type);
+                            var full = ResultValueFormatter.Full(effectiveValue);
+                            <span class="cell-value" title="@(shown == full && shown?.Length <= LongValueLength ? null : full)">@shown</span>
                         }
                     </div>
                 </CellTemplate>
@@ -107,6 +149,19 @@
         }
     </Columns>
 </MudDataGrid>
+</div>
+@if (_shownRows.Count < _view.Count)
+{
+    <div class="result-limit-bar">
+        <span>Showing @_shownRows.Count.ToString("N0") of @_view.Count.ToString("N0") @(_view.IsFiltered ? "matching rows" : "rows")</span>
+        <MudButton Class="result-load-more" Variant="Variant.Text" Size="Size.Small" Color="Color.Primary" OnClick="LoadMore">
+            Load @Math.Min(RowLimit, _view.Count - _shownRows.Count).ToString("N0") more
+        </MudButton>
+        <MudButton Class="result-show-all" Variant="Variant.Text" Size="Size.Small" Color="Color.Primary" OnClick="ShowAll">
+            Show all
+        </MudButton>
+    </div>
+}
 
 @* Context Menu *@
 <AionMenu @ref="_contextMenu"
@@ -145,7 +200,7 @@
         @if (EditMetadata?.IsEditMode == true && _contextRow != null)
         {
             <MudDivider />
-            @if (IsRowDeleted(GetRowIndex(_contextRow)))
+            @if (IsRowDeleted(_contextRow.Index))
             {
                 <MudMenuItem OnClick="@UndeleteContextRow" Icon="@AionIcons.Undo" IconColor="Color.Success">
                     Restore Row
@@ -170,18 +225,97 @@
     [Parameter] public QueryEditMetadata? EditMetadata { get; set; }
     [Parameter] public Guid? ConnectionId { get; set; }
     [Parameter] public string? DatabaseName { get; set; }
+    [Parameter] public DatabaseType DatabaseType { get; set; }
 
     [Inject] protected IMessageBus Bus { get; set; } = default!;
+    [Inject] protected ResultsSettings ResultsSettings { get; set; } = default!;
 
-    private MudDataGrid<Dictionary<string, object>>? _dataGrid;
+    private const int RowHeight = 28;
+
+    // Values longer than this may be cut short by the column, so their cell carries the full text as a title.
+    private const int LongValueLength = 40;
+
     private AionMenu? _contextMenu;
 
     // Context menu state
-    private Dictionary<string, object>? _contextRow;
+    private ResultRow? _contextRow;
     private string? _contextColumn;
     private object? _contextValue;
 
     private EditState? _subscribedEditState;
+
+    private QueryResult? _viewResult;
+    private IReadOnlyList<ResultGridColumn> _columns = [];
+    private IReadOnlyList<ResultRow> _rows = [];
+    private ResultGridView _view = ResultGridView.Empty;
+    private IReadOnlyList<ResultRow> _shownRows = [];
+    private int _shownLimit;
+    private ResultSort? _sort;
+
+    public QueryResultTable()
+    {
+        // One handler for both, so a new result that arrives with a new filter builds the view once.
+        using var registerScope = CreateRegisterScope();
+        registerScope.RegisterParameter<QueryResult>(nameof(Result))
+            .WithParameter(() => Result)
+            .WithChangeHandler(OnViewInputsChanged);
+        registerScope.RegisterParameter<string?>(nameof(SearchFilter))
+            .WithParameter(() => SearchFilter)
+            .WithChangeHandler(OnViewInputsChanged);
+    }
+
+    private int RowLimit => ResultsSettings.EffectiveRowLimit;
+
+    private void OnViewInputsChanged()
+    {
+        if (!ReferenceEquals(_viewResult, Result))
+        {
+            _viewResult = Result;
+            _columns = ResultGridColumn.From(Result, DatabaseType);
+            _rows = ResultRow.Wrap(Result.Rows);
+            _shownLimit = RowLimit;
+
+            // Running the query again keeps its sort; a result without that column starts unsorted.
+            if (_sort != null && !Result.Columns.Contains(_sort.Key))
+            {
+                _sort = null;
+            }
+        }
+
+        RebuildView();
+        StateHasChanged();
+    }
+
+    private void RebuildView()
+    {
+        _view = ResultGridView.Build(_rows, SearchFilter, _sort);
+        _shownRows = _view.Take(_shownLimit);
+    }
+
+    private void ToggleSort(string column)
+    {
+        _sort = ResultSort.Next(_sort, column);
+        RebuildView();
+    }
+
+    private static string SortLabel(string column, ResultSortDirection? direction) => direction switch
+    {
+        ResultSortDirection.Ascending => $"{column}, sorted ascending. Sort descending",
+        ResultSortDirection.Descending => $"{column}, sorted descending. Clear sort",
+        _ => $"{column}. Sort ascending"
+    };
+
+    private void LoadMore()
+    {
+        _shownLimit += RowLimit;
+        _shownRows = _view.Take(_shownLimit);
+    }
+
+    private void ShowAll()
+    {
+        _shownLimit = int.MaxValue;
+        _shownRows = _view.Rows;
+    }
 
     protected override void OnParametersSet()
     {
@@ -217,11 +351,6 @@
         }
     }
 
-    private int GetRowIndex(Dictionary<string, object> row)
-    {
-        return Result.Rows.IndexOf(row);
-    }
-
     // Edit mode helper methods
     private bool IsPrimaryKeyColumn(string column) =>
         EditMetadata?.ColumnMetadata.Any(c => c.Name == column && c.IsPrimaryKey) == true;
@@ -254,60 +383,53 @@
     private void DeleteContextRow()
     {
         if (_contextRow == null || EditState == null) return;
-        var rowIndex = GetRowIndex(_contextRow);
-        EditState.DeleteRow(rowIndex, _contextRow);
+        EditState.DeleteRow(_contextRow.Index, _contextRow.Values);
     }
 
     private void UndeleteContextRow()
     {
         if (_contextRow == null || EditState == null) return;
-        var rowIndex = GetRowIndex(_contextRow);
-        EditState.UndeleteRow(rowIndex);
+        EditState.UndeleteRow(_contextRow.Index);
     }
 
     private void HandleCellClick(int rowIndex, MouseEventArgs e)
     {
-        SelectionState.ToggleSelection(rowIndex, e.CtrlKey, e.ShiftKey, Result.Rows.Count);
-        StateHasChanged();
+        SelectionState.ToggleSelection(rowIndex, e.CtrlKey || e.MetaKey, e.ShiftKey, _view.Order);
     }
 
-    private void HandleRowSelect(int rowIndex, bool selected)
+    private void HandleRowNumberClick(int rowIndex, MouseEventArgs e)
     {
-        if (selected)
-        {
-            SelectionState.ToggleSelection(rowIndex, ctrlKey: true, shiftKey: false, Result.Rows.Count);
-        }
-        else
-        {
-            SelectionState.SelectedIndices.Remove(rowIndex);
-        }
-        StateHasChanged();
+        SelectionState.ToggleRow(rowIndex, e.ShiftKey, _view.Order);
     }
 
-    private void ToggleSelectAll(bool selectAll)
+    private string SelectAllLabel => _view.IsFiltered ? "Select all matching rows" : "Select all rows";
+
+    private void ToggleSelectAll()
     {
-        if (selectAll)
-        {
-            SelectionState.SelectAll(Result.Rows.Count);
-        }
-        else
+        if (SelectionState.AreAllSelected(_view.Order))
         {
             SelectionState.ClearSelection();
         }
-        StateHasChanged();
+        else
+        {
+            SelectionState.SelectAll(_view.Order);
+        }
     }
 
-    private async Task ShowContextMenu(MouseEventArgs e, Dictionary<string, object> row, string column, object? value)
+    private string? RowClass(ResultRow row, int position) =>
+        SelectionState.IsSelected(row.Index) ? "row-selected" : null;
+
+    private async Task ShowContextMenu(MouseEventArgs e, ResultRow row, string column, object? value)
     {
         _contextRow = row;
         _contextColumn = column;
         _contextValue = value;
 
         // Select the row if not already selected
-        var rowIndex = GetRowIndex(row);
+        var rowIndex = row.Index;
         if (!SelectionState.IsSelected(rowIndex))
         {
-            SelectionState.ToggleSelection(rowIndex, ctrlKey: false, shiftKey: false, Result.Rows.Count);
+            SelectionState.ToggleSelection(rowIndex, ctrlKey: false, shiftKey: false, _view.Order);
         }
 
         if (_contextMenu != null)
@@ -326,37 +448,37 @@
     private async Task CopyRowAsJson()
     {
         if (_contextRow == null) return;
-        await Bus.PublishAsync(new CopyRowToClipboard(_contextRow, Result.Columns, "Json"));
+        await Bus.PublishAsync(new CopyRowToClipboard(_contextRow.Values, Result.Columns, "Json"));
     }
 
     private async Task CopyRowAsCsv()
     {
         if (_contextRow == null) return;
-        await Bus.PublishAsync(new CopyRowToClipboard(_contextRow, Result.Columns, "Csv"));
+        await Bus.PublishAsync(new CopyRowToClipboard(_contextRow.Values, Result.Columns, "Csv", Result.Headers()));
     }
 
     private async Task CopySelectedRows()
     {
         var selectedRows = SelectionState.GetSelectedRows(Result.Rows);
-        await Bus.PublishAsync(new CopySelectedRowsToClipboard(selectedRows, Result.Columns, "Csv"));
+        await Bus.PublishAsync(new CopySelectedRowsToClipboard(selectedRows, Result.Columns, "Csv", Result.Headers()));
     }
 
     private async Task ExportSelectedCsv()
     {
         var selectedRows = SelectionState.GetSelectedRows(Result.Rows);
-        await Bus.PublishAsync(new ExportSelectedRows(selectedRows, Result.Columns, "Csv"));
+        await Bus.PublishAsync(new ExportSelectedRows(selectedRows, Result.Columns, "Csv", Result.Headers()));
     }
 
     private async Task ExportSelectedJson()
     {
         var selectedRows = SelectionState.GetSelectedRows(Result.Rows);
-        await Bus.PublishAsync(new ExportSelectedRows(selectedRows, Result.Columns, "Json"));
+        await Bus.PublishAsync(new ExportSelectedRows(selectedRows, Result.Columns, "Json", Result.Headers()));
     }
 
     private async Task ExportSelectedExcel()
     {
         var selectedRows = SelectionState.GetSelectedRows(Result.Rows);
-        await Bus.PublishAsync(new ExportSelectedRows(selectedRows, Result.Columns, "Excel"));
+        await Bus.PublishAsync(new ExportSelectedRows(selectedRows, Result.Columns, "Excel", Result.Headers()));
     }
 
     protected async Task OpenJsonDetailView(string column, string json)
@@ -371,16 +493,15 @@
         return fkInfo != null;
     }
 
-    protected async Task OpenForeignKeyView(string column, ForeignKeyInfo fkInfo, object value, Dictionary<string, object> row)
+    protected async Task OpenForeignKeyView(string column, ForeignKeyInfo fkInfo, object value, ResultRow row)
     {
         if (!ConnectionId.HasValue || string.IsNullOrEmpty(DatabaseName)) return;
 
         var detail = ForeignKeyDetailFor(column, fkInfo, value);
 
-        var rowIndex = GetRowIndex(row);
         var choices = (EditMetadata?.ColumnMetadata ?? [])
             .Where(c => c.ForeignKey != null && Result.Columns.Contains(c.Name))
-            .Select(c => (Column: c, Value: EditState?.GetEffectiveValue(rowIndex, c.Name, row) ?? row.GetValueOrDefault(c.Name)))
+            .Select(c => (Column: c, Value: EditState?.GetEffectiveValue(row.Index, c.Name, row.Values) ?? row.Values.GetValueOrDefault(c.Name)))
             .Where(choice => choice.Value != null)
             .Select(choice => choice.Column.Name == column ? detail : ForeignKeyDetailFor(choice.Column.Name, choice.Column.ForeignKey!, choice.Value!))
             .ToList();
@@ -397,26 +518,4 @@
         ConnectionId!.Value,
         DatabaseName!,
         foreignKey.ReferencedSchema);
-
-    protected bool FilterResults(Dictionary<string, object> item)
-    {
-        if (string.IsNullOrEmpty(SearchFilter))
-            return true;
-
-        foreach (var value in item.Values)
-        {
-            if (string.IsNullOrEmpty(value?.ToString())) continue;
-
-            try
-            {
-                if (value.ToString()!.Contains(SearchFilter, StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-            catch { }
-        }
-
-        return false;
-    }
 }

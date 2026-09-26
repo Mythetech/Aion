@@ -102,7 +102,7 @@ public class InBrowserProviderTests
     {
         // Arrange
         RunReturns("""
-            {"columns": ["id"], "rows": [{"id": 1}], "affectedRows": 0, "error": null}
+            {"columns": ["id"], "types": [23], "rows": [[1]], "affectedRows": 0, "error": null}
             """);
         var provider = new PGliteProvider(_js.Runtime);
 
@@ -112,6 +112,58 @@ public class InBrowserProviderTests
         // Assert
         result.Success.ShouldBeTrue();
         result.Rows.Single()["id"].ShouldBe(1L);
+    }
+
+    [Fact]
+    public async Task PGlite_ExecuteQueryAsync_NamesEachColumnsTypeFromItsTypeId()
+    {
+        // Arrange
+        RunReturns("""
+            {"columns": ["id", "price", "mood"], "types": [23, 701, 91234], "rows": [[1, 2.5, "ok"]], "affectedRows": 0, "error": null}
+            """);
+        var provider = new PGliteProvider(_js.Runtime);
+
+        // Act
+        var result = await provider.ExecuteQueryAsync("pglite://shop", "SELECT id, price, mood FROM products", CancellationToken.None);
+
+        // Assert
+        result.ColumnTypes.ShouldBe(["integer", "double precision", null]);
+    }
+
+    [Fact]
+    public async Task PGlite_ExecuteQueryAsync_RepeatedColumnNames_KeepEachValue()
+    {
+        // Arrange
+        RunReturns("""
+            {"columns": ["id", "id"], "types": [23, 23], "rows": [[1, 2]], "affectedRows": 0, "error": null}
+            """);
+        var provider = new PGliteProvider(_js.Runtime);
+
+        // Act
+        var result = await provider.ExecuteQueryAsync("pglite://shop", "SELECT a.id, b.id FROM a, b", CancellationToken.None);
+
+        // Assert
+        result.ColumnNames.ShouldBe(["id", "id"]);
+        result.Rows.Single()["id"].ShouldBe(1L);
+        result.Rows.Single()["id_2"].ShouldBe(2L);
+    }
+
+    [Fact]
+    public async Task PGlite_ExecuteQueryAsync_ArraysAndObjects_KeepTheirJsonText()
+    {
+        // Arrange
+        RunReturns("""
+            {"columns": ["tags", "extra"], "types": [1009, 91234], "rows": [[["a", "b"], {"k": 1}]], "affectedRows": 0, "error": null}
+            """);
+        var provider = new PGliteProvider(_js.Runtime);
+
+        // Act
+        var result = await provider.ExecuteQueryAsync("pglite://shop", "SELECT tags, extra FROM t", CancellationToken.None);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.Rows.Single()["tags"].ShouldBe("""["a", "b"]""");
+        result.Rows.Single()["extra"].ShouldBe("""{"k": 1}""");
     }
 
     [Fact]
