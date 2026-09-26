@@ -1,6 +1,5 @@
 @using Aion.Components.Connections.Commands
 @using Aion.Components.Connections.Events
-@using Aion.Components.Connections.Models
 @using Aion.Components.Querying
 @using Aion.Contracts.Connections
 @using Aion.Contracts.Database
@@ -24,7 +23,7 @@
     @if (Connection.HealthStatus == ConnectionHealthStatus.Checking || _isRefreshing)
     {
         <MudChip Size="Size.Small" Variant="Variant.Text" T="string" Color="Color.Default">
-            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-1" Style="width: 12px; height: 12px;" />
+            <span class="health-spinner"><MudProgressCircular Size="Size.Small" Indeterminate="true" /></span>
             Checking
         </MudChip>
     }
@@ -41,16 +40,14 @@
         }
     </MudStack>
 
-    <MudStack Row="true" AlignItems="AlignItems.Center" Class="w-100" Spacing="0"
-              Style="border-bottom: 1px solid var(--mud-palette-divider);">
-        <MudSpacer />
+    <div class="connection-actions">
         <AionIconButton Icon="@AionIcons.Query" Tooltip="New Query" Size="Size.Small" OnClick="NewQuery" />
         <AionIconButton Icon="@AionIcons.Edit" Tooltip="Edit Connection" Size="Size.Small" OnClick="EditConnection" />
         <AionIconButton Icon="@AionIcons.Refresh" Tooltip="Refresh Connection" Size="Size.Small" OnClick="RefreshConnection"
                         Disabled="@_isRefreshing" />
         <AionIconButton Icon="@AionIcons.Delete" Tooltip="Delete Connection" Size="Size.Small" Color="Color.Error"
                         OnClick="DeleteConnection" />
-    </MudStack>
+    </div>
 
     <MudStack Row="true" AlignItems="AlignItems.Center">
         <h6>@ConnectionDescription.EngineLabel(Connection.Type)</h6>
@@ -221,24 +218,12 @@
                                 @foreach (var idx in database.Indexes)
                                 {
                                     <MudTreeViewItem @key="idx.DisplayName" Value="@($"{indexesKey}/{idx.DisplayName}")"
-                                                     Icon="@(idx.IsPrimary ? AionIcons.Key : AionIcons.Index)">
+                                                     Icon="@(idx.IsPrimary ? AionIcons.PrimaryKey : AionIcons.Index)"
+                                                     IconColor="@(idx.IsPrimary ? Color.Warning : Color.Default)">
                                         <BodyContent Context="ctx">
-                                            <div class="d-flex align-center">
-                                                <MudText>@idx.DisplayName</MudText>
-                                                <MudText Class="ml-2 mud-text-secondary" Style="font-size: 0.8em;">
-                                                    @if (idx.Columns.Count > 0)
-                                                    {
-                                                        <span>(@string.Join(", ", idx.Columns))</span>
-                                                    }
-                                                    @if (idx.IsPrimary)
-                                                    {
-                                                        <span class="ml-1">PRIMARY</span>
-                                                    }
-                                                    else if (idx.IsUnique)
-                                                    {
-                                                        <span class="ml-1">UNIQUE</span>
-                                                    }
-                                                </MudText>
+                                            <div class="tree-row detail-row" title="@IndexDescription(idx)">
+                                                <span class="tree-row-name">@idx.DisplayName</span>
+                                                <span class="tree-detail">@string.Join(", ", idx.Columns)</span>
                                             </div>
                                         </BodyContent>
                                     </MudTreeViewItem>
@@ -264,18 +249,9 @@
                                     var routineKey = $"{functionsKey}/{routine.DisplayName}{routine.ArgumentSignature}";
                                     <MudTreeViewItem @key="routineKey" Value="@routineKey" Icon="@AionIcons.Function">
                                         <BodyContent Context="ctx">
-                                            <div class="d-flex align-center">
-                                                <MudText>@routine.DisplayName</MudText>
-                                                <MudText Class="ml-2 mud-text-secondary" Style="font-size: 0.8em;">
-                                                    @if (!string.IsNullOrEmpty(routine.ArgumentSignature))
-                                                    {
-                                                        <span>@routine.ArgumentSignature</span>
-                                                    }
-                                                    @if (!string.IsNullOrEmpty(routine.ReturnType))
-                                                    {
-                                                        <span class="ml-1">→ @routine.ReturnType</span>
-                                                    }
-                                                </MudText>
+                                            <div class="tree-row detail-row" title="@RoutineSignature(routine)">
+                                                <span class="tree-row-name">@routine.DisplayName</span>
+                                                <span class="tree-detail">@RoutineSignature(routine)</span>
                                                 <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
                                                          Color="@(routine.Kind == RoutineKind.Function ? Color.Info : Color.Warning)"
                                                          Class="ml-2">
@@ -379,6 +355,11 @@
         }
     </text>;
 
+    private static string RoutineSignature(RoutineInfo routine) =>
+        string.IsNullOrEmpty(routine.ReturnType)
+            ? routine.ArgumentSignature ?? ""
+            : $"{routine.ArgumentSignature} → {routine.ReturnType}".TrimStart();
+
     private static string IndexDescription(IndexInfo index)
     {
         var kind = index.IsPrimary ? "primary key" : index.IsUnique ? "unique index" : "index";
@@ -398,15 +379,6 @@
 
         return database.Tables.Where(t => !systemSchemas.Contains(t.Schema, StringComparer.OrdinalIgnoreCase));
     }
-
-    private string GetIcon(DatabaseTreeItem item) => item?.ItemType switch
-    {
-        "database" => AionIcons.Connection,
-        "table" => AionIcons.Table,
-        "column" => AionIcons.Column,
-        "index" => AionIcons.Index,
-        _ => AionIcons.Info
-    };
 
     private static string ColumnIcon(ColumnInfo column) =>
         column.IsPrimaryKey ? AionIcons.PrimaryKey

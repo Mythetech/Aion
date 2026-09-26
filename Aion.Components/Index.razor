@@ -41,14 +41,13 @@
             }
             else
             {
-                <MudStack Spacing="3" AlignItems="AlignItems.Center" Class="w-100 h-100 pt-2"
-                          Style="border-left: solid 1px var(--mud-palette-primary); min-width: 48px">
+                <div class="side-panel-strip">
                     <AionIconButton Size="Size.Small" Tooltip="Info Panel" Icon="@AionIcons.Info" OnClick="@(() => ToggleSidePanel("Info"))" />
                     @if (QueryState?.Active?.Transaction.HasValue ?? false)
                     {
                         <AionIconButton Tooltip="Transactions" Icon="@AionIcons.Transaction" OnClick="@(() => ToggleSidePanel("Transactions"))"></AionIconButton>
                     }
-                </MudStack>
+                </div>
             }
         </SecondPanel>
     </MudSplitPanel>
