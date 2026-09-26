@@ -249,6 +249,29 @@ public class QueryResultTableEditingTests : TestContext
     }
 
     [Fact]
+    public async Task ClickingACell_DoesNotSelectItsRow()
+    {
+        var selection = new RowSelectionState();
+        var cut = Render(selection);
+
+        await ClickCellAsync(cut, 1, "name");
+        await ClickCellAsync(cut, 0, "id");
+
+        selection.HasSelection.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task RowNumbers_StillSelectRows()
+    {
+        var selection = new RowSelectionState();
+        var cut = Render(selection);
+
+        await Row(cut, 1).QuerySelector(".row-number")!.ClickAsync(new MouseEventArgs());
+
+        selection.SelectedIndices.ShouldBe([1]);
+    }
+
+    [Fact]
     public void RowMarkedForDelete_IsStruckThrough()
     {
         Edits.DeleteRow(1, _result.Rows[1]);

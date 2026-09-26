@@ -482,7 +482,7 @@
                  class="cell-content cell-nav @(column.IsNumeric ? "numeric" : null) @(readOnlyReason is null ? null : "cell-readonly")"
                  tabindex="@(IsTabStop(rowIndex, col) ? 0 : -1)"
                  title="@readOnlyReason"
-                 @onclick="@(e => OnEditCellClick(e, row, col))"
+                 @onclick="@(() => OnEditCellClick(row, col))"
                  @onfocus="@(() => _activeCell = (rowIndex, col))"
                  @onkeydown="@(e => OnEditCellKeyDown(e, row, col))"
                  @oncontextmenu="@(e => ShowContextMenu(e, row, col, row.Values.GetValueOrDefault(col)))"
@@ -536,10 +536,9 @@
         <span class="cell-value" title="@(shown == full && shown?.Length <= LongValueLength ? null : full)">@shown</span>
     };
 
-    private void OnEditCellClick(MouseEventArgs e, ResultRow row, string column)
+    // Clicking a cell edits it, so rows are selected only from their row numbers.
+    private void OnEditCellClick(ResultRow row, string column)
     {
-        HandleCellClick(row.Index, e);
-
         if (_editSession is { } open && !IsEditingCell(row.Index, column))
         {
             // The editor's blur normally commits it before this click; this covers a click that arrives first.
