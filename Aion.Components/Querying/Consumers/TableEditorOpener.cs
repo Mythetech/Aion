@@ -75,7 +75,7 @@ public class TableEditorOpener : IConsumer<OpenTableEditor>
 
             var selectSql = await provider.Commands.GenerateSelectTopScript(message.DatabaseName, message.Schema, message.TableName, 1000);
 
-            var query = _queryState.AddQuery(readOnlyReason == null ? $"Edit - {displayName}" : $"Select Top 1000 - {displayName}");
+            var query = _queryState.AddQuery(readOnlyReason == null ? $"Edit - {displayName}" : TableRowsOpener.TabName(displayName, 1000));
             query.ConnectionId = connection.Id;
             query.DatabaseName = message.DatabaseName;
             query.Query = selectSql.Trim();

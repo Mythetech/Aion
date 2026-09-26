@@ -131,6 +131,22 @@ public abstract class DatabaseProviderTestBase : IAsyncLifetime
     protected abstract string UnknownColumnCode { get; }
 
     [Fact]
+    public async Task FirstRowsSelect_RunsOnTheEngineAndStopsAtTheLimit()
+    {
+        // Arrange
+        await InsertRowAsync(1, "a");
+        await InsertRowAsync(2, "b");
+        await InsertRowAsync(3, "c");
+        var sql = await Provider.Commands.GenerateSelectTopScript(TestDatabase, TestSchema, TestTable, 2);
+
+        // Act
+        var result = await ExecuteOrFailAsync(DatabaseConnectionString, sql);
+
+        // Assert
+        result.Rows.Count.ShouldBe(2);
+    }
+
+    [Fact]
     public async Task ForeignKeyLookup_FindsTheReferencedRowFromTheProvidersOwnForeignKeyMetadata()
     {
         // Arrange

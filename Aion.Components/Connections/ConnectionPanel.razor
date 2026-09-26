@@ -128,8 +128,7 @@
                                                                    OnClick="@context.ToggleAsync" />
                                                 </ActivatorContent>
                                                 <ChildContent>
-                                                    <MudMenuItem OnClick="@(() => SelectTop1000(database.Name, table))">Select Top
-                                                        1000</MudMenuItem>
+                                                    <MudMenuItem OnClick="@(() => OpenFirstRows(database.Name, table))">Select first 1000 rows</MudMenuItem>
                                                     <MudMenuItem OnClick="@(() => EditData(database.Name, table))">Edit Data</MudMenuItem>
                                                     <MudMenuItem OnClick="@(() => GenerateData(database, table))">Generate Data</MudMenuItem>
                                                     <MudMenuItem OnClick="@(() => RefreshSchema(database))">Refresh</MudMenuItem>
@@ -513,17 +512,9 @@
         }, new CancellationToken());
     }
 
-    private async Task SelectTop1000(string databaseName, TableInfo table)
+    private async Task OpenFirstRows(string databaseName, TableInfo table)
     {
-        var provider = ConnectionState.GetProvider(Connection.Type);
-        var selectSql = await provider.Commands.GenerateSelectTopScript(databaseName, table.Schema, table.Name, 1000);
-
-        var query = QueryState.AddQuery($"Select Top 1000 - {table.DisplayName}");
-        query.ConnectionId = Connection.Id;
-        query.DatabaseName = databaseName;
-        query.Query = selectSql.Trim();
-
-        await MessageBus.PublishAsync(new FocusQuery(query));
+        await MessageBus.PublishAsync(new OpenTableRows(Connection.Id, databaseName, table.Schema, table.Name));
     }
 
     private async Task EditData(string databaseName, TableInfo table)

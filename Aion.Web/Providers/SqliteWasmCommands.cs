@@ -86,7 +86,7 @@ public class SqliteWasmCommands : IStandardDatabaseCommands
 
     public Task<string> GenerateSelectTopScript(string database, string schema, string table, int count)
     {
-        return Task.FromResult($"SELECT * FROM {TableName(table)}\nLIMIT {count};");
+        return Task.FromResult(Dialect.SelectRows(TableName(table), limit: count));
     }
 
     public Task<string> GenerateCountScript(string database, string schema, string table)
