@@ -55,8 +55,38 @@ public class QueryResponsePanelTests : TestContext
         var cut = RenderComponent<QueryResponsePanel>();
 
         // Assert
-        cut.Find(".query-error-card").TextContent.ShouldContain("no such column: categry_id");
+        cut.Find(".query-error-card").TextContent.ShouldContain("categry_id");
         cut.FindComponents<QueryResultTable>().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void FailedRun_CardShowsTheNormalizedTitleTokenAndEngineCode()
+    {
+        // Arrange
+        Complete(new QueryResult { Error = "Worker error: SQLITE_ERROR: sqlite3 result code 1: no such column: categry_id" });
+
+        // Act
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Assert
+        cut.Find(".query-error-title").TextContent.ShouldBe("No such column");
+        cut.Find(".query-error-token").TextContent.ShouldBe("categry_id");
+        cut.Find(".query-error-meta").TextContent.ShouldStartWith("SQLITE_ERROR (code 1)");
+        cut.Find(".query-error-card").TextContent.ShouldNotContain("Worker error");
+    }
+
+    [Fact]
+    public void FailedRun_WithAnUnrecognizedError_ShowsTheMessageAsTheTitle()
+    {
+        // Arrange
+        Complete(new QueryResult { Error = "division by zero" });
+
+        // Act
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Assert
+        cut.Find(".query-error-title").TextContent.ShouldBe("Division by zero");
+        cut.FindAll(".query-error-token").ShouldBeEmpty();
     }
 
     [Fact]

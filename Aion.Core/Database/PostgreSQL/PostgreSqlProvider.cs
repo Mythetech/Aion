@@ -117,7 +117,7 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            result.Error = ex.Message;
+            result.SetError(PostgreSqlErrors.ToQueryError(ex, query));
             return result;
         }
     }
@@ -554,7 +554,7 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            result.Error = ex.Message;
+            result.SetError(PostgreSqlErrors.ToQueryError(ex, query));
             return result;
         }
     }

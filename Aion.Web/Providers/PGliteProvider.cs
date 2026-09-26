@@ -204,7 +204,13 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
                 await EnsureDatabaseAsync(dbName);
 
             var module = await GetModuleAsync();
-            var jsResult = await module.InvokeAsync<JsonElement>("query", dbName, query);
+            var jsResult = await module.InvokeAsync<JsonElement>("run", dbName, query);
+
+            if (jsResult.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.Object)
+            {
+                result.SetError(PGliteErrors.ToQueryError(error, query));
+                return result;
+            }
 
             var columns = jsResult.GetProperty("columns");
             foreach (var col in columns.EnumerateArray())

@@ -31,6 +31,8 @@ public class MySqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
             .Build();
     }
 
+    protected override string UnknownColumnCode => "Error 1054";
+
     public override async Task InitializeAsync()
     {
         try 

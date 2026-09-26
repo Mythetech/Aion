@@ -8,7 +8,11 @@
     <MudIcon Icon="@AionIcons.Error" Color="Color.Error" Size="Size.Small" Class="query-error-icon" />
     <div class="query-error-body">
         <div class="query-error-headline">
-            <span class="query-error-title">@Result.Error</span>
+            <span class="query-error-title">@Error.Title</span>
+            @if (Error.Token != null)
+            {
+                <code class="query-error-token">@Error.Token</code>
+            }
         </div>
         <div class="query-error-actions">
             <MtButton Class="query-error-copy"
@@ -17,9 +21,9 @@
                       Text="Copy error"
                       OnClick="CopyAsync" />
         </div>
-        @if (Meta != null)
+        @if (Meta.Count > 0)
         {
-            <div class="query-error-meta">@Meta</div>
+            <div class="query-error-meta">@string.Join(" · ", Meta)</div>
         }
     </div>
 </div>
@@ -32,7 +36,18 @@
 
     private QueryResult Result => Query.Result!;
 
-    private string? Meta => Query.ExecutionDuration is { } duration ? QueryTimer.FormatDuration(duration) : null;
+    private QueryError Error => Result.ErrorDetail ?? QueryErrorNormalizer.Normalize(Result.Error ?? string.Empty);
 
-    private async Task CopyAsync() => await Bus.PublishAsync(new CopyToClipboard(Result.Error ?? string.Empty));
+    private List<string> Meta
+    {
+        get
+        {
+            var meta = new List<string>();
+            if (Error.Code is { } code) meta.Add(code);
+            if (Query.ExecutionDuration is { } duration) meta.Add(QueryTimer.FormatDuration(duration));
+            return meta;
+        }
+    }
+
+    private async Task CopyAsync() => await Bus.PublishAsync(new CopyToClipboard(Error.Raw));
 }

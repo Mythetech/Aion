@@ -122,7 +122,7 @@ public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabas
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            result.Error = ex.Message;
+            result.SetError(MySqlErrors.ToQueryError(ex, query));
             return result;
         }
     }
@@ -342,12 +342,13 @@ public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabas
                 await aborted.DisposeAsync();
             }
 
-            result.Error = $"{ex.Message} MySQL rolled back the whole transaction, so none of its changes were kept.";
+            result.SetError(MySqlErrors.ToQueryError(ex, query,
+                $"{ex.Message} MySQL rolled back the whole transaction, so none of its changes were kept."));
             return result;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            result.Error = ex.Message;
+            result.SetError(MySqlErrors.ToQueryError(ex, query));
             return result;
         }
     }

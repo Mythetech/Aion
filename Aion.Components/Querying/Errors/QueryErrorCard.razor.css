@@ -48,3 +48,14 @@
     font-size: 0.75rem;
     color: var(--mud-palette-text-secondary);
 }
+
+.query-error-token {
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: var(--mud-typography-monospace, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--mud-palette-text-primary);
+    background-color: var(--mud-palette-action-default-hover);
+    overflow-wrap: anywhere;
+}

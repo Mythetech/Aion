@@ -29,6 +29,8 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
             .Build();
     }
 
+    protected override string UnknownColumnCode => "Msg 207";
+
     public override async Task InitializeAsync()
     {
         try 

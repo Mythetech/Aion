@@ -67,6 +67,13 @@ public class QueryModel
 
     public void SetResult(QueryResult result, string? notice = null)
     {
+        // Providers without structured driver errors, and failures raised before a provider ran, only
+        // set the text. Query still holds the SQL that was run here, which locates the error.
+        if (result is { Error: { } raw, ErrorDetail: null })
+        {
+            result.ErrorDetail = QueryErrorNormalizer.Normalize(raw, Query);
+        }
+
         Result = result;
         ResultNotice = notice;
         IsExecuting = false;

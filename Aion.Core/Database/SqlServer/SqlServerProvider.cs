@@ -322,7 +322,7 @@ public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDat
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            result.Error = ex.Message;
+            result.SetError(SqlServerErrors.ToQueryError(ex, query));
             return result;
         }
     }
@@ -562,7 +562,7 @@ public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDat
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            result.Error = ex.Message;
+            result.SetError(SqlServerErrors.ToQueryError(ex, query));
             return result;
         }
     }

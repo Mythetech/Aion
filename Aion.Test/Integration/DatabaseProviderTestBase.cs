@@ -124,6 +124,26 @@ public abstract class DatabaseProviderTestBase : IAsyncLifetime
         return result.Rows.Single()["name"]?.ToString();
     }
 
+    /// <summary>The engine's code for an unknown column, as the provider formats it.</summary>
+    protected abstract string UnknownColumnCode { get; }
+
+    [Fact]
+    public async Task FailedStatement_ReportsTheUnknownColumnAndTheEngineCode()
+    {
+        // Act
+        var result = await Provider.ExecuteQueryAsync(
+            DatabaseConnectionString, $"SELECT categry_id FROM {TestTable}", CancellationToken.None);
+
+        // Assert
+        result.Success.ShouldBeFalse();
+        result.ErrorDetail.ShouldNotBeNull();
+        result.ErrorDetail.Raw.ShouldBe(result.Error);
+        result.ErrorDetail.Kind.ShouldBe(QueryErrorKind.UnknownColumn);
+        result.ErrorDetail.Token.ShouldBe("categry_id");
+        result.ErrorDetail.Title.ShouldBe("No such column");
+        result.ErrorDetail.Code.ShouldBe(UnknownColumnCode);
+    }
+
     [Fact]
     public async Task Transaction_Rollback_ShouldLeaveDataUnchanged()
     {
