@@ -224,9 +224,12 @@
 
         _editorActions.Writer.TryComplete();
         _runRequests.Writer.TryComplete();
-        foreach (var running in _runningQueries.Values)
+
+        // Cancelled synchronously so no run can finish and remove itself partway through the loop, and the
+        // run loop below isn't left waiting on a long statement.
+        foreach (var running in _runningQueries.Values.ToList())
         {
-            await running.CancelAsync();
+            running.Cancel();
         }
 
         if (_editorActionLoop != null)
