@@ -112,6 +112,22 @@ public class MySqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetTables_EstimatesRowCountsFromTableStatistics()
+    {
+        await ExecuteOrFailAsync(DatabaseConnectionString, "CREATE TABLE counted (id int PRIMARY KEY)");
+        await ExecuteOrFailAsync(DatabaseConnectionString, """
+            INSERT INTO counted (id)
+            WITH RECURSIVE seq (n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 250)
+            SELECT n FROM seq
+            """);
+        await ExecuteOrFailAsync(DatabaseConnectionString, "ANALYZE TABLE counted");
+
+        var tables = await Provider.GetTablesAsync(DatabaseConnectionString, TestDatabase);
+
+        tables.Single(t => t.Name == "counted").RowCount.ShouldBe(TableRowCount.Estimated(250));
+    }
+
+    [Fact]
     public async Task GetColumns_ShouldReturnColumns()
     {
         // Arrange

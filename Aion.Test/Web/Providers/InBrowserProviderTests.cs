@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
 using Aion.Test.TestDoubles;
 using Aion.Web.Providers;
@@ -164,6 +165,54 @@ public class InBrowserProviderTests
         result.Success.ShouldBeTrue();
         result.Rows.Single()["tags"].ShouldBe("""["a", "b"]""");
         result.Rows.Single()["extra"].ShouldBe("""{"k": 1}""");
+    }
+
+    private readonly List<string> _catalogQueries = [];
+
+    // Answers each catalog query with the JSON the PGlite interop would return for it.
+    private void CatalogReturns(Func<string, string> jsonFor)
+    {
+        _js.Module.InvokeAsync<JsonElement>("query", Arg.Any<object?[]?>())
+            .Returns(call =>
+            {
+                var sql = (string)call.ArgAt<object?[]>(1)[1]!;
+                _catalogQueries.Add(sql);
+                return new ValueTask<JsonElement>(JsonDocument.Parse(jsonFor(sql)).RootElement.Clone());
+            });
+    }
+
+    [Fact]
+    public async Task PGlite_GetTablesAsync_CountsEveryTableExactlyInOneQuery()
+    {
+        // Arrange
+        CatalogReturns(sql => sql.Contains("pg_tables")
+            ? """{"rows": [{"schemaname": "public", "tablename": "odd\"name"}, {"schemaname": "public", "tablename": "products"}]}"""
+            : """{"rows": [{"i": 0, "n": 0}, {"i": 1, "n": 15}]}""");
+        var provider = new PGliteProvider(_js.Runtime);
+
+        // Act
+        var tables = await provider.GetTablesAsync("pglite://shop", "shop");
+
+        // Assert
+        tables.Select(t => (t.DisplayName, t.RowCount)).ShouldBe(
+        [
+            ("public.odd\"name", TableRowCount.Exact(0)),
+            ("public.products", TableRowCount.Exact(15))
+        ]);
+        var countQuery = _catalogQueries.Where(sql => sql.Contains("count(*)")).ShouldHaveSingleItem();
+        countQuery.ShouldContain("FROM \"public\".\"odd\"\"name\"");
+    }
+
+    [Fact]
+    public async Task PGlite_GetTablesAsync_WithoutTables_DoesNotCount()
+    {
+        CatalogReturns(_ => """{"rows": []}""");
+        var provider = new PGliteProvider(_js.Runtime);
+
+        var tables = await provider.GetTablesAsync("pglite://shop", "shop");
+
+        tables.ShouldBeEmpty();
+        _catalogQueries.ShouldNotContain(sql => sql.Contains("count(*)"));
     }
 
     [Fact]

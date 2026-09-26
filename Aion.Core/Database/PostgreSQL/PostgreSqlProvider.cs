@@ -57,20 +57,35 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
         using var conn = new NpgsqlConnection(connectionString);
         await conn.OpenAsync();
 
+        // Row counts are estimates from the catalog, never a scan. n_live_tup follows every committed insert and
+        // delete, while reltuples only moves on VACUUM, ANALYZE and CREATE INDEX (and is -1 until the first).
+        // A zero n_live_tup beside a positive reltuples usually means the statistics were reset, so reltuples is
+        // the better guess then. A partitioned table's rows live in its partitions, so it gets no estimate.
         const string sql = @"
-            SELECT table_schema, table_name
-            FROM information_schema.tables
-            WHERE table_type = 'BASE TABLE'
-            AND table_schema NOT LIKE 'pg_temp_%'
-            AND table_schema NOT LIKE 'pg_toast_temp_%'
-            ORDER BY table_schema, table_name";
+            SELECT t.table_schema, t.table_name,
+                CASE
+                    WHEN c.relkind = 'p' THEN NULL
+                    WHEN s.n_live_tup > 0 OR c.reltuples < 0 THEN s.n_live_tup
+                    ELSE c.reltuples::bigint
+                END AS estimated_rows
+            FROM information_schema.tables t
+            LEFT JOIN pg_namespace n ON n.nspname = t.table_schema
+            LEFT JOIN pg_class c ON c.relnamespace = n.oid AND c.relname = t.table_name
+            LEFT JOIN pg_stat_all_tables s ON s.relid = c.oid
+            WHERE t.table_type = 'BASE TABLE'
+            AND t.table_schema NOT LIKE 'pg_temp_%'
+            AND t.table_schema NOT LIKE 'pg_toast_temp_%'
+            ORDER BY t.table_schema, t.table_name";
 
         using var cmd = new NpgsqlCommand(sql, conn);
         using var reader = await cmd.ExecuteReaderAsync();
 
         while (await reader.ReadAsync())
         {
-            tables.Add(new TableInfo(reader.GetString(0), reader.GetString(1)));
+            tables.Add(new TableInfo(reader.GetString(0), reader.GetString(1))
+            {
+                RowCount = reader.IsDBNull(2) ? null : TableRowCount.Estimated(reader.GetInt64(2))
+            });
         }
 
         return tables;

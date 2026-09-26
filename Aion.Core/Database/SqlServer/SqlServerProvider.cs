@@ -64,18 +64,31 @@ public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDat
         using var conn = new SqlConnection(connectionString);
         await conn.OpenAsync();
 
+        // sys.partitions keeps an approximate row count per partition of the heap or clustered index
+        // (index_id 0 or 1), readable with metadata access alone, unlike sys.dm_db_partition_stats.
         const string sql = @"
-            SELECT TABLE_SCHEMA, TABLE_NAME
-            FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_TYPE = 'BASE TABLE'
-            ORDER BY TABLE_SCHEMA, TABLE_NAME";
+            SELECT t.TABLE_SCHEMA, t.TABLE_NAME, p.row_count
+            FROM INFORMATION_SCHEMA.TABLES t
+            LEFT JOIN sys.schemas s ON s.name = t.TABLE_SCHEMA
+            LEFT JOIN sys.tables st ON st.schema_id = s.schema_id AND st.name = t.TABLE_NAME
+            LEFT JOIN (
+                SELECT object_id, SUM(rows) AS row_count
+                FROM sys.partitions
+                WHERE index_id IN (0, 1)
+                GROUP BY object_id
+            ) p ON p.object_id = st.object_id
+            WHERE t.TABLE_TYPE = 'BASE TABLE'
+            ORDER BY t.TABLE_SCHEMA, t.TABLE_NAME";
 
         using var cmd = new SqlCommand(sql, conn);
         using var reader = await cmd.ExecuteReaderAsync();
 
         while (await reader.ReadAsync())
         {
-            tables.Add(new TableInfo(reader.GetString(0), reader.GetString(1)));
+            tables.Add(new TableInfo(reader.GetString(0), reader.GetString(1))
+            {
+                RowCount = reader.IsDBNull(2) ? null : TableRowCount.Estimated(reader.GetInt64(2))
+            });
         }
 
         return tables;

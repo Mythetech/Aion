@@ -46,4 +46,20 @@ public class DatabaseModel
 public record TableInfo(string Schema, string Name)
 {
     public string DisplayName => string.IsNullOrEmpty(Schema) ? Name : $"{Schema}.{Name}";
+
+    /// <summary>
+    /// How many rows the table held when it was listed, when the engine could say cheaply. Null when it could not.
+    /// </summary>
+    public TableRowCount? RowCount { get; init; }
+}
+
+/// <summary>
+/// A table's row count as the schema tree shows it: counted exactly where counting is cheap (the in-browser
+/// engines and LiteDB), otherwise estimated from the statistics the engine keeps in its catalog.
+/// </summary>
+public sealed record TableRowCount(long Rows, bool IsEstimate)
+{
+    public static TableRowCount Exact(long rows) => new(rows, false);
+
+    public static TableRowCount Estimated(long rows) => new(rows, true);
 }

@@ -131,6 +131,22 @@ public class PostgreSqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetTables_EstimatesRowCountsFromTableStatistics()
+    {
+        await ExecuteOrFailAsync(DatabaseConnectionString, """
+            CREATE TABLE counted (id int);
+            INSERT INTO counted SELECT generate_series(1, 250);
+            ANALYZE counted;
+            CREATE TABLE never_filled (id int);
+            """);
+
+        var tables = await Provider.GetTablesAsync(DatabaseConnectionString, TestDatabase);
+
+        tables.Single(t => t.Name == "counted").RowCount.ShouldBe(TableRowCount.Estimated(250));
+        tables.Single(t => t.Name == "never_filled").RowCount.ShouldBe(TableRowCount.Estimated(0));
+    }
+
+    [Fact]
     public async Task GetColumns_ShouldReturnColumns()
     {
         // Arrange

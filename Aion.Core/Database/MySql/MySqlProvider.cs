@@ -60,8 +60,10 @@ public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabas
         using var conn = new MySqlConnection(connectionString);
         await conn.OpenAsync();
 
+        // TABLE_ROWS is the storage engine's estimate, and MySQL 8 caches it for information_schema_stats_expiry
+        // (a day by default) unless ANALYZE TABLE refreshes it, so it is only ever shown as an estimate.
         const string sql = @"
-            SELECT table_name
+            SELECT table_name, table_rows
             FROM information_schema.tables
             WHERE table_schema = @database
             AND table_type = 'BASE TABLE'
@@ -73,7 +75,10 @@ public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabas
 
         while (await reader.ReadAsync())
         {
-            tables.Add(new TableInfo("", reader.GetString(0)));
+            tables.Add(new TableInfo("", reader.GetString(0))
+            {
+                RowCount = reader.IsDBNull(1) ? null : TableRowCount.Estimated(Convert.ToInt64(reader.GetValue(1)))
+            });
         }
 
         return tables;

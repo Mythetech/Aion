@@ -131,11 +131,13 @@
                                              Expanded="@(match.MatchedByColumns || IsExpanded(tableKey, columnsState))"
                                              ExpandedChanged="@(expanded => OnLazyItemExpandedChanged(tableKey, expanded, () => LoadColumns(database, table)))">
                                 <BodyContent Context="ctx">
-                                    <div class="d-flex align-center justify-space-between w-100">
-                                        <div class="d-flex align-center">
-                                            <MudText>@table.DisplayName</MudText>
-                                        </div>
-                                        <div>
+                                    <div class="relation-row">
+                                        <MudText Typo="Typo.body2" Class="relation-name" title="@table.DisplayName">@table.DisplayName</MudText>
+                                        @if (table.RowCount is { } rowCount)
+                                        {
+                                            <span class="row-count" title="@RowCountText.Describe(rowCount)">@RowCountText.Short(rowCount)</span>
+                                        }
+                                        <div class="relation-actions">
                                             <AionMenu AnchorOrigin="Origin.BottomRight">
                                                 <ActivatorContent>
                                                     <MudIconButton Size="Size.Small" Icon="@AionIcons.More"

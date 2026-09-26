@@ -150,6 +150,34 @@ public class ConnectionPanelTests : TestContext
         item.Find(".mud-treeview-item-arrow button").ClickAsync(new());
 
     [Fact]
+    public void TableRow_ShowsACountedRowCountBesideTheName()
+    {
+        var cut = Render(ConnectionWithTables(Products with { RowCount = TableRowCount.Exact(15) }));
+
+        var count = TableItem(cut, Products).Find(".row-count");
+        count.TextContent.ShouldBe("15 rows");
+        count.GetAttribute("title").ShouldBe("15 rows, counted when the tables were listed");
+    }
+
+    [Fact]
+    public void TableRow_MarksAnEstimatedRowCountAsAnEstimate()
+    {
+        var cut = Render(ConnectionWithTables(Products with { RowCount = TableRowCount.Estimated(1_234) }));
+
+        var count = TableItem(cut, Products).Find(".row-count");
+        count.TextContent.ShouldBe("~1.2k rows");
+        count.GetAttribute("title").ShouldBe("About 1,234 rows, estimated from table statistics");
+    }
+
+    [Fact]
+    public void TableRow_WithoutARowCount_LeavesTheSpaceEmpty()
+    {
+        var cut = Render(ConnectionWithTables(Products));
+
+        TableItem(cut, Products).FindAll(".row-count").ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task ExpandingATable_LoadsItsColumnsDirectlyUnderIt()
     {
         _provider.GetColumnsAsync(Arg.Any<string>(), Database, "", "products").Returns(ProductColumns());

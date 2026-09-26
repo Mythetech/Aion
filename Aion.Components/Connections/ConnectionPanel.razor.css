@@ -97,3 +97,50 @@
     white-space: nowrap;
     color: var(--mud-palette-text-secondary);
 }
+
+/* Table and view rows: the name gives way to the row count and the actions menu, and truncates last. */
+.relation-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.relation-row ::deep .relation-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.row-count {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--mud-palette-text-secondary);
+}
+
+/* A row's actions take no room until it is hovered or the menu button has keyboard focus, so the name and
+   row count have the width of a narrow panel. Screens without hover always show them. */
+.relation-actions {
+    flex: 0 0 auto;
+    display: flex;
+    width: 0;
+    overflow: hidden;
+}
+
+.schema-tree ::deep .mud-treeview-item-content:hover .relation-actions,
+.relation-actions:focus-within {
+    width: auto;
+    overflow: visible;
+}
+
+@media (hover: none) {
+    .relation-actions {
+        width: auto;
+        overflow: visible;
+    }
+}

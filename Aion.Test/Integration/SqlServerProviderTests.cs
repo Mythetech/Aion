@@ -214,6 +214,21 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetTables_EstimatesRowCountsFromPartitionStatistics()
+    {
+        await ExecuteOrFailAsync(DatabaseConnectionString, """
+            CREATE TABLE dbo.counted (id int);
+            INSERT INTO dbo.counted (id) SELECT TOP (250) ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) FROM sys.all_objects;
+            CREATE TABLE dbo.never_filled (id int PRIMARY KEY);
+            """);
+
+        var tables = await Provider.GetTablesAsync(DatabaseConnectionString, TestDatabase);
+
+        tables.Single(t => t.Name == "counted").RowCount.ShouldBe(TableRowCount.Estimated(250));
+        tables.Single(t => t.Name == "never_filled").RowCount.ShouldBe(TableRowCount.Estimated(0));
+    }
+
+    [Fact]
     public void ValidateConnectionString_ShouldValidateCorrectly()
     {
         // Valid connection string

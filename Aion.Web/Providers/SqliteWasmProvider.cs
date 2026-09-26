@@ -42,21 +42,47 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQu
 
     public async Task<List<TableInfo>> GetTablesAsync(string connectionString, string database)
     {
-        var tables = new List<TableInfo>();
+        var names = new List<string>();
+        var countable = new List<string>();
 
         using var conn = new SqliteWasmConnection(BuildConnectionString(database));
         await conn.OpenAsync();
 
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name";
-
-        using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        using (var cmd = conn.CreateCommand())
         {
-            tables.Add(new TableInfo("", reader.GetString(0)));
+            cmd.CommandText = "SELECT name, sql LIKE 'CREATE VIRTUAL TABLE%' FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name";
+
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var name = reader.GetString(0);
+                names.Add(name);
+
+                // Counting a virtual table runs its module, which may be slow or missing from this build.
+                if (reader.IsDBNull(1) || reader.GetInt64(1) == 0)
+                    countable.Add(name);
+            }
         }
 
-        return tables;
+        var counts = new Dictionary<string, long>(StringComparer.Ordinal);
+        foreach (var statement in SqliteCatalogSql.CountRows(countable))
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = statement;
+
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                counts[countable[(int)reader.GetInt64(0)]] = reader.GetInt64(1);
+            }
+        }
+
+        return names
+            .Select(name => new TableInfo("", name)
+            {
+                RowCount = counts.TryGetValue(name, out var rows) ? TableRowCount.Exact(rows) : null
+            })
+            .ToList();
     }
 
     public async Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string schema, string table)

@@ -77,6 +77,19 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
             var name = row.GetProperty("tablename").GetString() ?? "";
             tables.Add(new TableInfo(schema, name));
         }
+
+        // PGlite never runs autovacuum, so the planner statistics a server would offer are mostly unset; the
+        // databases are small enough in a browser tab to count exactly.
+        if (tables.Count > 0)
+        {
+            var counts = await module.InvokeAsync<JsonElement>("query", database, PGliteCatalogSql.CountRows(tables));
+            foreach (var row in counts.GetProperty("rows").EnumerateArray())
+            {
+                var index = row.GetProperty("i").GetInt32();
+                tables[index] = tables[index] with { RowCount = TableRowCount.Exact(row.GetProperty("n").GetInt64()) };
+            }
+        }
+
         return tables;
     }
 
