@@ -147,6 +147,21 @@ public abstract class DatabaseProviderTestBase : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Select_WithRepeatedColumnNames_KeepsEachColumnsValue()
+    {
+        // Act
+        var result = await ExecuteOrFailAsync(DatabaseConnectionString, "SELECT 1 AS id, 2 AS id, 3 AS id");
+
+        // Assert
+        result.ColumnNames.ShouldBe(["id", "id", "id"]);
+        result.Columns.ShouldBe(["id", "id_2", "id_3"]);
+        var row = result.Rows.ShouldHaveSingleItem();
+        Convert.ToInt32(row["id"]).ShouldBe(1);
+        Convert.ToInt32(row["id_2"]).ShouldBe(2);
+        Convert.ToInt32(row["id_3"]).ShouldBe(3);
+    }
+
+    [Fact]
     public async Task Select_WithoutRows_StillReportsEachColumnsType()
     {
         // Act

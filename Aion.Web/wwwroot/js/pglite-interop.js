@@ -7,15 +7,14 @@ export async function create(name) {
     instances[name] = await PGlite.create(`idb://${name}`);
 }
 
-async function select(name, sql, options) {
+export async function query(name, sql) {
     const db = instances[name];
     if (!db) throw new Error(`Database '${name}' not found`);
 
-    const result = await db.query(sql, [], options);
+    const result = await db.query(sql);
 
     return {
         columns: result.fields.map(f => f.name),
-        types: result.fields.map(f => f.dataTypeID),
         rows: result.rows.map(row => {
             const mapped = {};
             result.fields.forEach(f => {
@@ -26,10 +25,6 @@ async function select(name, sql, options) {
         }),
         affectedRows: result.affectedRows || 0
     };
-}
-
-export async function query(name, sql) {
-    return await select(name, sql);
 }
 
 // Results shown in the grid keep PostgreSQL's own text for dates, times and JSON: as JS values, dates would
@@ -52,11 +47,24 @@ const resultParsers = {
     3802: asText
 };
 
-// Reports a failed statement as data. An error thrown across JS interop reaches .NET as text with the
-// JS stack appended, losing the SQLSTATE and the position PostgreSQL reported.
+// Runs a statement for the results grid. Rows come back as arrays, so columns that share a name (SELECT a.id,
+// b.id) keep their own values, with each column's type id. A failed statement is reported as data: an error
+// thrown across JS interop reaches .NET as text with the JS stack appended, losing the SQLSTATE and the
+// position PostgreSQL reported.
 export async function run(name, sql) {
     try {
-        return { ...(await select(name, sql, { parsers: resultParsers })), error: null };
+        const db = instances[name];
+        if (!db) throw new Error(`Database '${name}' not found`);
+
+        const result = await db.query(sql, [], { rowMode: 'array', parsers: resultParsers });
+
+        return {
+            columns: result.fields.map(f => f.name),
+            types: result.fields.map(f => f.dataTypeID),
+            rows: result.rows.map(row => row.map(val => val === undefined ? null : val)),
+            affectedRows: result.affectedRows || 0,
+            error: null
+        };
     } catch (e) {
         return {
             error: {

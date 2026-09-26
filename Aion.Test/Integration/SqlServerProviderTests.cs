@@ -408,4 +408,16 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
 
         result.RowsAffected.ShouldBeNull();
     }
-} 
+
+    [Fact]
+    public async Task Select_WithUnnamedColumns_KeepsEachColumnsValue()
+    {
+        // Act
+        var result = await ExecuteOrFailAsync(DatabaseConnectionString, "SELECT 1, 2");
+
+        // Assert
+        result.ColumnNames.ShouldBe(["", ""]);
+        result.Columns.ShouldBe(["column1", "column2"]);
+        Convert.ToInt32(result.Rows.Single()["column2"]).ShouldBe(2);
+    }
+}

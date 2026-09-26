@@ -65,15 +65,15 @@
         {
             var col = column.Key;
             var direction = _sort?.Key == col ? _sort.Direction : (ResultSortDirection?)null;
-            <TemplateColumn T="ResultRow" Title="@col" Resizable="true" Sortable="false">
+            <TemplateColumn T="ResultRow" Title="@column.Header" Resizable="true" Sortable="false">
                 <HeaderTemplate>
                     <button type="button"
                             class="column-heading @(column.IsNumeric ? "numeric" : null)"
-                            aria-label="@SortLabel(col, direction)"
-                            title="@SortLabel(col, direction)"
+                            aria-label="@SortLabel(column.Header, direction)"
+                            title="@SortLabel(column.Header, direction)"
                             @onclick="@(() => ToggleSort(col))">
                         <span class="column-name-line">
-                            <span class="column-name">@col</span>
+                            <span class="column-name @(column.Name.Length == 0 ? "unnamed" : null)">@column.Header</span>
                             @if (direction is { } sortDirection)
                             {
                                 <MudIcon Icon="@(sortDirection == ResultSortDirection.Ascending ? AionIcons.SortAscending : AionIcons.SortDescending)"
@@ -454,31 +454,31 @@
     private async Task CopyRowAsCsv()
     {
         if (_contextRow == null) return;
-        await Bus.PublishAsync(new CopyRowToClipboard(_contextRow.Values, Result.Columns, "Csv"));
+        await Bus.PublishAsync(new CopyRowToClipboard(_contextRow.Values, Result.Columns, "Csv", Result.Headers()));
     }
 
     private async Task CopySelectedRows()
     {
         var selectedRows = SelectionState.GetSelectedRows(Result.Rows);
-        await Bus.PublishAsync(new CopySelectedRowsToClipboard(selectedRows, Result.Columns, "Csv"));
+        await Bus.PublishAsync(new CopySelectedRowsToClipboard(selectedRows, Result.Columns, "Csv", Result.Headers()));
     }
 
     private async Task ExportSelectedCsv()
     {
         var selectedRows = SelectionState.GetSelectedRows(Result.Rows);
-        await Bus.PublishAsync(new ExportSelectedRows(selectedRows, Result.Columns, "Csv"));
+        await Bus.PublishAsync(new ExportSelectedRows(selectedRows, Result.Columns, "Csv", Result.Headers()));
     }
 
     private async Task ExportSelectedJson()
     {
         var selectedRows = SelectionState.GetSelectedRows(Result.Rows);
-        await Bus.PublishAsync(new ExportSelectedRows(selectedRows, Result.Columns, "Json"));
+        await Bus.PublishAsync(new ExportSelectedRows(selectedRows, Result.Columns, "Json", Result.Headers()));
     }
 
     private async Task ExportSelectedExcel()
     {
         var selectedRows = SelectionState.GetSelectedRows(Result.Rows);
-        await Bus.PublishAsync(new ExportSelectedRows(selectedRows, Result.Columns, "Excel"));
+        await Bus.PublishAsync(new ExportSelectedRows(selectedRows, Result.Columns, "Excel", Result.Headers()));
     }
 
     protected async Task OpenJsonDetailView(string column, string json)

@@ -4,16 +4,17 @@ namespace Aion.Contracts.Queries;
 
 /// <summary>
 /// Reads a data reader's current result set into a <see cref="QueryResult"/> the same way for every ADO.NET provider.
+/// Values are read by position, so columns that share a name each keep their own value.
 /// </summary>
 public static class QueryResultReader
 {
     public static async Task ReadAsync(DbDataReader reader, QueryResult result, CancellationToken cancellationToken)
     {
         var fieldCount = reader.FieldCount;
+        var keys = new string[fieldCount];
         for (var i = 0; i < fieldCount; i++)
         {
-            result.Columns.Add(reader.GetName(i));
-            result.ColumnTypes.Add(DataTypeName(reader, i));
+            keys[i] = result.AddColumn(reader.GetName(i), DataTypeName(reader, i));
         }
 
         while (await reader.ReadAsync(cancellationToken))
@@ -22,7 +23,7 @@ public static class QueryResultReader
             for (var i = 0; i < fieldCount; i++)
             {
                 var value = reader.GetValue(i);
-                row[result.Columns[i]] = value == DBNull.Value ? null! : value;
+                row[keys[i]] = value == DBNull.Value ? null! : value;
             }
 
             result.Rows.Add(row);

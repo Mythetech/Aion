@@ -390,4 +390,30 @@ public class QueryResultTableTests : TestContext
 
         cut.Find(".row-number-toggle").GetAttribute("aria-label").ShouldBe("Select all matching rows");
     }
+
+    [Fact]
+    public void RepeatedColumnNames_ShowTheirNamesAndTheirOwnValues()
+    {
+        var result = new QueryResult();
+        var first = result.AddColumn("id");
+        var second = result.AddColumn("id");
+        result.Rows.Add(new Dictionary<string, object> { [first] = 1, [second] = 2 });
+
+        var cut = Render(result);
+
+        cut.FindAll(".column-heading .column-name").Select(n => n.TextContent).ShouldBe(["id", "id"]);
+        (Cell(cut, 0, 0).TextContent.Trim(), Cell(cut, 0, 1).TextContent.Trim()).ShouldBe(("1", "2"));
+    }
+
+    [Fact]
+    public void UnnamedColumns_SaySoInTheirHeader()
+    {
+        var result = new QueryResult();
+        var key = result.AddColumn("");
+        result.Rows.Add(new Dictionary<string, object> { [key] = 1 });
+
+        var cut = Render(result);
+
+        cut.Find(".column-heading .column-name").TextContent.ShouldBe("(No column name)");
+    }
 }

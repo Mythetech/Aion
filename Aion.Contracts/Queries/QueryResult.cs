@@ -2,7 +2,18 @@ namespace Aion.Contracts.Queries;
 
 public class QueryResult
 {
+    /// <summary>
+    /// The key each column's values are stored under in <see cref="Rows"/>. Keys are unique, so a name the
+    /// database repeats (SELECT a.id, b.id) gets a suffix ("id", "id_2") and an unnamed column gets its
+    /// position ("column1"); <see cref="ColumnNames"/> keeps the names themselves.
+    /// </summary>
     public List<string> Columns { get; set; } = [];
+
+    /// <summary>
+    /// The names the database gave the columns, in the order of <see cref="Columns"/>, for headers in the grid and
+    /// in exports. Empty when a provider built <see cref="Columns"/> itself, in which case the keys are the names.
+    /// </summary>
+    public List<string> ColumnNames { get; set; } = [];
 
     /// <summary>
     /// Each column's type as the provider names it ("integer", "VARCHAR", "double precision"), in the order of
@@ -33,6 +44,38 @@ public class QueryResult
 
     public string? ColumnType(int ordinal) => ordinal < ColumnTypes.Count ? ColumnTypes[ordinal] : null;
 
+    public string ColumnName(int ordinal) => ordinal < ColumnNames.Count ? ColumnNames[ordinal] : Columns[ordinal];
+
+    /// <summary>
+    /// The column names in order, as headers for the grid and for exports.
+    /// </summary>
+    public List<string> Headers() => Columns.Select((_, ordinal) => ColumnName(ordinal)).ToList();
+
+    /// <summary>
+    /// Adds a column as the database named it and returns the key its values are stored under.
+    /// </summary>
+    public string AddColumn(string name, string? type = null)
+    {
+        var key = UniqueKey(name.Length == 0 ? $"column{Columns.Count + 1}" : name);
+        Columns.Add(key);
+        ColumnNames.Add(name);
+        ColumnTypes.Add(type);
+        return key;
+    }
+
+    private string UniqueKey(string candidate)
+    {
+        if (!Columns.Contains(candidate))
+            return candidate;
+
+        for (var suffix = 2; ; suffix++)
+        {
+            var key = $"{candidate}_{suffix}";
+            if (!Columns.Contains(key))
+                return key;
+        }
+    }
+
     public void SetError(QueryError error)
     {
         Error = error.Raw;
@@ -44,6 +87,7 @@ public class QueryResult
         return new QueryResult()
         {
             Columns = Columns.ToList(),
+            ColumnNames = ColumnNames.ToList(),
             ColumnTypes = ColumnTypes.ToList(),
             Rows = Rows.ToList(),
             ExecutedAt = ExecutedAt,

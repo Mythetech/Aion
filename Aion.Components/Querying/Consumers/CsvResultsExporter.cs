@@ -38,7 +38,7 @@ public class CsvResultsExporter : IConsumer<ExportResultsToCsv>
         {
             var csv = new StringBuilder();
             
-            csv.AppendLine(string.Join(",", result.Columns.Select(EscapeCsvField)));
+            csv.AppendLine(string.Join(",", result.Headers().Select(EscapeCsvField)));
 
             foreach (var row in result.Rows)
             {
