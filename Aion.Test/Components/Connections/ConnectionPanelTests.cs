@@ -375,16 +375,34 @@ public class ConnectionPanelTests : TestContext
     }
 
     [Fact]
-    public async Task IndexesThatFailToLoad_ShowAnErrorRow()
+    public async Task IndexesThatFailToLoad_ShowAnErrorRowInTheTablesIndexesGroup()
     {
         ((IDatabaseIndexProvider)_provider).GetIndexesAsync(Arg.Any<string>(), Database)
             .Returns<List<IndexInfo>>(_ => throw new InvalidOperationException("no such table: pragma_index_list"));
-        var cut = Render(ConnectionWithTables(Products));
+        var cut = Render(ConnectionWithLoadedColumns(ProductColumns()));
 
-        await ToggleAsync(NamedItem(cut, $"{Database}/Indexes"));
+        await ToggleAsync(GroupItem(cut, "Indexes"));
 
-        cut.WaitForAssertion(() => NamedItem(cut, $"{Database}/Indexes").Find(".tree-status-failed").TextContent
+        cut.WaitForAssertion(() => GroupItem(cut, "Indexes").Find(".tree-status-failed").TextContent
             .ShouldContain("no such table: pragma_index_list"));
+    }
+
+    [Fact]
+    public async Task Indexes_AreListedUnderTheirTableWithoutADatabaseLevelNode()
+    {
+        ((IDatabaseIndexProvider)_provider).GetIndexesAsync(Arg.Any<string>(), Database).Returns(
+        [
+            new IndexInfo("", "", "products", "products_pkey", true, true, ["id"]),
+            new IndexInfo("", "", "orders", "idx_orders_customer", false, false, ["customer_id"])
+        ]);
+        var cut = Render(ConnectionWithLoadedColumns(ProductColumns()));
+
+        await ToggleAsync(GroupItem(cut, "Indexes"));
+
+        cut.WaitForAssertion(() => GroupItem(cut, "Indexes").FindAll(".tree-row-name").Select(name => name.TextContent)
+            .ShouldBe(["products_pkey"]));
+        cut.FindComponents<MudTreeViewItem<string>>().ShouldNotContain(item => item.Instance.Value == $"{Database}/Indexes");
+        cut.FindComponents<MudTreeViewItem<string>>().ShouldNotContain(item => item.Instance.Text == "Indexes");
     }
 
     [Fact]
@@ -396,14 +414,14 @@ public class ConnectionPanelTests : TestContext
     }
 
     [Fact]
-    public void DatabaseWithNoIndexes_SaysSo()
+    public void TableWithNoIndexes_CountsNone()
     {
-        var connection = ConnectionWithTables(Products);
+        var connection = ConnectionWithLoadedColumns(ProductColumns());
         connection.Databases[0].IndexesLoaded = true;
 
         var cut = Render(connection);
 
-        NamedItem(cut, $"{Database}/Indexes").Find(".tree-status-empty").TextContent.ShouldBe("No indexes");
+        GroupItem(cut, "Indexes").Find(".tree-count").TextContent.ShouldBe("0");
     }
 
     [Fact]

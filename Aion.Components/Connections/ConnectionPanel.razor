@@ -76,7 +76,6 @@
         @foreach (var database in Connection.Databases)
         {
             var tablesKey = $"{database.Name}/Tables";
-            var indexesKey = $"{database.Name}/Indexes";
             var functionsKey = $"{database.Name}/Functions";
             var viewsKey = $"{database.Name}/Views";
             var visibleTables = database.TablesState.IsLoaded ? WithoutSystemSchemas(database.Tables) : [];
@@ -225,35 +224,6 @@
                                         }
                                     </ChildContent>
                                 </MudTreeViewItem>
-                            }
-                        </MudTreeViewItem>
-                    }
-
-                    @* Indexes level *@
-                    @if (ConnectionState.SupportsIndexes(Connection.Type))
-                    {
-                        <MudTreeViewItem Text="Indexes" Value="@indexesKey" Icon="@AionIcons.Index"
-                                         Expanded="@IsExpanded(indexesKey, database.IndexesState)"
-                                         ExpandedChanged="@(expanded => OnLazyItemExpandedChanged(indexesKey, expanded, () => LoadIndexes(database)))">
-                            <SchemaStatusItem Value="@($"{indexesKey}/status")" State="@database.IndexesState"
-                                              IsEmpty="@(database.Indexes.Count == 0)" EmptyText="No indexes"
-                                              OnRetry="@(() => LoadIndexes(database))" />
-
-                            @if (database.IndexesState.IsLoaded)
-                            {
-                                @foreach (var idx in database.Indexes)
-                                {
-                                    <MudTreeViewItem @key="idx.DisplayName" Value="@($"{indexesKey}/{idx.DisplayName}")"
-                                                     Icon="@(idx.IsPrimary ? AionIcons.PrimaryKey : AionIcons.Index)"
-                                                     IconColor="@(idx.IsPrimary ? Color.Warning : Color.Default)">
-                                        <BodyContent Context="ctx">
-                                            <div class="tree-row detail-row" title="@IndexDescription(idx)">
-                                                <span class="tree-row-name">@idx.DisplayName</span>
-                                                <span class="tree-detail">@string.Join(", ", idx.Columns)</span>
-                                            </div>
-                                        </BodyContent>
-                                    </MudTreeViewItem>
-                                }
                             }
                         </MudTreeViewItem>
                     }
