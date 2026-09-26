@@ -326,7 +326,7 @@ public class PostgreSqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
     {
         var dbConnectionString = Provider.UpdateConnectionString(ConnectionString, TestDatabase);
         await ExecuteOrFailAsync(dbConnectionString,
-            $"CREATE TABLE {EditTable} (id integer PRIMARY KEY, name varchar(200) NOT NULL, payload bytea, price numeric(10,2), active boolean)");
+            $"CREATE TABLE {EditTable} (id integer PRIMARY KEY, name varchar(200) NOT NULL, payload bytea, price numeric(10,2), active boolean, note varchar(200))");
         await ExecuteOrFailAsync(dbConnectionString,
             $"INSERT INTO {EditTable} (id, name) VALUES (1, 'Ada'), (2, 'Grace'), (3, 'Linus')");
         return dbConnectionString;
@@ -353,6 +353,16 @@ public class PostgreSqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         result.Error.ShouldBeNull();
         result.RowsAffected.ShouldBe(1);
         (await ReadNamesAsync(dbConnectionString)).ShouldBe(new object?[] { "Ada", newName, "Linus" });
+    }
+
+    [Fact]
+    public async Task GridEdit_EmptyTextAndNull_AreStoredDistinctly()
+    {
+        var dbConnectionString = await CreateEditTableAsync();
+        await ExecuteOrFailAsync(dbConnectionString, $"UPDATE {EditTable} SET note = 'kept' WHERE id = 2");
+        var editable = await LoadEditableTableAsync(dbConnectionString, "public", EditTable, EditSelect);
+
+        await AssertEmptyTextAndNullStayDistinctAsync(dbConnectionString, editable, 1, EditTable, 2);
     }
 
     [Fact]

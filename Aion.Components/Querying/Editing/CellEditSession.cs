@@ -45,9 +45,37 @@ public sealed class CellEditSession
     public string? Text { get; private set; }
 
     /// <summary>
-    /// The text to store, null meaning NULL. Empty text stores NULL, as edit mode always has.
+    /// Whether committing now would store NULL, which the editor shows in place of the empty text.
     /// </summary>
-    public string? CommitText => string.IsNullOrEmpty(Text) ? null : Text;
+    public bool ShowsNull => Text is null || (Text.Length == 0 && !Rules.AcceptsEmptyText && Rules.IsNullable);
 
     public void Type(string text) => Text = text;
+
+    /// <returns>False when the column can't hold NULL, which leaves the text as it was.</returns>
+    public bool SetNull()
+    {
+        if (!Rules.IsNullable)
+        {
+            return false;
+        }
+
+        Text = null;
+        return true;
+    }
+
+    /// <summary>
+    /// The text to store, null meaning NULL. Empty text in a column whose type can't hold it means NULL when the
+    /// column allows it; otherwise there is nothing valid to commit.
+    /// </summary>
+    public bool TryGetCommitText(out string? text)
+    {
+        if (Text is { Length: 0 } && !Rules.AcceptsEmptyText)
+        {
+            text = null;
+            return Rules.IsNullable;
+        }
+
+        text = Text;
+        return true;
+    }
 }

@@ -1,20 +1,34 @@
 @using Aion.Components.Querying.Editing
+@using Aion.Components.Shortcuts
 @using MudBlazor.Services
 @implements IAsyncDisposable
 
-<span id="@_id" class="cell-editor @(IsNumeric ? "numeric" : null)">
+<span id="@_id" class="cell-editor @(IsNumeric ? "numeric" : null) @(_invalid ? "invalid" : null)">
     <input @ref="_input"
            type="text"
            size="1"
            class="cell-editor-input"
            value="@(Session.Text ?? "")"
-           placeholder="@(Session.CommitText is null ? "NULL" : null)"
+           placeholder="@Placeholder"
            aria-label="@($"Edit {ColumnName}")"
+           aria-invalid="@(_invalid ? "true" : null)"
+           title="@(_invalid ? $"{ColumnName} needs a value" : null)"
            spellcheck="false"
            autocomplete="off"
            @oninput="OnInput"
            @onkeydown="OnKeyDownAsync"
            @onblur="OnBlurAsync" />
+    @if (Session.Rules.IsNullable)
+    {
+        @* Pressing the button would otherwise take focus from the input, and the blur would commit first. *@
+        <button type="button"
+                class="cell-editor-null"
+                tabindex="-1"
+                aria-label="Set NULL"
+                title="Set NULL (@NullShortcut)"
+                @onmousedown:preventDefault="true"
+                @onclick="SetNullAsync">NULL</button>
+    }
 </span>
 
 @code {
@@ -25,17 +39,28 @@
     [Parameter] public EventCallback OnCancel { get; set; }
 
     [Inject] private IKeyInterceptorService KeyInterceptor { get; set; } = default!;
+    [Inject] private AionKeyBindings Keys { get; set; } = default!;
 
     private readonly string _id = $"cell-editor-{Guid.NewGuid():N}";
     private ElementReference _input;
     private CellEditSession? _openedSession;
+    private bool _invalid;
     private bool _closed;
+
+    private string? NullShortcut => Keys.Describe(Keys.SetNull);
+
+    private string? Placeholder => Session.ShowsNull
+        ? "NULL"
+        : Session.Text is { Length: 0 }
+            ? Session.Rules.AcceptsEmptyText ? "empty string" : "needs a value"
+            : null;
 
     protected override void OnParametersSet()
     {
         // The grid could hand this editor another cell's session; that is a fresh edit.
         if (!ReferenceEquals(_openedSession, Session))
         {
+            _invalid = false;
             _closed = false;
         }
     }
@@ -44,10 +69,11 @@
     {
         if (firstRender)
         {
-            // Tab would move focus out of the grid.
+            // Tab would move focus out of the grid, and Ctrl/Cmd+0 would reset the browser's zoom.
             await KeyInterceptor.SubscribeAsync(_id,
                 new KeyInterceptorOptions("cell-editor-input",
-                    new KeyOptions("Tab", preventDown: "key+none|key+shift")),
+                    new KeyOptions("Tab", preventDown: "key+none|key+shift"),
+                    new KeyOptions("0", preventDown: "key+ctrl|key+meta")),
                 keyDown: (Func<KeyboardEventArgs, Task>?)null);
         }
 
@@ -64,7 +90,11 @@
         }
     }
 
-    private void OnInput(ChangeEventArgs e) => Session.Type(e.Value?.ToString() ?? "");
+    private void OnInput(ChangeEventArgs e)
+    {
+        Session.Type(e.Value?.ToString() ?? "");
+        _invalid = false;
+    }
 
     private async Task OnKeyDownAsync(KeyboardEventArgs e)
     {
@@ -79,16 +109,52 @@
             case "Escape":
                 await CancelAsync();
                 break;
+            case "0" when e.CtrlKey || e.MetaKey:
+                await SetNullAsync();
+                break;
+            // A NULL cell's input is already empty, so deleting has nothing to remove; it clears the NULL instead.
+            case "Backspace" or "Delete" when Session.Text is null && Session.Rules.AcceptsEmptyText:
+                Session.Type("");
+                break;
+        }
+    }
+
+    private async Task SetNullAsync()
+    {
+        if (Session.SetNull())
+        {
+            await CommitAsync(CellEditMove.None);
         }
     }
 
     // Enter, Tab and Escape close the editor before the input goes away, so a blur that follows finds nothing to do.
-    private Task OnBlurAsync() => CommitAsync(CellEditMove.None);
+    private async Task OnBlurAsync()
+    {
+        if (_closed)
+        {
+            return;
+        }
+
+        if (Session.TryGetCommitText(out _))
+        {
+            await CommitAsync(CellEditMove.None);
+        }
+        else
+        {
+            await CancelAsync();
+        }
+    }
 
     private async Task CommitAsync(CellEditMove move)
     {
         if (_closed)
         {
+            return;
+        }
+
+        if (!Session.TryGetCommitText(out _))
+        {
+            _invalid = true;
             return;
         }
 

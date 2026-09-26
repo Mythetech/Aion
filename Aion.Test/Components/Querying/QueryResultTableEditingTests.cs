@@ -3,6 +3,7 @@ using Aion.Components.Querying;
 using Aion.Components.Querying.Consumers;
 using Aion.Components.Querying.Editing;
 using Aion.Components.Settings.Domains;
+using Aion.Components.Shortcuts;
 using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
 using Bunit;
@@ -50,6 +51,7 @@ public class QueryResultTableEditingTests : TestContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddSingleton(Substitute.For<IMessageBus>());
         Services.AddSingleton(new ResultsSettings());
+        Services.AddSingleton(AionKeyBindings.ForBrowser(isMac: false));
     }
 
     private EditState Edits => _metadata.EditState;
@@ -249,6 +251,28 @@ public class QueryResultTableEditingTests : TestContext
     }
 
     [Fact]
+    public void RowMarkedForDelete_IsStruckThrough()
+    {
+        Edits.DeleteRow(1, _result.Rows[1]);
+
+        var cut = Render();
+
+        Row(cut, 1).ClassList.ShouldContain("row-deleted");
+        Row(cut, 0).ClassList.ShouldNotContain("row-deleted");
+    }
+
+    [Fact]
+    public async Task CellsOfARowMarkedForDelete_DoNotOpenAnEditor()
+    {
+        Edits.DeleteRow(1, _result.Rows[1]);
+        var cut = Render();
+
+        await ClickCellAsync(cut, 1, "name");
+
+        cut.FindAll("input").ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task ClickingACell_DoesNotSelectItsRow()
     {
         var selection = new RowSelectionState();
@@ -272,24 +296,134 @@ public class QueryResultTableEditingTests : TestContext
     }
 
     [Fact]
-    public void RowMarkedForDelete_IsStruckThrough()
+    public async Task CtrlZero_InANullableCell_SetsNull()
     {
-        Edits.DeleteRow(1, _result.Rows[1]);
-
         var cut = Render();
+        await ClickCellAsync(cut, 0, "note");
 
-        Row(cut, 1).ClassList.ShouldContain("row-deleted");
-        Row(cut, 0).ClassList.ShouldNotContain("row-deleted");
+        await PressAsync(cut, "0", ctrl: true);
+
+        Edits.IsCellModified(0, "note").ShouldBeTrue();
+        PendingValue(0, "note").ShouldBeNull();
+        CellContent(cut, 0, "note").QuerySelector(".cell-null")!.TextContent.ShouldBe("NULL");
+        CellContent(cut, 0, "note").QuerySelector(".cell-original")!.TextContent.ShouldBe("first");
     }
 
     [Fact]
-    public async Task CellsOfARowMarkedForDelete_DoNotOpenAnEditor()
+    public async Task CmdZero_InANullableCell_SetsNull()
     {
-        Edits.DeleteRow(1, _result.Rows[1]);
         var cut = Render();
+        await ClickCellAsync(cut, 0, "note");
 
-        await ClickCellAsync(cut, 1, "name");
+        await PressAsync(cut, "0", meta: true);
+
+        PendingValue(0, "note").ShouldBeNull();
+        Edits.IsCellModified(0, "note").ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task CtrlZero_OnAFocusedCell_SetsNullWithoutOpeningAnEditor()
+    {
+        var cut = Render();
+        await ClickCellAsync(cut, 0, "id");
+        await CellContent(cut, 0, "id").KeyDownAsync(new KeyboardEventArgs { Key = "ArrowRight" });
+        await CellContent(cut, 0, "name").KeyDownAsync(new KeyboardEventArgs { Key = "ArrowRight" });
+
+        await CellContent(cut, 0, "note").KeyDownAsync(new KeyboardEventArgs { Key = "0", CtrlKey = true });
+        await CellContent(cut, 0, "name").KeyDownAsync(new KeyboardEventArgs { Key = "0", CtrlKey = true });
 
         cut.FindAll("input").ShouldBeEmpty();
+        PendingValue(0, "note").ShouldBeNull();
+        Edits.IsCellModified(0, "name").ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task SetNullButton_SetsNull()
+    {
+        var cut = Render();
+        await ClickCellAsync(cut, 0, "note");
+
+        await cut.Find(".cell-editor-null").ClickAsync(new MouseEventArgs());
+
+        Edits.IsCellModified(0, "note").ShouldBeTrue();
+        PendingValue(0, "note").ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task ClearingATextCell_StoresAnEmptyStringNotNull()
+    {
+        var cut = Render();
+        await ClickCellAsync(cut, 0, "note");
+
+        await TypeAsync(cut, "");
+        await PressAsync(cut, "Enter");
+
+        Edits.IsCellModified(0, "note").ShouldBeTrue();
+        PendingValue(0, "note").ShouldBe("");
+        CellContent(cut, 0, "note").QuerySelectorAll(".cell-null").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task EditingANullCell_ShowsNullUntilSomethingIsTyped()
+    {
+        var cut = Render();
+        await ClickCellAsync(cut, 1, "note");
+
+        Editor(cut).GetAttribute("placeholder").ShouldBe("NULL");
+        await PressAsync(cut, "Enter");
+
+        Edits.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task BackspaceInANullTextCell_MakesItAnEmptyString()
+    {
+        var cut = Render();
+        await ClickCellAsync(cut, 1, "note");
+
+        await PressAsync(cut, "Backspace");
+
+        Editor(cut).GetAttribute("placeholder").ShouldBe("empty string");
+        await PressAsync(cut, "Enter");
+        PendingValue(1, "note").ShouldBe("");
+    }
+
+    [Fact]
+    public async Task NonNullableColumn_OffersNoWayToSetNull()
+    {
+        var cut = Render();
+        await ClickCellAsync(cut, 0, "name");
+
+        cut.FindAll(".cell-editor-null").ShouldBeEmpty();
+        await PressAsync(cut, "0", ctrl: true);
+        await PressAsync(cut, "Enter");
+
+        Edits.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task ClearingANullableNumber_StoresNull()
+    {
+        var cut = Render();
+        await ClickCellAsync(cut, 0, "price");
+
+        await TypeAsync(cut, "");
+        await PressAsync(cut, "Enter");
+
+        Edits.IsCellModified(0, "price").ShouldBeTrue();
+        PendingValue(0, "price").ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task ClearingARequiredNumber_KeepsTheEditorOpenAndMarksItInvalid()
+    {
+        var cut = Render();
+        await ClickCellAsync(cut, 0, "stock");
+
+        await TypeAsync(cut, "");
+        await PressAsync(cut, "Enter");
+
+        Edits.HasChanges.ShouldBeFalse();
+        Editor(cut).GetAttribute("aria-invalid").ShouldBe("true");
     }
 }

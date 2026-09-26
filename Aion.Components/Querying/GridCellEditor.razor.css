@@ -9,6 +9,10 @@
     padding-right: 4px;
 }
 
+.cell-editor.invalid {
+    box-shadow: inset 0 0 0 2px var(--mud-palette-error);
+}
+
 .cell-editor-input {
     flex: 1 1 auto;
     box-sizing: border-box;
@@ -34,4 +38,24 @@
     color: var(--mud-palette-text-disabled);
     font-style: italic;
     opacity: 1;
+}
+
+.cell-editor-null {
+    flex-shrink: 0;
+    height: 18px;
+    padding: 0 6px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 4px;
+    background: var(--mud-palette-surface);
+    color: var(--mud-palette-text-secondary);
+    font: inherit;
+    font-size: 0.6875rem;
+    font-style: italic;
+    line-height: 16px;
+    cursor: pointer;
+}
+
+.cell-editor-null:hover {
+    border-color: var(--mud-palette-primary);
+    color: var(--mud-palette-primary);
 }

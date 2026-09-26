@@ -339,7 +339,7 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
 
         var dbConnectionString = Provider.UpdateConnectionString(ConnectionString, TestDatabase);
         await ExecuteOrFailAsync(dbConnectionString,
-            $"CREATE TABLE [dbo].[{EditTable}] (id int PRIMARY KEY, name nvarchar(200) NOT NULL)");
+            $"CREATE TABLE [dbo].[{EditTable}] (id int PRIMARY KEY, name nvarchar(200) NOT NULL, note nvarchar(200) NULL)");
         await ExecuteOrFailAsync(dbConnectionString,
             $"INSERT INTO [dbo].[{EditTable}] (id, name) VALUES (0, N'Zero'), (1, N'Ada'), (2, N'Grace')");
         return dbConnectionString;
@@ -366,6 +366,16 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         result.Error.ShouldBeNull();
         result.RowsAffected.ShouldBe(1);
         (await ReadNamesAsync(dbConnectionString)).ShouldBe(new object?[] { "Zero", newName, "Grace" });
+    }
+
+    [Fact]
+    public async Task GridEdit_EmptyTextAndNull_AreStoredDistinctly()
+    {
+        var dbConnectionString = await CreateEditTableAsync();
+        await ExecuteOrFailAsync(dbConnectionString, $"UPDATE [dbo].[{EditTable}] SET note = N'kept' WHERE id = 1");
+        var editable = await LoadEditableTableAsync(dbConnectionString, "dbo", EditTable, EditSelect);
+
+        await AssertEmptyTextAndNullStayDistinctAsync(dbConnectionString, editable, 1, $"[dbo].[{EditTable}]", 1);
     }
 
     [Fact]

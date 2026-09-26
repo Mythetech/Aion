@@ -36,5 +36,5 @@ public sealed record KeyChord(string Key, bool Shift = false)
         ? $"{(Shift ? "⇧" : "")}⌘{(Key == "Enter" ? "↵" : Key)}"
         : $"Ctrl+{(Shift ? "Shift+" : "")}{Key}";
 
-    private string KeyName => Key.Length == 1 ? $"Key{Key}" : Key;
+    private string KeyName => Key.Length == 1 ? $"{(char.IsDigit(Key[0]) ? "Digit" : "Key")}{Key}" : Key;
 }

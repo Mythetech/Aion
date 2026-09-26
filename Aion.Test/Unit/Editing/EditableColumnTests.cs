@@ -11,7 +11,11 @@ public class EditableColumnTests
         new() { Name = "id", DataType = "integer", IsPrimaryKey = true, IsIdentity = true },
         new() { Name = "code", DataType = "varchar(20)", IsPrimaryKey = true },
         new() { Name = "row_version", DataType = "bigint", IsIdentity = true },
-        new() { Name = "name", DataType = "character varying", IsNullable = false }
+        new() { Name = "name", DataType = "character varying", IsNullable = false },
+        new() { Name = "note", DataType = "TEXT", IsNullable = true },
+        new() { Name = "price", DataType = "numeric(10,2)", IsNullable = true },
+        new() { Name = "stock", DataType = "integer", IsNullable = false },
+        new() { Name = "anything", DataType = "", IsNullable = true }
     ];
 
     [Theory]
@@ -28,11 +32,23 @@ public class EditableColumnTests
     }
 
     [Fact]
-    public void OtherColumns_AreEditable_WhateverTheirCase()
+    public void Lookup_IgnoresCase()
     {
-        var editable = EditableColumn.For("NAME", Columns);
+        EditableColumn.For("NOTE", Columns).IsNullable.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("name", false, true)]
+    [InlineData("note", true, true)]
+    [InlineData("price", true, false)]
+    [InlineData("stock", false, false)]
+    [InlineData("anything", true, true)]
+    public void EditableColumns_SayWhetherTheyTakeNullAndEmptyText(string column, bool nullable, bool acceptsEmptyText)
+    {
+        var editable = EditableColumn.For(column, Columns);
 
         editable.IsEditable.ShouldBeTrue();
-        editable.ReadOnlyReason.ShouldBeNull();
+        editable.IsNullable.ShouldBe(nullable);
+        editable.AcceptsEmptyText.ShouldBe(acceptsEmptyText);
     }
 }

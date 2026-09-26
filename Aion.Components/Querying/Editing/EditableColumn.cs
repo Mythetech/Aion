@@ -6,9 +6,16 @@ namespace Aion.Components.Querying.Editing;
 /// How edit mode treats one column of the edited table.
 /// </summary>
 /// <param name="IsEditable">Whether the grid lets its cells change.</param>
+/// <param name="IsNullable">Whether a cell can be set to NULL.</param>
+/// <param name="AcceptsEmptyText">
+/// Whether empty text is a value of the column's type. Only text types take it; elsewhere engines reject it or
+/// quietly turn it into 0 or a default date, so an empty editor means NULL there instead.
+/// </param>
 /// <param name="ReadOnlyReason">Why the cells can't change, shown on the cell, or null when they can.</param>
-public sealed record EditableColumn(bool IsEditable, string? ReadOnlyReason)
+public sealed record EditableColumn(bool IsEditable, bool IsNullable, bool AcceptsEmptyText, string? ReadOnlyReason)
 {
+    private static readonly string[] TextTypeMarkers = ["char", "text", "clob", "string", "sysname"];
+
     public static EditableColumn For(string column, IReadOnlyList<ColumnInfo> metadata)
     {
         var info = metadata.FirstOrDefault(c => c.Name.Equals(column, StringComparison.OrdinalIgnoreCase));
@@ -28,8 +35,20 @@ public sealed record EditableColumn(bool IsEditable, string? ReadOnlyReason)
             return ReadOnly("The database generates this column's values");
         }
 
-        return new EditableColumn(true, null);
+        return new EditableColumn(true, info.IsNullable, IsTextType(info.DataType), null);
     }
 
-    private static EditableColumn ReadOnly(string reason) => new(false, reason);
+    // An untyped column, as SQLite allows, stores whatever it is given, empty text included.
+    private static bool IsTextType(string dataType)
+    {
+        if (string.IsNullOrWhiteSpace(dataType))
+        {
+            return true;
+        }
+
+        var type = dataType.ToLowerInvariant();
+        return TextTypeMarkers.Any(type.Contains);
+    }
+
+    private static EditableColumn ReadOnly(string reason) => new(false, false, false, reason);
 }

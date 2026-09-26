@@ -175,6 +175,12 @@
         @if (IsEditing && _contextRow != null)
         {
             <MudDivider />
+            @if (CanSetContextCellNull)
+            {
+                <MudMenuItem OnClick="@SetContextCellNull" Icon="@AionIcons.SetNull">
+                    Set Cell to NULL
+                </MudMenuItem>
+            }
             @if (IsContextCellModified)
             {
                 <MudMenuItem OnClick="@RevertContextCell" Icon="@AionIcons.Undo">
@@ -348,14 +354,16 @@
     {
         if (firstRender)
         {
-            // Arrow keys and Space would scroll the grid while they move between cells or start an edit.
+            // Arrow keys and Space would scroll the grid while they move between cells or start an edit, and
+            // Ctrl/Cmd+0 would reset the browser's zoom instead of setting a cell to NULL.
             await KeyInterceptor.SubscribeAsync(_gridId,
                 new KeyInterceptorOptions("cell-nav",
                     new KeyOptions("ArrowUp", preventDown: "key+none"),
                     new KeyOptions("ArrowDown", preventDown: "key+none"),
                     new KeyOptions("ArrowLeft", preventDown: "key+none"),
                     new KeyOptions("ArrowRight", preventDown: "key+none"),
-                    new KeyOptions(" ", preventDown: "key+none")),
+                    new KeyOptions(" ", preventDown: "key+none"),
+                    new KeyOptions("0", preventDown: "key+ctrl|key+meta")),
                 keyDown: (Func<KeyboardEventArgs, Task>?)null);
         }
 
@@ -504,6 +512,10 @@
         {
             <span class="cell-null">NULL</span>
         }
+        else if (modified && value is string { Length: 0 })
+        {
+            <span class="cell-empty">empty</span>
+        }
         else
         {
             @CellValue(value, column)
@@ -574,6 +586,9 @@
             case "Enter" or "F2" when CanEditCell(row, column):
                 BeginEdit(row, column);
                 break;
+            case "0" when (e.CtrlKey || e.MetaKey) && CanEditCell(row, column) && RulesFor(column).IsNullable:
+                SetCell(row, column, null);
+                break;
             case { Length: 1 } when !e.CtrlKey && !e.MetaKey && !e.AltKey && CanEditCell(row, column):
                 BeginEdit(row, column, typed: e.Key);
                 break;
@@ -622,14 +637,14 @@
         FocusCell(session.RowIndex, session.Column);
     }
 
-    // Commits what the session holds and closes the editor.
+    // Commits what the session holds when that is a value the column takes, and closes the editor either way.
     private void EndEdit(CellEditSession session)
     {
         _editSession = null;
-        if (session.RowIndex < _rows.Count)
+        if (session.TryGetCommitText(out var text) && session.RowIndex < _rows.Count)
         {
             var row = _rows[session.RowIndex];
-            SetCell(row, session.Column, CellEditText.Resolve(session.CommitText, row.Values.GetValueOrDefault(session.Column), ColumnType(session.Column)));
+            SetCell(row, session.Column, CellEditText.Resolve(text, row.Values.GetValueOrDefault(session.Column), ColumnType(session.Column)));
         }
     }
 
@@ -703,8 +718,20 @@
         return -1;
     }
 
+    private bool CanSetContextCellNull =>
+        _contextRow != null && _contextColumn != null
+        && CanEditCell(_contextRow, _contextColumn)
+        && RulesFor(_contextColumn).IsNullable
+        && Edits!.GetEffectiveValue(_contextRow.Index, _contextColumn, _contextRow.Values) != null;
+
     private bool IsContextCellModified =>
         _contextRow != null && _contextColumn != null && Edits?.IsCellModified(_contextRow.Index, _contextColumn) == true;
+
+    private void SetContextCellNull()
+    {
+        if (_contextRow == null || _contextColumn == null) return;
+        SetCell(_contextRow, _contextColumn, null);
+    }
 
     private void RevertContextCell()
     {

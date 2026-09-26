@@ -15,7 +15,7 @@ public class AionKeyBindingsTests
     private static IEnumerable<KeyChord> AllChords(AionKeyBindings bindings) => new[]
     {
         bindings.RunQuery, bindings.CommandPalette, bindings.CommandPaletteAlternate, bindings.ExpandSelectStar,
-        bindings.NewQuery, bindings.NewQueryAlternate, bindings.NewConnection, bindings.SaveQuery, bindings.CopyQuery
+        bindings.SetNull, bindings.NewQuery, bindings.NewQueryAlternate, bindings.NewConnection, bindings.SaveQuery, bindings.CopyQuery
     }.OfType<KeyChord>();
 
     [Fact]
@@ -110,5 +110,16 @@ public class AionKeyBindingsTests
         run.Display(mac: true).ShouldBe("⌘↵");
         run.Display(mac: false).ShouldBe("Ctrl+Enter");
         palette.Display(mac: false).ShouldBe("Ctrl+Shift+P");
+    }
+
+    [Fact]
+    public void DigitChords_TranslateToDigitKeys()
+    {
+        var setNull = AionKeyBindings.ForBrowser(isMac: true).SetNull;
+
+        setNull.EditorKeybinding.ShouldBe((int)KeyMod.CtrlCmd | (int)KeyCode.Digit0);
+        setNull.HotkeyKey.ShouldBe(JsKey.Digit0);
+        setNull.Display(mac: true).ShouldBe("⌘0");
+        setNull.Display(mac: false).ShouldBe("Ctrl+0");
     }
 }

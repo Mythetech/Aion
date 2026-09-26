@@ -192,7 +192,8 @@
     font-variant-numeric: tabular-nums;
 }
 
-.cell-null {
+.cell-null,
+.cell-empty {
     color: var(--mud-palette-text-disabled);
     font-style: italic;
 }

@@ -1,6 +1,7 @@
 using Aion.Components.Querying;
 using Aion.Components.Querying.Consumers;
 using Aion.Components.Settings.Domains;
+using Aion.Components.Shortcuts;
 using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
 using Bunit;
@@ -50,6 +51,7 @@ public class QueryResultTableEditMenuTests : TestContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddSingleton(Substitute.For<IMessageBus>());
         Services.AddSingleton(new ResultsSettings());
+        Services.AddSingleton(AionKeyBindings.ForBrowser(isMac: false));
 
         _popovers = RenderComponent<MudPopoverProvider>();
     }
@@ -77,6 +79,28 @@ public class QueryResultTableEditMenuTests : TestContext
         _popovers.FindAll(".mud-menu-item")
             .First(li => li.QuerySelector(".mud-menu-item-text")?.TextContent.Trim() == item)
             .ClickAsync(new MouseEventArgs());
+
+    [Fact]
+    public async Task SetCellToNull_OnANullableCell_SetsItToNull()
+    {
+        var cut = Render();
+        await OpenMenuAsync(cut, 0, "note");
+
+        await ChooseAsync("Set Cell to NULL");
+
+        _metadata.EditState.IsCellModified(0, "note").ShouldBeTrue();
+        _metadata.EditState.GetEffectiveValue(0, "note", _result.Rows[0]).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task NonNullableCell_OffersNoSetNull()
+    {
+        var cut = Render();
+
+        await OpenMenuAsync(cut, 0, "name");
+
+        MenuItems().ShouldNotContain("Set Cell to NULL");
+    }
 
     [Fact]
     public async Task RevertCell_UndoesThatCellsChange()
