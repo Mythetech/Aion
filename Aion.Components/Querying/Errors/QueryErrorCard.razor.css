@@ -49,7 +49,8 @@
     color: var(--mud-palette-text-secondary);
 }
 
-.query-error-token {
+.query-error-token,
+.query-error-name {
     padding: 1px 6px;
     border-radius: 4px;
     font-family: var(--mud-typography-monospace, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
@@ -63,4 +64,12 @@
 .query-error-location {
     font-size: 0.8125rem;
     color: var(--mud-palette-text-secondary);
+}
+
+.query-error-suggestion {
+    font-size: 0.875rem;
+}
+
+.query-error-name {
+    font-weight: 500;
 }

@@ -5,6 +5,7 @@ using Aion.Components.ForeignKeys;
 using Aion.Components.History;
 using Aion.Components.Querying;
 using Aion.Components.Querying.Editing;
+using Aion.Components.Querying.Errors;
 using Aion.Components.Search;
 using Aion.Components.Settings;
 using Aion.Components.Shared.Snackbar;
@@ -52,6 +53,7 @@ public static class RegistrationExtensions
 
         services.AddTransient<SearchService>();
         services.AddSingleton<SqlCompletionService>();
+        services.AddSingleton<QueryErrorSuggester>();
         services.AddSingleton<ISqlChangeGenerator, SqlChangeGenerator>();
         services.AddTransient<PendingChangesSqlBuilder>();
 

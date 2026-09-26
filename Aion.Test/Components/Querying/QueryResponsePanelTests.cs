@@ -2,6 +2,7 @@ using Aion.Components.Connections;
 using Aion.Components.Infrastructure.Commands;
 using Aion.Components.Querying;
 using Aion.Components.Querying.Errors;
+using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
 using Bunit;
@@ -18,6 +19,7 @@ public class QueryResponsePanelTests : TestContext
 {
     private readonly IMessageBus _bus = Substitute.For<IMessageBus>();
     private readonly QueryState _state;
+    private readonly ConnectionState _connections;
     private readonly QueryModel _query;
 
     public QueryResponsePanelTests()
@@ -26,13 +28,14 @@ public class QueryResponsePanelTests : TestContext
         JSInterop.Mode = JSRuntimeMode.Loose;
 
         _state = new QueryState(_bus, Substitute.For<IQuerySaveService>());
-        var connections = new ConnectionState(
+        _connections = new ConnectionState(
             Substitute.For<IConnectionService>(), Substitute.For<IDatabaseProviderFactory>(), _bus, new NullLogger<ConnectionState>());
 
         Services.AddSingleton(_bus);
         Services.AddSingleton(_state);
-        Services.AddSingleton(connections);
-        Services.AddSingleton(new SqlCompletionService(connections));
+        Services.AddSingleton(_connections);
+        Services.AddSingleton(new SqlCompletionService(_connections));
+        Services.AddSingleton(new QueryErrorSuggester(_connections, NullLogger<QueryErrorSuggester>.Instance));
 
         _query = _state.Queries[0];
         _state.SetActive(_query);
@@ -134,6 +137,72 @@ public class QueryResponsePanelTests : TestContext
 
         // Assert
         cut.Find(".query-message-error").TextContent.ShouldBe("Error at line 2, column 6: no such table: prodcts");
+    }
+
+    private static string Collapse(string text) => System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
+
+    private void ConnectToCachedShop()
+    {
+        var database = new DatabaseModel
+        {
+            Name = "shop",
+            Tables = [new TableInfo("", "products")],
+            TablesLoaded = true,
+            TableColumns = { ["products"] = [new ColumnInfo { Name = "category_id" }, new ColumnInfo { Name = "name" }] },
+            LoadedColumnTables = ["products"]
+        };
+        var connection = new ConnectionModel { Name = "Local", Type = DatabaseType.WasmSQLite, Databases = [database] };
+        _connections.Connections = [connection];
+        _query.ConnectionId = connection.Id;
+        _query.DatabaseName = database.Name;
+    }
+
+    [Fact]
+    public void FailedRun_ForAMisspelledColumn_SuggestsTheColumnAndItsTable()
+    {
+        // Arrange
+        ConnectToCachedShop();
+        _query.Query = "SELECT name FROM products WHERE categry_id = 2";
+        Complete(new QueryResult { Error = "no such column: categry_id" });
+
+        // Act
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Assert
+        cut.WaitForAssertion(() =>
+            Collapse(cut.Find(".query-error-suggestion").TextContent)
+                .ShouldBe("Did you mean category_id? It's a column on products."));
+    }
+
+    [Fact]
+    public void FailedRun_ForAMisspelledTable_SuggestsTheTable()
+    {
+        // Arrange
+        ConnectToCachedShop();
+        _query.Query = "SELECT * FROM prodcts";
+        Complete(new QueryResult { Error = "no such table: prodcts" });
+
+        // Act
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Assert
+        cut.WaitForAssertion(() =>
+            Collapse(cut.Find(".query-error-suggestion").TextContent).ShouldBe("Did you mean products?"));
+    }
+
+    [Fact]
+    public void FailedRun_WithoutACloseName_SuggestsNothing()
+    {
+        // Arrange
+        ConnectToCachedShop();
+        _query.Query = "SELECT weight FROM products";
+        Complete(new QueryResult { Error = "no such column: weight" });
+
+        // Act
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Assert
+        cut.FindAll(".query-error-suggestion").ShouldBeEmpty();
     }
 
     [Fact]
