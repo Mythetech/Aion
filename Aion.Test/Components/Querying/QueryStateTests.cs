@@ -309,19 +309,181 @@ public class QueryStateTests
     }
 
     [Fact]
-    public void Should_Mark_Saved_Clears_Dirty()
+    public async Task SaveAsync_WritesTheTabAndClearsItsUnsavedMark()
     {
         // Arrange
         var query = _state.AddQuery("Test");
-        query.Query = "SELECT 1";
+        _state.EditQueryText(query, "SELECT 1");
         query.IsDirty.ShouldBeTrue();
 
         // Act
-        _state.MarkSaved(query);
+        await _state.SaveAsync(query);
 
         // Assert
+        await _saveService.Received(1).SaveQueryAsync(query);
         query.IsDirty.ShouldBeFalse();
         query.SavedQuery.ShouldBe("SELECT 1");
+    }
+
+    [Fact]
+    public async Task SaveAsync_WhenStorageFails_KeepsTheUnsavedMark()
+    {
+        // Arrange
+        var query = _state.AddQuery("Test");
+        _state.EditQueryText(query, "SELECT 1");
+        _saveService.SaveQueryAsync(query).Returns(Task.FromException(new IOException("disk full")));
+
+        // Act
+        await Should.ThrowAsync<IOException>(() => _state.SaveAsync(query));
+
+        // Assert
+        query.IsDirty.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task TextTypedWhileASaveIsInFlight_StaysUnsaved()
+    {
+        // Arrange
+        var query = _state.AddQuery("Test");
+        _state.EditQueryText(query, "SELECT 1");
+        var write = new TaskCompletionSource();
+        _saveService.SaveQueryAsync(query).Returns(write.Task);
+
+        // Act
+        var save = _state.SaveAsync(query);
+        _state.EditQueryText(query, "SELECT 12");
+        write.SetResult();
+        await save;
+
+        // Assert
+        query.SavedQuery.ShouldBe("SELECT 1");
+        query.IsDirty.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void EditQueryText_RaisesStateChangedOnlyWhenTheUnsavedMarkChanges()
+    {
+        // Arrange
+        var query = _state.AddQuery("Test");
+        var raised = 0;
+        _state.StateChanged += () => raised++;
+
+        // Act
+        _state.EditQueryText(query, "S");
+        _state.EditQueryText(query, "SE");
+        _state.EditQueryText(query, "SEL");
+        _state.EditQueryText(query, "");
+
+        // Assert
+        raised.ShouldBe(2);
+        query.IsDirty.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void EditQueryText_DoesNotAskTheEditorToReload()
+    {
+        // Arrange
+        var query = _state.Queries[0];
+        _state.SetActive(query);
+        var reloaded = false;
+        _state.ActiveQueryTextChanged += () => { reloaded = true; return Task.CompletedTask; };
+
+        // Act
+        _state.EditQueryText(query, "SELECT 1");
+
+        // Assert
+        query.Query.ShouldBe("SELECT 1");
+        reloaded.ShouldBeFalse();
+    }
+
+    private static async Task StopAsync(CancellationTokenSource stop, Task autoSave)
+    {
+        await stop.CancelAsync();
+        await Should.ThrowAsync<OperationCanceledException>(() => autoSave);
+    }
+
+    [Fact]
+    public async Task Typing_IsSavedOnceEditsPauseAndTheMarkClears()
+    {
+        // Arrange
+        var state = new QueryState(_messageBus, _saveService, autoSaveDelay: TimeSpan.FromMilliseconds(20));
+        await state.InitializeAsync();
+        var query = state.Queries[0];
+        var saved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        state.StateChanged += () =>
+        {
+            if (!query.IsDirty && query.Query == "SELECT 1") saved.TrySetResult();
+        };
+        using var stop = new CancellationTokenSource();
+        var autoSave = state.SaveWhenEditsPauseAsync(stop.Token);
+
+        // Act
+        state.EditQueryText(query, "SELECT");
+        state.EditQueryText(query, "SELECT 1");
+        await saved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Assert
+        query.SavedQuery.ShouldBe("SELECT 1");
+        await _saveService.Received().SaveQueryAsync(query);
+        await StopAsync(stop, autoSave);
+    }
+
+    [Fact]
+    public async Task AutoSave_DoesNotRunBeforeTheSavedTabsAreLoaded()
+    {
+        // Arrange
+        var state = new QueryState(_messageBus, _saveService, autoSaveDelay: TimeSpan.Zero);
+        using var stop = new CancellationTokenSource();
+        var autoSave = state.SaveWhenEditsPauseAsync(stop.Token);
+
+        // Act
+        state.EditQueryText(state.Queries[0], "SELECT 1");
+        await Task.Delay(50);
+
+        // Assert
+        await _saveService.DidNotReceive().SaveQueryAsync(Arg.Any<QueryModel>());
+        await StopAsync(stop, autoSave);
+    }
+
+    [Fact]
+    public async Task AutoSave_SkipsATabClosedBeforeItsTurn()
+    {
+        // Arrange
+        var state = new QueryState(_messageBus, _saveService, autoSaveDelay: TimeSpan.Zero);
+        var first = state.Queries[0];
+        var second = state.AddQuery("Second");
+        var firstWrite = new TaskCompletionSource();
+        var firstWriteStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _saveService.SaveQueryAsync(first).Returns(_ =>
+        {
+            firstWriteStarted.TrySetResult();
+            return firstWrite.Task;
+        });
+        using var stop = new CancellationTokenSource();
+        var autoSave = state.SaveWhenEditsPauseAsync(stop.Token);
+
+        // Act
+        await state.InitializeAsync();
+        await firstWriteStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await state.Remove(second);
+        firstWrite.SetResult();
+        await Task.Delay(50);
+
+        // Assert
+        await _saveService.DidNotReceive().SaveQueryAsync(second);
+        await StopAsync(stop, autoSave);
+    }
+
+    [Fact]
+    public void HasSql_IsFalseForATabWithOnlyWhitespace()
+    {
+        // Arrange
+        var blank = new QueryModel { Query = "  \n\t" };
+        var written = new QueryModel { Query = "SELECT 1" };
+
+        // Assert
+        blank.HasSql.ShouldBeFalse();
+        written.HasSql.ShouldBeTrue();
     }
 
     [Fact]

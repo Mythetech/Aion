@@ -125,12 +125,29 @@ public class QueryEditorRunTests : TestContext
 
         // Act
         const string typed = Full + "\nWHERE price > 10";
-        _query.Query = typed;
+        _state.EditQueryText(_query, typed);
         _providerResult.SetResult(new QueryResult());
         await run;
 
         // Assert
         _query.Query.ShouldBe(typed);
+    }
+
+    [Fact]
+    public async Task SwitchingTabs_KeepsTypingTheOutgoingTabHadNotReceivedYet()
+    {
+        // Arrange
+        var other = _state.AddQuery("Other");
+        var cut = RenderComponent<QueryEditor>();
+        await cut.InvokeAsync(() => _bus.PublishAsync(new FocusQuery(_query)));
+        JSInterop.Setup<string>("blazorMonaco.editor.getValue", _ => true).SetResult(Full + " LIMIT 5");
+
+        // Act
+        await cut.InvokeAsync(() => _bus.PublishAsync(new FocusQuery(other)));
+
+        // Assert
+        _query.Query.ShouldBe(Full + " LIMIT 5");
+        other.Query.ShouldBeEmpty();
     }
 
     [Fact]

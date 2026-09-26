@@ -1,6 +1,15 @@
 <MudDialog Class="aion-transparent-dialog">
     <DialogContent>
         <MudText>@ContentText</MudText>
+        @if (Items is { Count: > 0 })
+        {
+            <ul class="confirm-dialog-items">
+                @foreach (var item in Items)
+                {
+                    <li>@item</li>
+                }
+            </ul>
+        }
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel">Cancel</MudButton>
@@ -14,6 +23,9 @@
     [Parameter] public string ContentText { get; set; } = "";
     [Parameter] public string ButtonText { get; set; } = "Confirm";
     [Parameter] public Color Color { get; set; } = Color.Primary;
+
+    /// <summary>What the confirmation applies to, listed under the text.</summary>
+    [Parameter] public IReadOnlyList<string>? Items { get; set; }
 
     private void Submit() => MudDialog.Close(DialogResult.Ok(true));
     private void Cancel() => MudDialog.Cancel();

@@ -1,34 +1,62 @@
+using System.Threading.Channels;
 using Aion.Components.Connections;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using Aion.Components.Querying.Commands;
 using Aion.Contracts.Connections;
 using Aion.Contracts.Queries;
 using Aion.Components.Querying.Events;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Aion.Components.Querying;
 
+/// <summary>
+/// The open query tabs. Tabs are a workspace that outlives the app: every change is written through
+/// <see cref="IQuerySaveService"/> once edits pause, and a tab shows as unsaved until its text is in storage.
+/// </summary>
 public class QueryState : IConsumer<QueryChanged>
 {
+    public static readonly TimeSpan DefaultAutoSaveDelay = TimeSpan.FromSeconds(1);
+
     private readonly IMessageBus _messageBus;
     private readonly IQuerySaveService _saveService;
+    private readonly ILogger<QueryState> _logger;
+    private readonly TimeSpan _autoSaveDelay;
+
+    // Edits arrive faster than storage should be written, so they only signal this channel and the save
+    // loop writes once they pause. One pending signal is enough because each save covers every tab.
+    private readonly Channel<bool> _saveRequests = Channel.CreateBounded<bool>(
+        new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropWrite, SingleReader = true });
+    private readonly TaskCompletionSource _loaded = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private bool _autoSaving;
 
     public event Action? StateChanged;
 
     public event Func<Task>? ActiveQueryTextChanged;
- 
-    protected void OnStateChanged() => StateChanged?.Invoke();
-    
+
+    /// <summary>Raised for a change that storage should also get.</summary>
+    protected void OnStateChanged()
+    {
+        RequestSave();
+        StateChanged?.Invoke();
+    }
+
+    /// <summary>Raised for a change that only affects what is on screen, such as the active tab.</summary>
+    private void OnViewChanged() => StateChanged?.Invoke();
 
     public List<QueryModel> Queries { get; private set; } = [new() {Name = "Query1", Query = "Select * From \" \""}];
-    
+
     public QueryModel? Active { get; private set; }
 
     private bool _initialized = false;
 
-    public QueryState(IMessageBus messageBus, IQuerySaveService saveService)
+    /// <param name="autoSaveDelay">How long edits must pause before tabs are written; defaults to <see cref="DefaultAutoSaveDelay"/>.</param>
+    public QueryState(IMessageBus messageBus, IQuerySaveService saveService, ILogger<QueryState>? logger = null, TimeSpan? autoSaveDelay = null)
     {
         _messageBus = messageBus;
         _saveService = saveService;
+        _logger = logger ?? NullLogger<QueryState>.Instance;
+        _autoSaveDelay = autoSaveDelay ?? DefaultAutoSaveDelay;
     }
 
     public async Task InitializeAsync()
@@ -48,9 +76,10 @@ public class QueryState : IConsumer<QueryChanged>
         }
 
         SetActive(Queries.First());
-        OnStateChanged();
+        OnViewChanged();
+        _loaded.TrySetResult();
     }
-    
+
     private QueryModel AddQueryInternal(QueryModel query)
     {
         query.Order = Queries.Count;
@@ -75,14 +104,14 @@ public class QueryState : IConsumer<QueryChanged>
     public QueryModel Clone(QueryModel query)
     {
         var clone = query.Clone(true);
-        
+
         return AddQueryInternal(clone);
     }
 
     public async Task Remove(QueryModel query)
     {
         await _messageBus.PublishAsync(new DeleteQuery(query));
-        
+
         Queries.RemoveAll(x => x.Id == query.Id);
         if (Active == null || Active?.Id == query.Id)
         {
@@ -96,7 +125,7 @@ public class QueryState : IConsumer<QueryChanged>
                 AddQuery();
             }
         }
-        
+
         OnStateChanged();
     }
 
@@ -106,7 +135,7 @@ public class QueryState : IConsumer<QueryChanged>
 
         if (Active == null) return;
 
-        OnStateChanged();
+        OnViewChanged();
     }
 
     /// <param name="executedFrom">
@@ -131,17 +160,17 @@ public class QueryState : IConsumer<QueryChanged>
         q.Result = result;
         q.ResultSourceText = sourceText ?? q.Query;
 
-        OnStateChanged();
+        OnViewChanged();
     }
 
     public void UpdateQueryConnection(QueryModel query, ConnectionModel connection)
     {
         var q = Queries.FirstOrDefault(x => x.Id.Equals(query.Id));
         if (q == null) return;
-        
+
         q.ConnectionId = connection.Id;
-        q.DatabaseName = null; 
-        
+        q.DatabaseName = null;
+
         OnStateChanged();
     }
 
@@ -149,19 +178,22 @@ public class QueryState : IConsumer<QueryChanged>
     {
         var q = Queries.FirstOrDefault(x => x.Id.Equals(query.Id));
         if (q == null) return;
-        
+
         q.DatabaseName = databaseName;
-        
+
         OnStateChanged();
     }
-    
+
+    /// <summary>
+    /// Replaces a tab's text from outside the editor, such as formatting, and has the editor show it.
+    /// </summary>
     public async Task UpdateQueryText(QueryModel query, string queryText)
     {
         var q = Queries.FirstOrDefault(x => x.Id.Equals(query.Id));
         if (q == null) return;
-        
+
         q.Query = queryText;
-        
+
         OnStateChanged();
 
         if (IsActive(query))
@@ -170,15 +202,35 @@ public class QueryState : IConsumer<QueryChanged>
         }
     }
 
-    public void RenameActiveQuery(string name) => RenameQuery(Active, name); 
-    
+    /// <summary>
+    /// Records text typed into the editor. The editor already shows it, so it is not asked to reload,
+    /// and <see cref="StateChanged"/> is raised only when the tab's unsaved mark appears or goes away,
+    /// so typing doesn't re-render the page on every key.
+    /// </summary>
+    public void EditQueryText(QueryModel query, string text)
+    {
+        var q = Queries.FirstOrDefault(x => x.Id.Equals(query.Id));
+        if (q == null || q.Query == text) return;
+
+        var wasDirty = q.IsDirty;
+        q.Query = text;
+        RequestSave();
+
+        if (q.IsDirty != wasDirty)
+        {
+            OnViewChanged();
+        }
+    }
+
+    public void RenameActiveQuery(string name) => RenameQuery(Active, name);
+
     public void RenameQuery(QueryModel? query, string name)
     {
         var q = Queries.FirstOrDefault(x => x.Id.Equals(query?.Id));
         if (q == null) return;
-        
+
         q.Name = name;
-        
+
         OnStateChanged();
     }
 
@@ -250,13 +302,92 @@ public class QueryState : IConsumer<QueryChanged>
         OnStateChanged();
     }
 
-    public void MarkSaved(QueryModel query)
+    /// <summary>
+    /// Writes the tab to storage now, as Save Query and Run do, and clears its unsaved mark.
+    /// </summary>
+    public async Task SaveAsync(QueryModel query)
     {
         var q = Queries.FirstOrDefault(x => x.Id == query.Id);
         if (q == null) return;
 
-        q.SavedQuery = q.Query;
-        OnStateChanged();
+        await SaveTabAsync(q);
+        OnViewChanged();
+    }
+
+    /// <summary>
+    /// Writes every open tab to storage now and clears their unsaved marks.
+    /// </summary>
+    public async Task SaveAllAsync()
+    {
+        foreach (var query in Queries.ToList())
+        {
+            await SaveTabAsync(query);
+        }
+
+        OnViewChanged();
+    }
+
+    private async Task SaveTabAsync(QueryModel query)
+    {
+        // Captured before the write starts: text typed while it is in flight isn't in storage yet.
+        var text = query.Query;
+        await _saveService.SaveQueryAsync(query);
+        query.SavedQuery = text;
+    }
+
+    private void RequestSave() => _saveRequests.Writer.TryWrite(true);
+
+    /// <summary>
+    /// Writes the open tabs each time edits pause, until cancelled. <see cref="QueryAutoSaver"/> runs it
+    /// for the app's lifetime so the tabs are only ever read and written on the UI dispatcher.
+    /// </summary>
+    public async Task SaveWhenEditsPauseAsync(CancellationToken cancellationToken)
+    {
+        if (_autoSaving) throw new InvalidOperationException("The query tabs are already being saved automatically.");
+        _autoSaving = true;
+
+        try
+        {
+            // Nothing is written until the saved tabs are loaded, so a save can never replace them with
+            // the default tab.
+            await _loaded.Task.WaitAsync(cancellationToken);
+
+            var requests = _saveRequests.Reader;
+            while (await requests.WaitToReadAsync(cancellationToken))
+            {
+                // Keep waiting while changes keep arriving so a burst of typing is written once.
+                while (requests.TryRead(out _))
+                {
+                    await Task.Delay(_autoSaveDelay, cancellationToken);
+                }
+
+                await SaveOpenTabsAsync();
+            }
+        }
+        finally
+        {
+            _autoSaving = false;
+        }
+    }
+
+    private async Task SaveOpenTabsAsync()
+    {
+        foreach (var query in Queries.ToList())
+        {
+            // A tab closed while earlier tabs were being written must not be written back after its delete.
+            if (!Queries.Contains(query)) continue;
+
+            try
+            {
+                await SaveTabAsync(query);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to save query tab {QueryId}", query.Id);
+            }
+        }
+
+        OnViewChanged();
     }
 
     private void NormalizeOrder()

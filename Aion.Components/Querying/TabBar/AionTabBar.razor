@@ -1,4 +1,5 @@
 @using Aion.Components.Shared
+@using Aion.Components.Shared.Dialogs
 @using Aion.Components.Theme
 @using Aion.Components.Querying.Commands
 @using Mythetech.Framework.Infrastructure.MessageBus
@@ -49,6 +50,9 @@
 
     [Inject]
     protected IMessageBus Bus { get; set; } = default!;
+
+    [Inject]
+    protected IDialogService DialogService { get; set; } = default!;
 
     [Parameter]
     public EventCallback<QueryModel> OnTabActivated { get; set; }
@@ -128,6 +132,8 @@
 
     private async Task HandleTabClose(QueryModel query)
     {
+        if (!await ConfirmDiscardAsync([query], several: false)) return;
+
         bool wasActive = query.Id == State.Active?.Id;
         await State.Remove(query);
 
@@ -139,6 +145,8 @@
 
     private async Task HandleCloseOthers(QueryModel query)
     {
+        if (!await ConfirmDiscardAsync(OrderedQueries.Where(q => q.Id != query.Id))) return;
+
         await State.CloseOthers(query);
         if (OnTabActivated.HasDelegate)
             await OnTabActivated.InvokeAsync(query);
@@ -146,14 +154,48 @@
 
     private async Task HandleCloseRight(QueryModel query)
     {
+        if (!await ConfirmDiscardAsync(OrderedQueries.Where(q => q.Order > query.Order))) return;
+
         await State.CloseToRight(query);
     }
 
     private async Task HandleCloseAll()
     {
+        if (!await ConfirmDiscardAsync(OrderedQueries)) return;
+
         await State.CloseAllTabs();
         if (OnTabActivated.HasDelegate && State.Active != null)
             await OnTabActivated.InvokeAsync(State.Active);
+    }
+
+    /// <summary>
+    /// Closing a tab also deletes its saved copy, so closing any tab that holds SQL asks first, once for
+    /// the whole batch. Tabs without SQL close without asking.
+    /// </summary>
+    private async Task<bool> ConfirmDiscardAsync(IEnumerable<QueryModel> closing, bool several = true)
+    {
+        var losing = closing.Where(q => q.HasSql).ToList();
+        if (losing.Count == 0) return true;
+
+        var parameters = several
+            ? new DialogParameters<ConfirmDialog>
+            {
+                { x => x.ContentText, "The SQL in these tabs will be discarded:" },
+                { x => x.Items, losing.Select(q => q.Name).ToList() },
+                { x => x.ButtonText, "Close Tabs" },
+                { x => x.Color, Color.Error }
+            }
+            : new DialogParameters<ConfirmDialog>
+            {
+                { x => x.ContentText, $"Close \"{losing[0].Name}\"? Its SQL will be discarded." },
+                { x => x.ButtonText, "Close Tab" },
+                { x => x.Color, Color.Error }
+            };
+
+        var title = several ? "Close Tabs" : "Close Tab";
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>(title, parameters, AionDialogs.CreateDefaultOptions());
+        var result = await dialog.Result;
+        return result is { Canceled: false };
     }
 
     private void HandleClone(QueryModel query)

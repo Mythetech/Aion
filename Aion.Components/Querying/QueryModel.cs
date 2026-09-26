@@ -57,6 +57,12 @@ public class QueryModel
     public int Order { get; set; }
     public string? SavedQuery { get; set; }
     public bool IsDirty => Query != (SavedQuery ?? "");
+
+    /// <summary>
+    /// Whether the tab holds SQL. Closing a tab also deletes its saved copy, so this SQL would be lost.
+    /// </summary>
+    [JsonIgnore]
+    public bool HasSql => !string.IsNullOrWhiteSpace(Query);
     public string? EmphasisColor { get; set; }
 
     /// <summary>

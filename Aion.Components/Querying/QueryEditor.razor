@@ -154,6 +154,10 @@
     
     private StandaloneCodeEditor? _editor;
 
+    // The tab whose text the editor holds. It can differ from State.Active for a moment while a tab
+    // switch reaches the editor, and typing must land in the tab it was typed into.
+    private QueryModel? _shownQuery;
+
     private StandaloneEditorConstructionOptions DefaultOptions(StandaloneCodeEditor editor)
     {
         return new StandaloneEditorConstructionOptions
@@ -217,20 +221,37 @@
         }
     }
 
-    private async Task RefreshEditor()
+    private async Task RefreshEditor() => await ShowQueryAsync(State.Active);
+
+    /// <summary>
+    /// Puts a tab's text in the editor. Typing reaches the tab through change events that can still be
+    /// on their way, so the outgoing tab first takes whatever the editor holds before it is replaced.
+    /// </summary>
+    private async Task ShowQueryAsync(QueryModel? query)
     {
-        if (_editor != null)
+        if (_editor == null) return;
+
+        if (_shownQuery != null && _shownQuery.Id != query?.Id)
         {
-            await _editor.SetValue(State?.Active?.Query ?? "");
+            State.EditQueryText(_shownQuery, await _editor.GetValue());
         }
+
+        _shownQuery = query;
+        await _editor.SetValue(query?.Query ?? "");
     }
 
     private async Task UpdateQuery(ModelContentChangedEvent evt)
     {
-        if (!_initialized || State.Active == null) return;
-        
+        if (!_initialized || _editor == null) return;
+
+        // Taken before the read: a tab switch issued after this line reaches the editor after the read
+        // too, so the text read below belongs to this tab.
+        var query = _shownQuery;
         var text = await _editor.GetValue();
-        State.Active.Query = text;
+        if (query != null)
+        {
+            State.EditQueryText(query, text);
+        }
 
         await RefreshErrorMarkerAsync();
     }
@@ -274,7 +295,7 @@
     {
         if (_editor != null)
         {
-            await _editor.SetValue(query.Query);
+            await ShowQueryAsync(query);
             await RefreshErrorMarkerAsync();
         }
     }
@@ -315,10 +336,6 @@
             return;
         }
 
-        await Bus.PublishAsync(new SaveQuery(query));
-
-        if (!CanExecuteQuery) return;
-
         using var cancellation = new CancellationTokenSource();
         _runningQueries[query.Id] = cancellation;
 
@@ -326,6 +343,13 @@
         {
             var fullText = _editor != null ? await _editor.GetValue() : query.Query;
             var selected = await GetSelectedTextAsync();
+
+            // Typing reaches the tab through the editor's change events; taking the text once more here
+            // means the save, the run and the error position all see the same SQL.
+            State.EditQueryText(query, fullText);
+            await Bus.PublishAsync(new SaveQuery(query));
+
+            if (!CanExecuteQuery) return;
 
             await ClearErrorMarkerAsync();
 
@@ -347,17 +371,14 @@
     public async Task Consume(FocusQuery message)
     {
         State.SetActive(message.Query);
-        await _editor.SetValue(message.Query.Query);
+        await ShowQueryAsync(State.Active);
         StateHasChanged();
     }
-    
+
     public async Task Consume(CreateQuery message)
     {
         State.AddQuery(message.Name);
-        if (_editor != null && State.Active != null)
-        {
-            await _editor.SetValue(State.Active.Query);
-        }
+        await ShowQueryAsync(State.Active);
     }
 
     public async Task Consume(RunQuery message)
@@ -442,10 +463,7 @@
     private async Task QueryAddClicked()
     {
         State.AddQuery();
-        if (_editor != null && State.Active != null)
-        {
-            await _editor.SetValue(State.Active.Query);
-        }
+        await ShowQueryAsync(State.Active);
     }
 
     private async Task ExpandSelectStarAsync()

@@ -73,7 +73,6 @@ public class QueryEditorErrorMarkerTests : TestContext
 
     private void EditorHolds(string text, Selection? selection = null)
     {
-        _query.Query = text;
         JSInterop.Setup<string>("blazorMonaco.editor.getValue", _ => true).SetResult(text);
         JSInterop.Setup<Selection>("blazorMonaco.editor.getSelection", _ => true)
             .SetResult(selection ?? new Selection { StartLineNumber = 1, StartColumn = 1, EndLineNumber = 1, EndColumn = 1 });

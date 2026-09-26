@@ -1,4 +1,3 @@
-using System.Threading.Channels;
 using Aion.Components.Connections;
 using Aion.Components.Querying;
 using Aion.Components.Querying.Events;
@@ -7,35 +6,29 @@ using Mythetech.Framework.Infrastructure.MessageBus;
 
 namespace Aion.Web.Services;
 
+/// <summary>
+/// Keeps connections and in-browser database metadata in IndexedDB. Query tabs save themselves through
+/// <see cref="QueryState"/> and <see cref="IndexedDbQuerySaveService"/>.
+/// </summary>
 public class WebPersistenceManager : IConsumer<QueryExecuted>, IAsyncDisposable
 {
     private static readonly TimeSpan SweepInterval = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan QueryDebounce = TimeSpan.FromSeconds(2);
 
     private readonly IndexedDbStorageService _storage;
     private readonly ConnectionState _connectionState;
-    private readonly QueryState _queryState;
     private readonly ILogger<WebPersistenceManager> _logger;
-
-    // State change events are synchronous, so they only signal this channel; the persistence loop awaits the
-    // writes. One pending signal is enough because each write saves every open query.
-    private readonly Channel<bool> _queryChanges = Channel.CreateBounded<bool>(
-        new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropWrite, SingleReader = true });
 
     private readonly CancellationTokenSource _stopping = new();
     private Task? _sweepLoop;
-    private Task? _queryLoop;
     private bool _dirty;
 
     public WebPersistenceManager(
         IndexedDbStorageService storage,
         ConnectionState connectionState,
-        QueryState queryState,
         ILogger<WebPersistenceManager> logger)
     {
         _storage = storage;
         _connectionState = connectionState;
-        _queryState = queryState;
         _logger = logger;
     }
 
@@ -44,10 +37,8 @@ public class WebPersistenceManager : IConsumer<QueryExecuted>, IAsyncDisposable
         if (_sweepLoop is not null) return;
 
         _connectionState.ConnectionStateChanged += OnConnectionStateChanged;
-        _queryState.StateChanged += OnQueryStateChanged;
 
         _sweepLoop = SweepPeriodicallyAsync(_stopping.Token);
-        _queryLoop = PersistQueriesWhenChangedAsync(_stopping.Token);
     }
 
     public async Task Consume(QueryExecuted message)
@@ -82,11 +73,6 @@ public class WebPersistenceManager : IConsumer<QueryExecuted>, IAsyncDisposable
         _dirty = true;
     }
 
-    private void OnQueryStateChanged()
-    {
-        _queryChanges.Writer.TryWrite(true);
-    }
-
     private async Task SweepPeriodicallyAsync(CancellationToken cancellationToken)
     {
         using var timer = new PeriodicTimer(SweepInterval);
@@ -99,43 +85,6 @@ public class WebPersistenceManager : IConsumer<QueryExecuted>, IAsyncDisposable
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-        }
-    }
-
-    private async Task PersistQueriesWhenChangedAsync(CancellationToken cancellationToken)
-    {
-        var changes = _queryChanges.Reader;
-        try
-        {
-            while (await changes.WaitToReadAsync(cancellationToken))
-            {
-                // Keep waiting while changes keep arriving so a burst of edits is written once.
-                while (changes.TryRead(out _))
-                {
-                    await Task.Delay(QueryDebounce, cancellationToken);
-                }
-
-                await PersistQueriesAsync();
-            }
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-    }
-
-    private async Task PersistQueriesAsync()
-    {
-        try
-        {
-            foreach (var query in _queryState.Queries.ToList())
-            {
-                var record = new QueryRecord(query);
-                await _storage.SaveQueryAsync(record);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to persist queries");
         }
     }
 
@@ -160,7 +109,6 @@ public class WebPersistenceManager : IConsumer<QueryExecuted>, IAsyncDisposable
         _dirty = false;
 
         await PersistConnectionsAsync();
-        await PersistQueriesAsync();
     }
 
     private static bool IsMutatingQuery(string query)
@@ -177,13 +125,10 @@ public class WebPersistenceManager : IConsumer<QueryExecuted>, IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _connectionState.ConnectionStateChanged -= OnConnectionStateChanged;
-        _queryState.StateChanged -= OnQueryStateChanged;
 
         await _stopping.CancelAsync();
-        _queryChanges.Writer.TryComplete();
 
         if (_sweepLoop is not null) await _sweepLoop;
-        if (_queryLoop is not null) await _queryLoop;
 
         _stopping.Dispose();
         GC.SuppressFinalize(this);
