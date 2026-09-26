@@ -34,6 +34,7 @@ public class QueryEditorRunTests : TestContext
     private readonly TaskCompletionSource<QueryResult> _providerResult = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _providerStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private string? _textDuringRun;
+    private CancellationToken _runToken;
 
     public QueryEditorRunTests()
     {
@@ -52,8 +53,9 @@ public class QueryEditorRunTests : TestContext
         factory.GetProvider(DatabaseType.WasmSQLite).Returns(_provider);
         _provider.UpdateConnectionString(Arg.Any<string>(), Arg.Any<string>()).Returns("db");
         _provider.ExecuteQueryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(_ =>
+            .Returns(call =>
             {
+                _runToken = call.Arg<CancellationToken>();
                 _textDuringRun = _query!.Query;
                 _providerStarted.TrySetResult();
                 return _providerResult.Task;
@@ -103,6 +105,7 @@ public class QueryEditorRunTests : TestContext
     {
         // Arrange
         var cut = RenderComponent<QueryEditor>();
+        InitializedEditor(cut);
 
         // Act
         var run = cut.InvokeAsync(() => _bus.PublishAsync(new RunQuery()));
@@ -121,6 +124,7 @@ public class QueryEditorRunTests : TestContext
     {
         // Arrange
         var cut = RenderComponent<QueryEditor>();
+        InitializedEditor(cut);
         var run = cut.InvokeAsync(() => _bus.PublishAsync(new RunQuery()));
         await _providerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
@@ -134,6 +138,56 @@ public class QueryEditorRunTests : TestContext
         _query.Query.ShouldBe(typed);
     }
 
+    private void EditorShows(string text) =>
+        JSInterop.Setup<string>("blazorMonaco.editor.getValue", _ => true).SetResult(text);
+
+    private IEnumerable<ActionDescriptor> EditorActions() =>
+        JSInterop.Invocations["blazorMonaco.editor.addAction"].Select(i => i.Arguments[1]).OfType<ActionDescriptor>();
+
+    // The editor raises OnDidInit once it is created, which registers the editor actions.
+    private StandaloneCodeEditor InitializedEditor(IRenderedComponent<QueryEditor> cut)
+    {
+        cut.WaitForAssertion(() => EditorActions().ShouldContain(a => a.Id == "aion.run-query"));
+        return cut.FindComponent<StandaloneCodeEditor>().Instance;
+    }
+
+    [Fact]
+    public async Task RunShortcutInTheEditor_RunsTheQuery()
+    {
+        // Arrange
+        var cut = RenderComponent<QueryEditor>();
+        var editor = InitializedEditor(cut);
+
+        // Act
+        await cut.InvokeAsync(() => editor.ActionCallback("aion.run-query"));
+        await _providerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        _providerResult.SetResult(new QueryResult());
+
+        // Assert
+        await _provider.Received(1).ExecuteQueryAsync("db", Selected, Arg.Any<CancellationToken>());
+        EditorActions().Single(a => a.Id == "aion.run-query").Keybindings
+            .ShouldBe([(int)KeyMod.CtrlCmd | (int)KeyCode.Enter]);
+    }
+
+    [Fact]
+    public async Task RunShortcutWhileTheTabRuns_CancelsTheRun()
+    {
+        // Arrange
+        var cut = RenderComponent<QueryEditor>();
+        var editor = InitializedEditor(cut);
+        await cut.InvokeAsync(() => editor.ActionCallback("aion.run-query"));
+        await _providerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Act
+        await cut.InvokeAsync(() => editor.ActionCallback("aion.run-query"));
+
+        // Assert
+        _runToken.IsCancellationRequested.ShouldBeTrue();
+        _providerResult.SetCanceled();
+        cut.WaitForAssertion(() => _query.IsExecuting.ShouldBeFalse());
+        await _provider.Received(1).ExecuteQueryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task RunWithoutADatabase_SaysWhyInsteadOfRunning()
     {
@@ -142,6 +196,7 @@ public class QueryEditorRunTests : TestContext
         _bus.Subscribe(new NotificationRecorder(notifications));
         _state.UpdateQueryDatabase(_query, "");
         var cut = RenderComponent<QueryEditor>();
+        InitializedEditor(cut);
 
         // Act
         await cut.InvokeAsync(() => _bus.PublishAsync(new RunQuery()));
@@ -166,8 +221,10 @@ public class QueryEditorRunTests : TestContext
         // Arrange
         var other = _state.AddQuery("Other");
         var cut = RenderComponent<QueryEditor>();
+        InitializedEditor(cut);
+        EditorShows(other.Query);
         await cut.InvokeAsync(() => _bus.PublishAsync(new FocusQuery(_query)));
-        JSInterop.Setup<string>("blazorMonaco.editor.getValue", _ => true).SetResult(Full + " LIMIT 5");
+        EditorShows(Full + " LIMIT 5");
 
         // Act
         await cut.InvokeAsync(() => _bus.PublishAsync(new FocusQuery(other)));
@@ -182,6 +239,7 @@ public class QueryEditorRunTests : TestContext
     {
         // Arrange
         var cut = RenderComponent<QueryEditor>();
+        InitializedEditor(cut);
 
         // Act
         var run = cut.InvokeAsync(() => _bus.PublishAsync(new RunQuery()));

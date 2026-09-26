@@ -52,8 +52,6 @@
         </SecondPanel>
     </MudSplitPanel>
     <QueryAutoSaver />
-    <MudHotkey Key="JsKey.Enter" KeyModifiers="@CtrlOnly" OnHotkeyPressed="@HandleRunQuery" />
-    <MudHotkey Key="JsKey.Enter" KeyModifiers="@MetaOnly" OnHotkeyPressed="@HandleRunQuery" />
     <MudHotkey Key="JsKey.KeyT" KeyModifiers="@CtrlOnly" OnHotkeyPressed="@HandleNewQuery" />
     <MudHotkey Key="JsKey.KeyT" KeyModifiers="@MetaOnly" OnHotkeyPressed="@HandleNewQuery" />
     <MudHotkey Key="JsKey.KeyN" KeyModifiers="@CtrlOnly" OnHotkeyPressed="@HandleNewConnection" />
@@ -182,11 +180,6 @@
 
     private static readonly IEnumerable<JsKeyModifier> CtrlOnly = new[] { JsKeyModifier.ControlLeft };
     private static readonly IEnumerable<JsKeyModifier> MetaOnly = new[] { JsKeyModifier.MetaLeft };
-
-    private async Task HandleRunQuery()
-    {
-        await Bus.PublishAsync(new RunQuery());
-    }
 
     private async Task HandleNewQuery()
     {

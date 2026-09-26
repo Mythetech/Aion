@@ -121,12 +121,23 @@
     private QueryError? _markedError;
 
     // Monaco invokes editor actions through a synchronous callback, so requests are queued here and
-    // handled by an awaited reader loop instead of being fired and forgotten.
-    private readonly Channel<ExpandSelectStarRequested> _expandSelectStarRequests =
-        Channel.CreateUnbounded<ExpandSelectStarRequested>(new UnboundedChannelOptions { SingleReader = true });
-    private Task? _expandSelectStarLoop;
+    // handled by awaited reader loops instead of being fired and forgotten. Runs have a loop of their
+    // own so a long statement never holds up the other editor actions.
+    private readonly Channel<EditorAction> _editorActions =
+        Channel.CreateUnbounded<EditorAction>(new UnboundedChannelOptions { SingleReader = true });
+    private readonly Channel<RunRequested> _runRequests =
+        Channel.CreateUnbounded<RunRequested>(new UnboundedChannelOptions { SingleReader = true });
+    private Task? _editorActionLoop;
+    private Task? _runLoop;
 
-    private sealed record ExpandSelectStarRequested;
+    private enum EditorAction
+    {
+        ExpandSelectStar
+    }
+
+    private sealed record RunRequested;
+
+    private const string RunQueryActionId = "aion.run-query";
 
     private bool HasOpenTransaction => State.Active?.HasOpenTransaction ?? false;
 
@@ -204,10 +215,21 @@
         Bus.Unsubscribe<GoToQueryPosition>(this);
         Bus.Unsubscribe<SettingsModelChanged<EditorSettings>>(this);
 
-        _expandSelectStarRequests.Writer.TryComplete();
-        if (_expandSelectStarLoop != null)
+        _editorActions.Writer.TryComplete();
+        _runRequests.Writer.TryComplete();
+        foreach (var running in _runningQueries.Values)
         {
-            await _expandSelectStarLoop;
+            await running.CancelAsync();
+        }
+
+        if (_editorActionLoop != null)
+        {
+            await _editorActionLoop;
+        }
+
+        if (_runLoop != null)
+        {
+            await _runLoop;
         }
     }
 
@@ -276,7 +298,21 @@
 
         await RefreshEditor();
 
-        _expandSelectStarLoop ??= ProcessExpandSelectStarRequestsAsync();
+        _editorActionLoop ??= ProcessEditorActionsAsync();
+        _runLoop ??= ProcessRunRequestsAsync();
+
+        // Registered on the editor rather than the page, so the shortcut runs the query only while
+        // the editor has focus and never from a dialog or a results grid cell editor. It replaces
+        // Monaco's own binding of the same keys (insert line below).
+        await _editor!.AddAction(new ActionDescriptor
+        {
+            Id = RunQueryActionId,
+            Label = "Run Query",
+            Keybindings = [(int)KeyMod.CtrlCmd | (int)KeyCode.Enter],
+            ContextMenuGroupId = "navigation",
+            ContextMenuOrder = 1f,
+            Run = _ => RequestRunFromEditor()
+        });
 
         await _editor.AddAction(new ActionDescriptor
         {
@@ -285,15 +321,43 @@
             Keybindings = new[] { (int)KeyMod.CtrlCmd | (int)KeyMod.Shift | (int)KeyCode.KeyE },
             ContextMenuGroupId = "navigation",
             ContextMenuOrder = 1.5f,
-            Run = _ => _expandSelectStarRequests.Writer.TryWrite(new ExpandSelectStarRequested())
+            Run = _ => _editorActions.Writer.TryWrite(EditorAction.ExpandSelectStar)
         });
     }
 
-    private async Task ProcessExpandSelectStarRequestsAsync()
+    private async Task ProcessEditorActionsAsync()
     {
-        await foreach (var _ in _expandSelectStarRequests.Reader.ReadAllAsync())
+        await foreach (var action in _editorActions.Reader.ReadAllAsync())
         {
-            await InvokeAsync(ExpandSelectStarAsync);
+            switch (action)
+            {
+                case EditorAction.ExpandSelectStar:
+                    await InvokeAsync(ExpandSelectStarAsync);
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Pressing the run shortcut again while the tab's statement runs cancels it. Cancelling is
+    /// synchronous, so it takes effect now instead of waiting in the queue behind the run it stops.
+    /// </summary>
+    private void RequestRunFromEditor()
+    {
+        if (_shownQuery != null && _runningQueries.TryGetValue(_shownQuery.Id, out var running))
+        {
+            running.Cancel();
+            return;
+        }
+
+        _runRequests.Writer.TryWrite(new RunRequested());
+    }
+
+    private async Task ProcessRunRequestsAsync()
+    {
+        await foreach (var _ in _runRequests.Reader.ReadAllAsync())
+        {
+            await InvokeAsync(RunQuery);
         }
     }
 
@@ -336,7 +400,7 @@
     {
         var query = State.Active ?? State.Queries.First();
 
-        if (query.IsExecuting && _runningQueries.TryGetValue(query.Id, out var running))
+        if (_runningQueries.TryGetValue(query.Id, out var running))
         {
             await running.CancelAsync();
             return;
