@@ -272,6 +272,44 @@ public abstract class DatabaseProviderTestBase : IAsyncLifetime
         result.ErrorDetail.EndColumn.ShouldBe(13);
     }
 
+    // Each engine resolves the missing table only when that statement runs, after the first result set
+    // has been returned, so this checks the provider reads past the first result set.
+    private const string LaterStatementFails = $"SELECT id FROM {TestTable};\nSELECT id FROM missing_table";
+
+    [Fact]
+    public async Task FailureInALaterStatement_IsReported()
+    {
+        // Arrange
+        await InsertRowAsync(1, "first");
+
+        // Act
+        var result = await Provider.ExecuteQueryAsync(DatabaseConnectionString, LaterStatementFails, CancellationToken.None);
+
+        // Assert
+        result.Success.ShouldBeFalse();
+        result.ErrorDetail.ShouldNotBeNull();
+        result.ErrorDetail.Kind.ShouldBe(QueryErrorKind.UnknownTable);
+        result.ErrorDetail.Token.ShouldNotBeNull().ShouldEndWith("missing_table");
+    }
+
+    [Fact]
+    public async Task Transaction_FailureInALaterStatement_IsReported()
+    {
+        // Arrange
+        await InsertRowAsync(1, "first");
+        var transaction = await Provider.BeginTransactionAsync(DatabaseConnectionString);
+
+        // Act
+        var result = await Provider.ExecuteInTransactionAsync(
+            DatabaseConnectionString, LaterStatementFails, transaction.Id, CancellationToken.None);
+        await Provider.RollbackTransactionAsync(DatabaseConnectionString, transaction.Id);
+
+        // Assert
+        result.Success.ShouldBeFalse();
+        result.ErrorDetail.ShouldNotBeNull();
+        result.ErrorDetail.Kind.ShouldBe(QueryErrorKind.UnknownTable);
+    }
+
     [Fact]
     public async Task Transaction_Rollback_ShouldLeaveDataUnchanged()
     {
