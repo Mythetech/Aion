@@ -222,6 +222,20 @@ public class QueryState : IConsumer<QueryChanged>
         OnStateChanged();
     }
 
+    public void DetachConnection(Guid connectionId)
+    {
+        var attached = Queries.Where(q => q.ConnectionId == connectionId).ToList();
+        if (attached.Count == 0) return;
+
+        foreach (var query in attached)
+        {
+            query.ConnectionId = null;
+            query.DatabaseName = null;
+        }
+
+        OnStateChanged();
+    }
+
     public void MarkSaved(QueryModel query)
     {
         var q = Queries.FirstOrDefault(x => x.Id == query.Id);

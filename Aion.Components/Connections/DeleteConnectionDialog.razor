@@ -2,11 +2,15 @@
 
 <MudDialog Class="aion-transparent-dialog">
     <DialogContent>
-        <MudText>Are you sure you want to delete "@ConnectionName"? This cannot be undone.</MudText>
+        <MudText>@Message</MudText>
+        @if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Error" Dense="true" Class="mt-3">@_error</MudAlert>
+        }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton OnClick="Delete" Color="Color.Error" Variant="Variant.Filled">Delete</MudButton>
+        <MudButton OnClick="Cancel" Disabled="@_deleting">Cancel</MudButton>
+        <MudButton OnClick="Delete" Color="Color.Error" Variant="Variant.Filled" Disabled="@_deleting">Delete</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -17,11 +21,33 @@
 
     [Parameter] public string ConnectionName { get; set; } = "";
     [Parameter] public Guid ConnectionId { get; set; }
+    [Parameter] public bool DeletesDatabase { get; set; }
+
+    private bool _deleting;
+    private string? _error;
+
+    private string Message => DeletesDatabase
+        ? $"Delete \"{ConnectionName}\" and its in-browser database? All of its tables and data are removed from this browser, and query tabs that use it stay open without a connection. This cannot be undone."
+        : $"Are you sure you want to delete \"{ConnectionName}\"? This cannot be undone.";
 
     private async Task Delete()
     {
-        await ConnectionState.RemoveConnection(ConnectionId);
-        MudDialog.Close(DialogResult.Ok(true));
+        _deleting = true;
+        _error = null;
+
+        try
+        {
+            await ConnectionState.RemoveConnection(ConnectionId);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            _error = $"Couldn't delete \"{ConnectionName}\": {ex.Message}";
+        }
+        finally
+        {
+            _deleting = false;
+        }
     }
 
     private void Cancel() => MudDialog.Cancel();

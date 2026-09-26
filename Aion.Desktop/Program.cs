@@ -1,4 +1,5 @@
 using Aion.Components;
+using Aion.Components.Connections;
 using Aion.Components.Infrastructure;
 using Hermes;
 using Hermes.Blazor;
@@ -88,6 +89,7 @@ namespace Aion.Desktop
             appBuilder.Services.AddRuntimeEnvironment(isProd ? DesktopRuntimeEnvironment.Production() : DesktopRuntimeEnvironment.Development());
 
             appBuilder.Services.AddAionComponents<ConnectionService>();
+            appBuilder.Services.AddSingleton<IConnectionPrompt, ConnectionDialogPrompt>();
 
             appBuilder.Services.AddScoped<IDatabaseProvider, PostgreSqlProvider>();
             appBuilder.Services.AddScoped<IDatabaseProvider, MySqlProvider>();

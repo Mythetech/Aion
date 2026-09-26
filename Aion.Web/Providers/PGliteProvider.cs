@@ -7,7 +7,7 @@ using Microsoft.JSInterop;
 namespace Aion.Web.Providers;
 
 public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider, IDatabaseRowEditingProvider,
-    IEstimatedQueryPlanProvider, IActualQueryPlanProvider
+    IEstimatedQueryPlanProvider, IActualQueryPlanProvider, IManagedDatabaseProvider
 {
     private const string TransactionNotOpenMessage = "This transaction is no longer open. Roll back to clear it.";
 
@@ -45,16 +45,19 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
         _databases.Add(name);
     }
 
-    public async Task DestroyDatabaseAsync(string name)
+    public async Task DeleteDatabaseAsync(string name)
     {
         var module = await GetModuleAsync();
         await module.InvokeVoidAsync("destroy", name);
         _databases.Remove(name);
     }
 
+    // Each in-browser connection is bound to the one database named in its connection string. Listing every
+    // open PGlite database here made one connection show, and Clear Database wipe, all of them.
     public Task<List<string>?> GetDatabasesAsync(string connectionString)
     {
-        return Task.FromResult<List<string>?>(_databases.ToList());
+        var name = ExtractDatabaseName(connectionString);
+        return Task.FromResult<List<string>?>(string.IsNullOrWhiteSpace(name) ? [] : [name]);
     }
 
     public async Task<List<TableInfo>> GetTablesAsync(string connectionString, string database)

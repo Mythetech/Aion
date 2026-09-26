@@ -24,8 +24,9 @@ public class IndexedDbQuerySaveService : IQuerySaveService
 
     public async Task<IEnumerable<QueryModel>> LoadQueriesAsync()
     {
+        // IndexedDB returns records in key order, which is the random query id rather than the tab order.
         var records = await _storage.LoadQueriesAsync();
-        return records.Select(r => new QueryModel
+        return records.OrderBy(r => r.Order).Select(r => new QueryModel
         {
             Id = Guid.Parse(r.Id),
             Name = r.Name,

@@ -1,32 +1,19 @@
 using Aion.Components.Connections.Commands;
 using Mythetech.Framework.Infrastructure.MessageBus;
-using Aion.Components.Shared.Dialogs.Commands;
-using MudBlazor;
 
 namespace Aion.Components.Connections.Consumers;
 
 public class ConnectionDialogCreator : IConsumer<PromptCreateConnection>
 {
-    private readonly IDialogService _dialogService;
-    private readonly IMessageBus _bus;
+    private readonly IConnectionPrompt _prompt;
 
-    public ConnectionDialogCreator(IDialogService dialogService, IMessageBus bus)
+    public ConnectionDialogCreator(IConnectionPrompt prompt)
     {
-        _dialogService = dialogService;
-        _bus = bus;
+        _prompt = prompt;
     }
 
     public async Task Consume(PromptCreateConnection message)
     {
-        var isEdit = message.InitialValues?.EditingConnectionId != null;
-        var title = isEdit ? "Edit Connection" : "Create Connection";
-
-        var parameters = new DialogParameters();
-        if (message.InitialValues != null)
-        {
-            parameters.Add(nameof(ConnectionDialog.InitialValues), message.InitialValues);
-        }
-
-        await _bus.PublishAsync(new ShowDialog(typeof(ConnectionDialog), title, Parameters: parameters));
+        await _prompt.PromptAsync(message.InitialValues);
     }
 }

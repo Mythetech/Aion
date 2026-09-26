@@ -6,12 +6,11 @@ using SqliteWasmBlazor;
 namespace Aion.Web.Providers;
 
 public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider, IDatabaseRowEditingProvider,
-    IEstimatedQueryPlanProvider
+    IEstimatedQueryPlanProvider, IManagedDatabaseProvider
 {
     private const string TransactionNotOpenMessage = "This transaction is no longer open. Roll back to clear it.";
 
     private readonly ISqliteWasmDatabaseService _databaseService;
-    private readonly HashSet<string> _knownDatabases = new();
     private readonly Dictionary<string, (SqliteWasmConnection Connection, SqliteWasmTransaction Transaction)> _activeTransactions = new();
 
     // The SQLite worker shares one handle per database across every connection, so an open BEGIN
@@ -28,16 +27,16 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQu
     public DatabaseType DatabaseType => DatabaseType.WasmSQLite;
     public IReadOnlyList<string> SystemSchemas { get; } = [];
 
+    // Each in-browser connection is bound to the one database named in its connection string. Listing every
+    // known SQLite database here made one connection show, and Clear Database wipe, all of them.
     public Task<List<string>?> GetDatabasesAsync(string connectionString)
     {
-        return Task.FromResult<List<string>?>(_knownDatabases.ToList());
+        var name = ExtractDatabaseName(connectionString);
+        return Task.FromResult<List<string>?>(name is null ? [] : [name]);
     }
 
-    public Task EnsureDatabaseAsync(string name)
-    {
-        _knownDatabases.Add(name);
-        return Task.CompletedTask;
-    }
+    // SQLite creates the database file the first time a connection opens it.
+    public Task EnsureDatabaseAsync(string name) => Task.CompletedTask;
 
     public async Task<List<TableInfo>> GetTablesAsync(string connectionString, string database)
     {
@@ -397,7 +396,6 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQu
     public async Task DeleteDatabaseAsync(string name)
     {
         await _databaseService.DeleteDatabaseAsync($"{name}.db");
-        _knownDatabases.Remove(name);
     }
 
     private static string OpenTransactionMessage(string dbName) =>
