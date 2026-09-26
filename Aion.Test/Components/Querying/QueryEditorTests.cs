@@ -53,6 +53,7 @@ public class QueryEditorTests : TestContext
         Services.AddSingleton(Substitute.For<IJsGuardService>());
         Services.AddSingleton(new SqlCompletionService(_connections));
         Services.AddSingleton<EditorSettings>();
+        Services.AddSingleton(Substitute.For<Mythetech.Framework.Components.Kbd.IPlatformDetector>());
         Services.AddSingleton(Aion.Components.Shortcuts.AionKeyBindings.ForDesktop(isMac: false));
     }
 
