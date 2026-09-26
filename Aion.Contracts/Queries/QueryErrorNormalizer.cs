@@ -116,11 +116,21 @@ public static partial class QueryErrorNormalizer
             var firstWord = near.Split((char[]?)null, 2, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
 
             return firstWord == null
-                ? new Classification(QueryErrorKind.Syntax, null, "Syntax error at end of input", Line: line)
+                ? new Classification(QueryErrorKind.Syntax, null, EndOfInputTitle, Line: line)
                 : new Classification(QueryErrorKind.Syntax, firstWord, TitleFor(QueryErrorKind.Syntax), near.TrimStart(), line);
         }
 
         var firstLine = FirstLine(message);
+
+        var liteDbToken = LiteDbUnexpectedToken().Match(firstLine);
+        if (liteDbToken.Success)
+        {
+            var token = liteDbToken.Groups["t"].Value;
+            return token == "[EOF]"
+                ? new Classification(QueryErrorKind.Syntax, null, EndOfInputTitle)
+                : new Classification(QueryErrorKind.Syntax, token, TitleFor(QueryErrorKind.Syntax));
+        }
+
         foreach (var (pattern, kind) in TokenPatterns)
         {
             var match = pattern.Match(firstLine);
@@ -136,6 +146,8 @@ public static partial class QueryErrorNormalizer
         var bareKind = SyntaxWithoutToken().IsMatch(firstLine) ? QueryErrorKind.Syntax : QueryErrorKind.General;
         return new Classification(bareKind, null, Capitalize(firstLine));
     }
+
+    private const string EndOfInputTitle = "Syntax error at end of input";
 
     private static string TitleFor(QueryErrorKind kind) => kind switch
     {
@@ -204,6 +216,10 @@ public static partial class QueryErrorNormalizer
 
     [GeneratedRegex(@"^You have an error in your SQL syntax;.*?near '(?<near>.*)' at line (?<line>\d+)", Options | RegexOptions.Singleline)]
     private static partial Regex MySqlSyntaxNear();
+
+    // LiteDB names the token it could not use, or [EOF] when the statement ended first.
+    [GeneratedRegex(@"^Unexpected token `(?<t>[^`]+)` in position \d+", Options)]
+    private static partial Regex LiteDbUnexpectedToken();
 
     [GeneratedRegex(@"^(?:syntax error|incomplete input)", Options)]
     private static partial Regex SyntaxWithoutToken();

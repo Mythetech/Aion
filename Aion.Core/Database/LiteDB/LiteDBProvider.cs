@@ -277,7 +277,7 @@ public class LiteDBProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
         }
         catch (Exception ex)
         {
-            result.Error = ex.Message;
+            result.SetError(LiteDBErrors.ToQueryError(ex, query));
             return Task.FromResult(result);
         }
     }
@@ -467,7 +467,7 @@ public class LiteDBProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
         }
         catch (Exception ex)
         {
-            result.Error = ex.Message;
+            result.SetError(LiteDBErrors.ToQueryError(ex, query));
             return Task.FromResult(result);
         }
     }
