@@ -536,6 +536,40 @@ public class QueryStateTests
     }
 
     [Fact]
+    public async Task AutoSave_NeverWritesBackATabWhoseDeleteIsInFlight()
+    {
+        // Arrange
+        var state = new QueryState(_messageBus, _saveService, autoSaveDelay: TimeSpan.Zero);
+        await state.InitializeAsync();
+        var first = state.Queries[0];
+        var second = state.AddQuery("Second");
+        var delete = new TaskCompletionSource();
+        _messageBus.PublishAsync(Arg.Any<DeleteQuery>()).Returns(delete.Task);
+        var firstSaved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _saveService.SaveQueryAsync(first).Returns(_ =>
+        {
+            firstSaved.TrySetResult();
+            return Task.CompletedTask;
+        });
+        using var stop = new CancellationTokenSource();
+        var autoSave = state.SaveWhenEditsPauseAsync(stop.Token);
+        await firstSaved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        _saveService.ClearReceivedCalls();
+
+        // Act
+        var closing = state.Remove(second);
+        state.EditQueryText(first, "SELECT 1");
+        await Task.Delay(100);
+        delete.SetResult();
+        await closing;
+
+        // Assert
+        await _saveService.Received().SaveQueryAsync(first);
+        await _saveService.DidNotReceive().SaveQueryAsync(second);
+        await StopAsync(stop, autoSave);
+    }
+
+    [Fact]
     public void HasSql_IsFalseForATabWithOnlyWhitespace()
     {
         // Arrange

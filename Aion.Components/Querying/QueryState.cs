@@ -108,11 +108,13 @@ public class QueryState : IConsumer<QueryChanged>
         return AddQueryInternal(clone);
     }
 
+    // Closing a tab takes it out of the list before its saved copy is deleted, here and in the Close methods
+    // below, so a save that runs while the delete is in flight never writes the closed tab back.
     public async Task Remove(QueryModel query)
     {
+        Queries.RemoveAll(x => x.Id == query.Id);
         await _messageBus.PublishAsync(new DeleteQuery(query));
 
-        Queries.RemoveAll(x => x.Id == query.Id);
         if (Active == null || Active?.Id == query.Id)
         {
             var newActive = Queries?.FirstOrDefault();
@@ -248,12 +250,12 @@ public class QueryState : IConsumer<QueryChanged>
     public async Task CloseOthers(QueryModel query)
     {
         var toRemove = Queries.Where(q => q.Id != query.Id).ToList();
+        Queries.RemoveAll(q => q.Id != query.Id);
         foreach (var q in toRemove)
         {
             await _messageBus.PublishAsync(new DeleteQuery(q));
         }
 
-        Queries.RemoveAll(q => q.Id != query.Id);
         SetActive(query);
         NormalizeOrder();
         OnStateChanged();
@@ -261,22 +263,23 @@ public class QueryState : IConsumer<QueryChanged>
 
     public async Task CloseAllTabs()
     {
-        foreach (var q in Queries.ToList())
+        var toRemove = Queries.ToList();
+        Queries.Clear();
+        foreach (var q in toRemove)
         {
             await _messageBus.PublishAsync(new DeleteQuery(q));
         }
 
-        Queries.Clear();
         AddQuery();
     }
 
     public async Task CloseToRight(QueryModel query)
     {
         var toRemove = Queries.Where(q => q.Order > query.Order).ToList();
+        Queries.RemoveAll(toRemove.Contains);
         foreach (var q in toRemove)
         {
             await _messageBus.PublishAsync(new DeleteQuery(q));
-            Queries.Remove(q);
         }
 
         if (Active != null && !Queries.Contains(Active))
