@@ -1,6 +1,8 @@
 using Aion.Components.Querying;
 using Aion.Components.Querying.TabBar;
+using Aion.Contracts.Queries;
 using Bunit;
+using MudBlazor;
 using MudBlazor.Services;
 using Shouldly;
 
@@ -116,6 +118,56 @@ public class AionTabItemTests : TestContext
         var tabItem = cut.Find(".aion-tab-item");
         tabItem.GetAttribute("data-has-color").ShouldBe("true");
         tabItem.GetAttribute("style").ShouldContain("--tab-color: #FF0000");
+    }
+
+    [Fact]
+    public void OpenTransaction_ShowsALockBadgeNamedForScreenReaders()
+    {
+        // Arrange
+        var query = new QueryModel { Name = "Test", SavedQuery = "", Transaction = new TransactionInfo() };
+
+        // Act
+        var cut = RenderComponent<AionTabItem>(p => p
+            .Add(x => x.Query, query));
+
+        // Assert
+        var badge = cut.Find(".tab-transaction-badge");
+        badge.GetAttribute("role").ShouldBe("img");
+        badge.GetAttribute("aria-label").ShouldBe("Transaction open");
+        cut.FindComponent<MudTooltip>().Instance.Text.ShouldBe("Transaction open");
+    }
+
+    [Fact]
+    public void NoTransaction_ShowsNoLockBadge()
+    {
+        // Arrange
+        var query = new QueryModel { Name = "Test", SavedQuery = "" };
+
+        // Act
+        var cut = RenderComponent<AionTabItem>(p => p
+            .Add(x => x.Query, query));
+
+        // Assert
+        cut.FindAll(".tab-transaction-badge").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void FinishedTransaction_ShowsNoLockBadge()
+    {
+        // Arrange
+        var query = new QueryModel
+        {
+            Name = "Test",
+            SavedQuery = "",
+            Transaction = new TransactionInfo().WithStatus(TransactionStatus.Committed)
+        };
+
+        // Act
+        var cut = RenderComponent<AionTabItem>(p => p
+            .Add(x => x.Query, query));
+
+        // Assert
+        cut.FindAll(".tab-transaction-badge").ShouldBeEmpty();
     }
 
     [Fact]

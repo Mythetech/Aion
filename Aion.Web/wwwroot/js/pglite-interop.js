@@ -1,18 +1,22 @@
 const instances = {};
 
-export async function create(name) {
-    if (instances[name]) return;
+// Each database has one session, and a catalog read in a savepoint spans several statements on it, so every
+// call made through this module waits its turn: nothing can slip in between SAVEPOINT and its release.
+const queues = {};
 
-    const { PGlite } = await import('https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/index.js');
-    instances[name] = await PGlite.create(`idb://${name}`);
+function exclusive(name, work) {
+    const turn = (queues[name] ?? Promise.resolve()).then(() => work());
+    queues[name] = turn.catch(() => {});
+    return turn;
 }
 
-export async function query(name, sql) {
+function database(name) {
     const db = instances[name];
     if (!db) throw new Error(`Database '${name}' not found`);
+    return db;
+}
 
-    const result = await db.query(sql);
-
+function toRows(result) {
     return {
         columns: result.fields.map(f => f.name),
         rows: result.rows.map(row => {
@@ -25,6 +29,46 @@ export async function query(name, sql) {
         }),
         affectedRows: result.affectedRows || 0
     };
+}
+
+export async function create(name) {
+    if (instances[name]) return;
+
+    const { PGlite } = await import('https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/index.js');
+    instances[name] = await PGlite.create(`idb://${name}`);
+}
+
+export function query(name, sql) {
+    return exclusive(name, async () => toRows(await database(name).query(sql)));
+}
+
+// For reads made while a query tab holds a transaction on the database, which they join. A read that fails
+// would otherwise abort the tab's transaction; rolling back to the savepoint undoes only the read.
+export function readInSavepoint(name, sql) {
+    return exclusive(name, async () => {
+        const db = database(name);
+
+        try {
+            await db.exec('SAVEPOINT aion_catalog_read');
+        } catch (e) {
+            // 25P01: no transaction after all, as when it ended while this read waited its turn.
+            if (e?.code === '25P01') return toRows(await db.query(sql));
+            throw e;
+        }
+
+        try {
+            const result = await db.query(sql);
+            await db.exec('RELEASE SAVEPOINT aion_catalog_read');
+            return toRows(result);
+        } catch (e) {
+            try {
+                await db.exec('ROLLBACK TO SAVEPOINT aion_catalog_read; RELEASE SAVEPOINT aion_catalog_read');
+            } catch (cleanup) {
+                console.warn(`Could not undo a failed catalog read on '${name}'`, cleanup);
+            }
+            throw e;
+        }
+    });
 }
 
 // Results shown in the grid keep PostgreSQL's own text for dates, times and JSON: as JS values, dates would
@@ -51,12 +95,13 @@ const resultParsers = {
 // b.id) keep their own values, with each column's type id. A failed statement is reported as data: an error
 // thrown across JS interop reaches .NET as text with the JS stack appended, losing the SQLSTATE and the
 // position PostgreSQL reported.
-export async function run(name, sql) {
-    try {
-        const db = instances[name];
-        if (!db) throw new Error(`Database '${name}' not found`);
+export function run(name, sql) {
+    return exclusive(name, () => runStatement(name, sql));
+}
 
-        const result = await db.query(sql, [], { rowMode: 'array', parsers: resultParsers });
+async function runStatement(name, sql) {
+    try {
+        const result = await database(name).query(sql, [], { rowMode: 'array', parsers: resultParsers });
 
         return {
             columns: result.fields.map(f => f.name),
@@ -78,25 +123,22 @@ export async function run(name, sql) {
     }
 }
 
-export async function exec(name, sql) {
-    const db = instances[name];
-    if (!db) throw new Error(`Database '${name}' not found`);
-    await db.exec(sql);
+export function exec(name, sql) {
+    return exclusive(name, async () => {
+        await database(name).exec(sql);
+    });
 }
 
 // db.transaction holds PGlite's transaction lock, so no other query can interleave with this one,
 // and the explicit rollback discards anything the statement changed. Returns the first column of
 // each row as text.
-export async function queryRolledBack(name, sql) {
-    const db = instances[name];
-    if (!db) throw new Error(`Database '${name}' not found`);
-
-    return await db.transaction(async (tx) => {
+export function queryRolledBack(name, sql) {
+    return exclusive(name, () => database(name).transaction(async (tx) => {
         const result = await tx.query(sql);
         await tx.rollback();
         const column = result.fields[0]?.name;
         return column === undefined ? [] : result.rows.map(row => String(row[column]));
-    });
+    }));
 }
 
 export function listDatabases() {
