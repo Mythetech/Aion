@@ -16,6 +16,11 @@ public static class ConnectionDescription
     public static string Describe(ConnectionModel connection)
     {
         var engine = EngineName(connection.Type);
+
+        // An in-browser database lives in the page, and its connection string only repeats the database name.
+        if (connection.Type is DatabaseType.WasmSQLite or DatabaseType.WasmPostgreSQL)
+            return engine;
+
         var host = Host(connection);
 
         return string.IsNullOrWhiteSpace(host) ? engine : $"{engine} on {host}";
