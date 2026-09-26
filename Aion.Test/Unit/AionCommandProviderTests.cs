@@ -1,3 +1,4 @@
+using Aion.Components.Querying.Commands;
 using Aion.Components.CommandPalette;
 using Aion.Components.Connections;
 using Aion.Components.NativeMenu;
@@ -31,7 +32,7 @@ public class AionCommandProviderTests
     {
         var result = await _provider.GetCommandsAsync("", CancellationToken.None);
 
-        result.Count.ShouldBe(16);
+        result.Count.ShouldBe(18);
     }
 
     [Fact]
@@ -46,7 +47,7 @@ public class AionCommandProviderTests
 
         var result = await _provider.GetCommandsAsync("", CancellationToken.None);
 
-        result.Count.ShouldBe(17);
+        result.Count.ShouldBe(19);
         result.ShouldContain(c => c.Id.StartsWith("panel.connection."));
     }
 
@@ -59,6 +60,26 @@ public class AionCommandProviderTests
         await clear.InvokeAsync(CancellationToken.None);
 
         await _bus.Received(1).PublishAsync(Arg.Any<ClearHistory>());
+    }
+
+    [Fact]
+    public async Task SaveQueryAsFile_PublishesTheSameCommandAsTheNativeMenu()
+    {
+        var result = await _provider.GetCommandsAsync("", CancellationToken.None);
+
+        await result.Single(c => c.Id == "action.save-query-as-file").InvokeAsync(CancellationToken.None);
+
+        await _bus.Received(1).PublishAsync(Arg.Any<SaveQueryAs>());
+    }
+
+    [Fact]
+    public async Task EditResults_PublishesTheSameCommandAsTheNativeMenu()
+    {
+        var result = await _provider.GetCommandsAsync("", CancellationToken.None);
+
+        await result.Single(c => c.Id == "action.edit-results").InvokeAsync(CancellationToken.None);
+
+        await _bus.Received(1).PublishAsync(Arg.Any<EnableEditModeFromQuery>());
     }
 
     [Fact]
