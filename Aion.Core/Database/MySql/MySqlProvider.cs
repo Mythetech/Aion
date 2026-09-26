@@ -34,15 +34,7 @@ public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabas
         builder.Database = null;
 
         using var conn = new MySqlConnection(builder.ConnectionString);
-        try
-        {
-            await conn.OpenAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex.Message);
-            return null;
-        }
+        await conn.OpenAsync();
 
         const string sql = @"
             SHOW DATABASES 

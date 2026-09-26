@@ -4,6 +4,7 @@ using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
 using Aion.Contracts.Queries.Editing;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using Shouldly;
 using Testcontainers.PostgreSql;
 using Xunit;
@@ -45,6 +46,39 @@ public class PostgreSqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         // Assert
         databases.ShouldNotBeNull();
         databases.ShouldContain(TestDatabase);
+    }
+
+    [Fact]
+    public async Task GetDatabases_ShouldIncludePostgresDatabase()
+    {
+        var databases = await Provider.GetDatabasesAsync(ConnectionString);
+
+        databases.ShouldNotBeNull();
+        databases.ShouldContain("postgres");
+    }
+
+    [Fact]
+    public async Task GetDatabases_WithDatabaseInConnectionString_ListsAllDatabases()
+    {
+        var dbConnectionString = Provider.UpdateConnectionString(ConnectionString, TestDatabase);
+
+        var databases = await Provider.GetDatabasesAsync(dbConnectionString);
+
+        databases.ShouldNotBeNull();
+        databases.ShouldContain(TestDatabase);
+        databases.ShouldContain("postgres");
+        databases.ShouldNotContain("template0");
+        databases.ShouldNotContain("template1");
+    }
+
+    [Fact]
+    public async Task GetDatabases_WrongPassword_ThrowsDriverError()
+    {
+        var wrongPassword = new NpgsqlConnectionStringBuilder(ConnectionString) { Password = "definitely-wrong" }.ConnectionString;
+
+        var ex = await Should.ThrowAsync<PostgresException>(() => Provider.GetDatabasesAsync(wrongPassword));
+
+        ex.Message.ShouldContain("password authentication failed");
     }
 
     [Fact]
