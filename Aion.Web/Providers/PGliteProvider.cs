@@ -90,7 +90,7 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
                 c.column_default,
                 c.character_maximum_length,
                 CASE WHEN pk.constraint_type = 'PRIMARY KEY' THEN true ELSE false END as is_primary_key,
-                CASE WHEN c.column_default LIKE 'nextval%' THEN true ELSE false END as is_identity
+                CASE WHEN c.column_default LIKE 'nextval%' OR c.is_identity = 'YES' THEN true ELSE false END as is_identity
             FROM information_schema.columns c
             LEFT JOIN (
                 SELECT ku.column_name, tc.constraint_type
