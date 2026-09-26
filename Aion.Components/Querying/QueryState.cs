@@ -189,6 +189,18 @@ public class QueryState : IConsumer<QueryChanged>
         OnStateChanged();
     }
 
+    /// <summary>Points the tab at one database on a connection, such as a database picked from another connection.</summary>
+    public void UpdateQueryConnection(QueryModel query, ConnectionModel connection, string databaseName)
+    {
+        var q = Queries.FirstOrDefault(x => x.Id.Equals(query.Id));
+        if (q == null) return;
+
+        q.ConnectionId = connection.Id;
+        q.DatabaseName = databaseName;
+
+        OnStateChanged();
+    }
+
     public void UpdateQueryDatabase(QueryModel query, string databaseName)
     {
         var q = Queries.FirstOrDefault(x => x.Id.Equals(query.Id));

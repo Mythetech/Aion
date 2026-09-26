@@ -44,39 +44,13 @@
                             ShowExplainAnalyze="@CanExplainAnalyze"
                             ExplainAnalyzeBlockedReason="@(HasOpenTransaction ? "Commit or roll back first" : null)"
                             OnExplainAnalyze="ExplainAnalyze" />
-        }
-        <MudSelect T="ConnectionModel"
-                   Label="Connection"
-                   Value="@SelectedConnection"
-                   ValueChanged="@OnConnectionChanged"
-                   ToStringFunc="@(c => c?.Name ?? string.Empty)"
-                   Disabled="@HasOpenTransaction"
-                   Margin="Margin.Dense">
-            @foreach (var connection in Connections.Connections)
-            {
-                <MudSelectItem Value="@connection">@connection.Name</MudSelectItem>
-            }
-        </MudSelect>
-        <MudDivider Class="h-100" Vertical="true" DividerType="DividerType.FullWidth"/>
-        <MudSelect T="string"
-                   Label="Database"
-                   Value="@SelectedDatabase"
-                   ValueChanged="@OnDatabaseChanged"
-                   Disabled="@(SelectedConnection == null || HasOpenTransaction)"
-                   Margin="Margin.Dense">
-            @if (SelectedConnection != null)
-            {
-                @foreach (var db in SelectedConnection.Databases)
-                {
-                    <MudSelectItem Value="@db.Name">@db.Name</MudSelectItem>
-                }
-            }
-        </MudSelect>
 
-        <MudSpacer/>
-        
-        @if (State?.Active != null)
-        {
+            <ConnectionPicker Query="@active"
+                              Disabled="@HasOpenTransaction"
+                              DisabledReason="Commit or roll back the open transaction to change the connection" />
+
+            <MudSpacer/>
+
             <ToggleChip Text="Transactions"
                         Icon="@(State.Active.UseTransaction ? AionIcons.Transaction : AionIcons.TransactionOff)"
                         Disabled="@HasOpenTransaction"
@@ -175,24 +149,10 @@
             : $"Run the query ({where})";
     }
 
-    private ConnectionModel? SelectedConnection => State.Active?.ConnectionId != null 
+    private ConnectionModel? SelectedConnection => State.Active?.ConnectionId != null
         ? Connections.Connections.FirstOrDefault(c => c.Id == State.Active.ConnectionId)
         : null;
-        
-    private string? SelectedDatabase
-    {
-        get => State.Active?.DatabaseName;
-        set
-        {
-            // Only update if value is different and not null
-            // This prevents accidental clearing during re-renders
-            if (State.Active != null && value != null && value != State.Active.DatabaseName)
-            {
-                State.UpdateQueryDatabase(State.Active, value);
-            }
-        }
-    }
-    
+
     private string? RunBlockedReason => State.Active is { } active ? RunBlockedReasonFor(active) : "Choose a connection";
 
     private string? RunBlockedReasonFor(QueryModel query) =>
@@ -265,22 +225,6 @@
         if (_runLoop != null)
         {
             await _runLoop;
-        }
-    }
-
-    private void OnConnectionChanged(ConnectionModel? connection)
-    {
-        if (State.Active != null && connection != null && State.Active.ConnectionId != connection.Id)
-        {
-            State.UpdateQueryConnection(State.Active, connection);
-        }
-    }
-
-    private void OnDatabaseChanged(string? database)
-    {
-        if (State.Active != null && database != null)
-        {
-            State.UpdateQueryDatabase(State.Active, database);
         }
     }
 

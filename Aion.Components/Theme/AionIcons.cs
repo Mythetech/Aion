@@ -156,6 +156,8 @@ public static class AionIcons
 
     public static string DropDown => Round("arrow_drop_down");
 
+    public static string Picker => Round("unfold_more");
+
     public static string HorizontalBarChart => Round("align_horizontal_left");
 
     public static string VerticalBarChart => Round("bar_chart");
