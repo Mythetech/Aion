@@ -1,3 +1,4 @@
+using Aion.Components.Querying;
 using Aion.Components.Querying.Messages;
 using Aion.Contracts.Queries;
 using Shouldly;
@@ -204,5 +205,19 @@ public class QueryMessageLogTests
 
         // Assert
         changed.ShouldBe([_tab, _tab, _tab]);
+    }
+
+    [Theory]
+    [InlineData(QueryResultKind.EstimatedPlan, "Estimated plan, statement not run")]
+    [InlineData(QueryResultKind.ActualPlan, "Actual plan, changes rolled back")]
+    public void PlanRun_SaysWhatHappenedToTheStatement(QueryResultKind kind, string expected)
+    {
+        // Act
+        _sut.RecordRun(_tab, "DELETE FROM carts", new QueryResult(), At, TimeSpan.FromMilliseconds(4), kind);
+
+        // Assert
+        var outcome = _sut.For(_tab).Last();
+        outcome.Kind.ShouldBe(QueryMessageKind.Success);
+        outcome.Text.ShouldBe(expected);
     }
 }

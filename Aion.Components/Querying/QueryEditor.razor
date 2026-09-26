@@ -85,11 +85,6 @@
         <TransactionBar Query="@transactionQuery" />
     }
 
-    @if (State?.Active?.ResultNotice != null)
-    {
-        <MudAlert Severity="Severity.Info" Class="my-2">@State.Active.ResultNotice</MudAlert>
-    }
-
     <JsGuard Name="monaco">
         <StandaloneCodeEditor CssClass="h-100 flex-grow-1" @ref="_editor" ConstructionOptions="DefaultOptions" OnDidInit="HandleInit" OnDidChangeModelContent="UpdateQuery" OnDidChangeCursorSelection="SelectionChanged"/>
     </JsGuard>

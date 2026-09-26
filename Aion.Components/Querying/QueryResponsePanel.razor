@@ -26,24 +26,24 @@
         @* Tabs and export actions keep their size; the find box shrinks to its minimum before anything overlaps. *@
         <div class="results-header">
             <div class="results-tabs">
-                <MudTabs Class="py-2 px-1" MinimumTabWidth="96px">
-                    <MudTabPanel Text="Results" OnClick="() => _activeTab = Results" />
-                    <MudTabPanel Text="Messages" OnClick="() => _activeTab = Messages" />
+                <MudTabs @ref="_tabs" Class="py-2 px-1" MinimumTabWidth="96px">
+                    <MudTabPanel ID="@Results" Text="Results" OnClick="() => _activeTab = Results" />
+                    <MudTabPanel ID="@Messages" Text="Messages" OnClick="() => _activeTab = Messages" />
                     @if (State.Active.EstimatedPlan != null)
                     {
-                        <MudTabPanel Text="Estimated Plan" OnClick="() => _activeTab = EstimatedPlan" />
+                        <MudTabPanel ID="@EstimatedPlan" Text="Estimated Plan" OnClick="() => _activeTab = EstimatedPlan" />
                     }
                     @if (State.Active.ActualPlan != null)
                     {
-                        <MudTabPanel Text="Actual Plan" OnClick="() => _activeTab = ActualPlan" />
+                        <MudTabPanel ID="@ActualPlan" Text="Actual Plan" OnClick="() => _activeTab = ActualPlan" />
                     }
                     @if (State.Active.EditMetadata?.IsEditMode == true)
                     {
-                        <MudTabPanel Text="Edit" Icon="@AionIcons.Edit" OnClick="() => _activeTab = Edit" />
+                        <MudTabPanel ID="@Edit" Text="Edit" Icon="@AionIcons.Edit" OnClick="() => _activeTab = Edit" />
                     }
                     @if (queryResult.Success && queryResult.Rows.Count > 0)
                     {
-                        <MudTabPanel Text="Analyze" OnClick="() => _activeTab = Analyze" />
+                        <MudTabPanel ID="@Analyze" Text="Analyze" OnClick="() => _activeTab = Analyze" />
                     }
                 </MudTabs>
             </div>
@@ -179,7 +179,7 @@
             else
             {
                 <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                    @DescribeResult(queryResult)
+                    @(State.Active.ResultKind.PlanSummary() ?? DescribeResult(queryResult))
                 </MudText>
                 <MudDivider Vertical="true" />
                 <QueryTimer StartTime="@State.Active.ExecutionStartTime" EndTime="@State.Active.ExecutionEndTime" Typo="Typo.caption" />
@@ -209,11 +209,12 @@ else if (State?.Active?.IsExecuting ?? false)
     private const string Results = "results";
     private const string Edit = "edit";
     private const string Analyze = "analyze";
-    private string Messages => "messages";
-    private string EstimatedPlan => "estimated";
-    private string ActualPlan => "actual";
+    private const string Messages = "messages";
+    private const string EstimatedPlan = "estimated";
+    private const string ActualPlan = "actual";
 
     private string _activeTab = Results;
+    private MudTabs? _tabs;
     private RowSelectionState _selectionState = new();
 
     // The tab and result the selected rows belong to.
@@ -229,18 +230,43 @@ else if (State?.Active?.IsExecuting ?? false)
         _selectionState.SelectionChanged += StateHasChanged;
         _selectionQueryId = State.Active?.Id;
         _selectionResult = State.Active?.Result;
+        _activeTab = TabFor(State.Active);
         base.OnInitialized();
     }
+
+    // The tabs strip is rebuilt after every run and its panels come and go with the result, so after each
+    // render it is pointed at the tab the content shows instead of keeping a choice of its own.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_tabs != null && !Equals(_tabs.ActivePanel?.ID, _activeTab))
+        {
+            await _tabs.ActivatePanelAsync(_activeTab);
+        }
+    }
+
+    /// <summary>
+    /// The tab a result opens on: a plan run shows its plan, and anything else its results, unless the
+    /// Messages log or the edit panel is open, which keep following the tab.
+    /// </summary>
+    private string TabFor(QueryModel? query) => query switch
+    {
+        { ResultKind: QueryResultKind.EstimatedPlan, EstimatedPlan: not null } => EstimatedPlan,
+        { ResultKind: QueryResultKind.ActualPlan, ActualPlan: not null } => ActualPlan,
+        _ when _activeTab is Messages or Edit => _activeTab,
+        _ => Results
+    };
 
     private void OnStateChanged()
     {
         // Row indexes only mean something for the result they were picked in, so a different tab or a new
-        // result clears the selection; other changes, such as a tab being saved, keep it.
+        // result clears the selection and picks the tab to show; other changes, such as a tab being saved,
+        // keep both.
         if (State.Active?.Id != _selectionQueryId || !ReferenceEquals(State.Active?.Result, _selectionResult))
         {
             _selectionState.ClearSelection();
             _selectionQueryId = State.Active?.Id;
             _selectionResult = State.Active?.Result;
+            _activeTab = TabFor(State.Active);
         }
 
         if (_activeTab == Edit && State.Active?.EditMetadata?.IsEditMode != true)

@@ -300,7 +300,7 @@ public class ConnectionStateTransactionTests
     }
 
     [Fact]
-    public async Task ActualPlan_ReturnsNormalResultWithRolledBackNoticeAndStopsTimer()
+    public async Task ActualPlan_ReturnsNormalResultMarkedAsTheActualPlanAndStopsTimer()
     {
         // Arrange
         _query.IncludeActualPlan = true;
@@ -313,7 +313,7 @@ public class ConnectionStateTransactionTests
         // Assert
         result.Success.ShouldBeTrue();
         _query.ActualPlan.ShouldBe(plan);
-        _query.ResultNotice.ShouldBe(ConnectionState.ActualPlanNotice);
+        _query.ResultKind.ShouldBe(QueryResultKind.ActualPlan);
         _query.IsExecuting.ShouldBeFalse();
         _query.ExecutionEndTime.ShouldNotBeNull();
         await _provider.DidNotReceive().ExecuteQueryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -349,7 +349,7 @@ public class ConnectionStateTransactionTests
         // Assert
         result.Error.ShouldBe("statement refused");
         _query.ActualPlan.ShouldBeNull();
-        _query.ResultNotice.ShouldBeNull();
+        _query.ResultKind.ShouldBe(QueryResultKind.Results);
         _query.ExecutionEndTime.ShouldNotBeNull();
     }
 
@@ -388,7 +388,7 @@ public class ConnectionStateTransactionTests
         result.Success.ShouldBeTrue();
         _query.ActualPlan.ShouldBeNull();
         _query.EstimatedPlan.ShouldBeNull();
-        _query.ResultNotice.ShouldBeNull();
+        _query.ResultKind.ShouldBe(QueryResultKind.Results);
         await basicProvider.Received(1).ExecuteQueryAsync(DbConnectionString, _query.Query, Arg.Any<CancellationToken>());
         await basicProvider.DidNotReceive().GetActualPlanAsync(Arg.Any<string>(), Arg.Any<string>());
         await basicProvider.DidNotReceive().GetEstimatedPlanAsync(Arg.Any<string>(), Arg.Any<string>());

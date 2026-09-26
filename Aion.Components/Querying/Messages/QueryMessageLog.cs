@@ -30,15 +30,16 @@ public partial class QueryMessageLog
         Append(queryId, new QueryMessage(at, QueryMessageKind.Transaction, committed ? "COMMIT" : "ROLLBACK"));
 
     /// <param name="result">Null when the run ended without one, which is logged as completed.</param>
-    public void RecordRun(Guid queryId, string sql, QueryResult? result, DateTimeOffset startedAt, TimeSpan? duration)
+    public void RecordRun(Guid queryId, string sql, QueryResult? result, DateTimeOffset startedAt, TimeSpan? duration,
+        QueryResultKind kind = QueryResultKind.Results)
     {
         var full = sql.Trim();
         var preview = Preview(full);
-        var (kind, text) = Outcome(result);
+        var (outcome, text) = Outcome(result, kind);
 
         Append(queryId,
             new QueryMessage(startedAt, QueryMessageKind.Statement, preview) { Detail = preview == full ? null : full },
-            new QueryMessage(startedAt + (duration ?? TimeSpan.Zero), kind, text) { Duration = duration });
+            new QueryMessage(startedAt + (duration ?? TimeSpan.Zero), outcome, text) { Duration = duration });
     }
 
     public void Forget(Guid queryId)
@@ -66,10 +67,11 @@ public partial class QueryMessageLog
         MessagesChanged?.Invoke(queryId);
     }
 
-    private static (QueryMessageKind Kind, string Text) Outcome(QueryResult? result) => result switch
+    private static (QueryMessageKind Kind, string Text) Outcome(QueryResult? result, QueryResultKind kind) => result switch
     {
         { Cancelled: true } => (QueryMessageKind.Info, "Cancelled"),
         { Success: false } => (QueryMessageKind.Error, QueryErrorText.LogLine(result.ErrorDetail ?? QueryErrorNormalizer.Normalize(result.Error!))),
+        _ when kind.PlanSummary() is { } plan => (QueryMessageKind.Success, plan),
         { Columns.Count: > 0 } => (QueryMessageKind.Success, $"{Count(result.RowCount, "row")} returned"),
         { RowsAffected: { } affected } => (QueryMessageKind.Success, $"{Count(affected, "row")} affected"),
         _ => (QueryMessageKind.Success, "Completed")

@@ -54,7 +54,7 @@ public class ConnectionStateExplainTests
         // Assert
         result.Success.ShouldBeTrue();
         _query.EstimatedPlan.ShouldBe(_estimated);
-        _query.ResultNotice.ShouldBe(ConnectionState.EstimatedPlanNotice);
+        _query.ResultKind.ShouldBe(QueryResultKind.EstimatedPlan);
         _query.IsExecuting.ShouldBeFalse();
         await EstimatedPlans.Received(1).GetEstimatedPlanAsync(DbConnectionString, Sql, Arg.Any<CancellationToken>());
         await _provider.DidNotReceive().ExecuteQueryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -88,7 +88,7 @@ public class ConnectionStateExplainTests
         // Assert
         result.Error.ShouldBe("syntax error at or near \"FORM\"");
         _query.EstimatedPlan.ShouldBeNull();
-        _query.ResultNotice.ShouldBeNull();
+        _query.ResultKind.ShouldBe(QueryResultKind.Results);
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public class ConnectionStateExplainTests
         result.Success.ShouldBeTrue();
         _query.ActualPlan.ShouldBe(_actual);
         _query.IncludeActualPlan.ShouldBeFalse();
-        _query.ResultNotice.ShouldBe(ConnectionState.ActualPlanNotice);
+        _query.ResultKind.ShouldBe(QueryResultKind.ActualPlan);
         await EstimatedPlans.DidNotReceive().GetEstimatedPlanAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _provider.DidNotReceive().ExecuteQueryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }

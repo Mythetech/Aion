@@ -13,10 +13,10 @@ public class QueryModel
     public QueryResult? Result { get; set; }
 
     /// <summary>
-    /// Informational message shown alongside a successful result, such as how an actual plan was captured.
+    /// Whether the latest run returned results or only a plan.
     /// </summary>
     [JsonIgnore]
-    public string? ResultNotice { get; private set; }
+    public QueryResultKind ResultKind { get; private set; }
 
     /// <summary>
     /// The tab's full SQL when its result arrived. Error positions refer to this text, so the editor
@@ -90,7 +90,7 @@ public class QueryModel
         ExecutionEndTime = null;
     }
 
-    public void SetResult(QueryResult result, string? notice = null)
+    public void SetResult(QueryResult result, QueryResultKind kind = QueryResultKind.Results)
     {
         // Providers without structured driver errors, and failures raised before a provider ran, only
         // set the text. The SQL that ran locates the error.
@@ -100,7 +100,7 @@ public class QueryModel
         }
 
         Result = result;
-        ResultNotice = notice;
+        ResultKind = kind;
         IsExecuting = false;
         ExecutionEndTime = DateTimeOffset.Now;
     }
@@ -113,7 +113,7 @@ public class QueryModel
             Name = Name,
             Query = Query,
             Result = Result?.Clone(),
-            ResultNotice = ResultNotice,
+            ResultKind = ResultKind,
             ExecutedSql = ExecutedSql,
             IsExecuting = !newId && IsExecuting,
             ConnectionId = ConnectionId,

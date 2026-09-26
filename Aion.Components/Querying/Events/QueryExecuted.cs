@@ -22,6 +22,8 @@ public record QueryExecuted(QueryModel Query)
     // must not be reported as the outcome of this one.
     public QueryResult? Result { get; init; } = Query.ExecutionEndTime is null ? null : Query.Result;
 
+    public QueryResultKind ResultKind { get; init; } = Query.ResultKind;
+
     public TimeSpan? Duration { get; init; } = Query.ExecutionDuration;
 
     public DateTimeOffset ExecutedAt { get; init; } = Query.ExecutionStartTime ?? DateTimeOffset.Now;

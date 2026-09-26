@@ -30,7 +30,7 @@ public class QueryMessageRecorder :
 
     public Task Consume(QueryExecuted message)
     {
-        _log.RecordRun(message.Query.Id, message.ExecutedSql, message.Result, message.ExecutedAt, message.Duration);
+        _log.RecordRun(message.Query.Id, message.ExecutedSql, message.Result, message.ExecutedAt, message.Duration, message.ResultKind);
         return Task.CompletedTask;
     }
 

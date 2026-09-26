@@ -279,7 +279,7 @@ public class QueryEditorTransactionTests : TestContext
     }
 
     [Fact]
-    public async Task ActualPlanRun_ShowsRolledBackNoticeInsteadOfError()
+    public async Task ActualPlanRun_IsMarkedAsTheActualPlanInsteadOfAnError()
     {
         // Arrange
         _query.IncludeActualPlan = true;
@@ -292,8 +292,9 @@ public class QueryEditorTransactionTests : TestContext
         await cut.Find(".run-query-button").ClickAsync(new MouseEventArgs());
 
         // Assert
-        cut.Find(".mud-alert-text-info").TextContent.ShouldContain("rolled back");
-        cut.FindAll(".mud-alert-text-error").ShouldBeEmpty();
+        _query.Result!.Success.ShouldBeTrue();
+        _query.ResultKind.ShouldBe(QueryResultKind.ActualPlan);
+        cut.FindAll(".mud-alert").ShouldBeEmpty();
         await _provider.DidNotReceive().ExecuteQueryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 }

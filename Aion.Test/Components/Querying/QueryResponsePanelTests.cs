@@ -32,14 +32,16 @@ public class QueryResponsePanelTests : TestContext
         JSInterop.Mode = JSRuntimeMode.Loose;
 
         _state = new QueryState(_bus, Substitute.For<IQuerySaveService>());
+        var providers = Substitute.For<IDatabaseProviderFactory>();
         _connections = new ConnectionState(
-            Substitute.For<IConnectionService>(), Substitute.For<IDatabaseProviderFactory>(), _bus, new NullLogger<ConnectionState>());
+            Substitute.For<IConnectionService>(), providers, _bus, new NullLogger<ConnectionState>());
 
         Services.AddSingleton(_bus);
         Services.AddSingleton(new ResultsSettings());
         Services.AddSingleton(_state);
         Services.AddSingleton(_connections);
         Services.AddSingleton(_log);
+        Services.AddSingleton(providers);
         Services.AddSingleton(new SqlCompletionService(_connections));
         Services.AddSingleton(new QueryErrorSuggester(_connections, NullLogger<QueryErrorSuggester>.Instance));
 
@@ -47,10 +49,10 @@ public class QueryResponsePanelTests : TestContext
         _state.SetActive(_query);
     }
 
-    private void Complete(QueryResult result)
+    private void Complete(QueryResult result, QueryResultKind kind = QueryResultKind.Results)
     {
         _query.StartExecution();
-        _query.SetResult(result);
+        _query.SetResult(result, kind);
         _state.SetResult(_query, result);
     }
 
@@ -454,5 +456,126 @@ public class QueryResponsePanelTests : TestContext
         // Assert
         cut.Find(".query-message-text.query-message-statement").GetAttribute("title").ShouldBe("SELECT *\nFROM prodcts");
         cut.Find(".query-message-error").TextContent.ShouldBe("Error: no such table: prodcts");
+    }
+
+    private static readonly QueryPlan Plan = new() { PlanType = "Estimated", PlanFormat = "TEXT", PlanContent = "Seq Scan on products" };
+
+    // A run shows the running view in between, which rebuilds the results tabs, as the app does.
+    private async Task RunAsync(IRenderedComponent<QueryResponsePanel> cut, QueryResult result, QueryResultKind kind = QueryResultKind.Results)
+    {
+        await cut.InvokeAsync(() =>
+        {
+            _query.StartExecution();
+            _state.SetActive(_query);
+        });
+        await cut.InvokeAsync(() =>
+        {
+            if (kind == QueryResultKind.EstimatedPlan) _query.EstimatedPlan = Plan;
+            if (kind == QueryResultKind.ActualPlan) _query.ActualPlan = Plan;
+            _query.SetResult(result, kind);
+            _state.SetResult(_query, result);
+        });
+    }
+
+    private static string ActiveResultsTab(IRenderedComponent<QueryResponsePanel> cut) =>
+        cut.Find(".mud-tab.mud-tab-active").TextContent.Trim();
+
+    [Fact]
+    public async Task Explain_OpensTheEstimatedPlanTab()
+    {
+        // Arrange
+        Complete(Rows(3));
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act
+        await RunAsync(cut, new QueryResult(), QueryResultKind.EstimatedPlan);
+
+        // Assert
+        cut.WaitForAssertion(() => ActiveResultsTab(cut).ShouldBe("Estimated Plan"));
+        cut.FindComponent<QueryPlanVisualizer>().Instance.Plan.ShouldBe(Plan);
+    }
+
+    [Fact]
+    public async Task ExplainAnalyze_OpensTheActualPlanTab()
+    {
+        // Arrange
+        Complete(Rows(3));
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act
+        await RunAsync(cut, new QueryResult(), QueryResultKind.ActualPlan);
+
+        // Assert
+        cut.WaitForAssertion(() => ActiveResultsTab(cut).ShouldBe("Actual Plan"));
+        cut.FindComponent<QueryPlanVisualizer>().Instance.Plan.ShouldBe(Plan);
+    }
+
+    [Fact]
+    public async Task Explain_WhileTheResultsTabsStayOnScreen_StillOpensThePlan()
+    {
+        // Arrange
+        Complete(Rows(3));
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act
+        await cut.InvokeAsync(() =>
+        {
+            _query.EstimatedPlan = Plan;
+            Complete(new QueryResult(), QueryResultKind.EstimatedPlan);
+        });
+
+        // Assert
+        cut.WaitForAssertion(() => ActiveResultsTab(cut).ShouldBe("Estimated Plan"));
+    }
+
+    [Fact]
+    public async Task Run_AfterExplain_LandsOnResults()
+    {
+        // Arrange
+        Complete(Rows(3));
+        var cut = RenderComponent<QueryResponsePanel>();
+        await RunAsync(cut, new QueryResult(), QueryResultKind.EstimatedPlan);
+        cut.WaitForAssertion(() => ActiveResultsTab(cut).ShouldBe("Estimated Plan"));
+
+        // Act
+        await RunAsync(cut, Rows(2));
+
+        // Assert
+        cut.WaitForAssertion(() => ActiveResultsTab(cut).ShouldBe("Results"));
+        cut.FindComponents<QueryResultTable>().Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Run_WhileReadingMessages_KeepsMessagesOpen()
+    {
+        // Arrange
+        Complete(Rows(3));
+        var cut = RenderComponent<QueryResponsePanel>();
+        await OpenMessagesAsync(cut);
+
+        // Act
+        await RunAsync(cut, Rows(2));
+
+        // Assert
+        cut.WaitForAssertion(() => ActiveResultsTab(cut).ShouldBe("Messages"));
+        cut.FindAll(".query-messages").Count.ShouldBe(1);
+    }
+
+    [Theory]
+    [InlineData(QueryResultKind.EstimatedPlan, "Estimated plan, statement not run")]
+    [InlineData(QueryResultKind.ActualPlan, "Actual plan, changes rolled back")]
+    public async Task PlanRun_FooterSaysWhatHappenedToTheStatement(QueryResultKind kind, string expected)
+    {
+        // Arrange
+        Complete(Rows(3));
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act
+        await RunAsync(cut, new QueryResult(), kind);
+
+        // Assert
+        var footer = cut.Find(".query-response-footer").TextContent;
+        footer.ShouldContain(expected);
+        footer.ShouldNotContain("Results");
     }
 }
