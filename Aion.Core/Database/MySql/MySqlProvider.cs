@@ -359,13 +359,14 @@ public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabas
         using var conn = new MySqlConnection(connectionString);
         await conn.OpenAsync();
 
+        // longtext and longblob report a 4 GB maximum length, which would overflow the int read below.
         const string sql = @"
-            SELECT 
+            SELECT
                 c.COLUMN_NAME,
                 c.DATA_TYPE,
                 c.IS_NULLABLE = 'YES' as IS_NULLABLE,
                 c.COLUMN_DEFAULT,
-                c.CHARACTER_MAXIMUM_LENGTH,
+                LEAST(c.CHARACTER_MAXIMUM_LENGTH, 2147483647) as CHARACTER_MAXIMUM_LENGTH,
                 c.COLUMN_KEY = 'PRI' as IS_PRIMARY_KEY,
                 c.EXTRA = 'auto_increment' as IS_IDENTITY
             FROM information_schema.COLUMNS c
