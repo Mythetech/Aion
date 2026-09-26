@@ -67,6 +67,12 @@ public class ConnectionPickerTests : TestContext
     private static async Task OpenAsync(IRenderedComponent<ConnectionPicker> cut) =>
         await cut.Find(".connection-picker-trigger").ClickAsync(new MouseEventArgs());
 
+    // The menu focuses its own list while open; the element focused after that is the picker's button.
+    private List<string> FocusedElements() =>
+        JSInterop.Invocations["Blazor._internal.domWrapper.focus"]
+            .Select(i => ((Microsoft.AspNetCore.Components.ElementReference)i.Arguments[0]!).Id)
+            .ToList();
+
     private IElement? Option(string text) =>
         _popovers.FindAll(".mud-menu-item").FirstOrDefault(i => i.QuerySelector(".picker-option-name")?.TextContent == text);
 
@@ -195,6 +201,23 @@ public class ConnectionPickerTests : TestContext
         // Assert
         _query.ConnectionId.ShouldBe(_prod.Id);
         _query.DatabaseName.ShouldBe("analytics");
+    }
+
+    [Fact]
+    public async Task ChoosingADatabase_LeavesFocusOnThePicker()
+    {
+        // Arrange
+        var cut = RenderPicker();
+        await OpenAsync(cut);
+        var focusedWhileOpen = FocusedElements();
+
+        // Act
+        await Option("orders")!.ClickAsync(new MouseEventArgs());
+
+        // Assert
+        var focusedAfter = FocusedElements();
+        focusedAfter.Count.ShouldBe(focusedWhileOpen.Count + 1);
+        focusedWhileOpen.ShouldNotContain(focusedAfter[^1]);
     }
 
     [Fact]

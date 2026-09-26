@@ -42,6 +42,15 @@
     border-color: var(--mud-palette-primary);
 }
 
+.connection-picker-trigger:focus {
+    outline: none;
+}
+
+.connection-picker-trigger:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
+}
+
 .connection-picker-host ::deep .mud-disabled .connection-picker-trigger {
     border-color: var(--mud-palette-lines-default);
     color: var(--mud-palette-text-disabled);
