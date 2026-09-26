@@ -43,6 +43,7 @@ public static class RegistrationExtensions
 
         services.AddSingleton<GlobalAppState>();
         services.AddSingleton<ConnectionState>();
+        services.AddSingleton<PendingSchemaChanges>();
         services.AddSingleton<QueryState>();
         services.AddSingleton<HistoryState>();
         services.AddSingleton<QueryMessageLog>();
