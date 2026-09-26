@@ -178,8 +178,8 @@
             }
             else
             {
-                <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                    @(State.Active.ResultKind.PlanSummary() ?? DescribeResult(queryResult))
+                <MudText Typo="Typo.caption" Class="query-result-count mud-text-secondary">
+                    @(State.Active.ResultKind.PlanSummary() ?? DescribeShownResult(queryResult))
                 </MudText>
                 <MudDivider Vertical="true" />
                 <QueryTimer StartTime="@State.Active.ExecutionStartTime" EndTime="@State.Active.ExecutionEndTime" Typo="Typo.caption" />
@@ -299,6 +299,26 @@ else if (State?.Active?.IsExecuting ?? false)
 
     private static string FormatDuration(QueryModel query) =>
         query.ExecutionDuration is { } duration ? QueryTimer.FormatDuration(duration) : string.Empty;
+
+    // The rows find in results keeps, counted once per result and search rather than on every render.
+    private QueryResult? _countedResult;
+    private string? _countedSearch;
+    private int _matchingRows;
+
+    private string DescribeShownResult(QueryResult result)
+    {
+        if (string.IsNullOrEmpty(_search) || result.Columns.Count == 0)
+            return DescribeResult(result);
+
+        if (!ReferenceEquals(result, _countedResult) || _search != _countedSearch)
+        {
+            _countedResult = result;
+            _countedSearch = _search;
+            _matchingRows = result.Rows.Count(row => ResultRowFilter.Matches(row, _search));
+        }
+
+        return $"{_matchingRows} of {result.RowCount} results";
+    }
 
     private static string DescribeResult(QueryResult result) =>
         result.Columns.Count == 0 && result.RowsAffected is { } affected

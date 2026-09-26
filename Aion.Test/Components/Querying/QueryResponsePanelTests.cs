@@ -578,4 +578,50 @@ public class QueryResponsePanelTests : TestContext
         footer.ShouldContain(expected);
         footer.ShouldNotContain("Results");
     }
+
+    private static string FooterCount(IRenderedComponent<QueryResponsePanel> cut) =>
+        cut.Find(".query-response-footer .query-result-count").TextContent.Trim();
+
+    [Fact]
+    public async Task Footer_WhileFiltering_SaysHowManyOfTheResultsMatch()
+    {
+        // Arrange
+        Complete(Rows(10));
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act: ids 1 and 10 contain "1".
+        await FindInResultsAsync(cut, "1", expectedRows: 2);
+
+        // Assert
+        cut.WaitForAssertion(() => FooterCount(cut).ShouldBe("2 of 10 results"));
+    }
+
+    [Fact]
+    public async Task Footer_AfterTheFilterIsCleared_CountsEveryResultAgain()
+    {
+        // Arrange
+        Complete(Rows(10));
+        var cut = RenderComponent<QueryResponsePanel>();
+        await FindInResultsAsync(cut, "1", expectedRows: 2);
+
+        // Act
+        await FindInResultsAsync(cut, "", expectedRows: 10);
+
+        // Assert
+        cut.WaitForAssertion(() => FooterCount(cut).ShouldBe("10 Results"));
+    }
+
+    [Fact]
+    public async Task Footer_WhileFilteringAStatementThatChangedRows_StillSaysRowsAffected()
+    {
+        // Arrange
+        Complete(new QueryResult { RowsAffected = 4 });
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act
+        await cut.Find("input[placeholder='Find in results...']").InputAsync(new ChangeEventArgs { Value = "x" });
+
+        // Assert
+        cut.WaitForAssertion(() => FooterCount(cut).ShouldBe("4 rows affected"));
+    }
 }
