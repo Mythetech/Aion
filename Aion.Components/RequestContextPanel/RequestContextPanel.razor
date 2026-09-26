@@ -14,6 +14,8 @@
 @using Aion.Components.Shared.Loaders
 @using Aion.Contracts.Extensions
 @using Mythetech.Framework.Components.SimpleTabs
+@using MudBlazor.State
+@inherits ComponentBaseWithState
 @implements IDisposable
 <MudStack Class="h-100 w-100">
     <MudStack Row="true" Class="w-100 pa-1" AlignItems="AlignItems.Center">
@@ -96,10 +98,11 @@
     [Parameter]
     public EventCallback PanelClosed { get; set; } = default!;
 
+    /// <summary>
+    /// The view to show and what it shows. A new request selects its view even when the panel is already open.
+    /// </summary>
     [Parameter]
-    public bool IsOpen { get; set; } = false;
-
-    private MudToggleGroup<string> _toggle;
+    public SidePanelRequest? Request { get; set; }
 
     private SimpleTabs? _simpleTabs;
     private JsonViewer? _jsonViewer;
@@ -107,8 +110,8 @@
 
     private string _queryName = "";
 
-    private string JsonView => "JsonView";
-    private string ForeignKeyView => "ForeignKey";
+    private static string JsonView => SidePanelRequest.JsonView;
+    private static string ForeignKeyView => SidePanelRequest.ForeignKeyView;
 
     private string _code = "";
 
@@ -121,8 +124,18 @@
     private ForeignKeyDetail? _foreignKeyDetail;
     private List<ForeignKeyInfo> _availableForeignKeys = new();
 
+    public RequestContextPanel()
+    {
+        using var registerScope = CreateRegisterScope();
+        registerScope.RegisterParameter<SidePanelRequest?>(nameof(Request))
+            .WithParameter(() => Request)
+            .WithComparer(ReferenceEqualityComparer.Instance)
+            .WithChangeHandler(OnRequestChanged);
+    }
+
     protected override void OnInitialized()
     {
+        base.OnInitialized();
         QueryState.StateChanged += StateHasChanged;
     }
 
@@ -142,26 +155,33 @@
         }
     }
 
-    public void Open(string tab, string? args = default)
+    private void OnRequestChanged(ParameterChangedEventArgs<SidePanelRequest?> args)
     {
-        if (tab.Equals(JsonView) && !string.IsNullOrWhiteSpace(args))
+        if (args.Value is not { } request) return;
+
+        if (request.JsonDetail is { } json)
         {
-            _code = JsonSerializer.Serialize(JsonSerializer.Deserialize<dynamic>(args), new JsonSerializerOptions() { WriteIndented = true });
+            _queryName = json.QueryName;
+            _columnName = json.Column;
+            _code = FormatJson(json.Json);
+        }
+        else if (request.View == JsonView && !string.IsNullOrWhiteSpace(request.JsonArgs))
+        {
+            _code = FormatJson(request.JsonArgs);
         }
 
-        _pendingTab = tab;
+        if (request.ForeignKey is { } foreignKey)
+        {
+            _queryName = foreignKey.QueryName;
+            _foreignKeyDetail = foreignKey;
+        }
+
+        _pendingTab = request.View;
         StateHasChanged();
     }
 
-    public void OpenJsonDetailView(QueryResponseJsonDetail columnDetail)
-    {
-        _queryName = columnDetail.QueryName;
-        _columnName = columnDetail.Column;
-        _code = JsonSerializer.Serialize(JsonSerializer.Deserialize<dynamic>(columnDetail.Json), new JsonSerializerOptions() { WriteIndented = true });
-
-        _pendingTab = JsonView;
-        StateHasChanged();
-    }
+    private static string FormatJson(string json) =>
+        JsonSerializer.Serialize(JsonSerializer.Deserialize<dynamic>(json), new JsonSerializerOptions { WriteIndented = true });
 
     protected async Task OpenJsonViewerDialog()
     {
@@ -174,16 +194,6 @@
         };
 
         await DialogService.ShowAsync<JsonDetailDialog>("Json Viewer", parameters, options);
-    }
-
-    public void OpenForeignKeyDetailView(ForeignKeyDetail foreignKeyDetail, List<ForeignKeyInfo>? availableForeignKeys = null)
-    {
-        _queryName = foreignKeyDetail.QueryName;
-        _foreignKeyDetail = foreignKeyDetail;
-        _availableForeignKeys = availableForeignKeys ?? new List<ForeignKeyInfo>();
-
-        _pendingTab = ForeignKeyView;
-        StateHasChanged();
     }
 
     private async Task OnForeignKeyChanged(ForeignKeyDetail newDetail)
