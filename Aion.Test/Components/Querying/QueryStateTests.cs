@@ -28,6 +28,8 @@ public class QueryStateTests
         // Assert
         _state.Queries.Count.ShouldBe(1);
         _state.Queries[0].Name.ShouldBe("Query1");
+        _state.Queries[0].Query.ShouldBeEmpty();
+        _state.Queries[0].IsDirty.ShouldBeFalse();
     }
 
     [Fact]

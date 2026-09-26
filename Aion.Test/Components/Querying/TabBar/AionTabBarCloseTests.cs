@@ -20,7 +20,6 @@ public class AionTabBarCloseTests : TestContext
     public AionTabBarCloseTests()
     {
         _state = new QueryState(Substitute.For<IMessageBus>(), Substitute.For<IQuerySaveService>());
-        _state.EditQueryText(_state.Queries[0], "");
         Services.AddSingleton(_state);
         Services.AddSingleton(Substitute.For<IMessageBus>());
         Services.AddMudServices();

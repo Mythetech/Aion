@@ -192,6 +192,8 @@
             // Monaco measures its container once at creation. The editor pane changes width whenever a side
             // panel opens or closes, and at startup it can be created before the side panel has collapsed.
             AutomaticLayout = true,
+            // Shown only while the editor is empty, and never part of the tab's text.
+            Placeholder = $"Write a query. {Keys.Describe(Keys.RunQuery)} runs it, {Keys.Describe(Keys.CommandPalette)} opens commands.",
         };
     }
 

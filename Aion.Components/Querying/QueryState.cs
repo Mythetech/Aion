@@ -44,7 +44,7 @@ public class QueryState : IConsumer<QueryChanged>
     /// <summary>Raised for a change that only affects what is on screen, such as the active tab.</summary>
     private void OnViewChanged() => StateChanged?.Invoke();
 
-    public List<QueryModel> Queries { get; private set; } = [new() {Name = "Query1", Query = "Select * From \" \""}];
+    public List<QueryModel> Queries { get; private set; } = [new() { Name = "Query1" }];
 
     public QueryModel? Active { get; private set; }
 
