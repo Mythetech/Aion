@@ -1,4 +1,5 @@
 using Aion.Contracts.Database;
+using Aion.Contracts.Database.Dialects;
 using Aion.Contracts.Queries;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
@@ -9,7 +10,7 @@ using System.Text;
 namespace Aion.Core.Database.SqlServer;
 
 public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider,
-    IDatabaseRowEditingProvider, IEstimatedQueryPlanProvider, IActualQueryPlanProvider
+    IDatabaseRowEditingProvider, IEstimatedQueryPlanProvider, IActualQueryPlanProvider, ISqlDialectProvider
 {
     private const string TransactionNotOpenMessage = "This transaction is no longer open. Roll back to clear it.";
     private const string ShowplanColumnName = "Microsoft SQL Server 2005 XML Showplan";
@@ -23,6 +24,7 @@ public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDat
     }
 
     public IStandardDatabaseCommands Commands { get; } = new SqlServerCommands();
+    public SqlDialect Dialect => SqlServerDialect.Instance;
     public DatabaseType DatabaseType => DatabaseType.SQLServer;
     public IReadOnlyList<string> SystemSchemas { get; } = ["sys", "INFORMATION_SCHEMA", "guest"];
 

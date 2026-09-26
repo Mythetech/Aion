@@ -25,4 +25,6 @@ public sealed class SidePanelRequest
     public QueryResponseJsonDetail? JsonDetail { get; init; }
 
     public ForeignKeyDetail? ForeignKey { get; init; }
+
+    public IReadOnlyList<ForeignKeyDetail> ForeignKeyChoices { get; init; } = [];
 }

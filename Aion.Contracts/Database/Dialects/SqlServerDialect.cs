@@ -15,4 +15,7 @@ public sealed class SqlServerDialect : SqlDialect
     protected override string FormatBoolean(bool value) => value ? "1" : "0";
 
     protected override string FormatBytes(byte[] value) => $"0x{Convert.ToHexString(value)}";
+
+    public override string SelectRows(string qualifiedTable, string? predicate = null, int? limit = null) =>
+        $"SELECT {(limit is { } count ? $"TOP ({count.ToString(System.Globalization.CultureInfo.InvariantCulture)}) " : "")}* FROM {qualifiedTable}{WhereClause(predicate)};";
 }

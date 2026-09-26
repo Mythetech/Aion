@@ -66,6 +66,19 @@ public abstract class SqlDialect
         return string.Join(", ", assignments);
     }
 
+    public string QualifyTable(string? schema, string table) =>
+        string.IsNullOrEmpty(schema) ? QuoteIdentifier(table) : $"{QuoteIdentifier(schema)}.{QuoteIdentifier(table)}";
+
+    /// <summary>
+    /// Builds a SELECT of every column of an already quoted table, optionally filtered and cut to the first rows
+    /// with the engine's own row limit.
+    /// </summary>
+    public virtual string SelectRows(string qualifiedTable, string? predicate = null, int? limit = null) =>
+        $"SELECT * FROM {qualifiedTable}{WhereClause(predicate)}{(limit is { } count ? $"\nLIMIT {count.ToString(CultureInfo.InvariantCulture)}" : "")};";
+
+    protected static string WhereClause(string? predicate) =>
+        string.IsNullOrWhiteSpace(predicate) ? "" : $"\nWHERE {predicate}";
+
     public string BuildColumnList(IEnumerable<ColumnValue> values) =>
         string.Join(", ", values.Select(v => QuoteIdentifier(v.Column)));
 

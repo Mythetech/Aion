@@ -162,6 +162,58 @@ public class SqlDialectTests
         Should.Throw<ArgumentException>(() => dialect.BuildAssignments([]));
     }
 
+    public static TheoryData<SqlDialect, string?, string> QualifiedTables => new()
+    {
+        { PostgreSqlDialect.Instance, "public", "\"public\".\"orders\"" },
+        { SqlServerDialect.Instance, "dbo", "[dbo].[orders]" },
+        { MySqlDialect.Instance, "shop", "`shop`.`orders`" },
+        { SqliteDialect.Instance, null, "\"orders\"" },
+        { PostgreSqlDialect.Instance, "", "\"orders\"" },
+    };
+
+    [Theory]
+    [MemberData(nameof(QualifiedTables))]
+    public void QualifyTable_QuotesTheSchemaOnlyWhenThereIsOne(SqlDialect dialect, string? schema, string expected)
+    {
+        dialect.QualifyTable(schema, "orders").ShouldBe(expected);
+    }
+
+    public static TheoryData<SqlDialect, string> FirstRowsSelects => new()
+    {
+        { PostgreSqlDialect.Instance, "SELECT * FROM \"orders\"\nLIMIT 1000;" },
+        { SqliteDialect.Instance, "SELECT * FROM \"orders\"\nLIMIT 1000;" },
+        { MySqlDialect.Instance, "SELECT * FROM `orders`\nLIMIT 1000;" },
+        { SqlServerDialect.Instance, "SELECT TOP (1000) * FROM [orders];" },
+    };
+
+    [Theory]
+    [MemberData(nameof(FirstRowsSelects))]
+    public void SelectRows_LimitsRowsTheWayTheEngineDoes(SqlDialect dialect, string expected)
+    {
+        dialect.SelectRows(dialect.QuoteIdentifier("orders"), limit: 1000).ShouldBe(expected);
+    }
+
+    [Fact]
+    public void SelectRows_WithAPredicateAndNoLimit_FiltersEveryRow()
+    {
+        var dialect = PostgreSqlDialect.Instance;
+
+        var sql = dialect.SelectRows(dialect.QualifyTable("public", "customers"),
+            dialect.BuildKeyPredicate([new ColumnValue("code", "O'Brien")]));
+
+        sql.ShouldBe("SELECT * FROM \"public\".\"customers\"\nWHERE \"code\" = 'O''Brien';");
+    }
+
+    [Fact]
+    public void SelectRows_OnSqlServer_PutsTopBeforeTheColumnsAndTheFilterAfterTheTable()
+    {
+        var dialect = SqlServerDialect.Instance;
+
+        var sql = dialect.SelectRows("[dbo].[customers]", dialect.BuildKeyPredicate([new ColumnValue("id", 7)]), 1);
+
+        sql.ShouldBe("SELECT TOP (1) * FROM [dbo].[customers]\nWHERE [id] = 7;");
+    }
+
     private static T WithCulture<T>(string culture, Func<T> action)
     {
         var original = CultureInfo.CurrentCulture;

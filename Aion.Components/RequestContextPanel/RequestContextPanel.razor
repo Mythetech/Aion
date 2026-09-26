@@ -2,6 +2,7 @@
 @using System.Text.Json
 @using System.Text.Json.Nodes
 @using Aion.Components.Connections.Commands
+@using Aion.Components.ForeignKeys.Commands
 @using Mythetech.Framework.Infrastructure.MessageBus
 @using Aion.Components.Querying
 @using Aion.Components.Querying.Commands
@@ -52,8 +53,8 @@
                 <ForeignKeyViewer
                     @ref="_fkViewer"
                     Detail="@_foreignKeyDetail"
-                    AvailableForeignKeys="@_availableForeignKeys"
-                    OnExpandClick="OpenFkViewerDialog"
+                    Choices="@_foreignKeyChoices"
+                    OnExpandClick="OpenForeignKeyRowsAsync"
                     OnForeignKeyChanged="OnForeignKeyChanged" />
             </Tab>
         }
@@ -122,7 +123,7 @@
     private string _jsonViewerSelection = "pretty";
 
     private ForeignKeyDetail? _foreignKeyDetail;
-    private List<ForeignKeyInfo> _availableForeignKeys = new();
+    private IReadOnlyList<ForeignKeyDetail> _foreignKeyChoices = [];
 
     public RequestContextPanel()
     {
@@ -174,6 +175,7 @@
         {
             _queryName = foreignKey.QueryName;
             _foreignKeyDetail = foreignKey;
+            _foreignKeyChoices = request.ForeignKeyChoices;
         }
 
         _pendingTab = request.View;
@@ -196,17 +198,17 @@
         await DialogService.ShowAsync<JsonDetailDialog>("Json Viewer", parameters, options);
     }
 
-    private async Task OnForeignKeyChanged(ForeignKeyDetail newDetail)
+    // The viewer looks the new detail up itself when its parameter changes.
+    private void OnForeignKeyChanged(ForeignKeyDetail newDetail)
     {
         _foreignKeyDetail = newDetail;
-        await _fkViewer?.RefreshData()!;
-        StateHasChanged();
     }
 
-    protected async Task OpenFkViewerDialog()
+    private async Task OpenForeignKeyRowsAsync()
     {
-        // For now, just expand inline - could add a dialog similar to JsonDetailDialog
-        // if needed in the future
+        if (_foreignKeyDetail is null) return;
+
+        await MessageBus.PublishAsync(new OpenForeignKeyRows(_foreignKeyDetail));
     }
 
     public void Dispose()
@@ -216,7 +218,7 @@
         _columnName = "";
         _code = "";
         _foreignKeyDetail = null;
-        _availableForeignKeys = new();
+        _foreignKeyChoices = [];
     }
 }
 

@@ -192,7 +192,8 @@
         await InvokeAsync(() => OpenSidePanelAsync(new SidePanelRequest
         {
             View = SidePanelRequest.ForeignKeyView,
-            ForeignKey = message.ForeignKeyDetail
+            ForeignKey = message.ForeignKeyDetail,
+            ForeignKeyChoices = message.Choices ?? []
         }));
     }
 
