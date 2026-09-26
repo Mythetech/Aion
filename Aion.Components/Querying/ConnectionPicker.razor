@@ -10,73 +10,74 @@
     choices, so any database on any connection is one pick away and the list shows both levels at once.
 *@
 <div class="connection-picker-host">
-<AionMenu Class="connection-picker"
-          Disabled="@Disabled"
-          AnchorOrigin="Origin.BottomLeft"
-          TransformOrigin="Origin.TopLeft"
-          MaxHeight="420"
-          PopoverClass="connection-picker-popover">
-    <ActivatorContent>
-        @* Above the button, so it never covers the list that opens below it. *@
-        <MudTooltip Text="@TooltipText" RootClass="connection-picker-tooltip" Placement="Placement.Top">
-            <span class="connection-picker-trigger" @onclick="@(args => context.ToggleAsync(args))">
-                <span class="picker-sr-only">Connection and database: </span>
-                @if (Connection is { } connection)
-                {
-                    <span class="picker-names">
-                        <span class="picker-connection">@connection.Name</span>
-                        @if (ShowsDatabase(connection))
-                        {
-                            <span class="picker-separator" aria-hidden="true">›</span>
-                            <span class="@(Query.DatabaseName == null ? "picker-database picker-missing" : "picker-database")">@(Query.DatabaseName ?? "Choose a database")</span>
-                        }
-                    </span>
-                    <span class="picker-engine">@ConnectionDescription.EngineBadge(connection.Type)</span>
-                }
-                else
-                {
-                    <span class="picker-names picker-missing">Choose a connection</span>
-                }
-                <MudIcon Icon="@AionIcons.Picker" Size="Size.Small" Class="picker-caret" />
-            </span>
-        </MudTooltip>
-    </ActivatorContent>
-    <ChildContent>
-        @foreach (var connection in Connections.Connections)
-        {
-            <MudListSubheader Class="px-3 pt-2 pb-1">
-                <span class="picker-group">
-                    <span class="picker-group-name">@connection.Name</span>
-                    <span class="picker-engine">@ConnectionDescription.EngineBadge(connection.Type)</span>
+    <AionMenu Class="connection-picker"
+              Disabled="@Disabled"
+              AnchorOrigin="Origin.BottomLeft"
+              TransformOrigin="Origin.TopLeft"
+              MaxHeight="420"
+              PopoverClass="connection-picker-popover"
+              OpenChanged="OnOpenChanged">
+        <ActivatorContent>
+            @* Above the button, so it never covers the list that opens below it. *@
+            <MudTooltip Text="@TooltipText" RootClass="connection-picker-tooltip" Placement="Placement.Top">
+                <span class="connection-picker-trigger" tabindex="-1" @ref="_trigger" @onclick="@(args => context.ToggleAsync(args))">
+                    <span class="picker-sr-only">Connection and database: </span>
+                    @if (Connection is { } connection)
+                    {
+                        <span class="picker-names">
+                            <span class="picker-connection">@connection.Name</span>
+                            @if (ShowsDatabase(connection))
+                            {
+                                <span class="picker-separator" aria-hidden="true">›</span>
+                                <span class="@(Query.DatabaseName == null ? "picker-database picker-missing" : "picker-database")">@(Query.DatabaseName ?? "Choose a database")</span>
+                            }
+                        </span>
+                        <span class="picker-engine">@ConnectionDescription.EngineBadge(connection.Type)</span>
+                    }
+                    else
+                    {
+                        <span class="picker-names picker-missing">Choose a connection</span>
+                    }
+                    <MudIcon Icon="@AionIcons.Picker" Size="Size.Small" Class="picker-caret" />
                 </span>
-            </MudListSubheader>
-            @if (connection.Databases.Count == 0)
+            </MudTooltip>
+        </ActivatorContent>
+        <ChildContent>
+            @foreach (var connection in Connections.Connections)
             {
-                <MudMenuItem Disabled="true">
-                    <span class="picker-option-empty">@(connection.HealthStatus == ConnectionHealthStatus.Checking ? "Loading databases" : "No databases")</span>
-                </MudMenuItem>
-            }
-            @foreach (var database in connection.Databases)
-            {
-                var chosen = IsChosen(connection, database.Name);
-                <MudMenuItem OnClick="@(() => Choose(connection, database.Name))" aria-current="@(chosen ? "true" : null)">
-                    <span class="picker-option">
-                        <span class="picker-option-name">@database.Name</span>
-                        @if (chosen)
-                        {
-                            <MudIcon Icon="@AionIcons.Accept" Size="Size.Small" Class="picker-option-check" />
-                        }
+                <MudListSubheader Class="px-3 pt-2 pb-1">
+                    <span class="picker-group">
+                        <span class="picker-group-name">@connection.Name</span>
+                        <span class="picker-engine">@ConnectionDescription.EngineBadge(connection.Type)</span>
                     </span>
-                </MudMenuItem>
+                </MudListSubheader>
+                @if (connection.Databases.Count == 0)
+                {
+                    <MudMenuItem Disabled="true">
+                        <span class="picker-option-empty">@(connection.HealthStatus == ConnectionHealthStatus.Checking ? "Loading databases" : "No databases")</span>
+                    </MudMenuItem>
+                }
+                @foreach (var database in connection.Databases)
+                {
+                    var chosen = IsChosen(connection, database.Name);
+                    <MudMenuItem OnClick="@(() => Choose(connection, database.Name))" aria-current="@(chosen ? "true" : null)">
+                        <span class="picker-option">
+                            <span class="picker-option-name">@database.Name</span>
+                            @if (chosen)
+                            {
+                                <MudIcon Icon="@AionIcons.Accept" Size="Size.Small" Class="picker-option-check" />
+                            }
+                        </span>
+                    </MudMenuItem>
+                }
             }
-        }
-        @if (Connections.Connections.Count > 0)
-        {
-            <MudDivider Class="my-1" />
-        }
-        <MudMenuItem Icon="@AionIcons.Add" OnClick="NewConnection">New connection</MudMenuItem>
-    </ChildContent>
-</AionMenu>
+            @if (Connections.Connections.Count > 0)
+            {
+                <MudDivider Class="my-1" />
+            }
+            <MudMenuItem Icon="@AionIcons.Add" OnClick="NewConnection">New connection</MudMenuItem>
+        </ChildContent>
+    </AionMenu>
 </div>
 
 @code {
@@ -92,7 +93,19 @@
     /// <summary>Why the connection can't change right now, shown on hover while disabled.</summary>
     [Parameter] public string? DisabledReason { get; set; }
 
+    private ElementReference _trigger;
+
     private ConnectionModel? Connection => Connections.Connections.FirstOrDefault(c => c.Id == Query.ConnectionId);
+
+    // The menu hands focus back only to activators it draws itself, so without this a keyboard user who
+    // picks a database or presses Escape is left on the page body.
+    private async Task OnOpenChanged(bool open)
+    {
+        if (!open)
+        {
+            await _trigger.FocusAsync();
+        }
+    }
 
     // A connection with a single database is that database, so naming it again only costs width.
     private bool ShowsDatabase(ConnectionModel connection) =>
