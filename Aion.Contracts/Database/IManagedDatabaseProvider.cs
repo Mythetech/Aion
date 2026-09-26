@@ -9,5 +9,8 @@ public interface IManagedDatabaseProvider
 {
     Task EnsureDatabaseAsync(string database);
 
+    /// <summary>Whether the database is already in storage, whether or not anything has opened it this session.</summary>
+    Task<bool> DatabaseExistsAsync(string database);
+
     Task DeleteDatabaseAsync(string database);
 }

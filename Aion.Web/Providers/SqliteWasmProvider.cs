@@ -417,6 +417,8 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQu
         await _databaseService.ImportDatabaseAsync($"{name}.db", data);
     }
 
+    public Task<bool> DatabaseExistsAsync(string name) => _databaseService.ExistsDatabaseAsync($"{name}.db");
+
     public async Task DeleteDatabaseAsync(string name)
     {
         await _databaseService.DeleteDatabaseAsync($"{name}.db");
