@@ -8,6 +8,7 @@
 @using Aion.Components.RequestContextPanel
 @using Aion.Components.RequestContextPanel.Commands
 @using Aion.Components.Shared
+@using Aion.Components.Shortcuts
 @using Aion.Components.Theme
 @using Microsoft.JSInterop
 @implements IAsyncDisposable
@@ -35,7 +36,7 @@
             @if (!_sidePanelClosed)
             {
                 <MudPaper Height="100%" Width="100%">
-                    <RequestContextPanel @ref="_requestContextPanel" PanelClosed="@(() => ToggleSidePanel())" />
+                    <RequestContextPanel Request="@_panelRequest" PanelClosed="@CloseSidePanelAsync" />
                 </MudPaper>
             }
             else
@@ -51,12 +52,10 @@
             }
         </SecondPanel>
     </MudSplitPanel>
-    <MudHotkey Key="JsKey.Enter" KeyModifiers="@CtrlOnly" OnHotkeyPressed="@HandleRunQuery" />
-    <MudHotkey Key="JsKey.Enter" KeyModifiers="@MetaOnly" OnHotkeyPressed="@HandleRunQuery" />
-    <MudHotkey Key="JsKey.KeyT" KeyModifiers="@CtrlOnly" OnHotkeyPressed="@HandleNewQuery" />
-    <MudHotkey Key="JsKey.KeyT" KeyModifiers="@MetaOnly" OnHotkeyPressed="@HandleNewQuery" />
-    <MudHotkey Key="JsKey.KeyN" KeyModifiers="@CtrlOnly" OnHotkeyPressed="@HandleNewConnection" />
-    <MudHotkey Key="JsKey.KeyN" KeyModifiers="@MetaOnly" OnHotkeyPressed="@HandleNewConnection" />
+    <QueryAutoSaver />
+    <ChordHotkey Chord="@Keys.NewQuery" OnPressed="@HandleNewQuery" />
+    <ChordHotkey Chord="@Keys.NewQueryAlternate" OnPressed="@HandleNewQuery" />
+    <ChordHotkey Chord="@Keys.NewConnection" OnPressed="@HandleNewConnection" />
 </MudStack>
 
 
@@ -71,8 +70,12 @@
 
     [Inject] protected IJSRuntime JS { get; set; } = default!;
 
-    private RequestContextPanel.RequestContextPanel _requestContextPanel = default!;
-    
+    [Inject] protected AionKeyBindings Keys { get; set; } = default!;
+
+    // The panel is only rendered while open, so every open goes through this request instead of a component
+    // reference that is null until the panel's first render.
+    private SidePanelRequest? _panelRequest;
+
     private MudSplitPanel _outerSplitter = default!;
 
     private bool _sidePanelClosed = true;
@@ -90,27 +93,45 @@
 
     protected async Task ToggleSidePanel(string selectedTab = "")
     {
-        _sidePanelClosed = !_sidePanelClosed;
+        if (_sidePanelClosed)
+        {
+            await OpenSidePanelAsync(new SidePanelRequest
+            {
+                View = string.IsNullOrWhiteSpace(selectedTab) ? SidePanelRequest.InfoView : selectedTab
+            });
+        }
+        else
+        {
+            await CloseSidePanelAsync();
+        }
+    }
+
+    private async Task OpenSidePanelAsync(SidePanelRequest request)
+    {
+        _panelRequest = request;
+
+        if (_sidePanelClosed)
+        {
+            await SetSidePanelOpenAsync(true);
+        }
+        else
+        {
+            StateHasChanged();
+        }
+    }
+
+    private Task CloseSidePanelAsync() => SetSidePanelOpenAsync(false);
+
+    private async Task SetSidePanelOpenAsync(bool open)
+    {
+        _sidePanelClosed = !open;
         StateHasChanged();
         await Task.Yield();
 
         var containerWidth = await GetOuterSplitterWidthAsync();
-
-        if (_sidePanelClosed)
-        {
-            await _outerSplitter.SetDividerPositionAsync(containerWidth - 52);
-        }
-        else
-        {
-            await _outerSplitter.SetDividerPositionAsync((int)(containerWidth * 0.8));
-
-            if (!string.IsNullOrWhiteSpace(selectedTab))
-            {
-                StateHasChanged();
-                await Task.Yield();
-                _requestContextPanel?.Open(selectedTab);
-            }
-        }
+        await _outerSplitter.SetDividerPositionAsync(open
+            ? SidePanelLayout.OpenDividerPosition(containerWidth)
+            : SidePanelLayout.ClosedDividerPosition(containerWidth));
 
         StateHasChanged();
     }
@@ -130,7 +151,7 @@
             if (_sidePanelClosed)
             {
                 var containerWidth = await GetOuterSplitterWidthAsync();
-                await _outerSplitter.SetDividerPositionAsync(containerWidth - 52);
+                await _outerSplitter.SetDividerPositionAsync(SidePanelLayout.ClosedDividerPosition(containerWidth));
             }
         }
     }
@@ -155,36 +176,28 @@
         }
     }
 
-    public Task Consume(OpenRequestContextPanel message)
+    public async Task Consume(OpenRequestContextPanel message)
     {
-        _sidePanelClosed = false;
-        _requestContextPanel.Open(message.View, message.Args);
-        StateHasChanged();
-        return Task.CompletedTask;
+        await InvokeAsync(() => OpenSidePanelAsync(new SidePanelRequest { View = message.View, JsonArgs = message.Args }));
     }
 
-    public Task Consume(OpenJsonDetailView message)
+    public async Task Consume(OpenJsonDetailView message)
     {
-        _sidePanelClosed = false;
-        _requestContextPanel.OpenJsonDetailView(message.ColumnDetail);
-        StateHasChanged();
-        return Task.CompletedTask;
+        await InvokeAsync(() => OpenSidePanelAsync(new SidePanelRequest
+        {
+            View = SidePanelRequest.JsonView,
+            JsonDetail = message.ColumnDetail
+        }));
     }
 
-    public Task Consume(OpenForeignKeyView message)
+    public async Task Consume(OpenForeignKeyView message)
     {
-        _sidePanelClosed = false;
-        _requestContextPanel.OpenForeignKeyDetailView(message.ForeignKeyDetail);
-        StateHasChanged();
-        return Task.CompletedTask;
-    }
-
-    private static readonly IEnumerable<JsKeyModifier> CtrlOnly = new[] { JsKeyModifier.ControlLeft };
-    private static readonly IEnumerable<JsKeyModifier> MetaOnly = new[] { JsKeyModifier.MetaLeft };
-
-    private async Task HandleRunQuery()
-    {
-        await Bus.PublishAsync(new RunQuery());
+        await InvokeAsync(() => OpenSidePanelAsync(new SidePanelRequest
+        {
+            View = SidePanelRequest.ForeignKeyView,
+            ForeignKey = message.ForeignKeyDetail,
+            ForeignKeyChoices = message.Choices ?? []
+        }));
     }
 
     private async Task HandleNewQuery()

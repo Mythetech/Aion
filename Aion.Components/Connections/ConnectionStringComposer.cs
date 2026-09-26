@@ -182,6 +182,15 @@ public static class ConnectionStringComposer
     }
 
     /// <summary>
+    /// The database a connection string connects to, when it names one. File-based engines have none to name.
+    /// </summary>
+    public static string? FindDatabase(DatabaseType type, string? connectionString)
+    {
+        var value = Find(TryParse(connectionString), KeysFor(type).Database);
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    /// <summary>
     /// Returns the connection string with the driver's connect timeout set, replacing any timeout already present.
     /// Types without a connect timeout, or strings that cannot be parsed, are returned unchanged.
     /// </summary>

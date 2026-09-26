@@ -28,6 +28,13 @@ public class QueryModel
     [JsonIgnore]
     public bool ErrorLocationIsCurrent => Result?.ErrorDetail?.Line != null && ResultSourceText == Query;
 
+    /// <summary>
+    /// The SQL the latest run executed: only the selection when a selection was run. It is kept apart
+    /// from <see cref="Query"/> so running never changes the tab's text, even for a moment.
+    /// </summary>
+    [JsonIgnore]
+    public string? ExecutedSql { get; private set; }
+
     // Not persisted: a saved "executing" flag would leave a tab stuck showing Cancel after a restart.
     [JsonIgnore]
     public bool IsExecuting { get; set; }
@@ -50,6 +57,12 @@ public class QueryModel
     public int Order { get; set; }
     public string? SavedQuery { get; set; }
     public bool IsDirty => Query != (SavedQuery ?? "");
+
+    /// <summary>
+    /// Whether the tab holds SQL. Closing a tab also deletes its saved copy, so this SQL would be lost.
+    /// </summary>
+    [JsonIgnore]
+    public bool HasSql => !string.IsNullOrWhiteSpace(Query);
     public string? EmphasisColor { get; set; }
 
     /// <summary>
@@ -68,9 +81,11 @@ public class QueryModel
         EmphasisColor = color;
     }
 
-    public void StartExecution()
+    /// <param name="sql">The SQL being run, when it is not the tab's whole text.</param>
+    public void StartExecution(string? sql = null)
     {
         IsExecuting = true;
+        ExecutedSql = sql ?? Query;
         ExecutionStartTime = DateTimeOffset.Now;
         ExecutionEndTime = null;
     }
@@ -78,10 +93,10 @@ public class QueryModel
     public void SetResult(QueryResult result, string? notice = null)
     {
         // Providers without structured driver errors, and failures raised before a provider ran, only
-        // set the text. Query still holds the SQL that was run here, which locates the error.
+        // set the text. The SQL that ran locates the error.
         if (result is { Error: { } raw, ErrorDetail: null })
         {
-            result.ErrorDetail = QueryErrorNormalizer.Normalize(raw, Query);
+            result.ErrorDetail = QueryErrorNormalizer.Normalize(raw, ExecutedSql ?? Query);
         }
 
         Result = result;
@@ -99,6 +114,7 @@ public class QueryModel
             Query = Query,
             Result = Result?.Clone(),
             ResultNotice = ResultNotice,
+            ExecutedSql = ExecutedSql,
             IsExecuting = !newId && IsExecuting,
             ConnectionId = ConnectionId,
             DatabaseName = DatabaseName,

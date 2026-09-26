@@ -1,6 +1,7 @@
 using Aion.Components.CommandPalette;
 using Aion.Components.Connections;
 using Aion.Components.NativeMenu;
+using Aion.Components.Shortcuts;
 using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 using Microsoft.Extensions.Logging;
@@ -22,7 +23,7 @@ public class AionCommandProviderTests
         var providerFactory = Substitute.For<IDatabaseProviderFactory>();
         var logger = Substitute.For<ILogger<ConnectionState>>();
         _connectionState = new ConnectionState(connectionService, providerFactory, _bus, logger);
-        _provider = new AionCommandProvider(_bus, _connectionState);
+        _provider = new AionCommandProvider(_bus, _connectionState, AionKeyBindings.ForDesktop(isMac: false));
     }
 
     [Fact]
@@ -87,5 +88,34 @@ public class AionCommandProviderTests
         groups.ShouldContain("Export");
         groups.ShouldContain("Context");
         groups.ShouldContain("Settings");
+    }
+
+    private static async Task<string?> HintFor(AionCommandProvider provider, string id) =>
+        (await provider.GetCommandsAsync("", CancellationToken.None)).Single(c => c.Id == id).Description;
+
+    [Fact]
+    public async Task Hints_OnDesktop_MatchTheNativeMenu()
+    {
+        // Arrange
+        var provider = new AionCommandProvider(_bus, _connectionState, AionKeyBindings.ForDesktop(isMac: true));
+
+        // Assert
+        (await HintFor(provider, "action.run-query")).ShouldBe("⌘↵");
+        (await HintFor(provider, "action.new-query")).ShouldBe("⌘N");
+        (await HintFor(provider, "action.new-connection")).ShouldBe("⇧⌘N");
+        (await HintFor(provider, "action.save-query")).ShouldBe("⌘S");
+    }
+
+    [Fact]
+    public async Task Hints_InTheBrowser_LeaveOutShortcutsTheBrowserKeeps()
+    {
+        // Arrange
+        var provider = new AionCommandProvider(_bus, _connectionState, AionKeyBindings.ForBrowser(isMac: false));
+
+        // Assert
+        (await HintFor(provider, "action.run-query")).ShouldBe("Ctrl+Enter");
+        (await HintFor(provider, "action.new-query")).ShouldBeNull();
+        (await HintFor(provider, "action.new-connection")).ShouldBeNull();
+        (await HintFor(provider, "action.save-query")).ShouldBeNull();
     }
 }

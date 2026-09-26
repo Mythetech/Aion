@@ -1,0 +1,44 @@
+.tree-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.8125rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+.tree-status-failed {
+    color: var(--mud-palette-error);
+}
+
+/* The message gives way to the retry button, and the tooltip carries the full driver text. */
+.tree-status ::deep .tree-status-message {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.tree-status-text {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tree-status ::deep .tree-status-spinner {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
+}
+
+.tree-status ::deep .tree-status-icon {
+    flex: 0 0 auto;
+    font-size: 1rem;
+}
+
+.tree-status-empty {
+    font-size: 0.875rem;
+    font-style: italic;
+    color: var(--mud-palette-text-secondary);
+}

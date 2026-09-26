@@ -7,5 +7,10 @@ public record ForeignKeyDetail(
     string ReferencedColumn,
     object ForeignKeyValue,
     Guid ConnectionId,
-    string DatabaseName
-);
+    string DatabaseName,
+    string? ReferencedSchema = null
+)
+{
+    public string ReferencedTableDisplayName =>
+        string.IsNullOrEmpty(ReferencedSchema) ? ReferencedTable : $"{ReferencedSchema}.{ReferencedTable}";
+}

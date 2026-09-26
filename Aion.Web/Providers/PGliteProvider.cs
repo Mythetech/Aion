@@ -1,13 +1,14 @@
 using System.Text;
 using System.Text.Json;
 using Aion.Contracts.Database;
+using Aion.Contracts.Database.Dialects;
 using Aion.Contracts.Queries;
 using Microsoft.JSInterop;
 
 namespace Aion.Web.Providers;
 
 public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider, IDatabaseRowEditingProvider,
-    IEstimatedQueryPlanProvider, IActualQueryPlanProvider, IManagedDatabaseProvider
+    IEstimatedQueryPlanProvider, IActualQueryPlanProvider, IManagedDatabaseProvider, ISqlDialectProvider
 {
     private const string TransactionNotOpenMessage = "This transaction is no longer open. Roll back to clear it.";
 
@@ -21,6 +22,7 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
     private readonly Dictionary<string, string> _openTransactions = new();
 
     public IStandardDatabaseCommands Commands { get; } = new PGliteCommands();
+    public SqlDialect Dialect => PostgreSqlDialect.Instance;
     public DatabaseType DatabaseType => DatabaseType.WasmPostgreSQL;
     public IReadOnlyList<string> SystemSchemas { get; } = ["pg_catalog", "information_schema", "pg_toast"];
 

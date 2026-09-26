@@ -241,4 +241,16 @@ public class ConnectionStringComposerTests
         ConnectionStringComposer.DescribeTarget(DatabaseType.LiteDB, "Filename=/data/app.db").ShouldBe("app.db");
         ConnectionStringComposer.DescribeTarget(DatabaseType.MySQL, "not valid").ShouldBeNull();
     }
+
+    [Theory]
+    [InlineData(DatabaseType.PostgreSQL, "Host=pg.local;Database=sales;Username=u", "sales")]
+    [InlineData(DatabaseType.MySQL, "Server=localhost;Initial Catalog=shop;Uid=root", "shop")]
+    [InlineData(DatabaseType.SQLServer, "Server=sql;Initial Catalog=Reporting;User Id=sa", "Reporting")]
+    [InlineData(DatabaseType.PostgreSQL, "Host=pg.local;Username=u", null)]
+    [InlineData(DatabaseType.PostgreSQL, "Host=pg.local;Database=;Username=u", null)]
+    [InlineData(DatabaseType.LiteDB, "Filename=/data/app.db", null)]
+    public void FindDatabase_ReturnsTheDatabaseTheStringConnectsTo(DatabaseType type, string connectionString, string? expected)
+    {
+        ConnectionStringComposer.FindDatabase(type, connectionString).ShouldBe(expected);
+    }
 }

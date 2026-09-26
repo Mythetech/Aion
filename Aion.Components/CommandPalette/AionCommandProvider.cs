@@ -4,6 +4,7 @@ using Aion.Components.NativeMenu;
 using Aion.Components.Querying.Commands;
 using Aion.Components.RequestContextPanel.Commands;
 using Aion.Components.Settings.Commands;
+using Aion.Components.Shortcuts;
 using Aion.Components.Theme;
 using Mythetech.Framework.Components.AppContextDrawer.Commands;
 using Mythetech.Framework.Components.CommandPalette;
@@ -15,11 +16,13 @@ public sealed class AionCommandProvider : ICommandProvider
 {
     private readonly IMessageBus _bus;
     private readonly ConnectionState _connectionState;
+    private readonly AionKeyBindings _keys;
 
-    public AionCommandProvider(IMessageBus bus, ConnectionState connectionState)
+    public AionCommandProvider(IMessageBus bus, ConnectionState connectionState, AionKeyBindings keys)
     {
         _bus = bus;
         _connectionState = connectionState;
+        _keys = keys;
     }
 
     public ValueTask<IReadOnlyList<PaletteCommand>> GetCommandsAsync(
@@ -48,7 +51,7 @@ public sealed class AionCommandProvider : ICommandProvider
             new(
                 Id: "action.run-query",
                 Title: "Run Query",
-                Description: "Ctrl+Enter",
+                Description: _keys.Describe(_keys.RunQuery),
                 Icon: AionIcons.Run,
                 Keywords: ["run", "execute", "query", "sql"],
                 InvokeAsync: _ => _bus.PublishAsync(new RunQuery()),
@@ -57,7 +60,7 @@ public sealed class AionCommandProvider : ICommandProvider
             new(
                 Id: "action.new-query",
                 Title: "New Query Tab",
-                Description: "Ctrl+T",
+                Description: _keys.Describe(_keys.NewQuery),
                 Icon: AionIcons.Add,
                 Keywords: ["new", "tab", "query", "create"],
                 InvokeAsync: _ => _bus.PublishAsync(new CreateQuery()),
@@ -66,7 +69,7 @@ public sealed class AionCommandProvider : ICommandProvider
             new(
                 Id: "action.new-connection",
                 Title: "New Connection",
-                Description: "Ctrl+N",
+                Description: _keys.Describe(_keys.NewConnection),
                 Icon: AionIcons.Connection,
                 Keywords: ["new", "connection", "database", "connect"],
                 InvokeAsync: _ => _bus.PublishAsync(new PromptCreateConnection()),
@@ -75,7 +78,7 @@ public sealed class AionCommandProvider : ICommandProvider
             new(
                 Id: "action.save-query",
                 Title: "Save Query",
-                Description: null,
+                Description: _keys.Describe(_keys.SaveQuery),
                 Icon: AionIcons.Save,
                 Keywords: ["save", "query"],
                 InvokeAsync: _ => _bus.PublishAsync(new SaveQuery()),
@@ -102,7 +105,7 @@ public sealed class AionCommandProvider : ICommandProvider
             new(
                 Id: "action.copy-query",
                 Title: "Copy Query to Clipboard",
-                Description: null,
+                Description: _keys.Describe(_keys.CopyQuery),
                 Icon: AionIcons.Copy,
                 Keywords: ["copy", "clipboard", "query"],
                 InvokeAsync: _ => _bus.PublishAsync(new CopyQueryToClipboard()),

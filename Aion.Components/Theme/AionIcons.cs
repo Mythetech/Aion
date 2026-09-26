@@ -42,6 +42,8 @@ public static class AionIcons
 
     public static string Refresh => Round("refresh");
 
+    public static string Retry => Round("refresh");
+
     public static string Settings => Round("settings");
     
     public static string Delete => Round("delete");

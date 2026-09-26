@@ -9,12 +9,14 @@ using Aion.Components.Querying.Errors;
 using Aion.Components.Search;
 using Aion.Components.Settings;
 using Aion.Components.Shared.Snackbar;
+using Aion.Components.Shortcuts;
 using Aion.Contracts.Database;
 using Aion.Contracts.Queries.Editing;
 using Microsoft.Extensions.DependencyInjection;
 using MudBlazor;
 using MudBlazor.Services;
 using Mythetech.Framework.Components.CommandPalette;
+using Mythetech.Framework.Components.Kbd;
 using Mythetech.Framework.Infrastructure.Plugins;
 
 namespace Aion.Components;
@@ -49,7 +51,8 @@ public static class RegistrationExtensions
         services.AddSingleton<IConnectionHealthMonitor, ConnectionHealthMonitor>();
         services.AddScoped<IDatabaseProviderFactory, DatabaseProviderFactory>();
 
-        services.AddScoped<IForeignKeyService, ForeignKeyService>();
+        // Singleton because bus consumers, which resolve from the root provider, open foreign key rows too.
+        services.AddSingleton<IForeignKeyService, ForeignKeyService>();
 
         services.AddTransient<SearchService>();
         services.AddSingleton<SqlCompletionService>();
@@ -59,6 +62,7 @@ public static class RegistrationExtensions
 
         services.AddCommandPalette();
         services.AddCommandProvider<AionCommandProvider>();
+        services.AddSingleton(sp => AionKeyBindings.For(sp.GetRequiredService<IPlatformDetector>()));
 
         return services;
     }

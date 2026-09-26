@@ -75,6 +75,7 @@ public class QueryEditorTransactionTests : TestContext
         Services.AddSingleton(Substitute.For<IJsGuardService>());
         Services.AddSingleton(new SqlCompletionService(connections));
         Services.AddSingleton<EditorSettings>();
+        Services.AddSingleton(Aion.Components.Shortcuts.AionKeyBindings.ForDesktop(isMac: false));
 
         _query = _state.Queries[0];
         _query.ConnectionId = _connection.Id;

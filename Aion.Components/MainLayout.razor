@@ -23,7 +23,7 @@
 @using Color = MudBlazor.Color
 @using MouseEvent = MudBlazor.MouseEvent
 @using Mythetech.Framework.Infrastructure.Initialization
-@using Mythetech.Framework.Components.CommandPalette
+@using Aion.Components.CommandPalette
 @using Mythetech.Framework.Infrastructure.Plugins
 @using Mythetech.Framework.Infrastructure.Settings
 @implements IDisposable
@@ -35,7 +35,7 @@
 <GlobalCommandSnackbarProvider />
 <DialogCommandProvider />
 <JsApiCommandProvider />
-<CommandPaletteHost BackgroundClass="aion-dialog" />
+<AionCommandPalette />
 
 <MudLayout Class="custom-title-bar-layout">
     <Hermes.Blazor.Components.HermesTitleBar Height="38">
@@ -235,7 +235,7 @@
     {
         if (_contextMenuConnection == null) return;
         var query = QueryState.AddQuery("Untitled");
-        query.ConnectionId = _contextMenuConnection.Id;
+        QueryState.UpdateQueryConnection(query, _contextMenuConnection);
         await Bus.PublishAsync(new FocusQuery(query));
     }
 

@@ -18,4 +18,14 @@ public sealed class SqliteDialect : SqlDialect
 
     // SQLite compares dates as text, so match the space separated form SQLite and Microsoft.Data.Sqlite store.
     protected override bool UseIsoDateTimeSeparator => false;
+
+    // An INTEGER PRIMARY KEY column is SQLite's rowid, which numbers new rows by itself.
+    public override string CreateTableTemplate() =>
+        """
+        CREATE TABLE "new_table" (
+            "id" INTEGER PRIMARY KEY,
+            "name" TEXT NOT NULL,
+            "created_at" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        """;
 }

@@ -1,3 +1,6 @@
+using Aion.Components.Connections;
+using Aion.Components.ForeignKeys;
+using Aion.Components.RequestContextPanel;
 using Aion.Core.Database;
 using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
@@ -126,6 +129,75 @@ public abstract class DatabaseProviderTestBase : IAsyncLifetime
 
     /// <summary>The engine's code for an unknown column, as the provider formats it.</summary>
     protected abstract string UnknownColumnCode { get; }
+
+    [Fact]
+    public async Task FirstRowsSelect_RunsOnTheEngineAndStopsAtTheLimit()
+    {
+        // Arrange
+        await InsertRowAsync(1, "a");
+        await InsertRowAsync(2, "b");
+        await InsertRowAsync(3, "c");
+        var sql = await Provider.Commands.GenerateSelectTopScript(TestDatabase, TestSchema, TestTable, 2);
+
+        // Act
+        var result = await ExecuteOrFailAsync(DatabaseConnectionString, sql);
+
+        // Assert
+        result.Rows.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task CreateTableTemplate_RunsAsWrittenAndNumbersNewRows()
+    {
+        // Arrange
+        var dialect = ((ISqlDialectProvider)Provider).Dialect;
+
+        // Act
+        await ExecuteOrFailAsync(DatabaseConnectionString, dialect.CreateTableTemplate());
+        await ExecuteOrFailAsync(DatabaseConnectionString, "INSERT INTO new_table (name) VALUES ('first')");
+        var rows = await ExecuteOrFailAsync(DatabaseConnectionString, "SELECT id, name, created_at FROM new_table");
+
+        // Assert
+        (await Provider.GetTablesAsync(DatabaseConnectionString, TestDatabase)).ShouldContain(t => t.Name == "new_table");
+        var row = rows.Rows.ShouldHaveSingleItem();
+        Convert.ToInt64(row["id"]).ShouldBe(1);
+        row["created_at"].ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task ForeignKeyLookup_FindsTheReferencedRowFromTheProvidersOwnForeignKeyMetadata()
+    {
+        // Arrange
+        const string code = @"O'Brien\";
+        await ExecuteOrFailAsync(DatabaseConnectionString,
+            "CREATE TABLE fk_parent (code varchar(20) NOT NULL PRIMARY KEY, label varchar(50))");
+        await ExecuteOrFailAsync(DatabaseConnectionString,
+            "CREATE TABLE fk_child (id int NOT NULL PRIMARY KEY, parent_code varchar(20), FOREIGN KEY (parent_code) REFERENCES fk_parent (code))");
+        var dialect = ((ISqlDialectProvider)Provider).Dialect;
+        await ExecuteOrFailAsync(DatabaseConnectionString,
+            $"INSERT INTO fk_parent (code, label) VALUES ({dialect.FormatLiteral(code)}, 'found'), ('other', 'wrong')");
+        var foreignKey = (await Provider.GetForeignKeysAsync(DatabaseConnectionString, TestDatabase, TestSchema, "fk_child"))
+            .ShouldHaveSingleItem();
+
+        var factory = new DatabaseProviderFactory([Provider]);
+        var connections = new ConnectionState(new TestDoubles.ConnectionServiceFake(factory), factory,
+            NSubstitute.Substitute.For<Mythetech.Framework.Infrastructure.MessageBus.IMessageBus>(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<ConnectionState>.Instance);
+        var connection = new Aion.Contracts.Connections.ConnectionModel
+        {
+            Name = "integration", ConnectionString = ConnectionString, Type = Provider.DatabaseType, Active = true
+        };
+        connections.Connections.Add(connection);
+        var detail = new ForeignKeyDetail("fk_child", foreignKey.ColumnName, foreignKey.ReferencedTable,
+            foreignKey.ReferencedColumn, code, connection.Id, TestDatabase, foreignKey.ReferencedSchema);
+
+        // Act
+        var lookup = await new ForeignKeyService(connections).FetchReferencedRowAsync(detail);
+
+        // Assert
+        lookup.Error.ShouldBeNull();
+        lookup.Row.ShouldNotBeNull()["label"].ShouldBe("found");
+    }
 
     [Fact]
     public async Task FailedStatement_ReportsTheUnknownColumnAndTheEngineCode()

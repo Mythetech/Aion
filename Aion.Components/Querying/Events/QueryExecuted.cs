@@ -6,13 +6,13 @@ namespace Aion.Components.Querying.Events;
 /// Published after a query run finishes, fails or is cancelled.
 /// </summary>
 /// <remarks>
-/// <see cref="Query"/> is the live tab model: later edits and runs overwrite it, and the editor swaps its text
-/// to the selection only for the duration of a run. The remaining properties are captured when the message
-/// is created so consumers that need to know what actually ran are not affected by those mutations.
+/// <see cref="Query"/> is the live tab model: later edits and runs overwrite it. The remaining properties are
+/// captured when the message is created so consumers that need to know what actually ran are not affected by
+/// those changes. <see cref="ExecutedSql"/> is only the selection when a selection was run.
 /// </remarks>
 public record QueryExecuted(QueryModel Query)
 {
-    public string ExecutedSql { get; init; } = Query.Query;
+    public string ExecutedSql { get; init; } = Query.ExecutedSql ?? Query.Query;
 
     public Guid? ConnectionId { get; init; } = Query.ConnectionId;
 

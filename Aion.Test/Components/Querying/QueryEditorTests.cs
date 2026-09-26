@@ -2,6 +2,7 @@ using Aion.Core.Database;
 using Aion.Components.Connections;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using Aion.Components.Querying;
+using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
@@ -52,6 +53,7 @@ public class QueryEditorTests : TestContext
         Services.AddSingleton(Substitute.For<IJsGuardService>());
         Services.AddSingleton(new SqlCompletionService(_connections));
         Services.AddSingleton<EditorSettings>();
+        Services.AddSingleton(Aion.Components.Shortcuts.AionKeyBindings.ForDesktop(isMac: false));
     }
 
     [Fact]
@@ -95,6 +97,38 @@ public class QueryEditorTests : TestContext
     }
 
     [Fact]
+    public void Run_WithAConnectionButNoDatabase_IsDisabledAndSaysWhy()
+    {
+        // Arrange
+        var connection = new ConnectionModel { Name = "pg", Type = DatabaseType.PostgreSQL, ConnectionString = "Host=pg" };
+        _connections.Connections = [connection];
+        var query = _state.Queries[0];
+        query.ConnectionId = connection.Id;
+        _state.SetActive(query);
+
+        // Act
+        var cut = RenderComponent<QueryEditor>();
+
+        // Assert
+        var run = cut.FindComponent<RunQueryButton>().Instance;
+        run.Disabled.ShouldBeTrue();
+        run.DisabledReason.ShouldBe("Choose a database");
+    }
+
+    [Fact]
+    public void Run_WithoutAConnection_SaysToChooseOne()
+    {
+        // Arrange
+        _state.SetActive(_state.Queries[0]);
+
+        // Act
+        var cut = RenderComponent<QueryEditor>();
+
+        // Assert
+        cut.FindComponent<RunQueryButton>().Instance.DisabledReason.ShouldBe("Choose a connection");
+    }
+
+    [Fact]
     public void Editor_FollowsItsContainerSize()
     {
         // Arrange
@@ -111,5 +145,24 @@ public class QueryEditorTests : TestContext
 
         // Assert
         options.AutomaticLayout.ShouldBe(true);
+    }
+
+    [Fact]
+    public void EmptyEditor_ShowsAHintInsteadOfSql()
+    {
+        // Arrange
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var guard = Substitute.For<IJsGuardService>();
+        guard.IsReady("monaco").Returns(true);
+        guard.WaitForReadyAsync(Arg.Any<Microsoft.JSInterop.IJSRuntime>(), "monaco", Arg.Any<TimeSpan?>()).Returns(true);
+        Services.AddSingleton(guard);
+
+        // Act
+        var cut = RenderComponent<QueryEditor>();
+        var editor = cut.FindComponent<BlazorMonaco.Editor.StandaloneCodeEditor>().Instance;
+        var options = editor.ConstructionOptions(editor);
+
+        // Assert
+        options.Placeholder.ShouldBe("Write a query. Ctrl+Enter runs it, Ctrl+K opens commands.");
     }
 }

@@ -1,0 +1,30 @@
+@implements IAsyncDisposable
+
+@*
+    Renders nothing. It runs QueryState's auto-save loop for as long as the page is open, so the loop's
+    reads and writes of the tabs happen on the UI dispatcher like every other change to them.
+*@
+
+@code {
+    [Inject] private QueryState State { get; set; } = default!;
+
+    private readonly CancellationTokenSource _stopping = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await State.SaveWhenEditsPauseAsync(_stopping.Token);
+        }
+        catch (OperationCanceledException) when (_stopping.IsCancellationRequested)
+        {
+            // The page is closing.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _stopping.CancelAsync();
+        _stopping.Dispose();
+    }
+}

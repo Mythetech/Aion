@@ -96,35 +96,20 @@ public class ConnectionState
         return result;
     }
 
-    public async Task LoadTablesAsync(ConnectionModel connection, DatabaseModel database)
-    {
-        if (database.TablesLoaded) return;
-
-        try
-        {
-            var connectionString = connection.ConnectionString;
-            var provider = GetProvider(connection.Type);
-            connectionString = provider.UpdateConnectionString(connectionString, database.Name);
-
-            var tables = await _connectionService.GetTablesAsync(connectionString, database.Name, connection.Type);
-            database.Tables = tables;
-            database.TablesLoaded = true;
-
-            OnConnectionStateChanged();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to load tables: {ex.Message}");
-        }
-    }
-    
     public const string ActualPlanNotice =
         "Actual plan captured. The statement ran inside a transaction that was rolled back, so none of its changes were kept.";
 
     public const string ActualPlanInTransactionMessage =
         "Actual query plans can't be captured while this tab has an open transaction. Commit or roll back first, or turn off Actual Query Plan.";
 
-    public async Task<QueryResult> ExecuteQueryAsync(QueryModel query, CancellationToken cancellationToken)
+    public Task<QueryResult> ExecuteQueryAsync(QueryModel query, CancellationToken cancellationToken) =>
+        ExecuteQueryAsync(query, query.Query, cancellationToken);
+
+    /// <summary>
+    /// Runs <paramref name="sql"/> as the tab's statement. The tab's own text is never touched, so
+    /// running a selection, or editing while a run is in progress, leaves the editor as the user left it.
+    /// </summary>
+    public async Task<QueryResult> ExecuteQueryAsync(QueryModel query, string sql, CancellationToken cancellationToken)
     {
         var connection = Connections.FirstOrDefault(x => x.Id == query.ConnectionId);
         if (connection == null) return new QueryResult { Error = "Connection not found" };
@@ -132,20 +117,20 @@ public class ConnectionState
         var provider = GetProvider(connection.Type);
         var connectionString = provider.UpdateConnectionString(connection.ConnectionString, query.DatabaseName);
 
-        try 
+        try
         {
-            query.StartExecution();
+            query.StartExecution(sql);
             await NotifyQueryChanged();
-            
+
             if (query.IncludeEstimatedPlan && provider is IEstimatedQueryPlanProvider estimatedPlans)
             {
-                query.EstimatedPlan = await GetEstimatedPlanAsync(estimatedPlans, connectionString, query.Query, cancellationToken);
+                query.EstimatedPlan = await GetEstimatedPlanAsync(estimatedPlans, connectionString, sql, cancellationToken);
                 await NotifyQueryChanged();
             }
 
             if (query.IncludeActualPlan && provider is IActualQueryPlanProvider actualPlans)
             {
-                return await CaptureActualPlanAsync(query, actualPlans, connectionString, cancellationToken);
+                return await CaptureActualPlanAsync(query, actualPlans, connectionString, sql, cancellationToken);
             }
 
             if (query.UseTransaction && !query.HasOpenTransaction)
@@ -159,7 +144,7 @@ public class ConnectionState
             {
                 // Once a transaction is open every run in the tab joins it, even if the toggle was
                 // switched off: running outside it could block on the tab's own locks.
-                result = await provider.ExecuteInTransactionAsync(connectionString, query.Query, transaction.Id, cancellationToken);
+                result = await provider.ExecuteInTransactionAsync(connectionString, sql, transaction.Id, cancellationToken);
                 if (result.Success)
                 {
                     query.Transaction = transaction.WithStatementExecuted();
@@ -167,7 +152,7 @@ public class ConnectionState
             }
             else
             {
-                result = await provider.ExecuteQueryAsync(connectionString, query.Query, cancellationToken);
+                result = await provider.ExecuteQueryAsync(connectionString, sql, cancellationToken);
             }
 
             query.SetResult(result);
@@ -212,7 +197,7 @@ public class ConnectionState
     }
 
     private async Task<QueryResult> CaptureActualPlanAsync(
-        QueryModel query, IActualQueryPlanProvider plans, string connectionString, CancellationToken cancellationToken)
+        QueryModel query, IActualQueryPlanProvider plans, string connectionString, string sql, CancellationToken cancellationToken)
     {
         QueryResult result;
         if (query.HasOpenTransaction)
@@ -224,7 +209,7 @@ public class ConnectionState
         {
             // Cleared first so a failed capture never leaves an earlier statement's plan on screen.
             query.ActualPlan = null;
-            query.ActualPlan = await plans.GetActualPlanAsync(connectionString, query.Query, cancellationToken);
+            query.ActualPlan = await plans.GetActualPlanAsync(connectionString, sql, cancellationToken);
             result = new QueryResult();
             query.SetResult(result, ActualPlanNotice);
         }
@@ -349,11 +334,24 @@ public class ConnectionState
         await NotifyQueryChanged();
     }
 
+    /// <summary>
+    /// Reconnects and lists the databases again. Databases that are still there keep their models, and whatever
+    /// had been loaded for them is loaded again, so an expanded schema tree keeps its shape with current data.
+    /// </summary>
     public async Task<ConnectionResult> RefreshDatabaseAsync(ConnectionModel connection)
     {
         var result = await TestConnectionAsync(connection.ConnectionString, connection.Type);
         ApplyConnectionResult(connection, result);
         OnConnectionStateChanged();
+
+        if (result.Success)
+        {
+            foreach (var database in connection.Databases.ToList())
+            {
+                await RefreshSchemaAsync(connection, database);
+            }
+        }
+
         return result;
     }
 
@@ -382,7 +380,10 @@ public class ConnectionState
     {
         if (result.Success)
         {
-            connection.Databases = result.Databases.Select(db => new DatabaseModel { Name = db }).ToList();
+            var known = connection.Databases.DistinctBy(db => db.Name).ToDictionary(db => db.Name);
+            connection.Databases = result.Databases
+                .Select(name => known.GetValueOrDefault(name) ?? new DatabaseModel { Name = name })
+                .ToList();
         }
 
         SetHealth(connection, result.Success, result.TimedOut, result.Error, DateTime.UtcNow);
@@ -406,79 +407,214 @@ public class ConnectionState
 
     public bool SupportsActualPlan(DatabaseType type) => _providerFactory.GetProvider(type) is IActualQueryPlanProvider;
 
-    public async Task LoadIndexesAsync(ConnectionModel connection, DatabaseModel database)
-    {
-        if (database.IndexesLoaded) return;
+    public bool SupportsCreatingTables(DatabaseType type) => _providerFactory.GetProvider(type) is ISqlDialectProvider;
 
+    public bool SupportsCreatingDatabases(DatabaseType type) => _providerFactory.GetProvider(type) is IDatabaseCreationProvider;
+
+    // Every schema load below records a failure on the model instead of throwing: callers range from the
+    // schema tree to autocomplete, and each decides whether a failure matters to it by reading the state.
+
+    public Task<SchemaLoadState> LoadTablesAsync(ConnectionModel connection, DatabaseModel database) =>
+        database.TablesState.IsLoaded ? Task.FromResult(database.TablesState) : FetchTablesAsync(connection, database);
+
+    public Task<SchemaLoadState> LoadIndexesAsync(ConnectionModel connection, DatabaseModel database) =>
+        database.IndexesState.IsLoaded ? Task.FromResult(database.IndexesState) : FetchIndexesAsync(connection, database);
+
+    public Task<SchemaLoadState> LoadRoutinesAsync(ConnectionModel connection, DatabaseModel database) =>
+        database.RoutinesState.IsLoaded ? Task.FromResult(database.RoutinesState) : FetchRoutinesAsync(connection, database);
+
+    public Task<SchemaLoadState> LoadColumnsAsync(ConnectionModel connection, DatabaseModel database, string schema, string table) =>
+        database.LoadedColumnTables.Contains(new TableInfo(schema, table).DisplayName)
+            ? Task.FromResult(SchemaLoadState.Loaded)
+            : FetchColumnsAsync(connection, database, new TableInfo(schema, table));
+
+    /// <summary>
+    /// Loads again every part of the database's schema that was loaded or failed to load, and forgets the
+    /// columns of tables that no longer exist. Parts nobody asked for stay unloaded.
+    /// </summary>
+    public async Task RefreshSchemaAsync(ConnectionModel connection, DatabaseModel database)
+    {
+        var columnTables = database.LoadedColumnTables.Concat(database.ColumnStates.Keys).Distinct().ToList();
+
+        if (database.TablesState.Status != SchemaLoadStatus.NotLoaded)
+        {
+            await FetchTablesAsync(connection, database);
+        }
+
+        var tables = database.TablesState.IsLoaded
+            ? database.Tables.DistinctBy(t => t.DisplayName).ToDictionary(t => t.DisplayName)
+            : [];
+
+        // Sequential on purpose: the loads share the model's collections, and a refresh only reloads what
+        // the user has open.
+        var forgotColumns = false;
+        foreach (var key in columnTables)
+        {
+            if (tables.TryGetValue(key, out var table))
+            {
+                await FetchColumnsAsync(connection, database, table);
+            }
+            else
+            {
+                ForgetColumns(database, key);
+                forgotColumns = true;
+            }
+        }
+
+        if (database.IndexesState.Status != SchemaLoadStatus.NotLoaded)
+        {
+            await FetchIndexesAsync(connection, database);
+        }
+
+        if (database.RoutinesState.Status != SchemaLoadStatus.NotLoaded)
+        {
+            await FetchRoutinesAsync(connection, database);
+        }
+
+        if (forgotColumns)
+        {
+            OnConnectionStateChanged();
+        }
+    }
+
+    /// <summary>
+    /// Brings the schema up to date after a statement that changed it ran on the connection. A change to the
+    /// databases lists them again; anything else reloads what was loaded for the database it ran against.
+    /// </summary>
+    public async Task RefreshAfterSchemaChangeAsync(Guid connectionId, string? databaseName, bool databasesChanged)
+    {
+        var connection = Connections.FirstOrDefault(c => c.Id == connectionId);
+        if (connection == null) return;
+
+        if (databasesChanged)
+        {
+            await RefreshDatabaseAsync(connection);
+            return;
+        }
+
+        var database = connection.Databases.FirstOrDefault(d => d.Name == databaseName);
+        if (database != null)
+        {
+            await RefreshSchemaAsync(connection, database);
+        }
+    }
+
+    private async Task<SchemaLoadState> FetchTablesAsync(ConnectionModel connection, DatabaseModel database)
+    {
+        database.TablesState = SchemaLoadState.Loading;
+
+        try
+        {
+            var connectionString = GetProvider(connection.Type).UpdateConnectionString(connection.ConnectionString, database.Name);
+            database.Tables = await _connectionService.GetTablesAsync(connectionString, database.Name, connection.Type);
+            database.TablesState = SchemaLoadState.Loaded;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not load the tables of database {Database}", database.Name);
+            database.TablesState = SchemaLoadFailure(ex);
+        }
+
+        OnConnectionStateChanged();
+        return database.TablesState;
+    }
+
+    private async Task<SchemaLoadState> FetchColumnsAsync(ConnectionModel connection, DatabaseModel database, TableInfo table)
+    {
+        var key = table.DisplayName;
+        database.ColumnStates[key] = SchemaLoadState.Loading;
+
+        try
+        {
+            var provider = GetProvider(connection.Type);
+            var connectionString = provider.UpdateConnectionString(connection.ConnectionString, database.Name);
+            var columns = await provider.GetColumnsAsync(connectionString, database.Name, table.Schema, table.Name);
+
+            database.TableColumns[key] = columns;
+            database.LoadedColumnTables.Add(key);
+            database.ColumnStates.Remove(key);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not load the columns of table {Table} in database {Database}", key, database.Name);
+            ForgetColumns(database, key);
+            database.ColumnStates[key] = SchemaLoadFailure(ex);
+        }
+
+        OnConnectionStateChanged();
+        return database.ColumnsState(key);
+    }
+
+    // The tree has one row for the message, and errors thrown across JS interop append the JavaScript stack
+    // after the first line. The full exception is still logged.
+    private static SchemaLoadState SchemaLoadFailure(Exception ex)
+    {
+        var firstLine = ex.Message.Split('\n', 2)[0].Trim();
+        return SchemaLoadState.Failed(string.IsNullOrEmpty(firstLine) ? ex.GetType().Name : firstLine);
+    }
+
+    private static void ForgetColumns(DatabaseModel database, string key)
+    {
+        database.TableColumns.Remove(key);
+        database.LoadedColumnTables.Remove(key);
+        database.ColumnStates.Remove(key);
+    }
+
+    private async Task<SchemaLoadState> FetchIndexesAsync(ConnectionModel connection, DatabaseModel database)
+    {
         var provider = GetProvider(connection.Type);
         if (provider is not IDatabaseIndexProvider indexProvider)
         {
-            // Mark loaded so the UI doesn't spin forever on a provider that doesn't support indexes.
-            database.IndexesLoaded = true;
+            // An engine without index metadata has none to show, which is a finished load and not a failure.
+            database.IndexesState = SchemaLoadState.Loaded;
             OnConnectionStateChanged();
-            return;
+            return database.IndexesState;
         }
+
+        database.IndexesState = SchemaLoadState.Loading;
 
         try
         {
             var connectionString = provider.UpdateConnectionString(connection.ConnectionString, database.Name);
             database.Indexes = await indexProvider.GetIndexesAsync(connectionString, database.Name);
-            database.IndexesLoaded = true;
-            OnConnectionStateChanged();
+            database.IndexesState = SchemaLoadState.Loaded;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load indexes for database {Database}", database.Name);
+            _logger.LogWarning(ex, "Could not load the indexes of database {Database}", database.Name);
+            database.IndexesState = SchemaLoadFailure(ex);
         }
+
+        OnConnectionStateChanged();
+        return database.IndexesState;
     }
 
-    public async Task LoadRoutinesAsync(ConnectionModel connection, DatabaseModel database)
+    private async Task<SchemaLoadState> FetchRoutinesAsync(ConnectionModel connection, DatabaseModel database)
     {
-        if (database.RoutinesLoaded) return;
-
         var provider = GetProvider(connection.Type);
         if (provider is not IDatabaseRoutineProvider routineProvider)
         {
-            database.RoutinesLoaded = true;
+            database.RoutinesState = SchemaLoadState.Loaded;
             OnConnectionStateChanged();
-            return;
+            return database.RoutinesState;
         }
+
+        database.RoutinesState = SchemaLoadState.Loading;
 
         try
         {
             var connectionString = provider.UpdateConnectionString(connection.ConnectionString, database.Name);
             database.Routines = await routineProvider.GetRoutinesAsync(connectionString, database.Name);
-            database.RoutinesLoaded = true;
-            OnConnectionStateChanged();
+            database.RoutinesState = SchemaLoadState.Loaded;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load routines for database {Database}", database.Name);
+            _logger.LogWarning(ex, "Could not load the functions of database {Database}", database.Name);
+            database.RoutinesState = SchemaLoadFailure(ex);
         }
-    }
 
-    public async Task LoadColumnsAsync(ConnectionModel connection, DatabaseModel database, string schema, string table)
-    {
-        var key = string.IsNullOrEmpty(schema) ? table : $"{schema}.{table}";
-        if (database.LoadedColumnTables.Contains(key)) return;
-
-        try
-        {
-            var connectionString = connection.ConnectionString;
-            var provider = GetProvider(connection.Type);
-            connectionString = provider.UpdateConnectionString(connectionString, database.Name);
-
-            var columns = await provider.GetColumnsAsync(connectionString, database.Name, schema, table);
-            database.TableColumns[key] = columns;
-            database.LoadedColumnTables.Add(key);
-
-            OnConnectionStateChanged();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, $"Failed to load columns for table {key}: {ex.Message}");
-            throw;
-        }
+        OnConnectionStateChanged();
+        return database.RoutinesState;
     }
 
     public async Task RemoveConnection(Guid id)

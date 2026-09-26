@@ -2,6 +2,7 @@
 @using System.Text.Json
 @using System.Text.Json.Nodes
 @using Aion.Components.Connections.Commands
+@using Aion.Components.ForeignKeys.Commands
 @using Mythetech.Framework.Infrastructure.MessageBus
 @using Aion.Components.Querying
 @using Aion.Components.Querying.Commands
@@ -14,6 +15,8 @@
 @using Aion.Components.Shared.Loaders
 @using Aion.Contracts.Extensions
 @using Mythetech.Framework.Components.SimpleTabs
+@using MudBlazor.State
+@inherits ComponentBaseWithState
 @implements IDisposable
 <MudStack Class="h-100 w-100">
     <MudStack Row="true" Class="w-100 pa-1" AlignItems="AlignItems.Center">
@@ -50,8 +53,8 @@
                 <ForeignKeyViewer
                     @ref="_fkViewer"
                     Detail="@_foreignKeyDetail"
-                    AvailableForeignKeys="@_availableForeignKeys"
-                    OnExpandClick="OpenFkViewerDialog"
+                    Choices="@_foreignKeyChoices"
+                    OnExpandClick="OpenForeignKeyRowsAsync"
                     OnForeignKeyChanged="OnForeignKeyChanged" />
             </Tab>
         }
@@ -96,10 +99,11 @@
     [Parameter]
     public EventCallback PanelClosed { get; set; } = default!;
 
+    /// <summary>
+    /// The view to show and what it shows. A new request selects its view even when the panel is already open.
+    /// </summary>
     [Parameter]
-    public bool IsOpen { get; set; } = false;
-
-    private MudToggleGroup<string> _toggle;
+    public SidePanelRequest? Request { get; set; }
 
     private SimpleTabs? _simpleTabs;
     private JsonViewer? _jsonViewer;
@@ -107,8 +111,8 @@
 
     private string _queryName = "";
 
-    private string JsonView => "JsonView";
-    private string ForeignKeyView => "ForeignKey";
+    private static string JsonView => SidePanelRequest.JsonView;
+    private static string ForeignKeyView => SidePanelRequest.ForeignKeyView;
 
     private string _code = "";
 
@@ -119,10 +123,20 @@
     private string _jsonViewerSelection = "pretty";
 
     private ForeignKeyDetail? _foreignKeyDetail;
-    private List<ForeignKeyInfo> _availableForeignKeys = new();
+    private IReadOnlyList<ForeignKeyDetail> _foreignKeyChoices = [];
+
+    public RequestContextPanel()
+    {
+        using var registerScope = CreateRegisterScope();
+        registerScope.RegisterParameter<SidePanelRequest?>(nameof(Request))
+            .WithParameter(() => Request)
+            .WithComparer(ReferenceEqualityComparer.Instance)
+            .WithChangeHandler(OnRequestChanged);
+    }
 
     protected override void OnInitialized()
     {
+        base.OnInitialized();
         QueryState.StateChanged += StateHasChanged;
     }
 
@@ -142,26 +156,34 @@
         }
     }
 
-    public void Open(string tab, string? args = default)
+    private void OnRequestChanged(ParameterChangedEventArgs<SidePanelRequest?> args)
     {
-        if (tab.Equals(JsonView) && !string.IsNullOrWhiteSpace(args))
+        if (args.Value is not { } request) return;
+
+        if (request.JsonDetail is { } json)
         {
-            _code = JsonSerializer.Serialize(JsonSerializer.Deserialize<dynamic>(args), new JsonSerializerOptions() { WriteIndented = true });
+            _queryName = json.QueryName;
+            _columnName = json.Column;
+            _code = FormatJson(json.Json);
+        }
+        else if (request.View == JsonView && !string.IsNullOrWhiteSpace(request.JsonArgs))
+        {
+            _code = FormatJson(request.JsonArgs);
         }
 
-        _pendingTab = tab;
+        if (request.ForeignKey is { } foreignKey)
+        {
+            _queryName = foreignKey.QueryName;
+            _foreignKeyDetail = foreignKey;
+            _foreignKeyChoices = request.ForeignKeyChoices;
+        }
+
+        _pendingTab = request.View;
         StateHasChanged();
     }
 
-    public void OpenJsonDetailView(QueryResponseJsonDetail columnDetail)
-    {
-        _queryName = columnDetail.QueryName;
-        _columnName = columnDetail.Column;
-        _code = JsonSerializer.Serialize(JsonSerializer.Deserialize<dynamic>(columnDetail.Json), new JsonSerializerOptions() { WriteIndented = true });
-
-        _pendingTab = JsonView;
-        StateHasChanged();
-    }
+    private static string FormatJson(string json) =>
+        JsonSerializer.Serialize(JsonSerializer.Deserialize<dynamic>(json), new JsonSerializerOptions { WriteIndented = true });
 
     protected async Task OpenJsonViewerDialog()
     {
@@ -176,27 +198,17 @@
         await DialogService.ShowAsync<JsonDetailDialog>("Json Viewer", parameters, options);
     }
 
-    public void OpenForeignKeyDetailView(ForeignKeyDetail foreignKeyDetail, List<ForeignKeyInfo>? availableForeignKeys = null)
-    {
-        _queryName = foreignKeyDetail.QueryName;
-        _foreignKeyDetail = foreignKeyDetail;
-        _availableForeignKeys = availableForeignKeys ?? new List<ForeignKeyInfo>();
-
-        _pendingTab = ForeignKeyView;
-        StateHasChanged();
-    }
-
-    private async Task OnForeignKeyChanged(ForeignKeyDetail newDetail)
+    // The viewer looks the new detail up itself when its parameter changes.
+    private void OnForeignKeyChanged(ForeignKeyDetail newDetail)
     {
         _foreignKeyDetail = newDetail;
-        await _fkViewer?.RefreshData()!;
-        StateHasChanged();
     }
 
-    protected async Task OpenFkViewerDialog()
+    private async Task OpenForeignKeyRowsAsync()
     {
-        // For now, just expand inline - could add a dialog similar to JsonDetailDialog
-        // if needed in the future
+        if (_foreignKeyDetail is null) return;
+
+        await MessageBus.PublishAsync(new OpenForeignKeyRows(_foreignKeyDetail));
     }
 
     public void Dispose()
@@ -206,7 +218,7 @@
         _columnName = "";
         _code = "";
         _foreignKeyDetail = null;
-        _availableForeignKeys = new();
+        _foreignKeyChoices = [];
     }
 }
 

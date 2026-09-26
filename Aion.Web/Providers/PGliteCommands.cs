@@ -81,7 +81,7 @@ public class PGliteCommands : IStandardDatabaseCommands
 
     public Task<string> GenerateSelectTopScript(string database, string schema, string table, int count)
     {
-        return Task.FromResult($"SELECT * FROM {TableName(schema, table)}\nLIMIT {count};");
+        return Task.FromResult(Dialect.SelectRows(TableName(schema, table), limit: count));
     }
 
     public Task<string> GenerateCountScript(string database, string schema, string table)

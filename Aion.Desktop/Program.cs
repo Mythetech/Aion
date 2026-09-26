@@ -31,6 +31,7 @@ using Aion.Desktop.Configuration;
 using Mythetech.Framework.Desktop.Updates;
 using Aion.Desktop.Updates;
 using Mythetech.Framework.Infrastructure.Guards;
+using Mythetech.Framework.Components.Kbd;
 
 namespace Aion.Desktop
 {
@@ -92,6 +93,7 @@ namespace Aion.Desktop
             appBuilder.Services.AddMessageBus(typeof(Program).Assembly, typeof(Components.App).Assembly);
             appBuilder.Services.AddRuntimeEnvironment(isProd ? DesktopRuntimeEnvironment.Production() : DesktopRuntimeEnvironment.Development());
 
+            appBuilder.Services.AddSingleton<IPlatformDetector, NativePlatformDetector>();
             appBuilder.Services.AddAionComponents<ConnectionService>();
             appBuilder.Services.AddSingleton<IConnectionPrompt, ConnectionDialogPrompt>();
 

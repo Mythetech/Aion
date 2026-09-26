@@ -60,15 +60,13 @@ public class QueryHistoryRecorderTests
     }
 
     [Fact]
-    public async Task RecordsTheSelectionThatRan_EvenAfterTheEditorRestoresTheFullText()
+    public async Task RecordsTheSelectionThatRan_NotTheTabsWholeText()
     {
         var query = NewTab("SELECT 1;\nSELECT 2;");
-        query.Query = "SELECT 2;";
-        query.StartExecution();
+        query.StartExecution("SELECT 2;");
         query.SetResult(Rows(1));
         var message = new QueryExecuted(query);
 
-        query.Query = "SELECT 1;\nSELECT 2;";
         await _recorder.Consume(message);
 
         _history.Entries.Single().Sql.ShouldBe("SELECT 2;");

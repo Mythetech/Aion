@@ -1,4 +1,5 @@
 using Aion.Contracts.Database;
+using Aion.Contracts.Database.Dialects;
 using Aion.Contracts.Queries;
 using Aion.Core.Database.MySql;
 using Microsoft.Extensions.Logging;
@@ -9,7 +10,7 @@ using System.Text;
 namespace Aion.Core.Database;
 
 public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider,
-    IDatabaseRowEditingProvider, IEstimatedQueryPlanProvider, IActualQueryPlanProvider
+    IDatabaseRowEditingProvider, IEstimatedQueryPlanProvider, IActualQueryPlanProvider, ISqlDialectProvider, IDatabaseCreationProvider
 {
     private const string TransactionNotOpenMessage = "This transaction is no longer open. Roll back to clear it.";
     private const int DeadlockErrorNumber = 1213;
@@ -23,6 +24,7 @@ public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabas
     }
 
     public IStandardDatabaseCommands Commands { get; } = new MySqlCommands();
+    public SqlDialect Dialect => MySqlDialect.Instance;
     public DatabaseType DatabaseType => DatabaseType.MySQL;
     public IReadOnlyList<string> SystemSchemas { get; } = [];
 

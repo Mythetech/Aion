@@ -182,19 +182,31 @@ else if (State?.Active?.IsExecuting ?? false)
     private string _activeTab = Results;
     private RowSelectionState _selectionState = new();
 
+    // The tab and result the selected rows belong to.
+    private Guid? _selectionQueryId;
+    private QueryResult? _selectionResult;
+
     [Parameter] public QueryPlan? QueryPlan { get; set; }
 
     protected override void OnInitialized()
     {
         State.StateChanged += OnStateChanged;
         _selectionState.SelectionChanged += StateHasChanged;
+        _selectionQueryId = State.Active?.Id;
+        _selectionResult = State.Active?.Result;
         base.OnInitialized();
     }
 
     private void OnStateChanged()
     {
-        // Clear selection when switching queries or when results change
-        _selectionState.ClearSelection();
+        // Row indexes only mean something for the result they were picked in, so a different tab or a new
+        // result clears the selection; other changes, such as a tab being saved, keep it.
+        if (State.Active?.Id != _selectionQueryId || !ReferenceEquals(State.Active?.Result, _selectionResult))
+        {
+            _selectionState.ClearSelection();
+            _selectionQueryId = State.Active?.Id;
+            _selectionResult = State.Active?.Result;
+        }
 
         if (_activeTab == Edit && State.Active?.EditMetadata?.IsEditMode != true)
         {

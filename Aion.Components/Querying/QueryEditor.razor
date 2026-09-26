@@ -1,3 +1,4 @@
+@using Aion.Components.CommandPalette.Commands
 @using Aion.Components.Connections
 @using Aion.Components.Connections.Commands
 @using Mythetech.Framework.Infrastructure.MessageBus
@@ -6,10 +7,13 @@
 @using BlazorMonaco.Editor
 @using BlazorMonaco.Languages
 @using Aion.Components.Shared
+@using Aion.Components.Shared.Snackbar.Commands
+@using Aion.Components.Shortcuts
 @using Aion.Components.Theme
 @using Aion.Components.Settings.Domains
 @using Aion.Contracts.Connections
 @using Aion.Contracts.Queries
+@using Microsoft.Extensions.Logging
 @using Microsoft.JSInterop
 @using Mythetech.Framework.Infrastructure.Guards
 @using Mythetech.Framework.Infrastructure.Settings.Events
@@ -82,6 +86,8 @@
             <RunQueryButton Text="Run"
                             OnClick="RunQuery"
                             Disabled="@(!CanExecuteQuery)"
+                            DisabledReason="@RunBlockedReason"
+                            Hint="@($"{Keys.Describe(Keys.RunQuery)} in the editor")"
                             IsExecuting="@State.Active.IsExecuting"/>
         }
     </MudStack>
@@ -107,7 +113,9 @@
     [Inject] protected SqlCompletionService CompletionService { get; set; } = default!;
     [Inject] protected IJSRuntime JS { get; set; } = default!;
     [Inject] protected EditorSettings EditorSettings { get; set; } = default!;
-    
+    [Inject] protected AionKeyBindings Keys { get; set; } = default!;
+    [Inject] protected ILogger<QueryEditor> Logger { get; set; } = default!;
+
     private bool _initialized = false;
 
     private readonly Dictionary<Guid, CancellationTokenSource> _runningQueries = new();
@@ -119,12 +127,25 @@
     private QueryError? _markedError;
 
     // Monaco invokes editor actions through a synchronous callback, so requests are queued here and
-    // handled by an awaited reader loop instead of being fired and forgotten.
-    private readonly Channel<ExpandSelectStarRequested> _expandSelectStarRequests =
-        Channel.CreateUnbounded<ExpandSelectStarRequested>(new UnboundedChannelOptions { SingleReader = true });
-    private Task? _expandSelectStarLoop;
+    // handled by awaited reader loops instead of being fired and forgotten. Runs have a loop of their
+    // own so a long statement never holds up the other editor actions.
+    private readonly Channel<EditorAction> _editorActions =
+        Channel.CreateUnbounded<EditorAction>(new UnboundedChannelOptions { SingleReader = true });
+    private readonly Channel<RunRequested> _runRequests =
+        Channel.CreateUnbounded<RunRequested>(new UnboundedChannelOptions { SingleReader = true });
+    private Task? _editorActionLoop;
+    private Task? _runLoop;
 
-    private sealed record ExpandSelectStarRequested;
+    private enum EditorAction
+    {
+        ExpandSelectStar,
+        OpenCommandPalette
+    }
+
+    /// <param name="Query">The tab the editor showed when the shortcut was pressed.</param>
+    private sealed record RunRequested(QueryModel Query);
+
+    private const string RunQueryActionId = "aion.run-query";
 
     private bool HasOpenTransaction => State.Active?.HasOpenTransaction ?? false;
 
@@ -150,9 +171,20 @@
         }
     }
     
-    private bool CanExecuteQuery => SelectedConnection != null;
+    private string? RunBlockedReason => State.Active is { } active ? RunBlockedReasonFor(active) : "Choose a connection";
+
+    private string? RunBlockedReasonFor(QueryModel query) =>
+        Connections.Connections.All(c => c.Id != query.ConnectionId) ? "Choose a connection"
+        : string.IsNullOrEmpty(query.DatabaseName) ? "Choose a database"
+        : null;
+
+    private bool CanExecuteQuery => RunBlockedReason == null;
     
     private StandaloneCodeEditor? _editor;
+
+    // The tab whose text the editor holds. It can differ from State.Active for a moment while a tab
+    // switch reaches the editor, and typing must land in the tab it was typed into.
+    private QueryModel? _shownQuery;
 
     private StandaloneEditorConstructionOptions DefaultOptions(StandaloneCodeEditor editor)
     {
@@ -166,6 +198,8 @@
             // Monaco measures its container once at creation. The editor pane changes width whenever a side
             // panel opens or closes, and at startup it can be created before the side panel has collapsed.
             AutomaticLayout = true,
+            // Shown only while the editor is empty, and never part of the tab's text.
+            Placeholder = $"Write a query. {Keys.Describe(Keys.RunQuery)} runs it, {Keys.Describe(Keys.CommandPalette)} opens commands.",
         };
     }
 
@@ -194,10 +228,21 @@
         Bus.Unsubscribe<GoToQueryPosition>(this);
         Bus.Unsubscribe<SettingsModelChanged<EditorSettings>>(this);
 
-        _expandSelectStarRequests.Writer.TryComplete();
-        if (_expandSelectStarLoop != null)
+        _editorActions.Writer.TryComplete();
+        _runRequests.Writer.TryComplete();
+
+        // Every cancel is requested before the first await, so no run can finish and dispose its token
+        // source in between, and the run loop below isn't left waiting on a long statement.
+        await Task.WhenAll(_runningQueries.Values.ToList().Select(running => running.CancelAsync()));
+
+        if (_editorActionLoop != null)
         {
-            await _expandSelectStarLoop;
+            await _editorActionLoop;
+        }
+
+        if (_runLoop != null)
+        {
+            await _runLoop;
         }
     }
 
@@ -217,20 +262,37 @@
         }
     }
 
-    private async Task RefreshEditor()
+    private async Task RefreshEditor() => await ShowQueryAsync(State.Active);
+
+    /// <summary>
+    /// Puts a tab's text in the editor. Typing reaches the tab through change events that can still be
+    /// on their way, so the outgoing tab first takes whatever the editor holds before it is replaced.
+    /// </summary>
+    private async Task ShowQueryAsync(QueryModel? query)
     {
-        if (_editor != null)
+        if (_editor == null) return;
+
+        if (_shownQuery != null && _shownQuery.Id != query?.Id)
         {
-            await _editor.SetValue(State?.Active?.Query ?? "");
+            State.EditQueryText(_shownQuery, await _editor.GetValue());
         }
+
+        _shownQuery = query;
+        await _editor.SetValue(query?.Query ?? "");
     }
 
     private async Task UpdateQuery(ModelContentChangedEvent evt)
     {
-        if (!_initialized || State.Active == null) return;
-        
+        if (!_initialized || _editor == null) return;
+
+        // Taken before the read: a tab switch issued after this line reaches the editor after the read
+        // too, so the text read below belongs to this tab.
+        var query = _shownQuery;
         var text = await _editor.GetValue();
-        State.Active.Query = text;
+        if (query != null)
+        {
+            State.EditQueryText(query, text);
+        }
 
         await RefreshErrorMarkerAsync();
     }
@@ -249,24 +311,103 @@
 
         await RefreshEditor();
 
-        _expandSelectStarLoop ??= ProcessExpandSelectStarRequestsAsync();
+        _editorActionLoop ??= ProcessEditorActionsAsync();
+        _runLoop ??= ProcessRunRequestsAsync();
+
+        // Registered on the editor rather than the page, so the shortcut runs the query only while
+        // the editor has focus and never from a dialog or a results grid cell editor. It replaces
+        // Monaco's own binding of the same keys (insert line below).
+        await _editor!.AddAction(new ActionDescriptor
+        {
+            Id = RunQueryActionId,
+            Label = "Run Query",
+            Keybindings = [Keys.RunQuery.EditorKeybinding],
+            ContextMenuGroupId = "navigation",
+            ContextMenuOrder = 1f,
+            Run = _ => RequestRunFromEditor()
+        });
 
         await _editor.AddAction(new ActionDescriptor
         {
             Id = "expand-select-star",
             Label = "Expand SELECT *",
-            Keybindings = new[] { (int)KeyMod.CtrlCmd | (int)KeyMod.Shift | (int)KeyCode.KeyE },
+            Keybindings = [Keys.ExpandSelectStar.EditorKeybinding],
             ContextMenuGroupId = "navigation",
             ContextMenuOrder = 1.5f,
-            Run = _ => _expandSelectStarRequests.Writer.TryWrite(new ExpandSelectStarRequested())
+            Run = _ => _editorActions.Writer.TryWrite(EditorAction.ExpandSelectStar)
+        });
+
+        // Monaco treats Cmd/Ctrl+K as the start of a two-key chord, so the page-level palette hotkey never
+        // sees it while the editor has focus.
+        await _editor.AddAction(new ActionDescriptor
+        {
+            Id = "aion.command-palette",
+            Label = "Command Palette",
+            Keybindings = [Keys.CommandPalette.EditorKeybinding, Keys.CommandPaletteAlternate.EditorKeybinding],
+            Run = _ => _editorActions.Writer.TryWrite(EditorAction.OpenCommandPalette)
         });
     }
 
-    private async Task ProcessExpandSelectStarRequestsAsync()
+    private async Task ProcessEditorActionsAsync()
     {
-        await foreach (var _ in _expandSelectStarRequests.Reader.ReadAllAsync())
+        await foreach (var action in _editorActions.Reader.ReadAllAsync())
         {
-            await InvokeAsync(ExpandSelectStarAsync);
+            switch (action)
+            {
+                case EditorAction.ExpandSelectStar:
+                    await InvokeAsync(ExpandSelectStarAsync);
+                    break;
+                case EditorAction.OpenCommandPalette:
+                    await Bus.PublishAsync(new OpenCommandPalette());
+                    break;
+            }
+        }
+    }
+
+    private void RequestRunFromEditor()
+    {
+        if (_shownQuery is { } query)
+        {
+            _runRequests.Writer.TryWrite(new RunRequested(query));
+        }
+    }
+
+    // A statement can run for minutes, so the loop starts each run and reads on instead of waiting for it:
+    // pressing the shortcut again must cancel the run it follows, and a run in another tab must not queue
+    // behind it. The runs are still awaited, as they finish or when the loop ends.
+    private async Task ProcessRunRequestsAsync()
+    {
+        var runs = new List<Task>();
+        await foreach (var request in _runRequests.Reader.ReadAllAsync())
+        {
+            runs.RemoveAll(run => run.IsCompletedSuccessfully);
+            runs.Add(InvokeAsync(() => RunFromShortcutAsync(request.Query)));
+        }
+
+        await Task.WhenAll(runs);
+    }
+
+    private async Task RunFromShortcutAsync(QueryModel query)
+    {
+        try
+        {
+            await RunQueryAsync(query);
+        }
+        catch (Exception ex)
+        {
+            // Query errors are already results; this is the editor itself failing, such as the page closing.
+            Logger.LogWarning(ex, "Running the query from the editor shortcut failed");
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // A tab can become active without the editor being told, such as a clone or a tab closing, so after
+        // each render the editor catches up with whichever tab is active.
+        if (_initialized && State.Active is { } active && active.Id != _shownQuery?.Id)
+        {
+            await ShowQueryAsync(active);
+            await RefreshErrorMarkerAsync();
         }
     }
 
@@ -274,7 +415,7 @@
     {
         if (_editor != null)
         {
-            await _editor.SetValue(query.Query);
+            await ShowQueryAsync(query);
             await RefreshErrorMarkerAsync();
         }
     }
@@ -300,43 +441,50 @@
         return (text, selection);
     }
 
-    /// <summary>
-    /// Runs the active tab's statement, inside its transaction when one is open. While that tab is
-    /// executing the same action cancels the statement; it never ends the transaction, which only the
-    /// Commit and Rollback buttons do.
-    /// </summary>
-    private async Task RunQuery()
-    {
-        var query = State.Active ?? State.Queries.First();
+    private async Task RunQuery() => await RunQueryAsync(_shownQuery ?? State.Active ?? State.Queries.First());
 
-        if (query.IsExecuting && _runningQueries.TryGetValue(query.Id, out var running))
+    /// <summary>
+    /// Runs the tab's statement, inside its transaction when one is open. While that tab is executing
+    /// the same action cancels the statement; it never ends the transaction, which only the Commit and
+    /// Rollback buttons do.
+    /// </summary>
+    private async Task RunQueryAsync(QueryModel query)
+    {
+        if (_runningQueries.TryGetValue(query.Id, out var running))
         {
             await running.CancelAsync();
             return;
         }
-
-        await Bus.PublishAsync(new SaveQuery(query));
-
-        if (!CanExecuteQuery) return;
 
         using var cancellation = new CancellationTokenSource();
         _runningQueries[query.Id] = cancellation;
 
         try
         {
-            var fullText = _editor != null ? await _editor.GetValue() : query.Query;
-            var selected = await GetSelectedTextAsync();
-            var textToExecute = selected?.Text ?? fullText;
+            // The editor's text and selection belong to this tab only while the editor shows it.
+            var shown = _editor != null && _shownQuery?.Id == query.Id;
+            var fullText = shown ? await _editor!.GetValue() : query.Query;
+            var selected = shown ? await GetSelectedTextAsync() : null;
+
+            // Typing reaches the tab through the editor's change events; taking the text once more here
+            // means the save, the run and the error position all see the same SQL.
+            State.EditQueryText(query, fullText);
+            await Bus.PublishAsync(new SaveQuery(query));
+
+            // The button explains itself on hover; a shortcut or the palette gets told instead.
+            if (RunBlockedReasonFor(query) is { } blocked)
+            {
+                await Bus.PublishAsync(new AddNotification(blocked, Severity.Info));
+                return;
+            }
 
             await ClearErrorMarkerAsync();
 
-            query.Query = textToExecute;
-            var result = await Connections.ExecuteQueryAsync(query, cancellation.Token);
+            var result = await Connections.ExecuteQueryAsync(query, selected?.Text ?? fullText, cancellation.Token);
 
-            query.Query = fullText;
             State.SetResult(query, result, selected is { Selection: var selection }
                 ? (selection.StartLineNumber, selection.StartColumn)
-                : null);
+                : null, sourceText: fullText);
 
             await RefreshErrorMarkerAsync();
         }
@@ -350,17 +498,14 @@
     public async Task Consume(FocusQuery message)
     {
         State.SetActive(message.Query);
-        await _editor.SetValue(message.Query.Query);
+        await ShowQueryAsync(State.Active);
         StateHasChanged();
     }
-    
+
     public async Task Consume(CreateQuery message)
     {
         State.AddQuery(message.Name);
-        if (_editor != null && State.Active != null)
-        {
-            await _editor.SetValue(State.Active.Query);
-        }
+        await ShowQueryAsync(State.Active);
     }
 
     public async Task Consume(RunQuery message)
@@ -445,10 +590,7 @@
     private async Task QueryAddClicked()
     {
         State.AddQuery();
-        if (_editor != null && State.Active != null)
-        {
-            await _editor.SetValue(State.Active.Query);
-        }
+        await ShowQueryAsync(State.Active);
     }
 
     private async Task ExpandSelectStarAsync()

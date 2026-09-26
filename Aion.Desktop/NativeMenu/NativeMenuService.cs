@@ -2,20 +2,23 @@ using System.Threading.Channels;
 using Hermes.Menu;
 using Microsoft.Extensions.Logging;
 using Aion.Components.NativeMenu;
+using Aion.Components.Shortcuts;
 
 namespace Aion.Desktop.NativeMenu;
 
 public class NativeMenuService : INativeMenuService
 {
     private readonly ILogger<NativeMenuService> _logger;
+    private readonly AionKeyBindings _keys;
     private readonly Channel<string> _clickChannel;
 
     private NativeMenuBar? _menuBar;
     private bool _isInitialized;
 
-    public NativeMenuService(ILogger<NativeMenuService> logger)
+    public NativeMenuService(ILogger<NativeMenuService> logger, AionKeyBindings keys)
     {
         _logger = logger;
+        _keys = keys;
         _clickChannel = Channel.CreateUnbounded<string>();
     }
 
@@ -112,6 +115,14 @@ public class NativeMenuService : INativeMenuService
         _clickChannel.Writer.TryWrite(itemId);
     }
 
+    private static void WithShortcut(NativeMenuItem item, KeyChord? chord)
+    {
+        if (chord != null)
+        {
+            item.WithAccelerator(chord.Accelerator);
+        }
+    }
+
     private void BuildMenuStructure()
     {
         if (_menuBar is null)
@@ -132,13 +143,11 @@ public class NativeMenuService : INativeMenuService
         {
             menu.AddSubmenu("New", sub =>
             {
-                sub.AddItem("Connection", MenuItemIds.FileNewConnection);
-                sub.AddItem("Query", MenuItemIds.FileNewQuery, item =>
-                    item.WithAccelerator("Ctrl+N"));
+                sub.AddItem("Connection", MenuItemIds.FileNewConnection, item => WithShortcut(item, _keys.NewConnection));
+                sub.AddItem("Query", MenuItemIds.FileNewQuery, item => WithShortcut(item, _keys.NewQuery));
             });
             menu.AddSeparator();
-            menu.AddItem("Save Query", MenuItemIds.FileSaveQuery, item =>
-                item.WithAccelerator("Ctrl+S"));
+            menu.AddItem("Save Query", MenuItemIds.FileSaveQuery, item => WithShortcut(item, _keys.SaveQuery));
             menu.AddItem("Save All Queries", MenuItemIds.FileSaveAllQueries);
             menu.AddItem("Save Query as File", MenuItemIds.FileSaveQueryAs);
             menu.AddSeparator();
@@ -153,8 +162,7 @@ public class NativeMenuService : INativeMenuService
         // Edit menu
         _menuBar.AddMenu("Edit", menu =>
         {
-            menu.AddItem("Copy Query", MenuItemIds.EditCopyQuery, item =>
-                item.WithAccelerator("Ctrl+Shift+C"));
+            menu.AddItem("Copy Query", MenuItemIds.EditCopyQuery, item => WithShortcut(item, _keys.CopyQuery));
             menu.AddItem("Rename Query", MenuItemIds.EditRenameQuery);
             menu.AddItem("Format", MenuItemIds.EditFormat);
             menu.AddSeparator();

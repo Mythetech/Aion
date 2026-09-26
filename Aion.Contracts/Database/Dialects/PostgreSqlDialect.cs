@@ -29,6 +29,15 @@ public sealed class PostgreSqlDialect : SqlDialect
 
     protected override int FractionalSecondDigits => 6;
 
+    public override string CreateTableTemplate() =>
+        """
+        CREATE TABLE "public"."new_table" (
+            "id" integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            "name" text NOT NULL,
+            "created_at" timestamptz NOT NULL DEFAULT now()
+        );
+        """;
+
     // Npgsql reads timestamptz as UTC; without the Z the server would reinterpret it in the session time zone.
     protected override string FormatDateTime(DateTime value) =>
         value.Kind == DateTimeKind.Utc
