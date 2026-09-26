@@ -341,6 +341,68 @@ public class QueryResponsePanelTests : TestContext
         cut.FindAll(".query-status-failed").ShouldBeEmpty();
     }
 
+    [Theory]
+    [InlineData(1, "1 row affected")]
+    [InlineData(3, "3 rows affected")]
+    [InlineData(0, "0 rows affected")]
+    public void StatementThatChangedRows_SaysHowManyInsteadOfAnEmptyGrid(int affected, string expected)
+    {
+        // Arrange
+        Complete(new QueryResult { RowsAffected = affected });
+
+        // Act
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Assert
+        cut.FindComponents<QueryResultTable>().ShouldBeEmpty();
+        cut.Find(".query-statement-outcome-text").TextContent.ShouldBe(expected);
+        FooterCount(cut).ShouldBe(expected);
+    }
+
+    [Fact]
+    public void StatementWithoutACount_SaysItCompleted()
+    {
+        // Arrange
+        Complete(new QueryResult());
+
+        // Act
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Assert
+        cut.FindComponents<QueryResultTable>().ShouldBeEmpty();
+        cut.Find(".query-statement-outcome-text").TextContent.ShouldBe("Statement completed");
+        FooterCount(cut).ShouldBe("Statement completed");
+    }
+
+    [Fact]
+    public void SelectThatFoundNoRows_StillShowsTheGridWithItsColumns()
+    {
+        // Arrange
+        Complete(new QueryResult { Columns = ["id", "name"] });
+
+        // Act
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Assert
+        cut.FindComponents<QueryResultTable>().Count.ShouldBe(1);
+        cut.FindAll(".query-statement-outcome").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task PlanRun_ResultsTabSaysTheStatementWasNotRun()
+    {
+        // Arrange
+        Complete(Rows(3));
+        var cut = RenderComponent<QueryResponsePanel>();
+        await RunAsync(cut, new QueryResult(), QueryResultKind.EstimatedPlan);
+
+        // Act
+        await cut.FindAll(".mud-tab").First(t => t.TextContent.Trim() == "Results").ClickAsync(new());
+
+        // Assert
+        cut.Find(".query-statement-outcome-text").TextContent.ShouldBe("Estimated plan, statement not run");
+    }
+
     [Fact]
     public void CancelledRun_ShowsCancelledRatherThanAnErrorCard()
     {

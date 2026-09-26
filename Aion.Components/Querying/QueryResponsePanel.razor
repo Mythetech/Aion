@@ -1,6 +1,7 @@
 @using System.Text.Json.Nodes
 @using Mythetech.Framework.Infrastructure.MessageBus
 @using Aion.Components.Connections
+@using Aion.Components.History
 @using Aion.Components.Querying.Commands
 @using Aion.Components.Querying.Consumers
 @using Aion.Components.Querying.Editing
@@ -79,6 +80,14 @@
                 else if (!queryResult.Success)
                 {
                     <QueryErrorCard Query="@State.Active" />
+                }
+                else if (queryResult.Columns.Count == 0)
+                {
+                    @* A statement that returns no columns, such as an UPDATE or a CREATE, leaves no grid to show, only what it did. *@
+                    <div class="query-statement-outcome" role="status">
+                        <MudIcon Icon="@AionIcons.Success" Size="Size.Small" />
+                        <span class="query-statement-outcome-text">@(State.Active.ResultKind.PlanSummary() ?? StatementOutcome(queryResult))</span>
+                    </div>
                 }
                 else
                 {
@@ -305,9 +314,11 @@ else if (State?.Active?.IsExecuting ?? false)
     }
 
     private static string DescribeResult(QueryResult result) =>
-        result.Columns.Count == 0 && result.RowsAffected is { } affected
-            ? $"{affected} row{(affected == 1 ? "" : "s")} affected"
-            : $"{result.RowCount} Results";
+        result.Columns.Count == 0 ? StatementOutcome(result) : $"{result.RowCount} Results";
+
+    // Not every engine counts the rows a statement changed, and schema changes have none to count.
+    private static string StatementOutcome(QueryResult result) =>
+        result.RowsAffected is { } affected ? QueryHistoryFormatter.RowsAffected(affected) : "Statement completed";
 
     private DatabaseType GetActiveDatabaseType()
     {
