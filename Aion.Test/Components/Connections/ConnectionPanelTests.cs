@@ -1,11 +1,14 @@
 using Aion.Components.Connections;
 using Aion.Components.Connections.Commands;
 using Aion.Components.Querying;
+using Aion.Components.Querying.Commands;
 using Aion.Components.Settings.Domains;
 using Aion.Components.Theme;
 using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 using Bunit;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using MudBlazor;
@@ -22,7 +25,9 @@ public class ConnectionPanelTests : TestContext
     private static readonly TableInfo Products = new("", "products");
 
     private readonly IDatabaseProvider _provider;
+    private readonly IDatabaseProvider _liteDbProvider = Substitute.For<IDatabaseProvider>();
     private readonly IConnectionService _connectionService = Substitute.For<IConnectionService>();
+    private readonly IMessageBus _bus = Substitute.For<IMessageBus>();
     private readonly ConnectionState _connectionState;
 
     public ConnectionPanelTests()
@@ -30,20 +35,23 @@ public class ConnectionPanelTests : TestContext
         Services.AddMudServices(options => options.PopoverOptions.CheckForPopoverProvider = false);
         JSInterop.Mode = JSRuntimeMode.Loose;
 
-        _provider = Substitute.For<IDatabaseProvider, IDatabaseIndexProvider>();
+        _provider = Substitute.For<IDatabaseProvider, IDatabaseIndexProvider, IDatabaseViewProvider>();
         _provider.DatabaseType.Returns(DatabaseType.WasmSQLite);
         _provider.SystemSchemas.Returns([]);
         _provider.GetColumnsAsync(default!, default!, default!, default!).ReturnsForAnyArgs(_ => new List<ColumnInfo>());
         ((IDatabaseIndexProvider)_provider).GetIndexesAsync(default!, default!).ReturnsForAnyArgs(_ => new List<IndexInfo>());
+        Views.GetViewsAsync(default!, default!).ReturnsForAnyArgs(_ => new List<TableInfo>());
+        _liteDbProvider.DatabaseType.Returns(DatabaseType.LiteDB);
+        _liteDbProvider.SystemSchemas.Returns([]);
 
         var factory = Substitute.For<IDatabaseProviderFactory>();
         factory.GetProvider(Arg.Any<DatabaseType>()).Returns(_provider);
+        factory.GetProvider(DatabaseType.LiteDB).Returns(_liteDbProvider);
 
-        var bus = Substitute.For<IMessageBus>();
-        Services.AddSingleton(bus);
-        _connectionState = new ConnectionState(_connectionService, factory, bus, NullLogger<ConnectionState>.Instance);
+        Services.AddSingleton(_bus);
+        _connectionState = new ConnectionState(_connectionService, factory, _bus, NullLogger<ConnectionState>.Instance);
         Services.AddSingleton(_connectionState);
-        Services.AddSingleton(new QueryState(bus, Substitute.For<IQuerySaveService>()));
+        Services.AddSingleton(new QueryState(_bus, Substitute.For<IQuerySaveService>()));
         Services.AddSingleton(new BrowserSettings());
     }
 
@@ -146,6 +154,34 @@ public class ConnectionPanelTests : TestContext
 
     private static Task ToggleAsync(IRenderedComponent<MudTreeViewItem<string>> item) =>
         item.Find(".mud-treeview-item-arrow button").ClickAsync(new());
+
+    [Fact]
+    public void TableRow_ShowsACountedRowCountBesideTheName()
+    {
+        var cut = Render(ConnectionWithTables(Products with { RowCount = TableRowCount.Exact(15) }));
+
+        var count = TableItem(cut, Products).Find(".row-count");
+        count.TextContent.ShouldBe("15 rows");
+        count.GetAttribute("title").ShouldBe("15 rows, counted when the tables were listed");
+    }
+
+    [Fact]
+    public void TableRow_MarksAnEstimatedRowCountAsAnEstimate()
+    {
+        var cut = Render(ConnectionWithTables(Products with { RowCount = TableRowCount.Estimated(1_234) }));
+
+        var count = TableItem(cut, Products).Find(".row-count");
+        count.TextContent.ShouldBe("~1.2k rows");
+        count.GetAttribute("title").ShouldBe("About 1,234 rows, estimated from table statistics");
+    }
+
+    [Fact]
+    public void TableRow_WithoutARowCount_LeavesTheSpaceEmpty()
+    {
+        var cut = Render(ConnectionWithTables(Products));
+
+        TableItem(cut, Products).FindAll(".row-count").ShouldBeEmpty();
+    }
 
     [Fact]
     public async Task ExpandingATable_LoadsItsColumnsDirectlyUnderIt()
@@ -339,16 +375,34 @@ public class ConnectionPanelTests : TestContext
     }
 
     [Fact]
-    public async Task IndexesThatFailToLoad_ShowAnErrorRow()
+    public async Task IndexesThatFailToLoad_ShowAnErrorRowInTheTablesIndexesGroup()
     {
         ((IDatabaseIndexProvider)_provider).GetIndexesAsync(Arg.Any<string>(), Database)
             .Returns<List<IndexInfo>>(_ => throw new InvalidOperationException("no such table: pragma_index_list"));
-        var cut = Render(ConnectionWithTables(Products));
+        var cut = Render(ConnectionWithLoadedColumns(ProductColumns()));
 
-        await ToggleAsync(NamedItem(cut, $"{Database}/Indexes"));
+        await ToggleAsync(GroupItem(cut, "Indexes"));
 
-        cut.WaitForAssertion(() => NamedItem(cut, $"{Database}/Indexes").Find(".tree-status-failed").TextContent
+        cut.WaitForAssertion(() => GroupItem(cut, "Indexes").Find(".tree-status-failed").TextContent
             .ShouldContain("no such table: pragma_index_list"));
+    }
+
+    [Fact]
+    public async Task Indexes_AreListedUnderTheirTableWithoutADatabaseLevelNode()
+    {
+        ((IDatabaseIndexProvider)_provider).GetIndexesAsync(Arg.Any<string>(), Database).Returns(
+        [
+            new IndexInfo("", "", "products", "products_pkey", true, true, ["id"]),
+            new IndexInfo("", "", "orders", "idx_orders_customer", false, false, ["customer_id"])
+        ]);
+        var cut = Render(ConnectionWithLoadedColumns(ProductColumns()));
+
+        await ToggleAsync(GroupItem(cut, "Indexes"));
+
+        cut.WaitForAssertion(() => GroupItem(cut, "Indexes").FindAll(".tree-row-name").Select(name => name.TextContent)
+            .ShouldBe(["products_pkey"]));
+        cut.FindComponents<MudTreeViewItem<string>>().ShouldNotContain(item => item.Instance.Value == $"{Database}/Indexes");
+        cut.FindComponents<MudTreeViewItem<string>>().ShouldNotContain(item => item.Instance.Text == "Indexes");
     }
 
     [Fact]
@@ -360,14 +414,14 @@ public class ConnectionPanelTests : TestContext
     }
 
     [Fact]
-    public void DatabaseWithNoIndexes_SaysSo()
+    public void TableWithNoIndexes_CountsNone()
     {
-        var connection = ConnectionWithTables(Products);
+        var connection = ConnectionWithLoadedColumns(ProductColumns());
         connection.Databases[0].IndexesLoaded = true;
 
         var cut = Render(connection);
 
-        NamedItem(cut, $"{Database}/Indexes").Find(".tree-status-empty").TextContent.ShouldBe("No indexes");
+        GroupItem(cut, "Indexes").Find(".tree-count").TextContent.ShouldBe("0");
     }
 
     [Fact]
@@ -391,6 +445,249 @@ public class ConnectionPanelTests : TestContext
         });
 
         cut.Find(".tree-status-failed").TextContent.ShouldContain("Connection refused");
+    }
+
+    private static readonly TableInfo Customers = new("", "customers");
+    private static readonly TableInfo Orders = new("", "orders");
+    private static readonly TableInfo OrderItems = new("", "order_items");
+
+    private static List<string> ListedTables(IRenderedComponent<ConnectionPanel> cut) =>
+        cut.FindComponents<MudTreeViewItem<string>>()
+            .Select(item => item.Instance.Value ?? "")
+            .Where(value => value.StartsWith($"{Database}|") && !value.Contains('/'))
+            .Select(value => value[(Database.Length + 1)..])
+            .ToList();
+
+    private static Task FilterAsync(IRenderedComponent<ConnectionPanel> cut, string text) =>
+        cut.Find(".schema-filter input").InputAsync(new ChangeEventArgs { Value = text });
+
+    private static List<string> ColumnNames(IRenderedComponent<MudTreeViewItem<string>> table) =>
+        table.FindAll(".column-row .tree-row-name").Select(name => name.TextContent).ToList();
+
+    [Fact]
+    public void Filter_IsNamedForScreenReaders()
+    {
+        var cut = Render(ConnectionWithTables(Customers));
+
+        cut.Find(".schema-filter input").GetAttribute("aria-label").ShouldBe("Filter tables and columns");
+    }
+
+    [Fact]
+    public async Task Filter_NarrowsTablesByNameIgnoringCase()
+    {
+        var cut = Render(ConnectionWithTables(Customers, Orders, OrderItems));
+
+        await FilterAsync(cut, "ORDER");
+
+        cut.WaitForAssertion(() => ListedTables(cut).ShouldBe(["orders", "order_items"]));
+    }
+
+    [Fact]
+    public async Task Filter_OpensATableMatchedByALoadedColumnAndListsOnlyThatColumn()
+    {
+        var connection = ConnectionWithLoadedColumns(ProductColumns());
+        connection.Databases[0].Tables.Add(Customers);
+        var cut = Render(connection);
+
+        await FilterAsync(cut, "STOCK");
+
+        cut.WaitForAssertion(() => ListedTables(cut).ShouldBe(["products"]));
+        TableItem(cut, Products).Instance.Expanded.ShouldBeTrue();
+        ColumnNames(TableItem(cut, Products)).ShouldBe(["stock_quantity"]);
+        TableItem(cut, Products).FindAll(".tree-group-label").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Filter_KeepsEveryColumnOfATableMatchedByName()
+    {
+        var cut = Render(ConnectionWithLoadedColumns(ProductColumns()));
+
+        await FilterAsync(cut, "prod");
+
+        cut.WaitForAssertion(() => ListedTables(cut).ShouldBe(["products"]));
+        ColumnNames(TableItem(cut, Products)).ShouldBe(["id", "name", "category_id", "description", "stock_quantity"]);
+    }
+
+    [Fact]
+    public async Task ClearingTheFilter_RestoresEveryTableAndTheExpansionTheUserHad()
+    {
+        _provider.GetColumnsAsync(Arg.Any<string>(), Database, "", "orders")
+            .Returns([new ColumnInfo { Name = "id", DataType = "INTEGER" }]);
+        var connection = ConnectionWithLoadedColumns(ProductColumns());
+        connection.Databases[0].Tables.Add(Orders);
+        var cut = Render(connection);
+        await ToggleAsync(TableItem(cut, Orders));
+        cut.WaitForAssertion(() => TableItem(cut, Orders).Instance.Expanded.ShouldBeTrue());
+
+        await FilterAsync(cut, "stock");
+        cut.WaitForAssertion(() => ListedTables(cut).ShouldBe(["products"]));
+        await FilterAsync(cut, "");
+
+        cut.WaitForAssertion(() => ListedTables(cut).ShouldBe(["products", "orders"]));
+        TableItem(cut, Orders).Instance.Expanded.ShouldBeTrue();
+        TableItem(cut, Products).Instance.Expanded.ShouldBeFalse();
+        ColumnNames(TableItem(cut, Products)).Count.ShouldBe(5);
+    }
+
+    [Fact]
+    public async Task EscapeInTheFilter_ClearsIt()
+    {
+        var cut = Render(ConnectionWithTables(Customers, Orders));
+        await FilterAsync(cut, "cust");
+        cut.WaitForAssertion(() => ListedTables(cut).ShouldBe(["customers"]));
+
+        await cut.Find(".schema-filter input").KeyDownAsync(new KeyboardEventArgs { Key = "Escape" });
+
+        cut.WaitForAssertion(() => ListedTables(cut).ShouldBe(["customers", "orders"]));
+        cut.Find(".schema-filter input").GetAttribute("value").ShouldBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task FilterWithoutMatches_SaysSoInsteadOfNoTables()
+    {
+        var cut = Render(ConnectionWithTables(Customers, Orders));
+
+        await FilterAsync(cut, "zzz");
+
+        cut.WaitForAssertion(() => NamedItem(cut, $"{Database}/Tables").Find(".tree-status-empty").TextContent
+            .ShouldBe("No tables match"));
+    }
+
+    [Fact]
+    public async Task Filter_OnAConnectionWithOneDatabase_LoadsItsTablesAndOpensThem()
+    {
+        _connectionService.GetTablesAsync(Arg.Any<string>(), Database, DatabaseType.WasmSQLite).Returns([Products, Customers]);
+        var cut = Render(ConnectionWithUnloadedDatabase());
+
+        await FilterAsync(cut, "prod");
+
+        cut.WaitForAssertion(() => ListedTables(cut).ShouldBe(["products"]));
+        IsOpen(NamedItem(cut, Database)).ShouldBeTrue();
+        IsOpen(NamedItem(cut, $"{Database}/Tables")).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task ClearingTheFilter_ClosesTheDatabaseItOpened()
+    {
+        _connectionService.GetTablesAsync(Arg.Any<string>(), Database, DatabaseType.WasmSQLite).Returns([Products]);
+        var cut = Render(ConnectionWithUnloadedDatabase());
+        await FilterAsync(cut, "prod");
+        cut.WaitForAssertion(() => IsOpen(NamedItem(cut, Database)).ShouldBeTrue());
+
+        await FilterAsync(cut, "");
+
+        cut.WaitForAssertion(() => IsOpen(NamedItem(cut, Database)).ShouldBeFalse());
+    }
+
+    private IDatabaseViewProvider Views => (IDatabaseViewProvider)_provider;
+
+    private static readonly TableInfo ActiveCustomers = new("", "active_customers");
+    private static readonly TableInfo BigOrders = new("", "big_orders");
+
+    private static ConnectionModel ConnectionWithViews(params TableInfo[] views)
+    {
+        var connection = ConnectionWithTables(Products);
+        connection.Databases[0].Views = [.. views];
+        connection.Databases[0].ViewsState = SchemaLoadState.Loaded;
+        return connection;
+    }
+
+    private static IRenderedComponent<MudTreeViewItem<string>> ViewItem(IRenderedComponent<ConnectionPanel> cut, TableInfo view) =>
+        NamedItem(cut, $"{Database}/Views|{view.DisplayName}");
+
+    private static List<string> ListedViews(IRenderedComponent<ConnectionPanel> cut) =>
+        cut.FindComponents<MudTreeViewItem<string>>()
+            .Select(item => item.Instance.Value ?? "")
+            .Where(value => value.StartsWith($"{Database}/Views|") && !value[$"{Database}/Views|".Length..].Contains('/'))
+            .Select(value => value[$"{Database}/Views|".Length..])
+            .ToList();
+
+    [Fact]
+    public void ViewsGroup_ListsTheViewsAndCountsThem()
+    {
+        var cut = Render(ConnectionWithViews(ActiveCustomers, BigOrders));
+
+        ListedViews(cut).ShouldBe(["active_customers", "big_orders"]);
+        NamedItem(cut, $"{Database}/Views").Instance.EndText.ShouldBe("2");
+    }
+
+    [Fact]
+    public void DatabaseWithNoViews_SaysSo()
+    {
+        var cut = Render(ConnectionWithViews());
+
+        NamedItem(cut, $"{Database}/Views").Find(".tree-status-empty").TextContent.ShouldBe("No views");
+    }
+
+    [Fact]
+    public async Task ExpandingTheViewsGroup_ListsTheViews()
+    {
+        Views.GetViewsAsync(Arg.Any<string>(), Database).Returns([ActiveCustomers]);
+        var cut = Render(ConnectionWithTables(Products));
+
+        await ToggleAsync(NamedItem(cut, $"{Database}/Views"));
+
+        cut.WaitForAssertion(() => ListedViews(cut).ShouldBe(["active_customers"]));
+    }
+
+    [Fact]
+    public async Task ExpandingTables_AlsoListsTheViewsSoTheirCountShows()
+    {
+        _connectionService.GetTablesAsync(Arg.Any<string>(), Database, DatabaseType.WasmSQLite).Returns([Products]);
+        Views.GetViewsAsync(Arg.Any<string>(), Database).Returns([ActiveCustomers]);
+        var cut = Render(ConnectionWithUnloadedDatabase());
+
+        await ToggleAsync(NamedItem(cut, $"{Database}/Tables"));
+
+        cut.WaitForAssertion(() => NamedItem(cut, $"{Database}/Views").Instance.EndText.ShouldBe("1"));
+    }
+
+    [Fact]
+    public async Task ExpandingAView_ListsItsColumnsWithoutTableGroups()
+    {
+        _provider.GetColumnsAsync(Arg.Any<string>(), Database, "", "active_customers")
+            .Returns([new ColumnInfo { Name = "email", DataType = "TEXT" }]);
+        var cut = Render(ConnectionWithViews(ActiveCustomers));
+
+        await ToggleAsync(ViewItem(cut, ActiveCustomers));
+
+        cut.WaitForAssertion(() => ColumnNames(ViewItem(cut, ActiveCustomers)).ShouldBe(["email"]));
+        ViewItem(cut, ActiveCustomers).FindAll(".tree-group-label").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task ViewMenu_SelectsTheFirstRowsOfTheView()
+    {
+        var popovers = RenderComponent<MudPopoverProvider>();
+        var connection = ConnectionWithViews(ActiveCustomers);
+        var cut = Render(connection);
+
+        await ViewItem(cut, ActiveCustomers).Find("button[aria-label='active_customers actions']").ClickAsync(new());
+        await popovers.WaitForElement(".mud-menu-item").ClickAsync(new());
+
+        await _bus.Received(1).PublishAsync(new OpenTableRows(connection.Id, Database, "", "active_customers"));
+    }
+
+    [Fact]
+    public async Task Filter_NarrowsViewsByNameToo()
+    {
+        var cut = Render(ConnectionWithViews(ActiveCustomers, BigOrders));
+
+        await FilterAsync(cut, "ACTIVE");
+
+        cut.WaitForAssertion(() => ListedViews(cut).ShouldBe(["active_customers"]));
+        NamedItem(cut, $"{Database}/Views").Instance.EndText.ShouldBe("1 of 2");
+    }
+
+    [Fact]
+    public void EngineWithoutViews_HasNoViewsGroup()
+    {
+        var connection = ConnectionWithTables(Products);
+        connection.Type = DatabaseType.LiteDB;
+
+        var cut = Render(connection);
+
+        cut.FindComponents<MudTreeViewItem<string>>().ShouldNotContain(item => item.Instance.Value == $"{Database}/Views");
     }
 
     [Fact]

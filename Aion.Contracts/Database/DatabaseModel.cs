@@ -12,6 +12,13 @@ public class DatabaseModel
         set => TablesState = value ? SchemaLoadState.Loaded : SchemaLoadState.NotLoaded;
     }
 
+    public List<TableInfo> Views { get; set; } = [];
+    public SchemaLoadState ViewsState { get; set; } = SchemaLoadState.NotLoaded;
+
+    /// <summary>
+    /// Columns of tables and views by display name. The two share a namespace in every engine Aion supports,
+    /// so a name never means both.
+    /// </summary>
     public Dictionary<string, List<ColumnInfo>> TableColumns { get; set; } = [];
     public HashSet<string> LoadedColumnTables { get; set; } = [];
 
@@ -46,4 +53,20 @@ public class DatabaseModel
 public record TableInfo(string Schema, string Name)
 {
     public string DisplayName => string.IsNullOrEmpty(Schema) ? Name : $"{Schema}.{Name}";
+
+    /// <summary>
+    /// How many rows the table held when it was listed, when the engine could say cheaply. Null when it could not.
+    /// </summary>
+    public TableRowCount? RowCount { get; init; }
+}
+
+/// <summary>
+/// A table's row count as the schema tree shows it: counted exactly where counting is cheap (the in-browser
+/// engines and LiteDB), otherwise estimated from the statistics the engine keeps in its catalog.
+/// </summary>
+public sealed record TableRowCount(long Rows, bool IsEstimate)
+{
+    public static TableRowCount Exact(long rows) => new(rows, false);
+
+    public static TableRowCount Estimated(long rows) => new(rows, true);
 }

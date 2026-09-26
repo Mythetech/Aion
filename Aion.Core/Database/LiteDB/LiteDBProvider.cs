@@ -27,11 +27,12 @@ public class LiteDBProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
         {
             using var db = new LiteDatabase(connectionString);
 
+            // The file is local, so an exact count costs one pass over the _id index rather than a round trip.
             foreach (var name in db.GetCollectionNames())
             {
                 if (!name.StartsWith('$'))
                 {
-                    collections.Add(new TableInfo("", name));
+                    collections.Add(new TableInfo("", name) { RowCount = TableRowCount.Exact(db.GetCollection(name).LongCount()) });
                 }
             }
         }

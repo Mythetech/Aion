@@ -42,6 +42,54 @@ public class ColumnTypeTextTests
         ColumnTypeText.Short(Column(dataType, maxLength), DatabaseType.WasmPostgreSQL).ShouldBe(expected);
     }
 
+    // information_schema names only the category of an array or a user-defined type; udt_name has the type itself,
+    // with a leading underscore for the array type of an element.
+    [Theory]
+    [InlineData("ARRAY", "_int4", "integer[]")]
+    [InlineData("ARRAY", "_int8", "bigint[]")]
+    [InlineData("ARRAY", "_float8", "double[]")]
+    [InlineData("ARRAY", "_bool", "boolean[]")]
+    [InlineData("ARRAY", "_varchar", "varchar[]")]
+    [InlineData("ARRAY", "_bpchar", "char[]")]
+    [InlineData("ARRAY", "_timestamptz", "timestamptz[]")]
+    [InlineData("ARRAY", "_text", "text[]")]
+    [InlineData("ARRAY", "_mood", "mood[]")]
+    [InlineData("USER-DEFINED", "mood", "mood")]
+    [InlineData("USER-DEFINED", "citext", "citext")]
+    [InlineData("ARRAY", null, "array")]
+    [InlineData("USER-DEFINED", "", "user-defined")]
+    public void Short_PostgreSql_NamesArraysAndUserDefinedTypesFromTheirUdtName(string dataType, string? udtName, string expected)
+    {
+        var column = Column(dataType);
+        column.UdtName = udtName;
+
+        ColumnTypeText.Short(column, DatabaseType.PostgreSQL).ShouldBe(expected);
+        ColumnTypeText.Short(column, DatabaseType.WasmPostgreSQL).ShouldBe(expected);
+    }
+
+    [Theory]
+    [InlineData("ARRAY", "_int4", "integer[] · NULL")]
+    [InlineData("ARRAY", "_varchar", "character varying[] · NULL")]
+    [InlineData("ARRAY", "_timestamptz", "timestamp with time zone[] · NULL")]
+    [InlineData("USER-DEFINED", "mood", "mood (user-defined type) · NULL")]
+    public void Describe_PostgreSql_SpellsOutArrayAndUserDefinedTypes(string dataType, string udtName, string expected)
+    {
+        var column = Column(dataType);
+        column.UdtName = udtName;
+
+        ColumnTypeText.Describe(column, DatabaseType.PostgreSQL).ShouldBe(expected);
+    }
+
+    [Fact]
+    public void Short_UdtName_IsOnlyReadForPostgreSqlCategories()
+    {
+        var column = Column("int");
+        column.UdtName = "_int4";
+
+        ColumnTypeText.Short(column, DatabaseType.MySQL).ShouldBe("int");
+        ColumnTypeText.Short(column, DatabaseType.PostgreSQL).ShouldBe("int");
+    }
+
     [Theory]
     [InlineData("int", null, "int")]
     [InlineData("varchar", 255, "varchar(255)")]

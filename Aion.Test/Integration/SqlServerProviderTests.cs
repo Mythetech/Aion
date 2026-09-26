@@ -214,6 +214,35 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetTables_EstimatesRowCountsFromPartitionStatistics()
+    {
+        await ExecuteOrFailAsync(DatabaseConnectionString, """
+            CREATE TABLE dbo.counted (id int);
+            INSERT INTO dbo.counted (id) SELECT TOP (250) ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) FROM sys.all_objects;
+            CREATE TABLE dbo.never_filled (id int PRIMARY KEY);
+            """);
+
+        var tables = await Provider.GetTablesAsync(DatabaseConnectionString, TestDatabase);
+
+        tables.Single(t => t.Name == "counted").RowCount.ShouldBe(TableRowCount.Estimated(250));
+        tables.Single(t => t.Name == "never_filled").RowCount.ShouldBe(TableRowCount.Estimated(0));
+    }
+
+    [Fact]
+    public async Task GetViews_ListsViewsApartFromTablesWithColumnsThatLoadLikeATables()
+    {
+        await ExecuteOrFailAsync(DatabaseConnectionString, $"CREATE VIEW dbo.named_rows AS SELECT id, name FROM dbo.{TestTable}");
+
+        var views = await ((IDatabaseViewProvider)Provider).GetViewsAsync(DatabaseConnectionString, TestDatabase);
+        var tables = await Provider.GetTablesAsync(DatabaseConnectionString, TestDatabase);
+        var columns = await Provider.GetColumnsAsync(DatabaseConnectionString, TestDatabase, "dbo", "named_rows");
+
+        views.ShouldBe([new TableInfo("dbo", "named_rows")]);
+        tables.ShouldNotContain(t => t.Name == "named_rows");
+        columns.Select(c => c.Name).ShouldBe(["id", "name"]);
+    }
+
+    [Fact]
     public void ValidateConnectionString_ShouldValidateCorrectly()
     {
         // Valid connection string

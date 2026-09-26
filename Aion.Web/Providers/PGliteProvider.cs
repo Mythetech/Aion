@@ -8,7 +8,7 @@ using Microsoft.JSInterop;
 namespace Aion.Web.Providers;
 
 public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider, IDatabaseRowEditingProvider,
-    IEstimatedQueryPlanProvider, IActualQueryPlanProvider, IManagedDatabaseProvider, ISqlDialectProvider
+    IEstimatedQueryPlanProvider, IActualQueryPlanProvider, IManagedDatabaseProvider, ISqlDialectProvider, IDatabaseViewProvider
 {
     private const string TransactionNotOpenMessage = "This transaction is no longer open. Roll back to clear it.";
 
@@ -79,7 +79,32 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
             var name = row.GetProperty("tablename").GetString() ?? "";
             tables.Add(new TableInfo(schema, name));
         }
+
+        // PGlite never runs autovacuum, so the planner statistics a server would offer are mostly unset; the
+        // databases are small enough in a browser tab to count exactly.
+        if (tables.Count > 0)
+        {
+            var counts = await ReadCatalogAsync(database, PGliteCatalogSql.CountRows(tables));
+            foreach (var row in counts.GetProperty("rows").EnumerateArray())
+            {
+                var index = row.GetProperty("i").GetInt32();
+                tables[index] = tables[index] with { RowCount = TableRowCount.Exact(row.GetProperty("n").GetInt64()) };
+            }
+        }
+
         return tables;
+    }
+
+    public async Task<List<TableInfo>> GetViewsAsync(string connectionString, string database)
+    {
+        await EnsureDatabaseAsync(database);
+
+        var result = await ReadCatalogAsync(database,
+            "SELECT table_schema, table_name FROM information_schema.views WHERE table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY table_schema, table_name");
+
+        return result.GetProperty("rows").EnumerateArray()
+            .Select(row => new TableInfo(row.GetProperty("table_schema").GetString() ?? "", row.GetProperty("table_name").GetString() ?? ""))
+            .ToList();
     }
 
     public async Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string schema, string table)
@@ -92,7 +117,8 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
                 c.column_default,
                 c.character_maximum_length,
                 CASE WHEN pk.constraint_type = 'PRIMARY KEY' THEN true ELSE false END as is_primary_key,
-                CASE WHEN c.column_default LIKE 'nextval%' OR c.is_identity = 'YES' THEN true ELSE false END as is_identity
+                CASE WHEN c.column_default LIKE 'nextval%' OR c.is_identity = 'YES' THEN true ELSE false END as is_identity,
+                c.udt_name
             FROM information_schema.columns c
             LEFT JOIN (
                 SELECT ku.column_name, tc.constraint_type
@@ -100,11 +126,11 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
                 JOIN information_schema.key_column_usage ku
                     ON tc.constraint_name = ku.constraint_name
                 WHERE tc.constraint_type = 'PRIMARY KEY'
-                    AND ku.table_name = {Literal(table)}
-                    AND ku.table_schema = {Literal(schema)}
+                    AND ku.table_name = {PGliteCatalogSql.Literal(table)}
+                    AND ku.table_schema = {PGliteCatalogSql.Literal(schema)}
             ) pk ON c.column_name = pk.column_name
-            WHERE c.table_name = {Literal(table)}
-            AND c.table_schema = {Literal(schema)}
+            WHERE c.table_name = {PGliteCatalogSql.Literal(table)}
+            AND c.table_schema = {PGliteCatalogSql.Literal(schema)}
             ORDER BY c.ordinal_position";
 
         var result = await ReadCatalogAsync(database, sql);
@@ -122,7 +148,8 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
                 MaxLength = row.TryGetProperty("character_maximum_length", out var ml) && ml.ValueKind != JsonValueKind.Null
                     ? ml.GetInt32() : null,
                 IsPrimaryKey = row.GetProperty("is_primary_key").GetBoolean(),
-                IsIdentity = row.GetProperty("is_identity").GetBoolean()
+                IsIdentity = row.GetProperty("is_identity").GetBoolean(),
+                UdtName = row.TryGetProperty("udt_name", out var udt) && udt.ValueKind == JsonValueKind.String ? udt.GetString() : null
             });
         }
 
@@ -154,8 +181,8 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
                 ON ccu.constraint_name = tc.constraint_name
                 AND ccu.table_schema = tc.table_schema
             WHERE tc.constraint_type = 'FOREIGN KEY'
-                AND tc.table_name = {Literal(table)}
-                AND tc.table_schema = {Literal(schema)}";
+                AND tc.table_name = {PGliteCatalogSql.Literal(table)}
+                AND tc.table_schema = {PGliteCatalogSql.Literal(schema)}";
 
         var result = await ReadCatalogAsync(database, sql);
 
@@ -454,8 +481,6 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
 
     private string CatalogReadFunction(string? database) =>
         database != null && _openTransactions.ContainsKey(database) ? "readInSavepoint" : "query";
-
-    private static string Literal(string value) => $"'{value.Replace("'", "''")}'";
 
     private string? FindTransactionDatabase(string transactionId) =>
         _openTransactions.FirstOrDefault(entry => entry.Value == transactionId).Key;

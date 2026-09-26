@@ -9,7 +9,8 @@ using System.Text;
 namespace Aion.Core.Database;
 
 public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider,
-    IDatabaseRowEditingProvider, IEstimatedQueryPlanProvider, IActualQueryPlanProvider, ISqlDialectProvider, IDatabaseCreationProvider
+    IDatabaseRowEditingProvider, IEstimatedQueryPlanProvider, IActualQueryPlanProvider, ISqlDialectProvider, IDatabaseCreationProvider,
+    IDatabaseViewProvider
 {
     private const string TransactionNotOpenMessage = "This transaction is no longer open. Roll back to clear it.";
 
@@ -57,12 +58,52 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
         using var conn = new NpgsqlConnection(connectionString);
         await conn.OpenAsync();
 
+        // Row counts are estimates from the catalog, never a scan. n_live_tup follows every committed insert and
+        // delete, while reltuples only moves on VACUUM, ANALYZE and CREATE INDEX (and is -1 until the first).
+        // A zero n_live_tup beside a positive reltuples usually means the statistics were reset, so reltuples is
+        // the better guess then. A partitioned table's rows live in its partitions, so it gets no estimate.
+        const string sql = @"
+            SELECT t.table_schema, t.table_name,
+                CASE
+                    WHEN c.relkind = 'p' THEN NULL
+                    WHEN s.n_live_tup > 0 OR c.reltuples < 0 THEN s.n_live_tup
+                    ELSE c.reltuples::bigint
+                END AS estimated_rows
+            FROM information_schema.tables t
+            LEFT JOIN pg_namespace n ON n.nspname = t.table_schema
+            LEFT JOIN pg_class c ON c.relnamespace = n.oid AND c.relname = t.table_name
+            LEFT JOIN pg_stat_all_tables s ON s.relid = c.oid
+            WHERE t.table_type = 'BASE TABLE'
+            AND t.table_schema NOT LIKE 'pg_temp_%'
+            AND t.table_schema NOT LIKE 'pg_toast_temp_%'
+            ORDER BY t.table_schema, t.table_name";
+
+        using var cmd = new NpgsqlCommand(sql, conn);
+        using var reader = await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            tables.Add(new TableInfo(reader.GetString(0), reader.GetString(1))
+            {
+                RowCount = reader.IsDBNull(2) ? null : TableRowCount.Estimated(reader.GetInt64(2))
+            });
+        }
+
+        return tables;
+    }
+
+    // Like the table list, this includes the catalog's own views; the tree hides system schemas unless asked.
+    public async Task<List<TableInfo>> GetViewsAsync(string connectionString, string database)
+    {
+        var views = new List<TableInfo>();
+
+        using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync();
+
         const string sql = @"
             SELECT table_schema, table_name
-            FROM information_schema.tables
-            WHERE table_type = 'BASE TABLE'
-            AND table_schema NOT LIKE 'pg_temp_%'
-            AND table_schema NOT LIKE 'pg_toast_temp_%'
+            FROM information_schema.views
+            WHERE table_schema NOT LIKE 'pg_temp_%'
             ORDER BY table_schema, table_name";
 
         using var cmd = new NpgsqlCommand(sql, conn);
@@ -70,10 +111,10 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
 
         while (await reader.ReadAsync())
         {
-            tables.Add(new TableInfo(reader.GetString(0), reader.GetString(1)));
+            views.Add(new TableInfo(reader.GetString(0), reader.GetString(1)));
         }
 
-        return tables;
+        return views;
     }
 
     public async Task<QueryResult> ExecuteQueryAsync(string connectionString, string query, CancellationToken cancellationToken)
@@ -260,7 +301,8 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
                 c.column_default,
                 c.character_maximum_length,
                 CASE WHEN pk.constraint_type = 'PRIMARY KEY' THEN true ELSE false END as is_primary_key,
-                CASE WHEN c.column_default LIKE 'nextval%' OR c.is_identity = 'YES' THEN true ELSE false END as is_identity
+                CASE WHEN c.column_default LIKE 'nextval%' OR c.is_identity = 'YES' THEN true ELSE false END as is_identity,
+                c.udt_name
             FROM information_schema.columns c
             LEFT JOIN (
                 SELECT ku.column_name, tc.constraint_type
@@ -290,7 +332,8 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
                 DefaultValue = reader.IsDBNull(3) ? null : reader.GetString(3),
                 MaxLength = reader.IsDBNull(4) ? null : reader.GetInt32(4),
                 IsPrimaryKey = reader.GetBoolean(5),
-                IsIdentity = reader.GetBoolean(6)
+                IsIdentity = reader.GetBoolean(6),
+                UdtName = reader.IsDBNull(7) ? null : reader.GetString(7)
             });
         }
 

@@ -10,7 +10,8 @@ using System.Text;
 namespace Aion.Core.Database;
 
 public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider,
-    IDatabaseRowEditingProvider, IEstimatedQueryPlanProvider, IActualQueryPlanProvider, ISqlDialectProvider, IDatabaseCreationProvider
+    IDatabaseRowEditingProvider, IEstimatedQueryPlanProvider, IActualQueryPlanProvider, ISqlDialectProvider, IDatabaseCreationProvider,
+    IDatabaseViewProvider
 {
     private const string TransactionNotOpenMessage = "This transaction is no longer open. Roll back to clear it.";
     private const int DeadlockErrorNumber = 1213;
@@ -60,8 +61,10 @@ public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabas
         using var conn = new MySqlConnection(connectionString);
         await conn.OpenAsync();
 
+        // TABLE_ROWS is the storage engine's estimate, and MySQL 8 caches it for information_schema_stats_expiry
+        // (a day by default) unless ANALYZE TABLE refreshes it, so it is only ever shown as an estimate.
         const string sql = @"
-            SELECT table_name
+            SELECT table_name, table_rows
             FROM information_schema.tables
             WHERE table_schema = @database
             AND table_type = 'BASE TABLE'
@@ -73,10 +76,38 @@ public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabas
 
         while (await reader.ReadAsync())
         {
-            tables.Add(new TableInfo("", reader.GetString(0)));
+            tables.Add(new TableInfo("", reader.GetString(0))
+            {
+                RowCount = reader.IsDBNull(1) ? null : TableRowCount.Estimated(Convert.ToInt64(reader.GetValue(1)))
+            });
         }
 
         return tables;
+    }
+
+    public async Task<List<TableInfo>> GetViewsAsync(string connectionString, string database)
+    {
+        var views = new List<TableInfo>();
+
+        using var conn = new MySqlConnection(connectionString);
+        await conn.OpenAsync();
+
+        const string sql = @"
+            SELECT table_name
+            FROM information_schema.views
+            WHERE table_schema = @database
+            ORDER BY table_name";
+
+        using var cmd = new MySqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@database", database);
+        using var reader = await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            views.Add(new TableInfo("", reader.GetString(0)));
+        }
+
+        return views;
     }
 
     public async Task<QueryResult> ExecuteQueryAsync(string connectionString, string query, CancellationToken cancellationToken)
