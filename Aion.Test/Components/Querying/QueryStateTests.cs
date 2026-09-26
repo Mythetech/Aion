@@ -193,6 +193,30 @@ public class QueryStateTests
     }
 
     [Fact]
+    public void ChoosingADatabaseOnAnotherConnection_MovesTheTabThereInOneChange()
+    {
+        // Arrange
+        var query = _state.Queries[0];
+        query.DatabaseName = "old";
+        var connection = new ConnectionModel
+        {
+            Type = DatabaseType.PostgreSQL,
+            ConnectionString = "Host=localhost;Database=postgres",
+            Databases = [new DatabaseModel { Name = "postgres" }, new DatabaseModel { Name = "sales" }]
+        };
+        var changes = 0;
+        _state.StateChanged += () => changes++;
+
+        // Act
+        _state.UpdateQueryConnection(query, connection, "sales");
+
+        // Assert
+        query.ConnectionId.ShouldBe(connection.Id);
+        query.DatabaseName.ShouldBe("sales");
+        changes.ShouldBe(1);
+    }
+
+    [Fact]
     public void Should_Update_Query_Database()
     {
         // Arrange

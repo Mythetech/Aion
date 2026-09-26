@@ -1,0 +1,123 @@
+/* Every box between the toolbar and the names has to be allowed to shrink, or the names never truncate. */
+.connection-picker-host {
+    display: flex;
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+.connection-picker-host ::deep .connection-picker,
+.connection-picker-host ::deep .mud-menu-activator,
+.connection-picker-host ::deep .connection-picker-tooltip {
+    display: flex;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.connection-picker-host ::deep .mud-menu-activator {
+    border-radius: 8px;
+}
+
+.connection-picker-host ::deep .mud-menu-activator:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
+}
+
+.connection-picker-trigger {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    height: 32px;
+    padding: 0 6px 0 10px;
+    border: 1px solid var(--mud-palette-lines-inputs);
+    border-radius: 8px;
+    background-color: var(--mud-palette-surface);
+    color: var(--mud-palette-text-primary);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+}
+
+.connection-picker-trigger:hover {
+    border-color: var(--mud-palette-primary);
+}
+
+.connection-picker-host ::deep .mud-disabled .connection-picker-trigger {
+    border-color: var(--mud-palette-lines-default);
+    color: var(--mud-palette-text-disabled);
+    cursor: default;
+}
+
+.picker-names {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.picker-connection {
+    font-weight: 500;
+}
+
+.picker-separator {
+    margin: 0 4px;
+    color: var(--mud-palette-text-secondary);
+}
+
+.picker-missing {
+    color: var(--mud-palette-text-secondary);
+}
+
+.picker-engine {
+    flex: none;
+    padding: 0 6px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 4px;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.7rem;
+    line-height: 18px;
+    white-space: nowrap;
+}
+
+.picker-caret {
+    flex: none;
+    color: var(--mud-palette-text-secondary);
+}
+
+/* Names the button for screen readers, which would otherwise hear only "sample_store SQLite". */
+.picker-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.picker-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.picker-group-name {
+    color: var(--mud-palette-text-primary);
+    font-weight: 600;
+}
+
+.picker-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-width: 180px;
+    padding-left: 8px;
+}
+
+.picker-option-empty {
+    padding-left: 8px;
+}
+
+.picker-option-check {
+    color: var(--mud-palette-primary);
+}

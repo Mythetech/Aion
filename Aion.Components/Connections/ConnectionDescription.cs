@@ -44,6 +44,17 @@ public static class ConnectionDescription
         _ => EngineName(type)
     };
 
+    /// <summary>
+    /// The engine in a word or two, for a badge beside a connection's name such as the editor's connection
+    /// picker. Where the engine runs is left to the longer names.
+    /// </summary>
+    public static string EngineBadge(DatabaseType type) => type switch
+    {
+        DatabaseType.WasmSQLite => "SQLite",
+        DatabaseType.WasmPostgreSQL => "PGlite",
+        _ => EngineName(type)
+    };
+
     public static string? Host(ConnectionModel connection)
     {
         var connectionString = connection.ConnectionString;
