@@ -1,4 +1,4 @@
-.column-row {
+.tree-row {
     display: flex;
     align-items: baseline;
     gap: 8px;
@@ -6,7 +6,8 @@
     min-width: 0;
 }
 
-.column-name {
+.tree-row-name,
+.tree-group-label {
     flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
@@ -26,4 +27,34 @@
 
 .column-nullable {
     color: var(--mud-palette-text-disabled);
+}
+
+/* In index and foreign key rows the name stays readable and the detail truncates first; the hover text has it in full. */
+.detail-row .tree-row-name {
+    flex: 0 1 auto;
+}
+
+.tree-detail {
+    flex: 1 1 0;
+    min-width: 0;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--mud-typography-monospace, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+    font-size: 0.75rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+.tree-count {
+    flex: 0 0 auto;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--mud-palette-text-secondary);
+}
+
+.tree-empty {
+    font-size: 0.875rem;
+    font-style: italic;
+    color: var(--mud-palette-text-secondary);
 }
