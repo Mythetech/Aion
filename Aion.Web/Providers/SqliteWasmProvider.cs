@@ -112,7 +112,7 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQu
         await conn.OpenAsync();
 
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"PRAGMA table_info(\"{table}\")";
+        cmd.CommandText = SqliteCatalogSql.TableInfo(table);
 
         using (var reader = await cmd.ExecuteReaderAsync())
         {
@@ -148,7 +148,7 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQu
         await conn.OpenAsync();
 
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"PRAGMA foreign_key_list(\"{table}\")";
+        cmd.CommandText = SqliteCatalogSql.ForeignKeyList(table);
 
         using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())

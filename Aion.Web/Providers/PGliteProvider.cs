@@ -127,11 +127,11 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
                 JOIN information_schema.key_column_usage ku
                     ON tc.constraint_name = ku.constraint_name
                 WHERE tc.constraint_type = 'PRIMARY KEY'
-                    AND ku.table_name = '{table}'
-                    AND ku.table_schema = '{schema}'
+                    AND ku.table_name = {PGliteCatalogSql.Literal(table)}
+                    AND ku.table_schema = {PGliteCatalogSql.Literal(schema)}
             ) pk ON c.column_name = pk.column_name
-            WHERE c.table_name = '{table}'
-            AND c.table_schema = '{schema}'
+            WHERE c.table_name = {PGliteCatalogSql.Literal(table)}
+            AND c.table_schema = {PGliteCatalogSql.Literal(schema)}
             ORDER BY c.ordinal_position";
 
         var result = await module.InvokeAsync<JsonElement>("query", database, sql);
@@ -184,8 +184,8 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
                 ON ccu.constraint_name = tc.constraint_name
                 AND ccu.table_schema = tc.table_schema
             WHERE tc.constraint_type = 'FOREIGN KEY'
-                AND tc.table_name = '{table}'
-                AND tc.table_schema = '{schema}'";
+                AND tc.table_name = {PGliteCatalogSql.Literal(table)}
+                AND tc.table_schema = {PGliteCatalogSql.Literal(schema)}";
 
         var result = await module.InvokeAsync<JsonElement>("query", database, sql);
 

@@ -245,6 +245,21 @@ public class InBrowserProviderTests
         columns.Select(c => c.UdtName).ShouldBe(["_int4", "mood"]);
     }
 
+    [Theory]
+    [InlineData("public", "it's", "'public'", "'it''s'")]
+    [InlineData("public", "odd\"name", "'public'", "'odd\"name'")]
+    [InlineData("my'schema", "back\\slash", "'my''schema'", "E'back\\\\slash'")]
+    public async Task PGlite_ColumnAndForeignKeyQueries_QuoteNamesAsStringLiterals(string schema, string table, string schemaLiteral, string tableLiteral)
+    {
+        CatalogReturns(_ => """{"rows": []}""");
+        var provider = new PGliteProvider(_js.Runtime);
+
+        await provider.GetColumnsAsync("pglite://shop", "shop", schema, table);
+
+        _catalogQueries.Count.ShouldBe(2);
+        _catalogQueries.ShouldAllBe(sql => sql.Contains($"table_name = {tableLiteral}") && sql.Contains($"table_schema = {schemaLiteral}"));
+    }
+
     [Fact]
     public async Task SqliteWasm_GetDatabasesAsync_ListsOnlyTheConnectionsOwnDatabase()
     {

@@ -18,5 +18,10 @@ public static class PGliteCatalogSql
         string.Join("\nUNION ALL\n", tables.Select((table, index) =>
             $"SELECT {index.ToString(CultureInfo.InvariantCulture)} AS i, count(*) AS n FROM {Dialect.QualifyTable(table.Schema, table.Name)}"));
 
+    /// <summary>
+    /// A name as a string literal, for catalog columns such as information_schema.columns.table_name.
+    /// </summary>
+    public static string Literal(string name) => Dialect.FormatLiteral(name);
+
     private static PostgreSqlDialect Dialect => PostgreSqlDialect.Instance;
 }

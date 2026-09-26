@@ -5,6 +5,23 @@ namespace Aion.Test.Web.Providers;
 
 public class SqliteCatalogSqlTests
 {
+    [Theory]
+    [InlineData("products", "PRAGMA table_info(\"products\")")]
+    [InlineData("odd\"name", "PRAGMA table_info(\"odd\"\"name\")")]
+    [InlineData("it's", "PRAGMA table_info(\"it's\")")]
+    public void TableInfo_QuotesTheTableAsAnIdentifier(string table, string expected)
+    {
+        SqliteCatalogSql.TableInfo(table).ShouldBe(expected);
+    }
+
+    [Theory]
+    [InlineData("products", "PRAGMA foreign_key_list(\"products\")")]
+    [InlineData("odd\"name", "PRAGMA foreign_key_list(\"odd\"\"name\")")]
+    public void ForeignKeyList_QuotesTheTableAsAnIdentifier(string table, string expected)
+    {
+        SqliteCatalogSql.ForeignKeyList(table).ShouldBe(expected);
+    }
+
     [Fact]
     public void CountRows_QuotesEachTableAndTagsItsCountWithItsPosition()
     {
