@@ -4,13 +4,11 @@
 @using Aion.Components.Shared.Snackbar.Commands
 @using Aion.Contracts.Database
 @using Aion.Web.Databases.Commands
-@using Aion.Web.Services
 @using Mythetech.Framework.Infrastructure.MessageBus
 @inherits ComponentConsumer<CreateBrowserDatabase, ClearBrowserDatabase>
 
 @code {
     [Inject] private IDialogService DialogService { get; set; } = default!;
-    [Inject] private SchemaExecutor SchemaExecutor { get; set; } = default!;
     [Inject] private ConnectionState ConnectionState { get; set; } = default!;
     [Inject] private IEnumerable<ISupportedTypeProvider> TypeProviders { get; set; } = default!;
 
@@ -29,20 +27,9 @@
             { x => x.TypeProviders, TypeProviders.ToList() },
             { x => x.InitialEngine, message.Engine }
         };
+        // The wizard creates the database itself and stays open when that fails, so there is nothing left to do here.
         var dialog = await DialogService.ShowAsync<SchemaWizard>("New Database", parameters, options);
-        var result = await dialog.Result;
-
-        if (result is not { Canceled: false, Data: SchemaWizardModel model })
-            return;
-
-        try
-        {
-            await SchemaExecutor.ExecuteAsync(model);
-        }
-        catch (Exception ex)
-        {
-            await MessageBus.PublishAsync(new AddNotification($"Failed to create database: {ex.Message}", Severity.Error));
-        }
+        await dialog.Result;
     }
 
     protected override async Task Consume(ClearBrowserDatabase message, CancellationToken cancellationToken)

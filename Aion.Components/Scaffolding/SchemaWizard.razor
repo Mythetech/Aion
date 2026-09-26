@@ -34,7 +34,7 @@
                 {
                     <MudButton Color="Color.Primary"
                                Variant="Variant.Filled"
-                               Disabled="@(!IsValid)"
+                               Disabled="@(!IsValid || _creating)"
                                OnClick="FinishAsync">
                         Finish
                     </MudButton>
@@ -112,6 +112,9 @@
     [CascadingParameter]
     private IMudDialogInstance MudDialog { get; set; } = default!;
 
+    [Inject]
+    private ISchemaExecutor SchemaExecutor { get; set; } = default!;
+
     [Parameter]
     public IReadOnlyList<ISupportedTypeProvider> TypeProviders { get; set; } = [];
 
@@ -122,6 +125,7 @@
     private int _activeIndex;
     private readonly SchemaWizardModel _model = new();
     private string? _error;
+    private bool _creating;
 
     protected override void OnInitialized()
     {
@@ -163,7 +167,7 @@
 
     private void Cancel() => MudDialog.Cancel();
 
-    private void FinishAsync()
+    private async Task FinishAsync()
     {
         _error = null;
 
@@ -176,6 +180,17 @@
             return;
         }
 
-        MudDialog.Close(DialogResult.Ok(_model));
+        _creating = true;
+        var result = await SchemaExecutor.ExecuteAsync(_model);
+        _creating = false;
+
+        // Staying open keeps everything the user entered, so fixing the table that failed is one edit away.
+        if (!result.Success)
+        {
+            _error = result.Error;
+            return;
+        }
+
+        MudDialog.Close(DialogResult.Ok(result.Connection));
     }
 }
