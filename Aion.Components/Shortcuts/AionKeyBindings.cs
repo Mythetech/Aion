@@ -46,6 +46,9 @@ public sealed class AionKeyBindings
 
     public KeyChord ExpandSelectStar { get; } = new("E", Shift: true);
 
+    /// <summary>Sets the edited grid cell to NULL. Only while a cell of a nullable column has focus.</summary>
+    public KeyChord SetNull { get; } = new("0");
+
     public KeyChord? NewQuery { get; }
 
     /// <summary>Kept from before New Query moved to ⌘N; not shown in menus or hints.</summary>

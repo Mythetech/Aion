@@ -100,6 +100,31 @@ public abstract class DatabaseProviderTestBase : IAsyncLifetime
         return PendingChange.CreateDelete(rowIndex, original);
     }
 
+    /// <summary>
+    /// Clears a required text column to empty text and sets a nullable one to NULL in one grid change, then checks
+    /// the row stored exactly that: the engine kept the empty text as text and the NULL as NULL.
+    /// </summary>
+    protected async Task AssertEmptyTextAndNullStayDistinctAsync(
+        string connectionString, EditableQueryResult editable, int rowIndex, string qualifiedTable, object id)
+    {
+        var original = editable.Rows[rowIndex].ToDictionary(kvp => kvp.Key, kvp => (object?)kvp.Value);
+        original["note"].ShouldNotBeNull();
+        var change = PendingChange.CreateUpdate(rowIndex, original,
+            new Dictionary<string, object?>(original) { ["name"] = "", ["note"] = null });
+
+        var (sql, result) = await ApplyGridChangeAsync(connectionString, editable, change);
+
+        result.Error.ShouldBeNull(sql);
+        result.RowsAffected.ShouldBe(1);
+        var row = (await ExecuteOrFailAsync(connectionString,
+                $"SELECT name, CASE WHEN name IS NULL THEN 1 ELSE 0 END AS name_is_null, " +
+                $"CASE WHEN note IS NULL THEN 1 ELSE 0 END AS note_is_null FROM {qualifiedTable} WHERE id = {id}"))
+            .Rows.Single();
+        row["name"].ShouldBe("");
+        Convert.ToInt32(row["name_is_null"]).ShouldBe(0);
+        Convert.ToInt32(row["note_is_null"]).ShouldBe(1);
+    }
+
     protected static string ActualPlanUpdateStatement => $"UPDATE {TestTable} SET name = 'changed' WHERE id = 1";
 
     protected string DatabaseConnectionString => Provider.UpdateConnectionString(ConnectionString, TestDatabase);

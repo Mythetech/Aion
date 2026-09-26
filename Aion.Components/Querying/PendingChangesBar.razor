@@ -1,0 +1,157 @@
+@using Aion.Components.Querying.Commands
+@using Aion.Components.Querying.Editing
+@using Aion.Components.Shared.Dialogs
+@using Aion.Components.Theme
+@using Aion.Contracts.Queries.Editing
+@using Mythetech.Framework.Infrastructure.MessageBus
+@implements IDisposable
+
+@* Edit mode's status and actions, kept in view under the grid so the changes and the way to apply them are never
+   on another tab. *@
+<div class="pending-bar @(EditState.HasChanges ? "has-changes" : null)" role="region" aria-label="Edit mode">
+    <MudIcon Icon="@AionIcons.PendingEdits" Size="Size.Small" Class="pending-bar-icon" />
+    <span class="pending-bar-title">Editing @TableName</span>
+    @if (EditState.HasChanges)
+    {
+        <span class="pending-bar-summary">@Summary</span>
+        <MudButton Class="pending-bar-review"
+                   Variant="Variant.Text"
+                   Color="Color.Primary"
+                   Size="Size.Small"
+                   Disabled="@(EditableResult is null)"
+                   OnClick="ReviewSqlAsync">
+            Review SQL
+        </MudButton>
+        <MudSpacer />
+        <MudButton Class="pending-bar-discard"
+                   Variant="Variant.Outlined"
+                   Size="Size.Small"
+                   Disabled="@_applying"
+                   OnClick="Discard">
+            Discard
+        </MudButton>
+        <MudButton Class="pending-bar-apply"
+                   Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Size="Size.Small"
+                   DropShadow="false"
+                   Disabled="@(_applying || EditableResult is null)"
+                   OnClick="ApplyAsync">
+            @ApplyText(EditState.TotalChangeCount)
+        </MudButton>
+    }
+    else
+    {
+        <span class="pending-bar-hint">Click a cell to edit it. Right-click a row to delete it.</span>
+        <MudSpacer />
+        <MudButton Class="pending-bar-stop"
+                   Variant="Variant.Text"
+                   Size="Size.Small"
+                   OnClick="OnStopEditing">
+            Stop editing
+        </MudButton>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public EditState EditState { get; set; } = default!;
+
+    /// <summary>
+    /// The rows being edited with the table they came from; null while there is no result to apply against.
+    /// </summary>
+    [Parameter] public EditableQueryResult? EditableResult { get; set; }
+
+    [Parameter] public string TableName { get; set; } = "";
+    [Parameter] public EventCallback OnStopEditing { get; set; }
+
+    [Inject] private IMessageBus Bus { get; set; } = default!;
+    [Inject] private IDialogService DialogService { get; set; } = default!;
+
+    private EditState? _subscribedEditState;
+    private bool _applying;
+
+    public static string ApplyText(int count) => $"Apply {Count(count, "change")}";
+
+    private string Summary
+    {
+        get
+        {
+            var kinds = new[]
+                {
+                    (EditState.UpdatedRowCount, "update"),
+                    (EditState.DeletedRowCount, "delete"),
+                    (EditState.InsertedRowCount, "insert")
+                }
+                .Where(kind => kind.Item1 > 0)
+                .Select(kind => Count(kind.Item1, kind.Item2))
+                .ToList();
+
+            var total = $"{EditState.TotalChangeCount} pending {(EditState.TotalChangeCount == 1 ? "change" : "changes")}";
+            return kinds.Count > 1 ? $"{total} ({string.Join(", ", kinds)})" : total;
+        }
+    }
+
+    private static string Count(int count, string noun) => $"{count} {noun}{(count == 1 ? "" : "s")}";
+
+    protected override void OnParametersSet()
+    {
+        if (!ReferenceEquals(_subscribedEditState, EditState))
+        {
+            if (_subscribedEditState != null)
+            {
+                _subscribedEditState.StateChanged -= OnEditStateChanged;
+            }
+
+            EditState.StateChanged += OnEditStateChanged;
+            _subscribedEditState = EditState;
+        }
+    }
+
+    private void OnEditStateChanged() => StateHasChanged();
+
+    private void Discard() => EditState.DiscardAllChanges();
+
+    // The applier reports success and failure itself, and clears the changes and reloads the rows once they apply.
+    private async Task ApplyAsync()
+    {
+        if (EditableResult is null || _applying)
+        {
+            return;
+        }
+
+        _applying = true;
+        try
+        {
+            await Bus.PublishAsync(new ApplyPendingChanges(EditState, EditableResult));
+        }
+        finally
+        {
+            _applying = false;
+        }
+    }
+
+    private async Task ReviewSqlAsync()
+    {
+        if (EditableResult is null)
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters<PendingChangesSqlDialog>
+        {
+            { d => d.EditState, EditState },
+            { d => d.EditableResult, EditableResult },
+            { d => d.OnApply, EventCallback.Factory.Create(this, ApplyAsync) }
+        };
+
+        await DialogService.ShowAsync<PendingChangesSqlDialog>("Review SQL", parameters, AionDialogs.CreateDefaultOptions(MaxWidth.Medium));
+    }
+
+    public void Dispose()
+    {
+        if (_subscribedEditState != null)
+        {
+            _subscribedEditState.StateChanged -= OnEditStateChanged;
+        }
+    }
+}

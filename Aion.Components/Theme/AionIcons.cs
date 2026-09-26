@@ -80,6 +80,10 @@ public static class AionIcons
 
     public static string Edit => Round("edit");
 
+    public static string PendingEdits => Round("edit_note");
+
+    public static string SetNull => Round("block");
+
     public static string Connection => Round("database");
     public static string Query => Round("database_search");
 

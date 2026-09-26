@@ -305,7 +305,7 @@ public class MySqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
     {
         var dbConnectionString = Provider.UpdateConnectionString(ConnectionString, TestDatabase);
         await ExecuteOrFailAsync(dbConnectionString,
-            $"CREATE TABLE {EditTable} (id int PRIMARY KEY, name varchar(200) NOT NULL)");
+            $"CREATE TABLE {EditTable} (id int PRIMARY KEY, name varchar(200) NOT NULL, note varchar(200) NULL)");
         await ExecuteOrFailAsync(dbConnectionString,
             $"INSERT INTO {EditTable} (id, name) VALUES (0, 'Zero'), (1, 'Ada'), (2, 'Grace')");
         return dbConnectionString;
@@ -332,6 +332,16 @@ public class MySqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         result.Error.ShouldBeNull();
         result.RowsAffected.ShouldBe(1);
         (await ReadNamesAsync(dbConnectionString)).ShouldBe(new object?[] { "Zero", newName, "Grace" });
+    }
+
+    [Fact]
+    public async Task GridEdit_EmptyTextAndNull_AreStoredDistinctly()
+    {
+        var dbConnectionString = await CreateEditTableAsync();
+        await ExecuteOrFailAsync(dbConnectionString, $"UPDATE {EditTable} SET note = 'kept' WHERE id = 1");
+        var editable = await LoadEditableTableAsync(dbConnectionString, "", EditTable, EditSelect);
+
+        await AssertEmptyTextAndNullStayDistinctAsync(dbConnectionString, editable, 1, EditTable, 1);
     }
 
     [Fact]

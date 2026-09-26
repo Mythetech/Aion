@@ -13,8 +13,8 @@ using NSubstitute;
 namespace Aion.Test.TestDoubles;
 
 /// <summary>
-/// A connection backed by a substitute PostgreSQL provider that uses the real PostgreSQL commands, so tests see
-/// the exact SQL that would run and control what each execution reports.
+/// A connection backed by a substitute provider that uses an engine's real commands (PostgreSQL unless a test
+/// picks another), so tests see the exact SQL that would run and control what each execution reports.
 /// </summary>
 public sealed class EditingFixture
 {
@@ -29,13 +29,13 @@ public sealed class EditingFixture
 
     private readonly Queue<QueryResult> _results = new();
 
-    public EditingFixture(bool supportsEditing = true)
+    public EditingFixture(bool supportsEditing = true, IStandardDatabaseCommands? commands = null, DatabaseType engine = DatabaseType.PostgreSQL)
     {
         Provider = supportsEditing
             ? Substitute.For<IDatabaseProvider, IDatabaseRowEditingProvider>()
             : Substitute.For<IDatabaseProvider>();
-        Provider.Commands.Returns(new PostgreSqlCommands());
-        Provider.DatabaseType.Returns(DatabaseType.PostgreSQL);
+        Provider.Commands.Returns(commands ?? new PostgreSqlCommands());
+        Provider.DatabaseType.Returns(engine);
         Provider.UpdateConnectionString(Arg.Any<string>(), Arg.Any<string>())
             .Returns(ci => $"{ci.ArgAt<string>(0)};Database={ci.ArgAt<string>(1)}");
         Provider.BeginTransactionAsync(Arg.Any<string>()).Returns(_ => new TransactionInfo());
@@ -45,7 +45,7 @@ public sealed class EditingFixture
             .Returns(ci => Execute(ci.ArgAt<string>(1)));
 
         var factory = Substitute.For<IDatabaseProviderFactory>();
-        factory.GetProvider(DatabaseType.PostgreSQL).Returns(Provider);
+        factory.GetProvider(engine).Returns(Provider);
 
         ConnectionState = new ConnectionState(
             Substitute.For<IConnectionService>(), factory, Bus, NullLogger<ConnectionState>.Instance);
@@ -55,7 +55,7 @@ public sealed class EditingFixture
         {
             Name = "test",
             ConnectionString = "Host=db",
-            Type = DatabaseType.PostgreSQL,
+            Type = engine,
             Databases = [Database]
         };
         ConnectionState.Connections = [Connection];

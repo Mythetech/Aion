@@ -1,0 +1,42 @@
+.pending-bar {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 12px;
+    min-height: 36px;
+    padding: 2px 8px 2px 12px;
+    border-left: 3px solid var(--mud-palette-primary);
+    border-radius: var(--mud-default-borderradius);
+    background-color: color-mix(in srgb, var(--mud-palette-primary) 6%, var(--mud-palette-surface));
+    font-size: 0.8125rem;
+}
+
+.pending-bar.has-changes {
+    border-left-color: var(--mud-palette-warning);
+    background-color: color-mix(in srgb, var(--mud-palette-warning) 10%, var(--mud-palette-surface));
+}
+
+.pending-bar ::deep .pending-bar-icon {
+    color: var(--mud-palette-primary);
+}
+
+.pending-bar.has-changes ::deep .pending-bar-icon {
+    color: var(--mud-palette-warning);
+}
+
+.pending-bar-title {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.pending-bar-summary,
+.pending-bar-hint {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pending-bar-hint {
+    color: var(--mud-palette-text-secondary);
+}

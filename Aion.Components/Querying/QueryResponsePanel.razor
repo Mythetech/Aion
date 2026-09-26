@@ -37,10 +37,6 @@
                     {
                         <MudTabPanel ID="@ActualPlan" Text="Actual Plan" OnClick="() => _activeTab = ActualPlan" />
                     }
-                    @if (State.Active.EditMetadata?.IsEditMode == true)
-                    {
-                        <MudTabPanel ID="@Edit" Text="Edit" Icon="@AionIcons.Edit" OnClick="() => _activeTab = Edit" />
-                    }
                     @if (queryResult.Success && queryResult.Rows.Count > 0)
                     {
                         <MudTabPanel ID="@Analyze" Text="Analyze" OnClick="() => _activeTab = Analyze" />
@@ -148,22 +144,16 @@
         {
             <QueryPlanVisualizer Plan="@State.Active.ActualPlan" DatabaseType="@GetActiveDatabaseType()" />
         }
-        else if (_activeTab == Edit && State.Active.EditMetadata?.IsEditMode == true)
-        {
-            var editState = GetEditState();
-            @if (editState != null)
-            {
-                <PendingChangesPanel
-                    EditState="@editState"
-                    EditableResult="@GetEditableResult()"
-                    OnApplyChanges="@ApplyChanges"
-                    OnDiscardChanges="@DiscardChanges"
-                    OnExitEditMode="@ExitEditMode" />
-            }
-        }
         else if (_activeTab == Analyze && queryResult.Success && queryResult.Rows.Count > 0)
         {
             <AnalyzePanel Result="@queryResult" />
+        }
+        @if (GetEditState() is { } editState)
+        {
+            <PendingChangesBar EditState="@editState"
+                               EditableResult="@GetEditableResult()"
+                               TableName="@(State.Active.EditMetadata!.SourceTable ?? "")"
+                               OnStopEditing="@ExitEditMode" />
         }
         <div class="query-response-footer d-flex flex-row align-center">
             @if (queryResult.Cancelled)
@@ -207,7 +197,6 @@ else if (State?.Active?.IsExecuting ?? false)
 
     private string? _search = "";
     private const string Results = "results";
-    private const string Edit = "edit";
     private const string Analyze = "analyze";
     private const string Messages = "messages";
     private const string EstimatedPlan = "estimated";
@@ -246,13 +235,13 @@ else if (State?.Active?.IsExecuting ?? false)
 
     /// <summary>
     /// The tab a result opens on: a plan run shows its plan, and anything else its results, unless the
-    /// Messages log or the edit panel is open, which keep following the tab.
+    /// Messages log is open, which keeps following the tab.
     /// </summary>
     private string TabFor(QueryModel? query) => query switch
     {
         { ResultKind: QueryResultKind.EstimatedPlan, EstimatedPlan: not null } => EstimatedPlan,
         { ResultKind: QueryResultKind.ActualPlan, ActualPlan: not null } => ActualPlan,
-        _ when _activeTab is Messages or Edit => _activeTab,
+        _ when _activeTab is Messages => _activeTab,
         _ => Results
     };
 
@@ -267,11 +256,6 @@ else if (State?.Active?.IsExecuting ?? false)
             _selectionQueryId = State.Active?.Id;
             _selectionResult = State.Active?.Result;
             _activeTab = TabFor(State.Active);
-        }
-
-        if (_activeTab == Edit && State.Active?.EditMetadata?.IsEditMode != true)
-        {
-            _activeTab = Results;
         }
 
         StateHasChanged();
@@ -351,37 +335,12 @@ else if (State?.Active?.IsExecuting ?? false)
             State.Active.EditMetadata.ColumnMetadata);
     }
 
-    private async Task ApplyChanges()
-    {
-        var editState = GetEditState();
-        var editableResult = GetEditableResult();
-        if (editState != null && editableResult != null)
-        {
-            await Bus.PublishAsync(new ApplyPendingChanges(editState, editableResult));
-
-            // If changes were cleared (success), exit edit mode
-            // The consumer clears changes on success
-            if (!editState.HasChanges)
-            {
-                ExitEditMode();
-            }
-        }
-    }
-
-    private void DiscardChanges()
-    {
-        GetEditState()?.DiscardAllChanges();
-    }
-
     private void ExitEditMode()
     {
         if (State.Active == null) return;
 
         // Pending changes live on the metadata, so clearing it also drops them
         State.Active.EditMetadata = null;
-
-        // Switch back to Results tab
-        _activeTab = Results;
 
         StateHasChanged();
     }
