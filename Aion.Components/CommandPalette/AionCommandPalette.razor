@@ -1,0 +1,18 @@
+@using Aion.Components.CommandPalette.Commands
+@using Mythetech.Framework.Components.CommandPalette
+@using Mythetech.Framework.Infrastructure.MessageBus
+@inherits ComponentConsumer<OpenCommandPalette>
+
+<CommandPaletteHost @ref="_host" BackgroundClass="aion-dialog" />
+
+@code {
+    private CommandPaletteHost? _host;
+
+    protected override async Task Consume(OpenCommandPalette message, CancellationToken cancellationToken)
+    {
+        if (_host != null)
+        {
+            await _host.OpenPaletteAsync();
+        }
+    }
+}

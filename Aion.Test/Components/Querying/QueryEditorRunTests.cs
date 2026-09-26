@@ -1,3 +1,4 @@
+using Aion.Components.CommandPalette.Commands;
 using Aion.Components.Connections;
 using Aion.Components.Querying;
 using Aion.Components.Querying.Commands;
@@ -186,6 +187,36 @@ public class QueryEditorRunTests : TestContext
         _providerResult.SetCanceled();
         cut.WaitForAssertion(() => _query.IsExecuting.ShouldBeFalse());
         await _provider.Received(1).ExecuteQueryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PaletteShortcutInTheEditor_OpensTheCommandPalette()
+    {
+        // Arrange
+        var opened = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _bus.Subscribe(new PaletteRecorder(opened));
+        var cut = RenderComponent<QueryEditor>();
+        var editor = InitializedEditor(cut);
+
+        // Act
+        await cut.InvokeAsync(() => editor.ActionCallback("aion.command-palette"));
+
+        // Assert
+        await opened.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        EditorActions().Single(a => a.Id == "aion.command-palette").Keybindings.ShouldBe(
+        [
+            (int)KeyMod.CtrlCmd | (int)KeyCode.KeyK,
+            (int)KeyMod.CtrlCmd | (int)KeyMod.Shift | (int)KeyCode.KeyP
+        ]);
+    }
+
+    private sealed class PaletteRecorder(TaskCompletionSource opened) : IConsumer<OpenCommandPalette>
+    {
+        public Task Consume(OpenCommandPalette message)
+        {
+            opened.TrySetResult();
+            return Task.CompletedTask;
+        }
     }
 
     [Fact]

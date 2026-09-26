@@ -1,3 +1,4 @@
+@using Aion.Components.CommandPalette.Commands
 @using Aion.Components.Connections
 @using Aion.Components.Connections.Commands
 @using Mythetech.Framework.Infrastructure.MessageBus
@@ -132,7 +133,8 @@
 
     private enum EditorAction
     {
-        ExpandSelectStar
+        ExpandSelectStar,
+        OpenCommandPalette
     }
 
     private sealed record RunRequested;
@@ -323,6 +325,20 @@
             ContextMenuOrder = 1.5f,
             Run = _ => _editorActions.Writer.TryWrite(EditorAction.ExpandSelectStar)
         });
+
+        // Monaco treats Cmd/Ctrl+K as the start of a two-key chord, so the page-level palette hotkey never
+        // sees it while the editor has focus. Cmd/Ctrl+Shift+P is the palette key editors use.
+        await _editor.AddAction(new ActionDescriptor
+        {
+            Id = "aion.command-palette",
+            Label = "Command Palette",
+            Keybindings =
+            [
+                (int)KeyMod.CtrlCmd | (int)KeyCode.KeyK,
+                (int)KeyMod.CtrlCmd | (int)KeyMod.Shift | (int)KeyCode.KeyP
+            ],
+            Run = _ => _editorActions.Writer.TryWrite(EditorAction.OpenCommandPalette)
+        });
     }
 
     private async Task ProcessEditorActionsAsync()
@@ -333,6 +349,9 @@
             {
                 case EditorAction.ExpandSelectStar:
                     await InvokeAsync(ExpandSelectStarAsync);
+                    break;
+                case EditorAction.OpenCommandPalette:
+                    await Bus.PublishAsync(new OpenCommandPalette());
                     break;
             }
         }
