@@ -81,7 +81,6 @@
 .query-message {
     display: flex;
     align-items: baseline;
-    gap: 12px;
 }
 
 .query-message-time,
@@ -90,8 +89,12 @@
     color: var(--mud-palette-text-secondary);
 }
 
+.query-message-time {
+    margin-right: 12px;
+}
+
 .query-message-duration {
-    margin-left: -6px;
+    margin-left: 6px;
 }
 
 .query-message-text {
