@@ -1,6 +1,7 @@
 @using Aion.Components.Shared
 @using Aion.Components.Theme
 @using Aion.Contracts.Database
+@using Aion.Contracts.Queries
 
 @* One row standing in for a schema tree node's children while they load, after they failed to load, or when there are none. *@
 @if (IsVisible)
@@ -12,7 +13,7 @@
                 <div class="tree-status tree-status-failed" role="alert">
                     <MudIcon Icon="@AionIcons.Error" Color="Color.Error" Size="Size.Small" Class="tree-status-icon" />
                     <MudTooltip Text="@State.Error" RootClass="tree-status-message" Delay="300">
-                        <span class="tree-status-text">@State.Error</span>
+                        <span class="tree-status-text">@ErrorText</span>
                     </MudTooltip>
                     <AionIconButton Icon="@AionIcons.Retry" Tooltip="Retry" Size="Size.Small" OnClick="OnRetry" />
                 </div>
@@ -47,4 +48,7 @@
     [Parameter] public EventCallback OnRetry { get; set; }
 
     private bool IsVisible => !State.IsLoaded || IsEmpty;
+
+    // The row is narrow, so it shows the engine's message the way the results pane does; the tooltip keeps the driver's full text.
+    private string ErrorText => QueryErrorNormalizer.Normalize(State.Error ?? "").Message;
 }

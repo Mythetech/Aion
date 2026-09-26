@@ -293,7 +293,7 @@ public class ConnectionPanelTests : TestContext
         await ToggleAsync(NamedItem(cut, $"{Database}/Tables"));
 
         cut.WaitForAssertion(() => NamedItem(cut, $"{Database}/Tables").Find(".tree-status-failed").TextContent
-            .ShouldContain("SQLITE_ERROR: database disk image is malformed"));
+            .ShouldContain("database disk image is malformed"));
         NamedItem(cut, $"{Database}/Tables").FindAll(".mud-progress-circular").ShouldBeEmpty();
     }
 
@@ -310,6 +310,18 @@ public class ConnectionPanelTests : TestContext
 
         cut.WaitForAssertion(() => TableItem(cut, Products).ShouldNotBeNull());
         cut.FindAll(".tree-status-failed").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task LoadErrors_ShowTheEnginesMessageWithoutTheDriverPrefix()
+    {
+        TablesFail("Worker error: SQLITE_ERROR: sqlite3 result code 1: no such table: sqlite_master2");
+        var cut = Render(ConnectionWithUnloadedDatabase());
+
+        await ToggleAsync(NamedItem(cut, $"{Database}/Tables"));
+
+        cut.WaitForAssertion(() => NamedItem(cut, $"{Database}/Tables").Find(".tree-status-text").TextContent
+            .ShouldBe("no such table: sqlite_master2"));
     }
 
     [Fact]
