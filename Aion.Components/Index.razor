@@ -128,7 +128,9 @@
         await Task.Yield();
 
         var containerWidth = await GetOuterSplitterWidthAsync();
-        await _outerSplitter.SetDividerPositionAsync(open ? (int)(containerWidth * 0.8) : containerWidth - 52);
+        await _outerSplitter.SetDividerPositionAsync(open
+            ? SidePanelLayout.OpenDividerPosition(containerWidth)
+            : SidePanelLayout.ClosedDividerPosition(containerWidth));
 
         StateHasChanged();
     }
@@ -148,7 +150,7 @@
             if (_sidePanelClosed)
             {
                 var containerWidth = await GetOuterSplitterWidthAsync();
-                await _outerSplitter.SetDividerPositionAsync(containerWidth - 52);
+                await _outerSplitter.SetDividerPositionAsync(SidePanelLayout.ClosedDividerPosition(containerWidth));
             }
         }
     }
