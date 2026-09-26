@@ -196,7 +196,8 @@ public class QueryEditorRunMenuTests : TestContext
         cut.WaitForAssertion(() => _query.EstimatedPlan.ShouldNotBeNull());
         await ((IEstimatedQueryPlanProvider)_provider).Received(1).GetEstimatedPlanAsync("db", Full, Arg.Any<CancellationToken>());
         await _provider.DidNotReceive().ExecuteQueryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
-        cut.Find(".mud-alert-text-info").TextContent.ShouldContain("Estimated Plan");
+        _query.ResultKind.ShouldBe(QueryResultKind.EstimatedPlan);
+        cut.FindAll(".mud-alert").ShouldBeEmpty();
     }
 
     [Fact]

@@ -72,3 +72,13 @@
     font-size: 0.625rem;
     vertical-align: middle;
 }
+
+.tab-transaction-badge {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.25rem;
+}
+
+.tab-transaction-badge ::deep .mud-icon-root {
+    font-size: 0.875rem;
+}

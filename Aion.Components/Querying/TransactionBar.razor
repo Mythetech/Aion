@@ -8,8 +8,7 @@
     <div class="transaction-bar" role="status">
         <MudIcon Icon="@AionIcons.Transaction" Size="Size.Small" Color="Color.Warning" />
         <MudText Typo="Typo.body2" Class="transaction-bar-title">Transaction open</MudText>
-        <MudText Typo="Typo.caption" Class="mud-text-secondary">@FormatStatements(transaction.StatementCount)</MudText>
-        <MudText Typo="Typo.caption" Class="mud-text-secondary">Started @transaction.StartTime.ToLocalTime().ToString("T")</MudText>
+        <MudText Typo="Typo.caption" Class="transaction-bar-summary mud-text-secondary">@Summarize(transaction)</MudText>
         <MudSpacer />
         <MudButton Class="transaction-bar-rollback"
                    Size="Size.Small"
@@ -44,7 +43,10 @@
     // Ending the transaction while a statement is still running on its connection would fail, so wait.
     private bool IsBusy => _finishing || Query.IsExecuting;
 
-    private static string FormatStatements(int count) => count == 1 ? "1 statement" : $"{count} statements";
+    private static string Summarize(TransactionInfo transaction) =>
+        $"{Count(transaction.StatementCount, "statement")} · {Count(transaction.RowsChanged, "row")} changed · started {transaction.StartTime.ToLocalTime():t}";
+
+    private static string Count(int count, string noun) => count == 1 ? $"1 {noun}" : $"{count:N0} {noun}s";
 
     private async Task CommitAsync()
     {

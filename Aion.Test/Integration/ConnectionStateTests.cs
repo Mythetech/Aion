@@ -210,7 +210,7 @@ public abstract class ConnectionStateTestBase : TestContext, IAsyncLifetime
 
         // Assert
         result.Error.ShouldBeNull();
-        TestQuery.ResultNotice.ShouldBe(ConnectionState.ActualPlanNotice);
+        TestQuery.ResultKind.ShouldBe(QueryResultKind.ActualPlan);
         TestQuery.ActualPlan.ShouldNotBeNull();
         TestQuery.ActualPlan.PlanContent.ShouldNotStartWith("Error");
         TestQuery.ExecutionEndTime.ShouldNotBeNull();

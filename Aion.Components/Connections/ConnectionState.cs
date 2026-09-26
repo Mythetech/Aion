@@ -96,14 +96,8 @@ public class ConnectionState
         return result;
     }
 
-    public const string ActualPlanNotice =
-        "Actual plan captured. The statement ran inside a transaction that was rolled back, so none of its changes were kept.";
-
     public const string ActualPlanInTransactionMessage =
         "Actual query plans can't be captured while this tab has an open transaction. Commit or roll back first, or turn off the actual plan.";
-
-    public const string EstimatedPlanNotice =
-        "Estimated plan ready in the Estimated Plan tab. The statement was not run.";
 
     public const string NoEstimatedPlansMessage = "This database engine can't show estimated plans.";
 
@@ -168,7 +162,7 @@ public class ConnectionState
                 result = await provider.ExecuteInTransactionAsync(connectionString, sql, transaction.Id, cancellationToken);
                 if (result.Success)
                 {
-                    query.Transaction = transaction.WithStatementExecuted();
+                    query.Transaction = transaction.WithStatementExecuted(result.RowsAffected);
                 }
             }
             else
@@ -234,7 +228,7 @@ public class ConnectionState
         query.EstimatedPlan = await plans.GetEstimatedPlanAsync(connectionString, sql, cancellationToken);
 
         var result = new QueryResult();
-        query.SetResult(result, EstimatedPlanNotice);
+        query.SetResult(result, QueryResultKind.EstimatedPlan);
         await _messageBus.PublishAsync(new QueryExecuted(query));
         return result;
     }
@@ -262,7 +256,7 @@ public class ConnectionState
             query.ActualPlan = null;
             query.ActualPlan = await plans.GetActualPlanAsync(connectionString, sql, cancellationToken);
             result = new QueryResult();
-            query.SetResult(result, ActualPlanNotice);
+            query.SetResult(result, QueryResultKind.ActualPlan);
         }
 
         await _messageBus.PublishAsync(new QueryExecuted(query));
@@ -290,7 +284,7 @@ public class ConnectionState
         }
 
         _logger.LogInformation("Started transaction {TransactionId} for query {QueryId}", query.Transaction.Value.Id, query.Id);
-        await _messageBus.PublishAsync(new TransactionStarted(connection.Id, query.Transaction.Value));
+        await _messageBus.PublishAsync(new TransactionStarted(connection.Id, query.Id, query.Transaction.Value));
         return null;
     }
 
