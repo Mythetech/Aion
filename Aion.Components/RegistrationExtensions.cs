@@ -51,7 +51,8 @@ public static class RegistrationExtensions
         services.AddSingleton<IConnectionHealthMonitor, ConnectionHealthMonitor>();
         services.AddScoped<IDatabaseProviderFactory, DatabaseProviderFactory>();
 
-        services.AddScoped<IForeignKeyService, ForeignKeyService>();
+        // Singleton because bus consumers, which resolve from the root provider, open foreign key rows too.
+        services.AddSingleton<IForeignKeyService, ForeignKeyService>();
 
         services.AddTransient<SearchService>();
         services.AddSingleton<SqlCompletionService>();

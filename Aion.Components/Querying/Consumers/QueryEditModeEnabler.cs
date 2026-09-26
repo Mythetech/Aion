@@ -94,9 +94,12 @@ public class QueryEditModeEnabler : IConsumer<EnableEditModeFromQuery>
 
         try
         {
-            if (!database.TablesLoaded)
+            var tablesState = await _connectionState.LoadTablesAsync(connection, database);
+            if (tablesState.IsFailed)
             {
-                await _connectionState.LoadTablesAsync(connection, database);
+                await _bus.PublishAsync(new AddNotification(
+                    $"Failed to enable edit mode: could not list the tables of '{databaseName}'. {tablesState.Error}", Severity.Error));
+                return;
             }
 
             var matchedTable = database.Tables.FirstOrDefault(t =>
@@ -112,9 +115,12 @@ public class QueryEditModeEnabler : IConsumer<EnableEditModeFromQuery>
 
             var displayName = matchedTable.DisplayName;
 
-            if (!database.LoadedColumnTables.Contains(displayName))
+            var columnsState = await _connectionState.LoadColumnsAsync(connection, database, matchedTable.Schema, matchedTable.Name);
+            if (columnsState.IsFailed)
             {
-                await _connectionState.LoadColumnsAsync(connection, database, matchedTable.Schema, matchedTable.Name);
+                await _bus.PublishAsync(new AddNotification(
+                    $"Failed to enable edit mode: could not read the columns of '{displayName}'. {columnsState.Error}", Severity.Error));
+                return;
             }
 
             var columns = database.TableColumns.GetValueOrDefault(displayName) ?? [];

@@ -1,4 +1,5 @@
 using Aion.Contracts.Database;
+using Aion.Contracts.Database.Dialects;
 using Aion.Contracts.Queries;
 using Aion.Core.Database.PostgreSQL;
 using Npgsql;
@@ -8,13 +9,14 @@ using System.Text;
 namespace Aion.Core.Database;
 
 public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider,
-    IDatabaseRowEditingProvider, IEstimatedQueryPlanProvider, IActualQueryPlanProvider
+    IDatabaseRowEditingProvider, IEstimatedQueryPlanProvider, IActualQueryPlanProvider, ISqlDialectProvider, IDatabaseCreationProvider
 {
     private const string TransactionNotOpenMessage = "This transaction is no longer open. Roll back to clear it.";
 
     private readonly ConcurrentDictionary<string, OpenTransaction> _activeTransactions = new();
     private readonly PostgreSqlPlanParser _planParser = new();
     public IStandardDatabaseCommands Commands { get; } = new PostgreSqlCommands();
+    public SqlDialect Dialect => PostgreSqlDialect.Instance;
     public DatabaseType DatabaseType => DatabaseType.PostgreSQL;
     public IReadOnlyList<string> SystemSchemas { get; } = ["pg_catalog", "information_schema", "pg_toast"];
 

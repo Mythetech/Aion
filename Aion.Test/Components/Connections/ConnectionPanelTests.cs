@@ -22,6 +22,8 @@ public class ConnectionPanelTests : TestContext
     private static readonly TableInfo Products = new("", "products");
 
     private readonly IDatabaseProvider _provider;
+    private readonly IConnectionService _connectionService = Substitute.For<IConnectionService>();
+    private readonly ConnectionState _connectionState;
 
     public ConnectionPanelTests()
     {
@@ -39,7 +41,8 @@ public class ConnectionPanelTests : TestContext
 
         var bus = Substitute.For<IMessageBus>();
         Services.AddSingleton(bus);
-        Services.AddSingleton(new ConnectionState(Substitute.For<IConnectionService>(), factory, bus, NullLogger<ConnectionState>.Instance));
+        _connectionState = new ConnectionState(_connectionService, factory, bus, NullLogger<ConnectionState>.Instance);
+        Services.AddSingleton(_connectionState);
         Services.AddSingleton(new QueryState(bus, Substitute.For<IQuerySaveService>()));
         Services.AddSingleton(new BrowserSettings());
     }
@@ -176,7 +179,7 @@ public class ConnectionPanelTests : TestContext
         var cut = Render(connection);
 
         var table = TableItem(cut, Products);
-        table.Find(".tree-empty").TextContent.ShouldBe("No columns");
+        table.Find(".tree-status-empty").TextContent.ShouldBe("No columns");
         table.FindAll(".mud-progress-circular").ShouldBeEmpty();
     }
 
@@ -260,5 +263,155 @@ public class ConnectionPanelTests : TestContext
 
         cut.WaitForAssertion(() => TableItem(cut, Products).Instance.Expanded.ShouldBeTrue());
         TableItem(cut, Products).FindAll(".column-row").ShouldNotBeEmpty();
+    }
+
+    private static IRenderedComponent<MudTreeViewItem<string>> NamedItem(IRenderedComponent<ConnectionPanel> cut, string value) =>
+        cut.FindComponents<MudTreeViewItem<string>>().Single(item => item.Instance.Value == value);
+
+    // Database items manage their own open state, so read it from the item's collapse rather than its parameter.
+    private static bool IsOpen(IRenderedComponent<MudTreeViewItem<string>> item) =>
+        item.FindComponent<MudCollapse>().Instance.Expanded;
+
+    private void TablesFail(string message) =>
+        _connectionService.GetTablesAsync(Arg.Any<string>(), Database, DatabaseType.WasmSQLite)
+            .Returns<List<TableInfo>>(_ => throw new InvalidOperationException(message));
+
+    private static ConnectionModel ConnectionWithUnloadedDatabase() => new()
+    {
+        Name = Database,
+        Type = DatabaseType.WasmSQLite,
+        Active = true,
+        Databases = [new DatabaseModel { Name = Database }]
+    };
+
+    [Fact]
+    public async Task TablesThatFailToLoad_ShowTheErrorWithARetryInsteadOfSpinning()
+    {
+        TablesFail("SQLITE_ERROR: database disk image is malformed");
+        var cut = Render(ConnectionWithUnloadedDatabase());
+
+        await ToggleAsync(NamedItem(cut, $"{Database}/Tables"));
+
+        cut.WaitForAssertion(() => NamedItem(cut, $"{Database}/Tables").Find(".tree-status-failed").TextContent
+            .ShouldContain("database disk image is malformed"));
+        NamedItem(cut, $"{Database}/Tables").FindAll(".mud-progress-circular").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task RetryOnAFailedTablesLoad_LoadsThemAgain()
+    {
+        TablesFail("busy");
+        var cut = Render(ConnectionWithUnloadedDatabase());
+        await ToggleAsync(NamedItem(cut, $"{Database}/Tables"));
+        cut.WaitForAssertion(() => cut.FindAll(".tree-status-failed").ShouldNotBeEmpty());
+        _connectionService.GetTablesAsync(Arg.Any<string>(), Database, DatabaseType.WasmSQLite).Returns([Products]);
+
+        await cut.Find(".tree-status-failed button").ClickAsync(new());
+
+        cut.WaitForAssertion(() => TableItem(cut, Products).ShouldNotBeNull());
+        cut.FindAll(".tree-status-failed").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task LoadErrors_ShowTheEnginesMessageWithoutTheDriverPrefix()
+    {
+        TablesFail("Worker error: SQLITE_ERROR: sqlite3 result code 1: no such table: sqlite_master2");
+        var cut = Render(ConnectionWithUnloadedDatabase());
+
+        await ToggleAsync(NamedItem(cut, $"{Database}/Tables"));
+
+        cut.WaitForAssertion(() => NamedItem(cut, $"{Database}/Tables").Find(".tree-status-text").TextContent
+            .ShouldBe("no such table: sqlite_master2"));
+    }
+
+    [Fact]
+    public async Task ColumnsThatFailToLoad_ShowAnErrorRowUnderTheTable()
+    {
+        _provider.GetColumnsAsync(Arg.Any<string>(), Database, "", "products")
+            .Returns<List<ColumnInfo>>(_ => throw new InvalidOperationException("near \"name\": syntax error"));
+        var cut = Render(ConnectionWithTables(Products));
+
+        await ToggleAsync(TableItem(cut, Products));
+
+        cut.WaitForAssertion(() => TableItem(cut, Products).Find(".tree-status-failed").TextContent
+            .ShouldContain("near \"name\": syntax error"));
+        TableItem(cut, Products).Instance.Expanded.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task IndexesThatFailToLoad_ShowAnErrorRow()
+    {
+        ((IDatabaseIndexProvider)_provider).GetIndexesAsync(Arg.Any<string>(), Database)
+            .Returns<List<IndexInfo>>(_ => throw new InvalidOperationException("no such table: pragma_index_list"));
+        var cut = Render(ConnectionWithTables(Products));
+
+        await ToggleAsync(NamedItem(cut, $"{Database}/Indexes"));
+
+        cut.WaitForAssertion(() => NamedItem(cut, $"{Database}/Indexes").Find(".tree-status-failed").TextContent
+            .ShouldContain("no such table: pragma_index_list"));
+    }
+
+    [Fact]
+    public void DatabaseWithNoTables_SaysSo()
+    {
+        var cut = Render(ConnectionWithTables());
+
+        NamedItem(cut, $"{Database}/Tables").Find(".tree-status-empty").TextContent.ShouldBe("No tables");
+    }
+
+    [Fact]
+    public void DatabaseWithNoIndexes_SaysSo()
+    {
+        var connection = ConnectionWithTables(Products);
+        connection.Databases[0].IndexesLoaded = true;
+
+        var cut = Render(connection);
+
+        NamedItem(cut, $"{Database}/Indexes").Find(".tree-status-empty").TextContent.ShouldBe("No indexes");
+    }
+
+    [Fact]
+    public void ConnectionWithNoDatabases_SaysSo()
+    {
+        var cut = Render(new ConnectionModel { Name = Database, Type = DatabaseType.WasmSQLite, Active = true });
+
+        cut.Find(".tree-status-empty").TextContent.ShouldBe("No databases");
+    }
+
+    [Fact]
+    public void UnreachableConnectionWithNoDatabases_ShowsTheConnectionError()
+    {
+        var cut = Render(new ConnectionModel
+        {
+            Name = Database,
+            Type = DatabaseType.WasmSQLite,
+            Active = false,
+            HealthStatus = ConnectionHealthStatus.Unhealthy,
+            LastError = "Connection refused"
+        });
+
+        cut.Find(".tree-status-failed").TextContent.ShouldContain("Connection refused");
+    }
+
+    [Fact]
+    public async Task ExpandedDatabase_StaysExpandedWhenAnotherDatabaseIsListedBeforeIt()
+    {
+        var connection = new ConnectionModel
+        {
+            Name = "server",
+            Type = DatabaseType.WasmSQLite,
+            Active = true,
+            Databases = [new DatabaseModel { Name = "billing" }, new DatabaseModel { Name = "shop" }]
+        };
+        _connectionState.Connections.Add(connection);
+        var cut = Render(connection);
+        await ToggleAsync(NamedItem(cut, "shop"));
+        _connectionService.GetDatabasesAsync(Arg.Any<string>(), DatabaseType.WasmSQLite).Returns(["archive", "billing", "shop"]);
+
+        await cut.InvokeAsync(() => _connectionState.RefreshDatabaseAsync(connection));
+        cut.Render();
+
+        IsOpen(NamedItem(cut, "shop")).ShouldBeTrue();
+        IsOpen(NamedItem(cut, "archive")).ShouldBeFalse();
     }
 }

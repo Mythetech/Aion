@@ -53,9 +53,12 @@ public class TableEditorOpener : IConsumer<OpenTableEditor>
             var displayName = string.IsNullOrEmpty(message.Schema) ? message.TableName : $"{message.Schema}.{message.TableName}";
             var provider = _connectionState.GetProvider(connection.Type);
 
-            if (!database.LoadedColumnTables.Contains(displayName))
+            var columnsState = await _connectionState.LoadColumnsAsync(connection, database, message.Schema, message.TableName);
+            if (columnsState.IsFailed)
             {
-                await _connectionState.LoadColumnsAsync(connection, database, message.Schema, message.TableName);
+                await _bus.PublishAsync(new AddNotification(
+                    $"Failed to open table editor: could not read the columns of '{displayName}'. {columnsState.Error}", Severity.Error));
+                return;
             }
 
             var columns = database.TableColumns.GetValueOrDefault(displayName) ?? [];
@@ -72,7 +75,7 @@ public class TableEditorOpener : IConsumer<OpenTableEditor>
 
             var selectSql = await provider.Commands.GenerateSelectTopScript(message.DatabaseName, message.Schema, message.TableName, 1000);
 
-            var query = _queryState.AddQuery(readOnlyReason == null ? $"Edit - {displayName}" : $"Select Top 1000 - {displayName}");
+            var query = _queryState.AddQuery(readOnlyReason == null ? $"Edit - {displayName}" : TableRowsOpener.TabName(displayName, 1000));
             query.ConnectionId = connection.Id;
             query.DatabaseName = message.DatabaseName;
             query.Query = selectSql.Trim();

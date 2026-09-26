@@ -9,10 +9,7 @@ public class MySqlCommands : IStandardDatabaseCommands
 
     public Task<string> GenerateCreateDatabaseScript(string name)
     {
-        return Task.FromResult($@"
-CREATE DATABASE `{name}`
-    DEFAULT CHARACTER SET utf8mb4
-    DEFAULT COLLATE utf8mb4_unicode_ci;");
+        return Task.FromResult($"CREATE DATABASE {Dialect.QuoteIdentifier(name)}\n    DEFAULT CHARACTER SET utf8mb4;");
     }
 
     public Task<string> GenerateDropDatabaseScript(string name)
@@ -84,7 +81,7 @@ ALTER TABLE `{name}`
 
     public Task<string> GenerateSelectTopScript(string database, string schema, string table, int count)
     {
-        return Task.FromResult($"SELECT * FROM {TableName(table)}\nLIMIT {count};");
+        return Task.FromResult(Dialect.SelectRows(TableName(table), limit: count));
     }
 
     public Task<string> GenerateCountScript(string database, string schema, string table)

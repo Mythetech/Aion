@@ -119,4 +119,46 @@ public class EditModeEntryTests
         query.EditMetadata.ShouldBeNull();
         fixture.Notifications().ShouldHaveSingleItem().Message.ShouldContain("not supported");
     }
+
+    private static void ColumnsFailToLoad(EditingFixture fixture, string message) =>
+        fixture.Provider.GetColumnsAsync(Arg.Any<string>(), Arg.Any<string>(), "public", "users")
+            .Returns<List<ColumnInfo>>(_ => throw new InvalidOperationException(message));
+
+    [Fact]
+    public async Task TableEditor_WhenColumnsFailToLoad_ReportsTheErrorInsteadOfBlamingThePrimaryKey()
+    {
+        var fixture = new EditingFixture();
+        ColumnsFailToLoad(fixture, "permission denied for table users");
+        var queryState = CreateQueryState(fixture);
+        var sut = new TableEditorOpener(fixture.ConnectionState, queryState, fixture.Bus, NullLogger<TableEditorOpener>.Instance);
+
+        await sut.Consume(new OpenTableEditor(fixture.Connection.Id, EditingFixture.DatabaseName, "public", "users"));
+
+        var notification = fixture.Notifications().ShouldHaveSingleItem();
+        notification.Severity.ShouldBe(Severity.Error);
+        notification.Message.ShouldContain("permission denied for table users");
+        fixture.Published().OfType<RunQuery>().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task EnableFromQuery_WhenColumnsFailToLoad_ReportsTheError()
+    {
+        var fixture = new EditingFixture();
+        fixture.Database.Tables = [new TableInfo("public", "users")];
+        fixture.Database.TablesLoaded = true;
+        ColumnsFailToLoad(fixture, "permission denied for table users");
+        var queryState = CreateQueryState(fixture);
+        var query = queryState.AddQuery("q");
+        query.ConnectionId = fixture.Connection.Id;
+        query.DatabaseName = EditingFixture.DatabaseName;
+        query.Query = "SELECT * FROM public.users";
+        var sut = new QueryEditModeEnabler(fixture.ConnectionState, queryState, fixture.Bus, NullLogger<QueryEditModeEnabler>.Instance);
+
+        await sut.Consume(new EnableEditModeFromQuery());
+
+        query.EditMetadata.ShouldBeNull();
+        var notification = fixture.Notifications().ShouldHaveSingleItem();
+        notification.Severity.ShouldBe(Severity.Error);
+        notification.Message.ShouldContain("permission denied for table users");
+    }
 }

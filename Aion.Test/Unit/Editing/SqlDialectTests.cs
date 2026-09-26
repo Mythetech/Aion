@@ -162,6 +162,77 @@ public class SqlDialectTests
         Should.Throw<ArgumentException>(() => dialect.BuildAssignments([]));
     }
 
+    public static TheoryData<SqlDialect, string?, string> QualifiedTables => new()
+    {
+        { PostgreSqlDialect.Instance, "public", "\"public\".\"orders\"" },
+        { SqlServerDialect.Instance, "dbo", "[dbo].[orders]" },
+        { MySqlDialect.Instance, "shop", "`shop`.`orders`" },
+        { SqliteDialect.Instance, null, "\"orders\"" },
+        { PostgreSqlDialect.Instance, "", "\"orders\"" },
+    };
+
+    [Theory]
+    [MemberData(nameof(QualifiedTables))]
+    public void QualifyTable_QuotesTheSchemaOnlyWhenThereIsOne(SqlDialect dialect, string? schema, string expected)
+    {
+        dialect.QualifyTable(schema, "orders").ShouldBe(expected);
+    }
+
+    public static TheoryData<SqlDialect, string> FirstRowsSelects => new()
+    {
+        { PostgreSqlDialect.Instance, "SELECT * FROM \"orders\"\nLIMIT 1000;" },
+        { SqliteDialect.Instance, "SELECT * FROM \"orders\"\nLIMIT 1000;" },
+        { MySqlDialect.Instance, "SELECT * FROM `orders`\nLIMIT 1000;" },
+        { SqlServerDialect.Instance, "SELECT TOP (1000) * FROM [orders];" },
+    };
+
+    [Theory]
+    [MemberData(nameof(FirstRowsSelects))]
+    public void SelectRows_LimitsRowsTheWayTheEngineDoes(SqlDialect dialect, string expected)
+    {
+        dialect.SelectRows(dialect.QuoteIdentifier("orders"), limit: 1000).ShouldBe(expected);
+    }
+
+    [Fact]
+    public void SelectRows_WithAPredicateAndNoLimit_FiltersEveryRow()
+    {
+        var dialect = PostgreSqlDialect.Instance;
+
+        var sql = dialect.SelectRows(dialect.QualifyTable("public", "customers"),
+            dialect.BuildKeyPredicate([new ColumnValue("code", "O'Brien")]));
+
+        sql.ShouldBe("SELECT * FROM \"public\".\"customers\"\nWHERE \"code\" = 'O''Brien';");
+    }
+
+    [Fact]
+    public void SelectRows_OnSqlServer_PutsTopBeforeTheColumnsAndTheFilterAfterTheTable()
+    {
+        var dialect = SqlServerDialect.Instance;
+
+        var sql = dialect.SelectRows("[dbo].[customers]", dialect.BuildKeyPredicate([new ColumnValue("id", 7)]), 1);
+
+        sql.ShouldBe("SELECT TOP (1) * FROM [dbo].[customers]\nWHERE [id] = 7;");
+    }
+
+    public static TheoryData<SqlDialect, string, string> CreateTableTemplates => new()
+    {
+        { PostgreSqlDialect.Instance, "CREATE TABLE \"public\".\"new_table\"", "GENERATED ALWAYS AS IDENTITY PRIMARY KEY" },
+        { SqlServerDialect.Instance, "CREATE TABLE [dbo].[new_table]", "IDENTITY(1,1) NOT NULL PRIMARY KEY" },
+        { MySqlDialect.Instance, "CREATE TABLE `new_table`", "AUTO_INCREMENT PRIMARY KEY" },
+        { SqliteDialect.Instance, "CREATE TABLE \"new_table\"", "INTEGER PRIMARY KEY" },
+    };
+
+    [Theory]
+    [MemberData(nameof(CreateTableTemplates))]
+    public void CreateTableTemplate_UsesTheEnginesQuotingAndKeySyntax(SqlDialect dialect, string start, string key)
+    {
+        var template = dialect.CreateTableTemplate();
+
+        template.ShouldStartWith(start);
+        template.ShouldContain(key);
+        template.ShouldNotContain("SERIAL");
+    }
+
     private static T WithCulture<T>(string culture, Func<T> action)
     {
         var original = CultureInfo.CurrentCulture;

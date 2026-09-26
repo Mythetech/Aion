@@ -1,12 +1,13 @@
 using System.Text;
 using Aion.Contracts.Database;
+using Aion.Contracts.Database.Dialects;
 using Aion.Contracts.Queries;
 using SqliteWasmBlazor;
 
 namespace Aion.Web.Providers;
 
 public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider, IDatabaseRowEditingProvider,
-    IEstimatedQueryPlanProvider, IManagedDatabaseProvider
+    IEstimatedQueryPlanProvider, IManagedDatabaseProvider, ISqlDialectProvider
 {
     private const string TransactionNotOpenMessage = "This transaction is no longer open. Roll back to clear it.";
 
@@ -24,6 +25,7 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQu
     }
 
     public IStandardDatabaseCommands Commands { get; } = new SqliteWasmCommands();
+    public SqlDialect Dialect => SqliteDialect.Instance;
     public DatabaseType DatabaseType => DatabaseType.WasmSQLite;
     public IReadOnlyList<string> SystemSchemas { get; } = [];
 

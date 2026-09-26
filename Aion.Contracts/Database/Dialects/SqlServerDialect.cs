@@ -15,4 +15,16 @@ public sealed class SqlServerDialect : SqlDialect
     protected override string FormatBoolean(bool value) => value ? "1" : "0";
 
     protected override string FormatBytes(byte[] value) => $"0x{Convert.ToHexString(value)}";
+
+    public override string CreateTableTemplate() =>
+        """
+        CREATE TABLE [dbo].[new_table] (
+            [id] int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+            [name] nvarchar(100) NOT NULL,
+            [created_at] datetime2 NOT NULL DEFAULT SYSUTCDATETIME()
+        );
+        """;
+
+    public override string SelectRows(string qualifiedTable, string? predicate = null, int? limit = null) =>
+        $"SELECT {(limit is { } count ? $"TOP ({count.ToString(System.Globalization.CultureInfo.InvariantCulture)}) " : "")}* FROM {qualifiedTable}{WhereClause(predicate)};";
 }

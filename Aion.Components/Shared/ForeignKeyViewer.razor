@@ -2,36 +2,38 @@
 @using Aion.Components.ForeignKeys
 @using Aion.Components.RequestContextPanel
 @using Aion.Components.Theme
-@using Aion.Contracts.Database
+@using MudBlazor.State
+@inherits ComponentBaseWithState
+@implements IDisposable
 
 <MudStack AlignItems="AlignItems.Center" Row="true" Spacing="3" Class="px-4 overflow-y-auto">
     <MudStack Spacing="0">
         <MudText Typo="Typo.caption">Foreign Key</MudText>
-        <MudText Class="mud-text-secondary">@Detail?.SourceColumn → @Detail?.ReferencedTable.@Detail?.ReferencedColumn</MudText>
+        <MudText Class="mud-text-secondary">@Detail?.SourceColumn → @Detail?.ReferencedTableDisplayName.@Detail?.ReferencedColumn</MudText>
     </MudStack>
     <MudSpacer/>
     <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">@Detail?.ForeignKeyValue</MudChip>
 
     @if (ShowExpandButton)
     {
-        <AionIconButton Class="mr-4" Tooltip="Expand" OnClick="OnExpand" Icon="@AionIcons.ExpandContent"/>
+        <AionIconButton Class="mr-4" Tooltip="Open related rows in a new tab" OnClick="OnExpand" Icon="@AionIcons.OpenInNew"/>
     }
 </MudStack>
 
-@if (AvailableForeignKeys.Count > 1)
+@if (Choices.Count > 1)
 {
     <MudStack Class="px-4 pt-2">
         <MudSelect T="string"
-                   Value="@_selectedFkColumn"
-                   ValueChanged="OnFkColumnChanged"
+                   Value="@Detail?.SourceColumn"
+                   ValueChanged="OnChoiceChanged"
                    Label="Select Foreign Key"
                    Dense="true"
                    Margin="Margin.Dense"
                    Variant="Variant.Outlined">
-            @foreach (var fk in AvailableForeignKeys)
+            @foreach (var choice in Choices)
             {
-                <MudSelectItem Value="@fk.ColumnName">
-                    @fk.ColumnName → @fk.ReferencedTable
+                <MudSelectItem Value="@choice.SourceColumn">
+                    @choice.SourceColumn → @choice.ReferencedTableDisplayName
                 </MudSelectItem>
             }
         </MudSelect>
@@ -48,7 +50,7 @@
     }
     else if (!string.IsNullOrEmpty(_error))
     {
-        <MudAlert Severity="Severity.Error" Class="ma-2">@_error</MudAlert>
+        <MudAlert Severity="Severity.Error" Class="ma-2 fk-viewer-error">@_error</MudAlert>
     }
     else if (!string.IsNullOrEmpty(_rowJson))
     {
@@ -69,7 +71,13 @@
     [Inject] private IForeignKeyService ForeignKeyService { get; set; } = default!;
 
     [Parameter] public ForeignKeyDetail? Detail { get; set; }
-    [Parameter] public List<ForeignKeyInfo> AvailableForeignKeys { get; set; } = new();
+
+    /// <summary>
+    /// Every foreign key of the row the detail came from, each with that row's own value, so switching between
+    /// them never looks up one column's value in another column's table.
+    /// </summary>
+    [Parameter] public IReadOnlyList<ForeignKeyDetail> Choices { get; set; } = [];
+
     [Parameter] public bool ShowExpandButton { get; set; } = true;
     [Parameter] public EventCallback OnExpandClick { get; set; }
     [Parameter] public EventCallback<ForeignKeyDetail> OnForeignKeyChanged { get; set; }
@@ -79,68 +87,82 @@
     private string? _error;
     private string? _rowJson;
     private string _viewMode = "pretty";
-    private string _selectedFkColumn = "";
+    private CancellationTokenSource? _fetch;
 
-    protected override async Task OnParametersSetAsync()
+    public ForeignKeyViewer()
     {
-        if (Detail != null && _selectedFkColumn != Detail.SourceColumn)
-        {
-            _selectedFkColumn = Detail.SourceColumn;
-            await FetchReferencedRow();
-        }
-        await base.OnParametersSetAsync();
+        using var registerScope = CreateRegisterScope();
+        // Any change counts, the value included: the same column in another row points at another row.
+        registerScope.RegisterParameter<ForeignKeyDetail?>(nameof(Detail))
+            .WithParameter(() => Detail)
+            .WithChangeHandler(FetchReferencedRow);
     }
 
     private async Task FetchReferencedRow()
     {
-        if (Detail == null) return;
+        if (_fetch is not null)
+        {
+            await _fetch.CancelAsync();
+            _fetch.Dispose();
+        }
 
-        _isLoading = true;
-        _error = null;
+        var detail = Detail;
         _rowJson = null;
+        _error = null;
+
+        if (detail is null)
+        {
+            _fetch = null;
+            _isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        var fetch = _fetch = new CancellationTokenSource();
+        _isLoading = true;
         StateHasChanged();
 
+        ForeignKeyLookup lookup;
         try
         {
-            var row = await ForeignKeyService.FetchReferencedRowAsync(
-                Detail.ConnectionId,
-                Detail.DatabaseName,
-                Detail.ReferencedTable,
-                Detail.ReferencedColumn,
-                Detail.ForeignKeyValue);
-
-            if (row != null)
-            {
-                _rowJson = JsonSerializer.Serialize(row, new JsonSerializerOptions { WriteIndented = true });
-            }
-            else
-            {
-                _error = $"No row found in {Detail.ReferencedTable} where {Detail.ReferencedColumn} = {Detail.ForeignKeyValue}";
-            }
+            lookup = await ForeignKeyService.FetchReferencedRowAsync(detail, fetch.Token);
+        }
+        catch (OperationCanceledException) when (fetch.IsCancellationRequested)
+        {
+            return;
         }
         catch (Exception ex)
         {
-            _error = $"Failed to fetch referenced row: {ex.Message}";
+            lookup = new ForeignKeyLookup(null, ex.Message);
         }
-        finally
+
+        // A newer detail arrived while this one was loading; its own fetch owns the view now.
+        if (fetch.IsCancellationRequested)
+            return;
+
+        _isLoading = false;
+        if (lookup.Error is not null)
         {
-            _isLoading = false;
-            StateHasChanged();
+            _error = $"Failed to fetch referenced row: {lookup.Error}";
         }
+        else if (lookup.Row is null)
+        {
+            _error = $"No row found in {detail.ReferencedTableDisplayName} where {detail.ReferencedColumn} = {detail.ForeignKeyValue}";
+        }
+        else
+        {
+            _rowJson = JsonSerializer.Serialize(lookup.Row, new JsonSerializerOptions { WriteIndented = true });
+        }
+
+        StateHasChanged();
     }
 
-    private async Task OnFkColumnChanged(string newColumn)
+    private async Task OnChoiceChanged(string column)
     {
-        _selectedFkColumn = newColumn;
-        var selectedFk = AvailableForeignKeys.FirstOrDefault(fk => fk.ColumnName == newColumn);
-        if (selectedFk != null && Detail != null)
+        var choice = Choices.FirstOrDefault(c => c.SourceColumn == column);
+        if (choice != null)
         {
-            await OnForeignKeyChanged.InvokeAsync(Detail with
-            {
-                SourceColumn = selectedFk.ColumnName,
-                ReferencedTable = selectedFk.ReferencedTable,
-                ReferencedColumn = selectedFk.ReferencedColumn
-            });
+            await OnForeignKeyChanged.InvokeAsync(choice);
         }
     }
 
@@ -154,8 +176,9 @@
         _jsonViewer?.ReInitializeTree();
     }
 
-    public async Task RefreshData()
+    public void Dispose()
     {
-        await FetchReferencedRow();
+        _fetch?.Cancel();
+        _fetch?.Dispose();
     }
 }
