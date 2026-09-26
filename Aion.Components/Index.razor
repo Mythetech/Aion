@@ -10,7 +10,7 @@
 @using Aion.Components.Shared
 @using Aion.Components.Theme
 @using Microsoft.JSInterop
-@implements IDisposable
+@implements IAsyncDisposable
 @implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.RequestContextPanel.Commands.OpenRequestContextPanel>
 @implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.RequestContextPanel.Commands.OpenJsonDetailView>
 @implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.RequestContextPanel.Commands.OpenForeignKeyView>
@@ -76,11 +76,16 @@
     private MudSplitPanel _outerSplitter = default!;
 
     private bool _sidePanelClosed = true;
-    
+
+    private IJSObjectReference? _layoutModule;
+
+    private async Task<IJSObjectReference> GetLayoutModuleAsync() =>
+        _layoutModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/Aion.Components/js/layout.js");
+
     private async Task<int> GetOuterSplitterWidthAsync()
     {
-        return await JS.InvokeAsync<int>("eval",
-            "document.querySelector('.mud-split-panel')?.getBoundingClientRect().width ?? 800");
+        var module = await GetLayoutModuleAsync();
+        return await module.InvokeAsync<int>("getElementWidth", ".mud-split-panel", 800);
     }
 
     protected async Task ToggleSidePanel(string selectedTab = "")
@@ -130,12 +135,24 @@
         }
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         Bus.Unsubscribe<OpenRequestContextPanel>(this);
         Bus.Unsubscribe<OpenJsonDetailView>(this);
         Bus.Unsubscribe<OpenForeignKeyView>(this);
         QueryState.StateChanged -= StateHasChanged;
+
+        if (_layoutModule is not null)
+        {
+            try
+            {
+                await _layoutModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // The webview is already gone when the app closes, and the module went with it.
+            }
+        }
     }
 
     public Task Consume(OpenRequestContextPanel message)
@@ -192,10 +209,10 @@
     {
         try
         {
-            return await JS.InvokeAsync<bool>("eval", 
-                "document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.isContentEditable)");
+            var module = await GetLayoutModuleAsync();
+            return await module.InvokeAsync<bool>("isEditableElementFocused");
         }
-        catch
+        catch (JSException)
         {
             return false;
         }

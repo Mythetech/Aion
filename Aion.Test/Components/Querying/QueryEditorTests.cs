@@ -77,4 +77,23 @@ public class QueryEditorTests : TestContext
         cut.ShouldNotBeNull();
 
     }
+
+    [Fact]
+    public void Editor_FollowsItsContainerSize()
+    {
+        // Arrange
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var guard = Substitute.For<IJsGuardService>();
+        guard.IsReady("monaco").Returns(true);
+        guard.WaitForReadyAsync(Arg.Any<Microsoft.JSInterop.IJSRuntime>(), "monaco", Arg.Any<TimeSpan?>()).Returns(true);
+        Services.AddSingleton(guard);
+
+        // Act
+        var cut = RenderComponent<QueryEditor>();
+        var editor = cut.FindComponent<BlazorMonaco.Editor.StandaloneCodeEditor>().Instance;
+        var options = editor.ConstructionOptions(editor);
+
+        // Assert
+        options.AutomaticLayout.ShouldBe(true);
+    }
 }

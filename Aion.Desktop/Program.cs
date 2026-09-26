@@ -27,6 +27,7 @@ using Aion.Core.Database.LiteDB;
 using Aion.Core.Database.SqlServer;
 using Aion.Desktop.Configuration;
 using Mythetech.Framework.Desktop.Updates;
+using Aion.Desktop.Updates;
 using Mythetech.Framework.Infrastructure.Guards;
 
 namespace Aion.Desktop
@@ -78,6 +79,7 @@ namespace Aion.Desktop
             appBuilder.Services.AddPlatformDiagnostics();
 
             appBuilder.RootComponents.Add<Components.App>("#app");
+            appBuilder.RootComponents.Add<UpdateBannerHost>("#aion-update-banner");
 
             // Framework services
             appBuilder.Services.AddDesktopServices(DesktopHost.Hermes);
@@ -118,6 +120,8 @@ namespace Aion.Desktop
             appBuilder.Services.AddInitializationHook<SettingsInitializationHook>();
             appBuilder.Services.AddInitializationHook<CrashReportingHook>();
             appBuilder.Services.AddInitializationHook<ErrorReportingHook>();
+            appBuilder.Services.AddSingleton<StartupUpdateCheck>();
+            appBuilder.Services.AddInitializationHook(sp => sp.GetRequiredService<StartupUpdateCheck>());
 
             appBuilder.Services.AddSingleton<IConnectionStorage, FileConnectionStorage>();
             appBuilder.Services.AddSingleton<IQuerySaveService, FileQuerySaveService>();

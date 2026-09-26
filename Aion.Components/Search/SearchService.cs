@@ -42,7 +42,7 @@ public class SearchService
                 yield return new SearchModel
                 {
                     Name = connection.Name,
-                    Description = connection.ConnectionString,
+                    Description = ConnectionDescription.Describe(connection),
                     Icon = AionIcons.Connection,
                     Kind = ResultKind.Connection,
                     SearchAction = () => ConnectionAction(connection),
@@ -65,46 +65,29 @@ public class SearchService
                     };
                 }
 
-                if (database.TablesLoaded)
+                // Loading tables is a network round trip per database, so an inactive server
+                // is skipped and a search superseded by the next keystroke stops before the next load.
+                if (!database.TablesLoaded && connection.Active)
                 {
-                    foreach (var table in database.Tables)
-                    {
-                        if (cancellationToken.IsCancellationRequested) yield break;
-
-                        if (table.DisplayName.ToLowerInvariant().Contains(value))
-                        {
-                            yield return new SearchModel
-                            {
-                                Name = $"{table.DisplayName}",
-                                Description = $"{connection.Name} > {database.Name}",
-                                Icon = AionIcons.Table,
-                                Kind = ResultKind.Table,
-                                SearchAction = () => TableAction(connection, database, table.DisplayName)
-                            };
-                        }
-                    }
+                    await _connections.LoadTablesAsync(connection, database);
+                    if (cancellationToken.IsCancellationRequested) yield break;
                 }
-                else
+
+                foreach (var table in database.Tables)
                 {
+                    if (cancellationToken.IsCancellationRequested) yield break;
 
-                        await _connections.LoadTablesAsync(connection, database);
-
-                        foreach (var table in database.Tables)
+                    if (table.DisplayName.ToLowerInvariant().Contains(value))
+                    {
+                        yield return new SearchModel
                         {
-                            if (cancellationToken.IsCancellationRequested) yield break;
-
-                            if (table.DisplayName.ToLowerInvariant().Contains(value))
-                            {
-                                yield return new SearchModel
-                                {
-                                    Name = $"{table.DisplayName}",
-                                    Description = $"{connection.Name} > {database.Name}",
-                                    Icon = AionIcons.Table,
-                                    Kind = ResultKind.Table,
-                                    SearchAction = () => TableAction(connection, database, table.DisplayName)
-                                };
-                            }
-                        }
+                            Name = $"{table.DisplayName}",
+                            Description = $"{connection.Name} > {database.Name}",
+                            Icon = AionIcons.Table,
+                            Kind = ResultKind.Table,
+                            SearchAction = () => TableAction(connection, database, table.DisplayName)
+                        };
+                    }
                 }
             }
         }
@@ -119,13 +102,24 @@ public class SearchService
                 yield return new SearchModel
                 {
                     Name = query.Name,
-                    Description = $"Connection: {query.ConnectionId} > Database: {query.DatabaseName}",
+                    Description = DescribeQueryLocation(query),
                     Icon = AionIcons.Query,
                     Kind = ResultKind.Query,
                     SearchAction = () => QueryAction(query)
                 };
             }
         }
+    }
+
+    private string DescribeQueryLocation(QueryModel query)
+    {
+        var connection = _connections.Connections.FirstOrDefault(c => c.Id == query.ConnectionId);
+        if (connection is null)
+            return "No connection";
+
+        return string.IsNullOrWhiteSpace(query.DatabaseName)
+            ? $"Connection: {connection.Name}"
+            : $"Connection: {connection.Name} > Database: {query.DatabaseName}";
     }
 
     private async Task ConnectionAction(ConnectionModel connection)

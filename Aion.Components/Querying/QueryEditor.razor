@@ -160,6 +160,9 @@
             WordWrap = EditorSettings.WordWrap ? "on" : "off",
             LineNumbers = EditorSettings.ShowLineNumbers ? "on" : "off",
             Minimap = new EditorMinimapOptions { Enabled = EditorSettings.ShowMinimap },
+            // Monaco measures its container once at creation. The editor pane changes width whenever a side
+            // panel opens or closes, and at startup it can be created before the side panel has collapsed.
+            AutomaticLayout = true,
         };
     }
 

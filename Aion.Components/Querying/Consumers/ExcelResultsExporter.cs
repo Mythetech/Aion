@@ -60,7 +60,7 @@ public class ExcelResultsExporter : IConsumer<ExportResultsToExcel>
 
             if (string.IsNullOrWhiteSpace(location))
             {
-                await _bus.PublishAsync(new AddNotification($"Csv export cancelled", Severity.Info));
+                await _bus.PublishAsync(new AddNotification("Excel export cancelled", Severity.Info));
                 return;
             }
             workbook.SaveAs(location);
