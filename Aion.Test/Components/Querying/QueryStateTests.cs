@@ -217,6 +217,41 @@ public class QueryStateTests
     }
 
     [Fact]
+    public void RunToggles_ChangeTheTabAndTellTheEditor()
+    {
+        // Arrange
+        var query = _state.Queries[0];
+        var changes = 0;
+        _state.StateChanged += () => changes++;
+
+        // Act
+        _state.SetUseTransaction(query, true);
+        _state.SetIncludeEstimatedPlan(query, true);
+        _state.SetIncludeActualPlan(query, true);
+
+        // Assert
+        query.UseTransaction.ShouldBeTrue();
+        query.IncludeEstimatedPlan.ShouldBeTrue();
+        query.IncludeActualPlan.ShouldBeTrue();
+        changes.ShouldBe(3);
+    }
+
+    [Fact]
+    public void TransactionsToggle_WhileATransactionIsOpen_StaysOn()
+    {
+        // Arrange
+        var query = _state.Queries[0];
+        query.UseTransaction = true;
+        query.Transaction = new TransactionInfo();
+
+        // Act
+        _state.SetUseTransaction(query, false);
+
+        // Assert
+        query.UseTransaction.ShouldBeTrue();
+    }
+
+    [Fact]
     public void Should_Update_Query_Database()
     {
         // Arrange
