@@ -59,7 +59,7 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQu
 
     public async Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string schema, string table)
     {
-        var columns = new List<ColumnInfo>();
+        var rows = new List<SqliteTableInfoRow>();
 
         using var conn = new SqliteWasmConnection(BuildConnectionString(database));
         await conn.OpenAsync();
@@ -67,19 +67,20 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQu
         using var cmd = conn.CreateCommand();
         cmd.CommandText = $"PRAGMA table_info(\"{table}\")";
 
-        using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        using (var reader = await cmd.ExecuteReaderAsync())
         {
-            columns.Add(new ColumnInfo
+            while (await reader.ReadAsync())
             {
-                Name = reader.GetString(1),
-                DataType = reader.GetString(2),
-                IsNullable = reader.GetInt32(3) == 0,
-                DefaultValue = reader.IsDBNull(4) ? null : reader.GetString(4),
-                IsPrimaryKey = reader.GetInt32(5) > 0,
-                IsIdentity = false
-            });
+                rows.Add(new SqliteTableInfoRow(
+                    Name: reader.GetString(1),
+                    DeclaredType: reader.GetString(2),
+                    NotNull: reader.GetInt32(3) != 0,
+                    DefaultValue: reader.IsDBNull(4) ? null : reader.GetString(4),
+                    PrimaryKeyPosition: reader.GetInt32(5)));
+            }
         }
+
+        var columns = SqliteTableInfo.ToColumns(rows);
 
         var foreignKeys = await GetForeignKeysAsync(connectionString, database, schema, table);
         foreach (var fk in foreignKeys)

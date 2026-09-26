@@ -1,3 +1,4 @@
+using Aion.Components.Connections;
 using Aion.Core.Database;
 using Aion.Contracts.Database;
 using DotNet.Testcontainers.Builders;
@@ -113,6 +114,37 @@ public class MySqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         var descColumn = columns.First(c => c.Name == "description");
         descColumn.DataType.ShouldBe("text");
         descColumn.IsNullable.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task GetColumns_WithLongtextAndLongblob_ReadsTheirLengths()
+    {
+        // Their 4 GB CHARACTER_MAXIMUM_LENGTH overflowed an int and broke loading the whole table's columns.
+        await ExecuteOrFailAsync(DatabaseConnectionString,
+            "CREATE TABLE long_values (id int PRIMARY KEY, body longtext, payload longblob)");
+
+        var columns = await Provider.GetColumnsAsync(DatabaseConnectionString, TestDatabase, "", "long_values");
+
+        columns.Select(c => c.Name).ShouldBe(["id", "body", "payload"]);
+        columns.Single(c => c.Name == "body").MaxLength.ShouldBe(int.MaxValue);
+    }
+
+    [Fact]
+    public async Task GetColumns_ReportsTypesTheSchemaTreeShortens()
+    {
+        await ExecuteOrFailAsync(DatabaseConnectionString, """
+            CREATE TABLE column_types (
+                a_varchar varchar(255), a_char char(3), a_varbinary varbinary(16), a_text text, a_longtext longtext,
+                a_enum enum('a','bb'), a_decimal decimal(10,2), a_datetime datetime, a_json json)
+            """);
+
+        var columns = await Provider.GetColumnsAsync(DatabaseConnectionString, TestDatabase, "", "column_types");
+
+        columns.Select(c => ColumnTypeText.Short(c, DatabaseType.MySQL)).ShouldBe(
+        [
+            "varchar(255)", "char(3)", "varbinary(16)", "text", "longtext",
+            "enum", "decimal", "datetime", "json"
+        ]);
     }
 
     [Fact]

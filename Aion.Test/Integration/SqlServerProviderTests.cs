@@ -1,4 +1,5 @@
 using System.Xml.Linq;
+using Aion.Components.Connections;
 using Aion.Contracts.Database;
 using Aion.Core.Database.SqlServer;
 using DotNet.Testcontainers.Builders;
@@ -173,6 +174,24 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         afterPlan.ShouldBe("original");
         ValidateQueryResult(update);
         (await ReadNameAsync(1)).ShouldBe("changed");
+    }
+
+    [Fact]
+    public async Task GetColumns_ReportsTypesTheSchemaTreeShortens()
+    {
+        await ExecuteOrFailAsync(DatabaseConnectionString, """
+            CREATE TABLE dbo.column_types (
+                a_nvarchar nvarchar(100), a_nvarchar_max nvarchar(max), a_varbinary_max varbinary(max), a_char char(3),
+                a_text text, a_xml xml, a_datetime2 datetime2, a_guid uniqueidentifier, a_version rowversion)
+            """);
+
+        var columns = await Provider.GetColumnsAsync(DatabaseConnectionString, TestDatabase, "dbo", "column_types");
+
+        columns.Select(c => ColumnTypeText.Short(c, DatabaseType.SQLServer)).ShouldBe(
+        [
+            "nvarchar(100)", "nvarchar(max)", "varbinary(max)", "char(3)",
+            "text", "xml", "datetime2", "uniqueidentifier", "rowversion"
+        ]);
     }
 
     [Fact]
