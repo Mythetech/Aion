@@ -146,4 +146,16 @@ public class HistoryStateTests
         _state.Search("").Count.ShouldBe(2);
         _state.Search(null).Count.ShouldBe(2);
     }
+
+    [Fact]
+    public async Task Search_ForAConnection_ReturnsOnlyItsEntries()
+    {
+        var reporting = Guid.NewGuid();
+        await _state.AddAsync(HistoryEntries.Success("SELECT * FROM sales", HistoryEntries.Now.AddMinutes(-2)) with { ConnectionId = reporting });
+        await _state.AddAsync(HistoryEntries.Success("SELECT * FROM users", HistoryEntries.Now.AddMinutes(-1)) with { ConnectionId = Guid.NewGuid() });
+        await _state.AddAsync(HistoryEntries.Success("SELECT * FROM sales_archive") with { ConnectionId = reporting });
+
+        _state.Search(null, reporting).Select(e => e.Sql).ShouldBe(["SELECT * FROM sales_archive", "SELECT * FROM sales"]);
+        _state.Search("archive", reporting).Select(e => e.Sql).ShouldBe(["SELECT * FROM sales_archive"]);
+    }
 }

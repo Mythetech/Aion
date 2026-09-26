@@ -94,6 +94,24 @@ public sealed class AionCommandProvider : ICommandProvider
                 Group: "Actions"),
 
             new(
+                Id: "action.save-query-as-file",
+                Title: "Save Query as File",
+                Description: null,
+                Icon: AionIcons.SaveAs,
+                Keywords: ["save", "file", "export", "sql", "download"],
+                InvokeAsync: _ => _bus.PublishAsync(new SaveQueryAs()),
+                Group: "Actions"),
+
+            new(
+                Id: "action.edit-results",
+                Title: "Edit Results",
+                Description: "Edit the rows of a single-table query",
+                Icon: AionIcons.Edit,
+                Keywords: ["edit", "mode", "update", "rows", "results", "table"],
+                InvokeAsync: _ => _bus.PublishAsync(new EnableEditModeFromQuery()),
+                Group: "Actions"),
+
+            new(
                 Id: "action.format-query",
                 Title: "Format Query",
                 Description: null,

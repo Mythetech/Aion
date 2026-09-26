@@ -193,4 +193,29 @@ public class ConnectionStateConnectTests
         first.Active.ShouldBeTrue();
         second.Active.ShouldBeTrue();
     }
+
+    [Fact]
+    public async Task RenameConnection_SavesTheNewNameWithoutReconnecting()
+    {
+        var connection = CreateConnection("Local");
+        _sut.Connections.Add(connection);
+
+        await _sut.RenameConnectionAsync(connection.Id, "  Reporting  ");
+
+        connection.Name.ShouldBe("Reporting");
+        await _connectionService.Received(1).UpdateConnection(connection);
+        await _connectionService.DidNotReceiveWithAnyArgs().GetDatabasesAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task RenameConnection_ToABlankName_ChangesNothing()
+    {
+        var connection = CreateConnection("Local");
+        _sut.Connections.Add(connection);
+
+        await _sut.RenameConnectionAsync(connection.Id, "   ");
+
+        connection.Name.ShouldBe("Local");
+        await _connectionService.DidNotReceiveWithAnyArgs().UpdateConnection(default!);
+    }
 }

@@ -80,13 +80,22 @@ public class HistoryState
         NotifyHistoryChanged();
     }
 
-    public IReadOnlyList<QueryHistoryEntry> Search(string? term)
+    /// <summary>
+    /// The entries whose SQL contains <paramref name="term"/>, limited to one connection when <paramref name="connectionId"/> is given.
+    /// </summary>
+    public IReadOnlyList<QueryHistoryEntry> Search(string? term, Guid? connectionId = null)
     {
-        var entries = _entries;
-        if (string.IsNullOrWhiteSpace(term)) return entries;
+        IEnumerable<QueryHistoryEntry> entries = _entries;
+        if (connectionId is { } id)
+            entries = entries.Where(e => e.ConnectionId == id);
 
-        var trimmed = term.Trim();
-        return entries.Where(e => e.Sql.Contains(trimmed, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (!string.IsNullOrWhiteSpace(term))
+        {
+            var trimmed = term.Trim();
+            entries = entries.Where(e => e.Sql.Contains(trimmed, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return entries as IReadOnlyList<QueryHistoryEntry> ?? entries.ToList();
     }
 
     private async Task<bool> EnsureLoadedAsync()

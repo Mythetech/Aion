@@ -1,6 +1,8 @@
 @using Aion.Components.History.Commands
 @using Aion.Components.Infrastructure.Commands
 @using Aion.Components.NativeMenu
+@using Aion.Components.Querying
+@using Aion.Components.Shared
 @using Aion.Components.Theme
 @using Mythetech.Framework.Components.Buttons
 @using Mythetech.Framework.Components.Input
@@ -18,6 +20,13 @@
                      AdornmentIcon="@AionIcons.Search"
                      Clearable="true"
                      aria-label="Search query history" />
+        <AionToggleIconButton Icon="@AionIcons.Connection"
+                              Label="Only this tab's connection"
+                              Description="Only queries run on the active tab's connection"
+                              Pressed="@_onlyActiveConnection"
+                              PressedChanged="@(pressed => _onlyActiveConnection = pressed)"
+                              Disabled="@(ActiveConnectionId == null)"
+                              DisabledReason="The active tab has no connection" />
         <MtButton Class="history-clear"
                   Variant="Variant.Text"
                   Color="Color.Primary"
@@ -37,12 +46,12 @@
     else
     {
         var now = DateTimeOffset.Now;
-        var groups = QueryHistoryFormatter.GroupByDay(State.Search(_search), now);
+        var groups = QueryHistoryFormatter.GroupByDay(State.Search(_search, FilterConnectionId), now);
 
         @if (groups.Count == 0)
         {
             <div class="history-empty">
-                <MudText Typo="Typo.body2">No queries match "@_search"</MudText>
+                <MudText Typo="Typo.body2">@NoMatchesText</MudText>
             </div>
         }
         else
@@ -129,13 +138,28 @@
 
     [Inject] protected HistoryState State { get; set; } = default!;
     [Inject] protected IMessageBus Bus { get; set; } = default!;
+    [Inject] protected QueryState Queries { get; set; } = default!;
 
     private readonly CancellationTokenSource _refreshCts = new();
     private string _search = "";
+    private bool _onlyActiveConnection;
+
+    private Guid? ActiveConnectionId => Queries.Active?.ConnectionId;
+
+    // Switching tabs changes which connection "this tab" means, so the filter follows the active tab.
+    private Guid? FilterConnectionId => _onlyActiveConnection ? ActiveConnectionId : null;
+
+    private string NoMatchesText => (string.IsNullOrWhiteSpace(_search), FilterConnectionId is null) switch
+    {
+        (true, false) => "No queries on this connection yet",
+        (false, false) => $"No queries on this connection match \"{_search}\"",
+        _ => $"No queries match \"{_search}\""
+    };
 
     protected override void OnInitialized()
     {
         State.HistoryChanged += OnHistoryChanged;
+        Queries.StateChanged += OnHistoryChanged;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -210,6 +234,7 @@
     public void Dispose()
     {
         State.HistoryChanged -= OnHistoryChanged;
+        Queries.StateChanged -= OnHistoryChanged;
         _refreshCts.Cancel();
         _refreshCts.Dispose();
     }

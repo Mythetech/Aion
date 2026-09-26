@@ -2,6 +2,7 @@ using Aion.Components.History;
 using Aion.Components.History.Commands;
 using Aion.Components.Infrastructure.Commands;
 using Aion.Components.NativeMenu;
+using Aion.Components.Querying;
 using Aion.Test.TestDoubles;
 using AngleSharp.Dom;
 using Bunit;
@@ -20,6 +21,7 @@ public class HistoryPanelTests : TestContext
 {
     private readonly IMessageBus _bus = Substitute.For<IMessageBus>();
     private readonly HistoryState _history = new(new InMemoryQueryHistoryStore(), NullLogger<HistoryState>.Instance);
+    private readonly QueryState _queries = new(Substitute.For<IMessageBus>(), Substitute.For<IQuerySaveService>());
 
     public HistoryPanelTests()
     {
@@ -27,6 +29,36 @@ public class HistoryPanelTests : TestContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddSingleton(_bus);
         Services.AddSingleton(_history);
+        Services.AddSingleton(_queries);
+    }
+
+    private const string OnlyThisConnection = "button[aria-label=\"Only this tab's connection\"]";
+
+    [Fact]
+    public async Task OnlyThisConnection_ShowsTheActiveTabsConnectionOnly()
+    {
+        var reporting = Guid.NewGuid();
+        await _history.AddAsync(HistoryEntries.Success("SELECT * FROM sales", DateTimeOffset.Now) with { ConnectionId = reporting });
+        await _history.AddAsync(HistoryEntries.Success("SELECT * FROM users", DateTimeOffset.Now) with { ConnectionId = Guid.NewGuid() });
+        var tab = _queries.AddQuery("Query1");
+        tab.ConnectionId = reporting;
+        _queries.SetActive(tab);
+        var cut = RenderComponent<HistoryPanel>();
+
+        await cut.Find(OnlyThisConnection).ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".history-sql").Select(e => e.TextContent).ShouldBe(["SELECT * FROM sales"]);
+    }
+
+    [Fact]
+    public async Task OnlyThisConnection_IsDisabledWhenTheActiveTabHasNoConnection()
+    {
+        await _history.AddAsync(HistoryEntries.Success("SELECT 1", DateTimeOffset.Now) with { ConnectionId = Guid.NewGuid() });
+        _queries.SetActive(_queries.AddQuery("Query1"));
+
+        var cut = RenderComponent<HistoryPanel>();
+
+        cut.Find(OnlyThisConnection).HasAttribute("disabled").ShouldBeTrue();
     }
 
     [Fact]
