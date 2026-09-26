@@ -4,6 +4,7 @@ using Aion.Components.History;
 using Aion.Components.Infrastructure;
 using Aion.Components.NativeMenu;
 using Aion.Components.Querying;
+using Aion.Components.Scaffolding;
 using Aion.Contracts.Database;
 using Aion.Web.Databases;
 using Aion.Web.Providers;
@@ -52,7 +53,7 @@ builder.Services.AddSingleton<IDatabaseProvider>(sp => sp.GetRequiredService<PGl
 
 builder.Services.AddSingleton<ISupportedTypeProvider, SqliteWasmTypeProvider>();
 builder.Services.AddSingleton<ISupportedTypeProvider, PGliteTypeProvider>();
-builder.Services.AddSingleton<SchemaExecutor>();
+builder.Services.AddSingleton<ISchemaExecutor, SchemaExecutor>();
 builder.Services.AddSingleton<SampleDatabaseProvisioner>();
 builder.Services.AddSingleton<BrowserStorageCleaner>();
 builder.Services.AddSingleton<ISqliteWasmInitializer, SqliteWasmInitializer>();

@@ -32,6 +32,9 @@ public class MySqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
             .Build();
     }
 
+    protected override string GeneratedRowsTableSql =>
+        "CREATE TABLE generated_rows (id int NOT NULL AUTO_INCREMENT PRIMARY KEY, label varchar(20) NOT NULL, active boolean NOT NULL, note text NULL, code int UNIQUE)";
+
     protected override string UnknownColumnCode => "Error 1054";
 
     // MySql.Data names TEXT columns VARCHAR in result metadata.

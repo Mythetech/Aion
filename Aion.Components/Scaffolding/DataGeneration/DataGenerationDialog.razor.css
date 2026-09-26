@@ -1,0 +1,20 @@
+::deep .generator-select {
+    min-width: 160px;
+}
+
+::deep .option-start {
+    max-width: 140px;
+}
+
+::deep .option-number {
+    max-width: 90px;
+}
+
+::deep .option-values {
+    min-width: 200px;
+}
+
+.generate-problems ul {
+    margin: 4px 0 0;
+    padding-left: 20px;
+}

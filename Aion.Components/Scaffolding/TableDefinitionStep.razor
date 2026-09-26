@@ -29,11 +29,6 @@
                Size="Size.Small">
         Add Column
     </MudButton>
-
-    @if (Table.ValidationError is { } error)
-    {
-        <MudAlert Severity="Severity.Warning" Dense="true">@error</MudAlert>
-    }
 </MudStack>
 
 @code {

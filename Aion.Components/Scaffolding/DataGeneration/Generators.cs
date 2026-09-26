@@ -1,67 +1,79 @@
+using System.Globalization;
+
 namespace Aion.Components.Scaffolding.DataGeneration;
 
 public class AutoIncrementGenerator : IDataGenerator
 {
     public string Name => "Auto Increment";
-    public string Description => "Sequential integer starting from a given value";
+    public string Description => "Sequential numbers, after the highest one already in the column unless a start is chosen";
 
-    public bool SupportsType(string dataType)
-    {
-        var lower = dataType.ToLowerInvariant();
-        return lower is "integer" or "int" or "bigint" or "smallint" or "serial" or "bigserial"
-            or "numeric" or "decimal" or "real" or "double precision"
-            or "INTEGER" or "NUMERIC" or "REAL";
-    }
+    public bool Supports(ColumnTypeShape type) =>
+        type.Family is ColumnTypeFamily.Integer or ColumnTypeFamily.Decimal or ColumnTypeFamily.Float;
 
     public object? Generate(int rowIndex, DataGeneratorOptions options)
-        => (options.StartValue ?? 1) + rowIndex;
+    {
+        var start = options.StartValue ?? (options.ExistingMaximum is { } max ? max + 1 : 1);
+        return start + rowIndex;
+    }
 }
 
 public class RandomIntGenerator : IDataGenerator
 {
-    private static readonly Random Rng = new();
-
     public string Name => "Random Integer";
-    public string Description => "Random integer within a range";
+    public string Description => "Random whole number within a range";
 
-    public bool SupportsType(string dataType)
-    {
-        var lower = dataType.ToLowerInvariant();
-        return lower is "integer" or "int" or "bigint" or "smallint" or "serial" or "bigserial"
-            or "numeric" or "decimal" or "real" or "double precision"
-            or "INTEGER" or "NUMERIC" or "REAL";
-    }
+    public bool Supports(ColumnTypeShape type) =>
+        type.Family is ColumnTypeFamily.Integer or ColumnTypeFamily.Decimal or ColumnTypeFamily.Float;
 
     public object? Generate(int rowIndex, DataGeneratorOptions options)
-        => Rng.Next(options.MinValue ?? 0, (options.MaxValue ?? 1000) + 1);
+    {
+        var (min, max) = Range(options);
+        return Random.Shared.NextInt64(min, max + 1);
+    }
+
+    internal static (long Min, long Max) Range(DataGeneratorOptions options)
+    {
+        long min = options.MinValue ?? 0;
+        long max = options.MaxValue ?? 1000;
+        return min <= max ? (min, max) : (max, min);
+    }
+}
+
+public class RandomNumberGenerator : IDataGenerator
+{
+    public string Name => "Random Decimal";
+    public string Description => "Random number with two decimal places within a range";
+
+    public bool Supports(ColumnTypeShape type) => type.Family is ColumnTypeFamily.Decimal or ColumnTypeFamily.Float;
+
+    public object? Generate(int rowIndex, DataGeneratorOptions options)
+    {
+        var (min, max) = RandomIntGenerator.Range(options);
+        var value = min + (decimal)Random.Shared.NextDouble() * (max - min);
+        return Math.Clamp(decimal.Round(value, 2), min, max);
+    }
 }
 
 public class RandomTextGenerator : IDataGenerator
 {
-    private static readonly Random Rng = new();
     private const string Chars = "abcdefghijklmnopqrstuvwxyz";
 
     public string Name => "Random Text";
     public string Description => "Random alphabetic string";
 
-    public bool SupportsType(string dataType)
-    {
-        var lower = dataType.ToLowerInvariant();
-        return lower is "text" or "varchar" or "char" or "character varying"
-            or "TEXT";
-    }
+    public bool Supports(ColumnTypeShape type) => type.Family is ColumnTypeFamily.Text;
 
     public object? Generate(int rowIndex, DataGeneratorOptions options)
     {
-        var length = Rng.Next(options.MinLength ?? 5, (options.MaxLength ?? 20) + 1);
-        return new string(Enumerable.Range(0, length).Select(_ => Chars[Rng.Next(Chars.Length)]).ToArray());
+        var min = Math.Max(0, options.MinLength ?? 5);
+        var max = Math.Max(min, options.MaxLength ?? 20);
+        var length = Random.Shared.Next(min, max + 1);
+        return new string(Enumerable.Range(0, length).Select(_ => Chars[Random.Shared.Next(Chars.Length)]).ToArray());
     }
 }
 
 public class NameGenerator : IDataGenerator
 {
-    private static readonly Random Rng = new();
-
     private static readonly string[] FirstNames =
     [
         "Alice", "Bob", "Charlie", "Diana", "Edward", "Fiona", "George", "Hannah",
@@ -79,61 +91,53 @@ public class NameGenerator : IDataGenerator
     public string Name => "Name";
     public string Description => "Random full name (first + last)";
 
-    public bool SupportsType(string dataType)
-    {
-        var lower = dataType.ToLowerInvariant();
-        return lower is "text" or "varchar" or "char" or "character varying"
-            or "TEXT";
-    }
+    public bool Supports(ColumnTypeShape type) => type.Family is ColumnTypeFamily.Text;
 
     public object? Generate(int rowIndex, DataGeneratorOptions options)
-        => $"{FirstNames[Rng.Next(FirstNames.Length)]} {LastNames[Rng.Next(LastNames.Length)]}";
+        => $"{FirstNames[Random.Shared.Next(FirstNames.Length)]} {LastNames[Random.Shared.Next(LastNames.Length)]}";
 }
 
 public class EmailGenerator : IDataGenerator
 {
-    private static readonly Random Rng = new();
     private static readonly string[] Domains = ["example.com", "test.org", "sample.net", "demo.io"];
     private const string Chars = "abcdefghijklmnopqrstuvwxyz0123456789";
 
     public string Name => "Email";
     public string Description => "Random email address";
 
-    public bool SupportsType(string dataType)
-    {
-        var lower = dataType.ToLowerInvariant();
-        return lower is "text" or "varchar" or "char" or "character varying"
-            or "TEXT";
-    }
+    public bool Supports(ColumnTypeShape type) => type.Family is ColumnTypeFamily.Text;
 
     public object? Generate(int rowIndex, DataGeneratorOptions options)
     {
-        var local = new string(Enumerable.Range(0, Rng.Next(5, 12)).Select(_ => Chars[Rng.Next(Chars.Length)]).ToArray());
-        return $"{local}@{Domains[Rng.Next(Domains.Length)]}";
+        var local = new string(Enumerable.Range(0, Random.Shared.Next(5, 12)).Select(_ => Chars[Random.Shared.Next(Chars.Length)]).ToArray());
+        return $"{local}@{Domains[Random.Shared.Next(Domains.Length)]}";
     }
 }
 
+/// <summary>
+/// Makes a moment in the chosen date range, to whole seconds so every engine's date and time types accept it.
+/// The service keeps only the part a column holds: the date for a date, the time of day for a time.
+/// </summary>
 public class DateRangeGenerator : IDataGenerator
 {
-    private static readonly Random Rng = new();
+    private const int SecondsPerDay = 24 * 60 * 60;
 
     public string Name => "Date Range";
-    public string Description => "Random date within a range";
+    public string Description => "Random date and time within a range";
 
-    public bool SupportsType(string dataType)
-    {
-        var lower = dataType.ToLowerInvariant();
-        return lower is "date" or "timestamp" or "timestamptz" or "time" or "interval"
-            or "datetime" or "datetime2" or "datetimeoffset";
-    }
+    // SQLite has no date type, so dates live in text columns there.
+    public bool Supports(ColumnTypeShape type) => type.Family is ColumnTypeFamily.Date or ColumnTypeFamily.DateTime
+        or ColumnTypeFamily.DateTimeOffset or ColumnTypeFamily.Time or ColumnTypeFamily.Text;
 
     public object? Generate(int rowIndex, DataGeneratorOptions options)
     {
-        var min = options.MinDate ?? new DateTime(2020, 1, 1);
-        var max = options.MaxDate ?? DateTime.Now;
-        var range = (max - min).Days;
-        if (range <= 0) range = 1;
-        return min.AddDays(Rng.Next(range)).ToString("yyyy-MM-dd");
+        var min = (options.MinDate ?? new DateTime(2020, 1, 1)).Date;
+        var max = (options.MaxDate ?? DateTime.Today).Date;
+        if (max < min)
+            (min, max) = (max, min);
+
+        var days = (int)(max - min).TotalDays;
+        return min.AddDays(Random.Shared.Next(days + 1)).AddSeconds(Random.Shared.Next(SecondsPerDay));
     }
 }
 
@@ -142,81 +146,84 @@ public class UuidGenerator : IDataGenerator
     public string Name => "UUID";
     public string Description => "Random UUID/GUID";
 
-    public bool SupportsType(string dataType)
-    {
-        var lower = dataType.ToLowerInvariant();
-        return lower is "uuid" or "uniqueidentifier" or "text" or "varchar"
-            or "TEXT";
-    }
+    public bool Supports(ColumnTypeShape type) => type.Family is ColumnTypeFamily.Uuid or ColumnTypeFamily.Text;
 
-    public object? Generate(int rowIndex, DataGeneratorOptions options)
-        => Guid.NewGuid().ToString();
+    public object? Generate(int rowIndex, DataGeneratorOptions options) => Guid.NewGuid();
 }
 
 public class BooleanGenerator : IDataGenerator
 {
-    private static readonly Random Rng = new();
-
     public string Name => "Boolean";
     public string Description => "Random true/false value";
 
-    public bool SupportsType(string dataType)
-    {
-        var lower = dataType.ToLowerInvariant();
-        return lower is "boolean" or "bool" or "bit"
-            or "INTEGER"; // SQLite uses integer for booleans
-    }
+    // Integer columns are how SQLite and older schemas store flags; the value is written as 1 or 0 there.
+    public bool Supports(ColumnTypeShape type) => type.Family is ColumnTypeFamily.Boolean or ColumnTypeFamily.Integer;
 
-    public object? Generate(int rowIndex, DataGeneratorOptions options)
-        => Rng.Next(2) == 1;
+    public object? Generate(int rowIndex, DataGeneratorOptions options) => Random.Shared.Next(2) == 1;
 }
 
 public class JsonGenerator : IDataGenerator
 {
-    private static readonly Random Rng = new();
-
     public string Name => "JSON Object";
     public string Description => "Random JSON object with key-value pairs";
 
-    public bool SupportsType(string dataType)
-    {
-        var lower = dataType.ToLowerInvariant();
-        return lower is "json" or "jsonb" or "text" or "TEXT";
-    }
+    public bool Supports(ColumnTypeShape type) => type.Family is ColumnTypeFamily.Json or ColumnTypeFamily.Text;
 
     public object? Generate(int rowIndex, DataGeneratorOptions options)
-        => $"{{\"id\": {rowIndex + 1}, \"value\": {Rng.Next(1000)}}}";
+        => string.Create(CultureInfo.InvariantCulture, $"{{\"id\": {rowIndex + 1}, \"value\": {Random.Shared.Next(1000)}}}");
+}
+
+/// <summary>
+/// Fills a foreign key with values the referenced column already holds, so every row satisfies the constraint.
+/// </summary>
+public class ReferencedValueGenerator : IDataGenerator
+{
+    public string Name => "Existing Reference";
+    public string Description => "A value that already exists in the referenced column";
+
+    public bool Supports(ColumnTypeShape type) => type.Family is not ColumnTypeFamily.RowVersion;
+
+    public object? Generate(int rowIndex, DataGeneratorOptions options) =>
+        options.ReferencedValues is { Count: > 0 } values ? values[Random.Shared.Next(values.Count)] : null;
 }
 
 public class CustomListGenerator : IDataGenerator
 {
-    private static readonly Random Rng = new();
-
     public string Name => "Custom List";
     public string Description => "Random value from a comma-separated list";
 
-    public bool SupportsType(string dataType) => true;
+    public bool Supports(ColumnTypeShape type) => type.Family is not ColumnTypeFamily.RowVersion;
 
     public object? Generate(int rowIndex, DataGeneratorOptions options)
     {
-        if (string.IsNullOrWhiteSpace(options.CustomValues))
-            return null;
-
-        var values = options.CustomValues
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-        if (values.Length == 0)
-            return null;
-
-        return values[Rng.Next(values.Length)];
+        var values = Values(options);
+        return values.Length == 0 ? null : values[Random.Shared.Next(values.Length)];
     }
+
+    public static string[] Values(DataGeneratorOptions options) =>
+        string.IsNullOrWhiteSpace(options.CustomValues)
+            ? []
+            : options.CustomValues.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+}
+
+/// <summary>
+/// Leaves the column out of the INSERT so the database fills it in: with its default, a computed value, or NULL.
+/// </summary>
+public class DatabaseDefaultGenerator : IDataGenerator
+{
+    public string Name => "Leave Out";
+    public string Description => "Let the database fill the column: its default, a computed value, or NULL";
+
+    public bool Supports(ColumnTypeShape type) => true;
+
+    public object? Generate(int rowIndex, DataGeneratorOptions options) => null;
 }
 
 public class NullGenerator : IDataGenerator
 {
     public string Name => "NULL";
     public string Description => "Always generates NULL";
-    public bool SupportsType(string dataType) => true;
+    public bool Supports(ColumnTypeShape type) => true;
     public object? Generate(int rowIndex, DataGeneratorOptions options) => null;
 }
 
@@ -224,8 +231,9 @@ public static class DataGenerators
 {
     public static IReadOnlyList<IDataGenerator> All { get; } =
     [
-        new AutoIncrementGenerator(),
         new RandomIntGenerator(),
+        new RandomNumberGenerator(),
+        new AutoIncrementGenerator(),
         new RandomTextGenerator(),
         new NameGenerator(),
         new EmailGenerator(),
@@ -233,41 +241,11 @@ public static class DataGenerators
         new UuidGenerator(),
         new BooleanGenerator(),
         new JsonGenerator(),
+        new ReferencedValueGenerator(),
         new CustomListGenerator(),
+        new DatabaseDefaultGenerator(),
         new NullGenerator()
     ];
 
-    public static IDataGenerator? SuggestGenerator(string columnName, string dataType, bool isIdentity)
-    {
-        if (isIdentity)
-            return null;
-
-        var lower = columnName.ToLowerInvariant();
-
-        if (lower.Contains("email") || lower.Contains("e_mail"))
-            return All.First(g => g is EmailGenerator);
-
-        if (lower.Contains("name") || lower == "first_name" || lower == "last_name" || lower == "full_name")
-            return All.First(g => g is NameGenerator);
-
-        if (lower.Contains("uuid") || lower.Contains("guid"))
-            return All.First(g => g is UuidGenerator);
-
-        if (lower.Contains("date") || lower.Contains("created") || lower.Contains("updated"))
-        {
-            var dateGen = All.First(g => g is DateRangeGenerator);
-            if (dateGen.SupportsType(dataType))
-                return dateGen;
-        }
-
-        if (lower.Contains("active") || lower.Contains("enabled") || lower.Contains("is_"))
-        {
-            var boolGen = All.First(g => g is BooleanGenerator);
-            if (boolGen.SupportsType(dataType))
-                return boolGen;
-        }
-
-        var compatible = All.Where(g => g is not NullGenerator and not CustomListGenerator && g.SupportsType(dataType)).ToList();
-        return compatible.FirstOrDefault();
-    }
+    public static T Get<T>() where T : IDataGenerator => All.OfType<T>().First();
 }

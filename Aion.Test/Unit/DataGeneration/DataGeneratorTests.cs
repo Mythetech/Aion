@@ -1,4 +1,6 @@
+using Aion.Components.Scaffolding;
 using Aion.Components.Scaffolding.DataGeneration;
+using Aion.Contracts.Database;
 using Shouldly;
 
 namespace Aion.Test.Unit.DataGeneration;
@@ -13,9 +15,9 @@ public class DataGeneratorTests
         var gen = new AutoIncrementGenerator();
         var options = new DataGeneratorOptions { StartValue = 10 };
 
-        gen.Generate(0, options).ShouldBe(10);
-        gen.Generate(1, options).ShouldBe(11);
-        gen.Generate(5, options).ShouldBe(15);
+        gen.Generate(0, options).ShouldBe(10L);
+        gen.Generate(1, options).ShouldBe(11L);
+        gen.Generate(5, options).ShouldBe(15L);
     }
 
     [Fact]
@@ -23,8 +25,18 @@ public class DataGeneratorTests
     {
         var gen = new AutoIncrementGenerator();
 
-        gen.Generate(0, _defaultOptions).ShouldBe(1);
-        gen.Generate(2, _defaultOptions).ShouldBe(3);
+        gen.Generate(0, _defaultOptions).ShouldBe(1L);
+        gen.Generate(2, _defaultOptions).ShouldBe(3L);
+    }
+
+    [Fact]
+    public void AutoIncrement_ContinuesAfterTheHighestExistingValue()
+    {
+        var gen = new AutoIncrementGenerator();
+        var options = new DataGeneratorOptions { ExistingMaximum = 41 };
+
+        gen.Generate(0, options).ShouldBe(42L);
+        gen.Generate(1, options).ShouldBe(43L);
     }
 
     [Fact]
@@ -35,7 +47,7 @@ public class DataGeneratorTests
 
         for (int i = 0; i < 100; i++)
         {
-            var value = (int)gen.Generate(i, options)!;
+            var value = (long)gen.Generate(i, options)!;
             value.ShouldBeGreaterThanOrEqualTo(50);
             value.ShouldBeLessThanOrEqualTo(60);
         }
@@ -106,10 +118,10 @@ public class DataGeneratorTests
 
         for (int i = 0; i < 50; i++)
         {
-            var value = (string)gen.Generate(i, options)!;
-            var date = DateTime.Parse(value);
+            var date = (DateTime)gen.Generate(i, options)!;
             date.ShouldBeGreaterThanOrEqualTo(new DateTime(2023, 1, 1));
-            date.ShouldBeLessThanOrEqualTo(new DateTime(2023, 12, 31));
+            date.Date.ShouldBeLessThanOrEqualTo(new DateTime(2023, 12, 31));
+            date.Millisecond.ShouldBe(0);
         }
     }
 
@@ -120,8 +132,7 @@ public class DataGeneratorTests
 
         for (int i = 0; i < 10; i++)
         {
-            var value = (string)gen.Generate(i, _defaultOptions)!;
-            Guid.TryParse(value, out _).ShouldBeTrue();
+            gen.Generate(i, _defaultOptions).ShouldBeOfType<Guid>().ShouldNotBe(Guid.Empty);
         }
     }
 
@@ -130,7 +141,7 @@ public class DataGeneratorTests
     {
         var gen = new UuidGenerator();
         var values = Enumerable.Range(0, 100)
-            .Select(i => (string)gen.Generate(i, _defaultOptions)!)
+            .Select(i => (Guid)gen.Generate(i, _defaultOptions)!)
             .ToHashSet();
 
         values.Count.ShouldBe(100);
@@ -182,35 +193,58 @@ public class DataGeneratorTests
 
     [Theory]
     [InlineData("integer", typeof(AutoIncrementGenerator))]
+    [InlineData("int4", typeof(RandomIntGenerator))]
+    [InlineData("numeric", typeof(RandomNumberGenerator))]
     [InlineData("text", typeof(RandomTextGenerator))]
+    [InlineData("character varying(20)", typeof(NameGenerator))]
     [InlineData("boolean", typeof(BooleanGenerator))]
+    [InlineData("integer", typeof(BooleanGenerator))]
     [InlineData("uuid", typeof(UuidGenerator))]
     [InlineData("date", typeof(DateRangeGenerator))]
-    [InlineData("timestamp", typeof(DateRangeGenerator))]
-    public void SupportsType_ShouldMatchExpectedGenerators(string dataType, Type expectedGeneratorType)
+    [InlineData("timestamp with time zone", typeof(DateRangeGenerator))]
+    [InlineData("time", typeof(DateRangeGenerator))]
+    [InlineData("jsonb", typeof(JsonGenerator))]
+    public void Supports_TheTypesItCanFill(string dataType, Type generatorType)
     {
-        var generator = DataGenerators.All.First(g => g.GetType() == expectedGeneratorType);
-        generator.SupportsType(dataType).ShouldBeTrue();
+        var generator = DataGenerators.All.First(g => g.GetType() == generatorType);
+
+        generator.Supports(ColumnTypeShape.Of(dataType, DatabaseType.PostgreSQL)).ShouldBeTrue();
     }
 
     [Theory]
-    [InlineData("email", "text", typeof(EmailGenerator))]
-    [InlineData("user_email", "varchar", typeof(EmailGenerator))]
-    [InlineData("first_name", "text", typeof(NameGenerator))]
-    [InlineData("full_name", "varchar", typeof(NameGenerator))]
-    [InlineData("uuid", "uuid", typeof(UuidGenerator))]
-    [InlineData("created_at", "timestamp", typeof(DateRangeGenerator))]
-    [InlineData("is_active", "boolean", typeof(BooleanGenerator))]
-    public void SuggestGenerator_ShouldMatchColumnNameHeuristics(string columnName, string dataType, Type expectedType)
+    [InlineData("interval", typeof(DateRangeGenerator))]
+    [InlineData("date", typeof(RandomTextGenerator))]
+    [InlineData("boolean", typeof(RandomIntGenerator))]
+    [InlineData("bytea", typeof(RandomTextGenerator))]
+    [InlineData("text", typeof(BooleanGenerator))]
+    public void Supports_RefusesTypesItWouldWriteInvalidValuesInto(string dataType, Type generatorType)
     {
-        var result = DataGenerators.SuggestGenerator(columnName, dataType, isIdentity: false);
-        result.ShouldNotBeNull();
-        result.GetType().ShouldBe(expectedType);
+        var generator = DataGenerators.All.First(g => g.GetType() == generatorType);
+
+        generator.Supports(ColumnTypeShape.Of(dataType, DatabaseType.PostgreSQL)).ShouldBeFalse();
     }
 
     [Fact]
-    public void SuggestGenerator_IdentityColumn_ShouldReturnNull()
+    public void ReferencedValue_PicksFromTheValuesItWasGiven()
     {
-        DataGenerators.SuggestGenerator("id", "integer", isIdentity: true).ShouldBeNull();
+        var gen = new ReferencedValueGenerator();
+        var options = new DataGeneratorOptions { ReferencedValues = [7L, 9L] };
+
+        for (int i = 0; i < 20; i++)
+            gen.Generate(i, options).ShouldBeOneOf(7L, 9L);
+    }
+
+    [Fact]
+    public void RandomNumber_KeepsTwoDecimalPlacesWithinTheRange()
+    {
+        var gen = new RandomNumberGenerator();
+        var options = new DataGeneratorOptions { MinValue = 1, MaxValue = 5 };
+
+        for (int i = 0; i < 50; i++)
+        {
+            var value = (decimal)gen.Generate(i, options)!;
+            value.ShouldBeInRange(1m, 5m);
+            decimal.Round(value, 2).ShouldBe(value);
+        }
     }
 }
