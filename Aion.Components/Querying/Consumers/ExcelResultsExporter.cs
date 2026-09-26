@@ -68,7 +68,7 @@ public class ExcelResultsExporter : IConsumer<ExportResultsToExcel>
             }
 
             _logger.LogInformation("Exported query results to Excel: {FileName}", fileName);
-            await _bus.PublishAsync(new AddNotification($"Exported results to {fileName}", Severity.Success));
+            await _bus.PublishAsync(new AddNotification(ResultExportText.Exported(result.Rows.Count, message.TotalRows, fileName), Severity.Success));
         }
         catch (Exception ex)
         {

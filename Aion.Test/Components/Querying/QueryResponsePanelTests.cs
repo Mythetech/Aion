@@ -7,6 +7,7 @@ using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
 using Bunit;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using MudBlazor.Services;
@@ -192,6 +193,48 @@ public class QueryResponsePanelTests : TestContext
 
         // Assert
         await _bus.Received(1).PublishAsync(Arg.Is<Aion.Components.Querying.Commands.ExportResultsToCsv>(c => c.Result!.Rows.Count == 5));
+    }
+
+    // The find box waits for typing to pause, so the filter applies once the grid shows the matching rows.
+    private static async Task FindInResultsAsync(IRenderedComponent<QueryResponsePanel> cut, string text, int expectedRows)
+    {
+        await cut.Find("input[placeholder='Find in results...']").InputAsync(new ChangeEventArgs { Value = text });
+        cut.WaitForAssertion(() => cut.FindAll("tbody tr.mud-table-row").Count.ShouldBe(expectedRows));
+    }
+
+    [Fact]
+    public async Task ExportCsv_WhileFiltering_ExportsOnlyMatchingRows()
+    {
+        // Arrange
+        Complete(Rows(15));
+        var cut = RenderComponent<QueryResponsePanel>();
+        await FindInResultsAsync(cut, "1", expectedRows: 7);
+
+        // Act
+        await cut.Find("[aria-label='Export to Csv']").ClickAsync(new());
+
+        // Assert: ids 1 and 10 to 15 contain "1".
+        await _bus.Received(1).PublishAsync(Arg.Is<Aion.Components.Querying.Commands.ExportResultsToCsv>(c =>
+            c.Result!.Rows.Select(r => (int)r["id"]).SequenceEqual(new[] { 1, 10, 11, 12, 13, 14, 15 }) && c.TotalRows == 15));
+    }
+
+    [Fact]
+    public async Task ExportJsonAndExcel_WhileFiltering_ExportOnlyMatchingRows()
+    {
+        // Arrange
+        Complete(Rows(15));
+        var cut = RenderComponent<QueryResponsePanel>();
+        await FindInResultsAsync(cut, "12", expectedRows: 1);
+
+        // Act
+        await cut.Find("[aria-label='Export to Json']").ClickAsync(new());
+        await cut.Find("[aria-label='Export to Excel']").ClickAsync(new());
+
+        // Assert
+        await _bus.Received(1).PublishAsync(Arg.Is<Aion.Components.Querying.Commands.ExportResultsToJson>(c =>
+            c.Result!.Rows.Count == 1 && c.TotalRows == 15));
+        await _bus.Received(1).PublishAsync(Arg.Is<Aion.Components.Querying.Commands.ExportResultsToExcel>(c =>
+            c.Result!.Rows.Count == 1 && c.TotalRows == 15));
     }
 
     private static string Collapse(string text) => System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();

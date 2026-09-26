@@ -370,4 +370,24 @@ public class QueryResultTableTests : TestContext
 
         cut.FindAll("tbody tr.mud-table-row").Select(tr => tr.ClassList.Contains("row-selected")).ShouldBe([false, true, false]);
     }
+
+    [Fact]
+    public async Task RowNumberHeader_WhileFiltering_SelectsOnlyMatchingRows()
+    {
+        var selection = new RowSelectionState();
+        var cut = Render(Numbered(12), selection, filter: "item 1");
+
+        await cut.Find(".row-number-toggle").ClickAsync(new());
+
+        selection.SelectedIndices.OrderBy(i => i).ShouldBe([0, 9, 10, 11]);
+        cut.Find(".row-number-toggle").GetAttribute("aria-label").ShouldBe("Clear selection");
+    }
+
+    [Fact]
+    public void RowNumberHeader_WhileFiltering_SaysItSelectsMatchingRows()
+    {
+        var cut = Render(Numbered(12), filter: "item 1");
+
+        cut.Find(".row-number-toggle").GetAttribute("aria-label").ShouldBe("Select all matching rows");
+    }
 }

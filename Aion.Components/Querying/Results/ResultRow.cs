@@ -16,6 +16,13 @@ public sealed class ResultRow
 
     public Dictionary<string, object> Values { get; }
 
+    /// <summary>
+    /// The text find in results searches, built the first time the row is searched.
+    /// </summary>
+    public string SearchText => _searchText ??= ResultRowFilter.SearchTextOf(Values);
+
+    private string? _searchText;
+
     public static IReadOnlyList<ResultRow> Wrap(IReadOnlyList<Dictionary<string, object>> rows)
     {
         var wrapped = new ResultRow[rows.Count];

@@ -68,7 +68,7 @@ public sealed class ResultGridView
         var matching = new List<ResultRow>();
         foreach (var row in rows)
         {
-            if (ResultRowFilter.Matches(row.Values, filter))
+            if (row.SearchText.Contains(filter, StringComparison.OrdinalIgnoreCase))
                 matching.Add(row);
         }
 

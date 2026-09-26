@@ -157,4 +157,50 @@ public class ResultsExporterTests
         notification.Message.ShouldBe("Excel export cancelled");
         notification.Severity.ShouldBe(Severity.Info);
     }
+
+    private CsvResultsExporter CreateCsvExporter() =>
+        new(_state, Substitute.For<ILogger<CsvResultsExporter>>(), _bus, _saveService);
+
+    [Fact]
+    public async Task CsvExport_OfFilteredRows_SaysHowManyOfTheFetchedRows()
+    {
+        _saveService.SaveFileAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+
+        await CreateCsvExporter().Consume(new ExportResultsToCsv(SampleResult(), TotalRows: 15));
+
+        var notification = _notifications.ShouldHaveSingleItem();
+        notification.Severity.ShouldBe(Severity.Success);
+        notification.Message.ShouldStartWith("Exported 1 of 15 rows to query_results_");
+        notification.Message.ShouldEndWith(".csv");
+    }
+
+    [Fact]
+    public async Task JsonExport_OfFilteredRows_SaysHowManyOfTheFetchedRows()
+    {
+        _saveService.SaveFileAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+
+        await CreateJsonExporter().Consume(new ExportResultsToJson(SampleResult(), TotalRows: 15));
+
+        _notifications.ShouldHaveSingleItem().Message.ShouldStartWith("Exported 1 of 15 rows to query_results_");
+    }
+
+    [Fact]
+    public async Task ExcelExport_OfFilteredRows_SaysHowManyOfTheFetchedRows()
+    {
+        _saveService.SaveFileAsync(Arg.Any<string>(), Arg.Any<byte[]>()).Returns(true);
+
+        await CreateExcelExporter().Consume(new ExportResultsToExcel(SampleResult(), TotalRows: 15));
+
+        _notifications.ShouldHaveSingleItem().Message.ShouldStartWith("Exported 1 of 15 rows to query_results_");
+    }
+
+    [Fact]
+    public async Task CsvExport_OfEveryRow_KeepsTheUsualMessage()
+    {
+        _saveService.SaveFileAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+
+        await CreateCsvExporter().Consume(new ExportResultsToCsv(SampleResult(), TotalRows: 1));
+
+        _notifications.ShouldHaveSingleItem().Message.ShouldStartWith("Exported results to query_results_");
+    }
 }
