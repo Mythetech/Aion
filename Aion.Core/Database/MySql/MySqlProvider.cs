@@ -7,7 +7,7 @@ using System.Text;
 
 namespace Aion.Core.Database;
 
-public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider
+public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabaseRoutineProvider, IQueryPlanParsingProvider, IDatabaseRowEditingProvider
 {
     private readonly ILogger<MySqlProvider> _logger;
 
@@ -115,6 +115,10 @@ public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabas
                 }
                 result.Rows.Add(row);
             }
+
+            // RecordsAffected is only final once every result set has been consumed, and is -1 when no statement changed rows.
+            await reader.CloseAsync();
+            result.RowsAffected = reader.RecordsAffected >= 0 ? reader.RecordsAffected : null;
 
             return result;
         }

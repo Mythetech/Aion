@@ -1,3 +1,4 @@
+using System.Globalization;
 using Aion.Contracts.Database;
 
 namespace Aion.Core.Database.LiteDB;
@@ -59,18 +60,16 @@ UPDATE {name} SET newField = 'default value'");
 }}");
     }
 
-    public Task<string> GenerateUpdateScript(string database, string schema, string collection, IEnumerable<ColumnValue> values, string whereClause)
+    // Grid rows flatten ObjectId keys to strings and every edited value arrives as text, so a generated
+    // statement could neither tell an ObjectId key from a string key nor keep a field's BSON type.
+    public Task<string> GenerateUpdateScript(string database, string schema, string collection, IEnumerable<ColumnValue> values, IEnumerable<ColumnValue> keyValues)
     {
-        var setStatements = values.Select(v => $"{v.Column} = {FormatBsonValue(v.Value)}");
-
-        return Task.FromResult($@"UPDATE {collection}
-SET {string.Join(", ", setStatements)}
-WHERE {whereClause}");
+        throw new NotSupportedException("Editing LiteDB documents from the results grid is not supported. Write an UPDATE statement instead.");
     }
 
-    public Task<string> GenerateDeleteScript(string database, string schema, string collection, string whereClause)
+    public Task<string> GenerateDeleteScript(string database, string schema, string collection, IEnumerable<ColumnValue> keyValues)
     {
-        return Task.FromResult($"DELETE {collection} WHERE {whereClause}");
+        throw new NotSupportedException("Deleting LiteDB documents from the results grid is not supported. Write a DELETE statement instead.");
     }
 
     public Task<string> GenerateSelectTopScript(string database, string schema, string collection, int count)
@@ -88,10 +87,10 @@ WHERE {whereClause}");
         return value switch
         {
             null => "null",
-            string s => $"'{s.Replace("'", "\\'")}'",
-            bool b => b.ToString().ToLower(),
-            DateTime dt => $"DATETIME('{dt:yyyy-MM-ddTHH:mm:ss}')",
-            int or long or double or decimal or float => value.ToString()!,
+            string s => $"'{s.Replace("\\", "\\\\").Replace("'", "\\'")}'",
+            bool b => b ? "true" : "false",
+            DateTime dt => $"DATETIME('{dt.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture)}')",
+            int or long or double or decimal or float => ((IFormattable)value).ToString(null, CultureInfo.InvariantCulture),
             Guid g => $"GUID('{g}')",
             _ => $"'{value}'"
         };

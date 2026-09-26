@@ -5,7 +5,7 @@ using SqliteWasmBlazor;
 
 namespace Aion.Web.Providers;
 
-public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider
+public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryPlanParsingProvider, IDatabaseRowEditingProvider
 {
     private readonly ISqliteWasmDatabaseService _databaseService;
     private readonly HashSet<string> _knownDatabases = new();
@@ -132,8 +132,7 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQu
             if (IsNonQuery(query))
             {
                 var affected = await cmd.ExecuteNonQueryAsync(cancellationToken);
-                result.Columns.Add("Rows Affected");
-                result.Rows.Add(new Dictionary<string, object> { ["Rows Affected"] = affected });
+                result.RowsAffected = IsDataModification(query) ? affected : null;
                 return result;
             }
 
@@ -269,6 +268,11 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQu
                 result.Rows.Add(row);
             }
 
+            if (IsDataModification(query))
+            {
+                result.RowsAffected = reader.RecordsAffected;
+            }
+
             return result;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -353,6 +357,15 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQu
             || trimmed.StartsWith("CREATE", StringComparison.OrdinalIgnoreCase)
             || trimmed.StartsWith("DROP", StringComparison.OrdinalIgnoreCase)
             || trimmed.StartsWith("ALTER", StringComparison.OrdinalIgnoreCase);
+    }
+
+    // The sqlite worker only reads sqlite3_changes() for these statements; for anything else the value is stale.
+    private static bool IsDataModification(string query)
+    {
+        var trimmed = query.TrimStart();
+        return trimmed.StartsWith("INSERT", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("UPDATE", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("DELETE", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string BuildConnectionString(string database)
