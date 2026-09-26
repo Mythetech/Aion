@@ -48,7 +48,7 @@ public class QueryState : IConsumer<QueryChanged>
 
     public QueryModel? Active { get; private set; }
 
-    private bool _initialized = false;
+    private Task? _initialization;
 
     /// <param name="autoSaveDelay">How long edits must pause before tabs are written; defaults to <see cref="DefaultAutoSaveDelay"/>.</param>
     public QueryState(IMessageBus messageBus, IQuerySaveService saveService, ILogger<QueryState>? logger = null, TimeSpan? autoSaveDelay = null)
@@ -59,12 +59,25 @@ public class QueryState : IConsumer<QueryChanged>
         _autoSaveDelay = autoSaveDelay ?? DefaultAutoSaveDelay;
     }
 
-    public async Task InitializeAsync()
-    {
-        if (_initialized) return;
-        _initialized = true;
+    /// <summary>
+    /// Loads the saved tabs. The editor and the web app's storage restore both call this; every caller waits
+    /// for the same load, so the editor can't start showing the default tab while the saved ones arrive.
+    /// </summary>
+    public Task InitializeAsync() => _initialization ??= LoadSavedTabsAsync();
 
-        var queries = await _saveService.LoadQueriesAsync();
+    private async Task LoadSavedTabsAsync()
+    {
+        IEnumerable<QueryModel>? queries = null;
+        try
+        {
+            queries = await _saveService.LoadQueriesAsync();
+        }
+        catch (Exception ex)
+        {
+            // The app stays usable with the default tab; the saved tabs stay in storage for the next start.
+            _logger.LogError(ex, "Failed to load the saved query tabs");
+        }
+
         if (queries?.Count() >= 1)
         {
             Queries = [..queries];

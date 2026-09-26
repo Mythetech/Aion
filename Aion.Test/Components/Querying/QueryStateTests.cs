@@ -598,6 +598,39 @@ public class QueryStateTests
     }
 
     [Fact]
+    public async Task InitializeAsync_CalledAgainWhileLoading_WaitsForTheSavedTabs()
+    {
+        // Arrange
+        var load = new TaskCompletionSource<IEnumerable<QueryModel>>();
+        _saveService.LoadQueriesAsync().Returns(load.Task);
+        var saved = new QueryModel { Name = "Saved", Query = "SELECT 1" };
+
+        // Act
+        var first = _state.InitializeAsync();
+        var second = _state.InitializeAsync();
+        var secondFinishedEarly = second.IsCompleted;
+        load.SetResult([saved]);
+        await Task.WhenAll(first, second);
+
+        // Assert
+        secondFinishedEarly.ShouldBeFalse();
+        _state.Active.ShouldBe(saved);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_WhenTheSavedTabsCannotBeRead_KeepsTheDefaultTab()
+    {
+        // Arrange
+        _saveService.LoadQueriesAsync().Returns(Task.FromException<IEnumerable<QueryModel>>(new IOException("unreadable")));
+
+        // Act
+        await _state.InitializeAsync();
+
+        // Assert
+        _state.Active.ShouldBe(_state.Queries.Single());
+    }
+
+    [Fact]
     public async Task Should_Normalize_Order_After_Initialize()
     {
         // Arrange
