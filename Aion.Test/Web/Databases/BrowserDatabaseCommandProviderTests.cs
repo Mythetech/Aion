@@ -71,7 +71,14 @@ public class BrowserDatabaseCommandProviderTests : TestContext
 
     private static async Task ClickButtonAsync(IRenderedComponent<MudDialogProvider> dialogs, string text)
     {
-        await dialogs.FindAll("button").First(b => b.TextContent.Trim() == text).ClickAsync(new MouseEventArgs());
+        await dialogs.FindAll("button").First(b => ButtonText(b) == text).ClickAsync(new MouseEventArgs());
+    }
+
+    // A button's own words, without the ligature text of its icon.
+    private static string ButtonText(AngleSharp.Dom.IElement button)
+    {
+        var label = button.QuerySelector(".mud-button-label") ?? button;
+        return string.Concat(label.ChildNodes.OfType<AngleSharp.Dom.IText>().Select(t => t.Text)).Trim();
     }
 
     private static AngleSharp.Dom.IElement Field(IRenderedComponent<MudDialogProvider> dialogs, string label) =>
@@ -186,5 +193,77 @@ public class BrowserDatabaseCommandProviderTests : TestContext
         await create;
 
         dialogs.Markup.ShouldNotContain("Database Name");
+    }
+
+    private static AngleSharp.Dom.IElement FinishButton(IRenderedComponent<MudDialogProvider> dialogs) =>
+        dialogs.FindAll("button").First(b => ButtonText(b) == "Finish");
+
+    private static IEnumerable<string> FinishProblems(IRenderedComponent<MudDialogProvider> dialogs) =>
+        dialogs.FindAll(".finish-problems li").Select(li => li.TextContent.Trim());
+
+    [Fact]
+    public async Task CreateDatabase_ListsWhatIsMissingWhileFinishIsDisabled()
+    {
+        var dialogs = RenderHost();
+        var create = _bus.PublishAsync(new CreateBrowserDatabase(DatabaseType.WasmSQLite));
+        dialogs.WaitForAssertion(() => dialogs.Markup.ShouldContain("Database Name"));
+
+        await ClickButtonAsync(dialogs, "Next");
+
+        FinishButton(dialogs).HasAttribute("disabled").ShouldBeTrue();
+        FinishProblems(dialogs).ShouldBe([
+            "Enter a database name",
+            "Table 1: Enter a table name",
+            "Table 1: Column 1 needs a name",
+            "Table 1: Column 1 needs a data type"
+        ]);
+
+        await TypeAsync(dialogs, "Table Name", "orders");
+        await TypeAsync(dialogs, "Column Name", "id");
+        await ChooseAsync(dialogs, "Data Type", "INTEGER");
+
+        FinishProblems(dialogs).ShouldBe(["Enter a database name"]);
+
+        await ClickButtonAsync(dialogs, "Cancel");
+        await create;
+    }
+
+    [Fact]
+    public async Task CreateDatabase_WithTheNameOfADatabaseTheBrowserHolds_SaysItExists()
+    {
+        var dialogs = RenderHost();
+        var create = _bus.PublishAsync(new CreateBrowserDatabase(DatabaseType.WasmSQLite));
+        dialogs.WaitForAssertion(() => dialogs.Markup.ShouldContain("Database Name"));
+        await FillInOneTableAsync(dialogs);
+        await ClickButtonAsync(dialogs, "Back");
+
+        await TypeAsync(dialogs, "Database Name", "Sales");
+        await ClickButtonAsync(dialogs, "Next");
+
+        FinishProblems(dialogs).ShouldBe(["A database named \"Sales\" already exists"]);
+        FinishButton(dialogs).HasAttribute("disabled").ShouldBeTrue();
+
+        await ClickButtonAsync(dialogs, "Cancel");
+        await create;
+    }
+
+    [Fact]
+    public async Task CreateDatabase_SwitchingEngine_CarriesColumnTypesOverAndSaysWhatChanged()
+    {
+        var dialogs = RenderHost();
+        var create = _bus.PublishAsync(new CreateBrowserDatabase(DatabaseType.WasmSQLite));
+        dialogs.WaitForAssertion(() => dialogs.Markup.ShouldContain("Database Name"));
+        await FillInOneTableAsync(dialogs);
+        await ClickButtonAsync(dialogs, "Back");
+
+        await ChooseAsync(dialogs, "Engine", "PostgreSQL (PGlite)");
+
+        dialogs.Find(".type-changes li").TextContent.Trim().ShouldBe("orders.id: INTEGER is now integer");
+        await ClickButtonAsync(dialogs, "Next");
+        Field(dialogs, "Data Type").QuerySelector("input")!.GetAttribute("value").ShouldBe("integer");
+        FinishProblems(dialogs).ShouldBeEmpty();
+
+        await ClickButtonAsync(dialogs, "Cancel");
+        await create;
     }
 }

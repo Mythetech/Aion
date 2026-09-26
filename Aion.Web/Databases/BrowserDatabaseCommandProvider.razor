@@ -25,11 +25,25 @@
         var parameters = new DialogParameters<SchemaWizard>
         {
             { x => x.TypeProviders, TypeProviders.ToList() },
-            { x => x.InitialEngine, message.Engine }
+            { x => x.InitialEngine, message.Engine },
+            { x => x.ExistingDatabaseNames, await StoredDatabaseNamesAsync() }
         };
         // The wizard creates the database itself and stays open when that fails, so there is nothing left to do here.
         var dialog = await DialogService.ShowAsync<SchemaWizard>("New Database", parameters, options);
         await dialog.Result;
+    }
+
+    private async Task<IReadOnlyCollection<string>> StoredDatabaseNamesAsync()
+    {
+        var names = new List<string>();
+        foreach (var connection in ConnectionState.Connections)
+        {
+            var provider = ConnectionState.GetProvider(connection.Type);
+            if (provider is IManagedDatabaseProvider)
+                names.AddRange(await provider.GetDatabasesAsync(connection.ConnectionString) ?? []);
+        }
+
+        return names;
     }
 
     protected override async Task Consume(ClearBrowserDatabase message, CancellationToken cancellationToken)

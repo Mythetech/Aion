@@ -32,12 +32,14 @@
                 }
                 @if (!stepper.CanGoToNextStep)
                 {
-                    <MudButton Color="Color.Primary"
-                               Variant="Variant.Filled"
-                               Disabled="@(!IsValid || _creating)"
-                               OnClick="FinishAsync">
-                        Finish
-                    </MudButton>
+                    <MudTooltip Text="@FinishBlockedReason">
+                        <MudButton Color="Color.Primary"
+                                   Variant="Variant.Filled"
+                                   Disabled="@(Problems.Count > 0 || _creating)"
+                                   OnClick="FinishAsync">
+                            Finish
+                        </MudButton>
+                    </MudTooltip>
                 }
                 else
                 {
@@ -57,7 +59,9 @@
                                       Required="true"
                                       RequiredError="Database name is required" />
 
-                        <MudSelect @bind-Value="_model.EngineType"
+                        <MudSelect T="DatabaseType"
+                                   Value="_model.EngineType"
+                                   ValueChanged="ChangeEngine"
                                    Label="Engine"
                                    Variant="Variant.Outlined">
                             @foreach (var provider in TypeProviders)
@@ -67,6 +71,19 @@
                                 </MudSelectItem>
                             }
                         </MudSelect>
+
+                        @if (_typeChanges.Count > 0)
+                        {
+                            <MudAlert Severity="Severity.Info" Dense="true" Class="type-changes">
+                                <MudText Typo="Typo.body2">Column types were changed for @GetEngineLabel(_model.EngineType):</MudText>
+                                <ul>
+                                    @foreach (var change in _typeChanges)
+                                    {
+                                        <li>@DescribeChange(change)</li>
+                                    }
+                                </ul>
+                            </MudAlert>
+                        }
                     </MudStack>
                 </MudStep>
 
@@ -74,11 +91,8 @@
                 {
                     var table = _model.Tables[i];
                     var index = i;
-                    var title = string.IsNullOrWhiteSpace(table.Name)
-                        ? $"Table {index + 1}"
-                        : table.Name;
 
-                    <MudStep Title="@title">
+                    <MudStep Title="@table.Label(index)">
                         <MudStack Spacing="2" Class="pa-2">
                             @if (_model.Tables.Count > 1)
                             {
@@ -93,13 +107,26 @@
                                 </div>
                             }
                             <TableDefinitionStep Table="table"
-                                                 SupportedTypes="@GetSupportedTypes()"
+                                                 SupportedTypes="@GetSupportedTypes(_model.EngineType)"
                                                  TableChanged="StateHasChanged" />
                         </MudStack>
                     </MudStep>
                 }
             </ChildContent>
         </MudStepper>
+
+        @if (OnLastStep && Problems.Count > 0)
+        {
+            <MudAlert Severity="Severity.Normal" Dense="true" Class="mt-3 finish-problems">
+                <MudText Typo="Typo.body2">To finish:</MudText>
+                <ul>
+                    @foreach (var problem in Problems)
+                    {
+                        <li>@problem</li>
+                    }
+                </ul>
+            </MudAlert>
+        }
 
         @if (_error is not null)
         {
@@ -121,9 +148,14 @@
     [Parameter]
     public DatabaseType? InitialEngine { get; set; }
 
+    /// <summary>Databases the browser already holds, whose names a new database can't reuse.</summary>
+    [Parameter]
+    public IReadOnlyCollection<string> ExistingDatabaseNames { get; set; } = [];
+
     private MudStepper _stepper = default!;
     private int _activeIndex;
     private readonly SchemaWizardModel _model = new();
+    private IReadOnlyList<ColumnTypeChange> _typeChanges = [];
     private string? _error;
     private bool _creating;
 
@@ -135,11 +167,32 @@
             _model.EngineType = TypeProviders[0].DatabaseType;
     }
 
-    private IReadOnlyList<string> GetSupportedTypes()
+    // The Database step comes first, then one step per table, so the last table's step is where Finish appears.
+    private bool OnLastStep => _activeIndex >= _model.Tables.Count;
+
+    private IReadOnlyList<string> Problems => SchemaWizardValidation.Problems(_model, ExistingDatabaseNames);
+
+    private string? FinishBlockedReason => Problems switch
     {
-        var provider = TypeProviders.FirstOrDefault(p => p.DatabaseType == _model.EngineType);
+        [] => null,
+        [var only] => only,
+        [var first, ..] => $"{first}, and {Problems.Count - 1} more listed below"
+    };
+
+    private IReadOnlyList<string> GetSupportedTypes(DatabaseType engine)
+    {
+        var provider = TypeProviders.FirstOrDefault(p => p.DatabaseType == engine);
         return provider?.SupportedTypes ?? [];
     }
+
+    private void ChangeEngine(DatabaseType engine)
+    {
+        _typeChanges = _model.ChangeEngine(engine, GetSupportedTypes(engine));
+    }
+
+    private static string DescribeChange(ColumnTypeChange change) => change.To is { } to
+        ? $"{change.Table}.{change.Column}: {change.From} is now {to}"
+        : $"{change.Table}.{change.Column}: {change.From} has no equivalent, so pick a type";
 
     private static string GetEngineLabel(DatabaseType type) => type switch
     {
@@ -147,10 +200,6 @@
         DatabaseType.WasmPostgreSQL => "PostgreSQL (PGlite)",
         _ => type.ToString()
     };
-
-    private bool IsValid =>
-        !string.IsNullOrWhiteSpace(_model.DatabaseName)
-        && _model.Tables.All(t => t.IsValid);
 
     private void AddTable()
     {
@@ -171,14 +220,8 @@
     {
         _error = null;
 
-        if (!IsValid)
-        {
-            _error = _model.Tables
-                .Select(t => t.ValidationError)
-                .FirstOrDefault(e => e is not null)
-                ?? "Please fill in all required fields";
+        if (Problems.Count > 0)
             return;
-        }
 
         _creating = true;
         var result = await SchemaExecutor.ExecuteAsync(_model);
