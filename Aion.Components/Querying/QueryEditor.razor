@@ -28,7 +28,23 @@
 
 <MudStack Class="h-100" Spacing="0">
     <Aion.Components.Querying.TabBar.AionTabBar OnTabActivated="OnTabChanged" OnAddQuery="QueryAddClicked" />
-    <MudStack Row="true" AlignItems="AlignItems.Center" Class="pa-2">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="editor-toolbar pa-2">
+        @if (State?.Active is { } active)
+        {
+            <RunQueryButton OnClick="RunQuery"
+                            Disabled="@(!CanExecuteQuery)"
+                            DisabledReason="@RunBlockedReason"
+                            Hint="@RunHint(active)"
+                            Shortcut="@Keys.Describe(Keys.RunQuery)"
+                            IsExecuting="@active.IsExecuting"
+                            HasSelection="@_editorHasSelection"
+                            OnRunSelection="RunSelection"
+                            ShowExplain="@CanExplain"
+                            OnExplain="Explain"
+                            ShowExplainAnalyze="@CanExplainAnalyze"
+                            ExplainAnalyzeBlockedReason="@(HasOpenTransaction ? "Commit or roll back first" : null)"
+                            OnExplainAnalyze="ExplainAnalyze" />
+        }
         <MudSelect T="ConnectionModel"
                    Label="Connection"
                    Value="@SelectedConnection"
@@ -80,15 +96,6 @@
                             Icon="@AionIcons.ActualQueryPlan"
                             @bind-Value="State.Active.IncludeActualPlan" />
             }
-
-            <MudSpacer/>
-
-            <RunQueryButton Text="Run"
-                            OnClick="RunQuery"
-                            Disabled="@(!CanExecuteQuery)"
-                            DisabledReason="@RunBlockedReason"
-                            Hint="@($"{Keys.Describe(Keys.RunQuery)} in the editor")"
-                            IsExecuting="@State.Active.IsExecuting"/>
         }
     </MudStack>
 
@@ -103,7 +110,7 @@
     }
 
     <JsGuard Name="monaco">
-        <StandaloneCodeEditor CssClass="h-100 flex-grow-1" @ref="_editor" ConstructionOptions="DefaultOptions" OnDidInit="HandleInit" OnDidChangeModelContent="UpdateQuery"/>
+        <StandaloneCodeEditor CssClass="h-100 flex-grow-1" @ref="_editor" ConstructionOptions="DefaultOptions" OnDidInit="HandleInit" OnDidChangeModelContent="UpdateQuery" OnDidChangeCursorSelection="SelectionChanged"/>
     </JsGuard>
 </MudStack>
 @code {
@@ -152,7 +159,22 @@
     private bool ShowEstimatedPlanToggle => SelectedConnection is not { } connection || Connections.SupportsEstimatedPlan(connection.Type);
 
     private bool ShowActualPlanToggle => SelectedConnection is not { } connection || Connections.SupportsActualPlan(connection.Type);
-    
+
+    private bool CanExplain => SelectedConnection is { } connection && Connections.SupportsEstimatedPlan(connection.Type);
+
+    private bool CanExplainAnalyze => SelectedConnection is { } connection && Connections.SupportsActualPlan(connection.Type);
+
+    // Kept from the editor's selection events, so the Run selection option knows whether it has anything to run.
+    private bool _editorHasSelection;
+
+    private string RunHint(QueryModel query)
+    {
+        var where = $"{Keys.Describe(Keys.RunQuery)} in the editor";
+        return query.IsExecuting ? $"Cancel the run ({where})"
+            : _editorHasSelection ? $"Run the selected SQL ({where})"
+            : $"Run the query ({where})";
+    }
+
     private ConnectionModel? SelectedConnection => State.Active?.ConnectionId != null 
         ? Connections.Connections.FirstOrDefault(c => c.Id == State.Active.ConnectionId)
         : null;
@@ -441,14 +463,39 @@
         return (text, selection);
     }
 
-    private async Task RunQuery() => await RunQueryAsync(_shownQuery ?? State.Active ?? State.Queries.First());
+    private QueryModel ShownQuery => _shownQuery ?? State.Active ?? State.Queries.First();
+
+    private async Task RunQuery() => await RunQueryAsync(ShownQuery);
+
+    // Run already takes only the selection when there is one; this option exists so that is discoverable.
+    private async Task RunSelection() => await RunQueryAsync(ShownQuery);
+
+    private async Task Explain() => await RunQueryAsync(ShownQuery, QueryRunKind.Explain);
+
+    private async Task ExplainAnalyze() => await RunQueryAsync(ShownQuery, QueryRunKind.ExplainAnalyze);
+
+    // Every cursor move raises this, so it is built without a receiver: the editor re-renders only when
+    // having a selection changes, not on each move.
+    private EventCallback<CursorSelectionChangedEvent> SelectionChanged =>
+        new(null, (Func<CursorSelectionChangedEvent, Task>)OnSelectionChangedAsync);
+
+    private async Task OnSelectionChangedAsync(CursorSelectionChangedEvent change)
+    {
+        var selection = change.Selection;
+        var hasSelection = selection != null
+                           && (selection.StartLineNumber != selection.EndLineNumber || selection.StartColumn != selection.EndColumn);
+        if (hasSelection == _editorHasSelection) return;
+
+        _editorHasSelection = hasSelection;
+        await InvokeAsync(StateHasChanged);
+    }
 
     /// <summary>
-    /// Runs the tab's statement, inside its transaction when one is open. While that tab is executing
-    /// the same action cancels the statement; it never ends the transaction, which only the Commit and
-    /// Rollback buttons do.
+    /// Runs the tab's statement, inside its transaction when one is open, or only plans it when
+    /// <paramref name="kind"/> asks for a plan. While that tab is executing any run action cancels the
+    /// statement; it never ends the transaction, which only the Commit and Rollback buttons do.
     /// </summary>
-    private async Task RunQueryAsync(QueryModel query)
+    private async Task RunQueryAsync(QueryModel query, QueryRunKind kind = QueryRunKind.Execute)
     {
         if (_runningQueries.TryGetValue(query.Id, out var running))
         {
@@ -480,7 +527,7 @@
 
             await ClearErrorMarkerAsync();
 
-            var result = await Connections.ExecuteQueryAsync(query, selected?.Text ?? fullText, cancellation.Token);
+            var result = await Connections.ExecuteQueryAsync(query, selected?.Text ?? fullText, kind, cancellation.Token);
 
             State.SetResult(query, result, selected is { Selection: var selection }
                 ? (selection.StartLineNumber, selection.StartColumn)

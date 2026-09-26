@@ -100,16 +100,27 @@ public class ConnectionState
         "Actual plan captured. The statement ran inside a transaction that was rolled back, so none of its changes were kept.";
 
     public const string ActualPlanInTransactionMessage =
-        "Actual query plans can't be captured while this tab has an open transaction. Commit or roll back first, or turn off Actual Query Plan.";
+        "Actual query plans can't be captured while this tab has an open transaction. Commit or roll back first, or turn off the actual plan.";
+
+    public const string EstimatedPlanNotice =
+        "Estimated plan ready in the Estimated Plan tab. The statement was not run.";
+
+    public const string NoEstimatedPlansMessage = "This database engine can't show estimated plans.";
+
+    public const string NoActualPlansMessage = "This database engine can't capture actual plans.";
 
     public Task<QueryResult> ExecuteQueryAsync(QueryModel query, CancellationToken cancellationToken) =>
         ExecuteQueryAsync(query, query.Query, cancellationToken);
 
+    public Task<QueryResult> ExecuteQueryAsync(QueryModel query, string sql, CancellationToken cancellationToken) =>
+        ExecuteQueryAsync(query, sql, QueryRunKind.Execute, cancellationToken);
+
     /// <summary>
-    /// Runs <paramref name="sql"/> as the tab's statement. The tab's own text is never touched, so
-    /// running a selection, or editing while a run is in progress, leaves the editor as the user left it.
+    /// Runs <paramref name="sql"/> as the tab's statement, or only plans it when <paramref name="kind"/> asks
+    /// for a plan. The tab's own text is never touched, so running a selection, or editing while a run is in
+    /// progress, leaves the editor as the user left it.
     /// </summary>
-    public async Task<QueryResult> ExecuteQueryAsync(QueryModel query, string sql, CancellationToken cancellationToken)
+    public async Task<QueryResult> ExecuteQueryAsync(QueryModel query, string sql, QueryRunKind kind, CancellationToken cancellationToken)
     {
         var connection = Connections.FirstOrDefault(x => x.Id == query.ConnectionId);
         if (connection == null) return new QueryResult { Error = "Connection not found" };
@@ -121,6 +132,16 @@ public class ConnectionState
         {
             query.StartExecution(sql);
             await NotifyQueryChanged();
+
+            switch (kind)
+            {
+                case QueryRunKind.Explain:
+                    return await ExplainAsync(query, provider, connectionString, sql, cancellationToken);
+                case QueryRunKind.ExplainAnalyze when provider is IActualQueryPlanProvider analyzePlans:
+                    return await CaptureActualPlanAsync(query, analyzePlans, connectionString, sql, cancellationToken);
+                case QueryRunKind.ExplainAnalyze:
+                    return await RefuseAsync(query, NoActualPlansMessage);
+            }
 
             if (query.IncludeEstimatedPlan && provider is IEstimatedQueryPlanProvider estimatedPlans)
             {
@@ -194,6 +215,36 @@ public class ConnectionState
         {
             return new QueryPlan { PlanType = "Estimated", PlanFormat = "TEXT", PlanContent = $"Error getting plan: {ex.Message}" };
         }
+    }
+
+    /// <summary>
+    /// Plans the statement without running it. Unlike the estimated plan taken alongside a run, a planner
+    /// error is the whole answer here, so it is reported as the run's error rather than as plan text.
+    /// </summary>
+    private async Task<QueryResult> ExplainAsync(
+        QueryModel query, IDatabaseProvider provider, string connectionString, string sql, CancellationToken cancellationToken)
+    {
+        if (provider is not IEstimatedQueryPlanProvider plans)
+        {
+            return await RefuseAsync(query, NoEstimatedPlansMessage);
+        }
+
+        // Cleared first so a failed explain never leaves an earlier statement's plan on screen.
+        query.EstimatedPlan = null;
+        query.EstimatedPlan = await plans.GetEstimatedPlanAsync(connectionString, sql, cancellationToken);
+
+        var result = new QueryResult();
+        query.SetResult(result, EstimatedPlanNotice);
+        await _messageBus.PublishAsync(new QueryExecuted(query));
+        return result;
+    }
+
+    private async Task<QueryResult> RefuseAsync(QueryModel query, string message)
+    {
+        var result = new QueryResult { Error = message };
+        query.SetResult(result);
+        await _messageBus.PublishAsync(new QueryExecuted(query));
+        return result;
     }
 
     private async Task<QueryResult> CaptureActualPlanAsync(

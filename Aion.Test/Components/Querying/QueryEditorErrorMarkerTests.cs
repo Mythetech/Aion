@@ -63,6 +63,7 @@ public class QueryEditorErrorMarkerTests : TestContext
         Services.AddSingleton(guard);
         Services.AddSingleton(new SqlCompletionService(connections));
         Services.AddSingleton<EditorSettings>();
+        Services.AddSingleton(Substitute.For<Mythetech.Framework.Components.Kbd.IPlatformDetector>());
         Services.AddSingleton(Aion.Components.Shortcuts.AionKeyBindings.ForDesktop(isMac: false));
 
         _query = _state.Queries[0];

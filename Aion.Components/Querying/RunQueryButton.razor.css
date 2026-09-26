@@ -1,0 +1,98 @@
+.run-split {
+    --run-split-height: 32px;
+    --run-split-radius: 10px;
+    display: inline-flex;
+    align-items: stretch;
+    flex: none;
+}
+
+.run-split ::deep .run-query-button,
+.run-split ::deep .cancel-query-button {
+    height: var(--run-split-height);
+    min-width: 0;
+    padding: 0 10px 0 12px;
+    border-radius: var(--run-split-radius) 0 0 var(--run-split-radius);
+    font-weight: 600;
+    letter-spacing: normal;
+    text-transform: none;
+    white-space: nowrap;
+    transition: background 0.2s cubic-bezier(.4, 0, .2, 1), box-shadow 0.2s cubic-bezier(.4, 0, .2, 1);
+}
+
+.run-split ::deep .run-query-button {
+    background: linear-gradient(90deg, var(--mud-palette-success) 0%, var(--mud-palette-success-darken) 100%);
+    color: var(--mud-palette-success-text);
+}
+
+.run-split ::deep .run-query-button:hover:not([disabled]) {
+    background: linear-gradient(90deg, var(--mud-palette-success-lighten) 0%, var(--mud-palette-success) 100%);
+    box-shadow: 0 0 0.2em 0.1em var(--mud-palette-success);
+}
+
+.run-split ::deep .cancel-query-button {
+    background: linear-gradient(90deg, var(--mud-palette-dark) 0%, var(--mud-palette-dark-darken) 100%);
+    color: var(--mud-palette-dark-text);
+}
+
+.run-split ::deep .cancel-query-button:hover {
+    background: linear-gradient(90deg, var(--mud-palette-dark-lighten) 0%, var(--mud-palette-dark) 100%);
+    box-shadow: 0 0 0.2em 0.1em var(--mud-palette-dark);
+}
+
+.run-split ::deep .run-query-button[disabled] {
+    background: var(--mud-palette-action-disabled-background);
+}
+
+.run-split ::deep .run-label {
+    line-height: 1;
+}
+
+.run-split ::deep .run-shortcut {
+    display: inline-flex;
+    margin-left: 8px;
+}
+
+/* The shortcut sits on the green or dark button, so it takes the button's text color instead of the page's. */
+.run-split ::deep .run-shortcut kbd {
+    margin: 0;
+    padding: 0 5px;
+    border-color: color-mix(in srgb, currentColor 40%, transparent);
+    background-color: color-mix(in srgb, currentColor 16%, transparent);
+    color: inherit;
+    font-size: 0.7rem;
+    font-weight: 500;
+}
+
+.run-split ::deep .run-options {
+    display: flex;
+}
+
+.run-split ::deep .run-options .mud-icon-button {
+    width: 26px;
+    height: var(--run-split-height);
+    padding: 0;
+    border-radius: 0 var(--run-split-radius) var(--run-split-radius) 0;
+    border-left: 1px solid color-mix(in srgb, var(--mud-palette-success-text) 35%, transparent);
+    background-color: var(--mud-palette-success-darken);
+    color: var(--mud-palette-success-text);
+}
+
+.run-split ::deep .run-options .mud-icon-button:hover:not([disabled]) {
+    background-color: var(--mud-palette-success);
+}
+
+.run-split ::deep .run-options .mud-icon-button[disabled] {
+    border-left-color: var(--mud-palette-surface);
+    background-color: var(--mud-palette-action-disabled-background);
+}
+
+.run-option-title {
+    display: block;
+}
+
+.run-option-detail {
+    display: block;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.75rem;
+    line-height: 1.3;
+}

@@ -1,41 +1,89 @@
+@using Aion.Components.Shared
 @using Aion.Components.Theme
-<MudTooltip Text="@TooltipText">
-    <MudButton
-        Class="@GetButtonClass()"
-        OnClick="@OnClick"
-        StartIcon="@GetIcon()"
-        Disabled="@Disabled"
-        Size="@Size">
-        @GetButtonText()
-    </MudButton>
-</MudTooltip>
+@using Mythetech.Framework.Components.Kbd
+
+<div class="run-split">
+    <MudTooltip Text="@TooltipText">
+        <MudButton Class="@ButtonClass"
+                   OnClick="@OnClick"
+                   StartIcon="@(IsExecuting ? AionIcons.Stop : AionIcons.Run)"
+                   Disabled="@Disabled"
+                   DropShadow="false"
+                   Size="Size.Small">
+            <span class="run-label">@(IsExecuting ? "Cancel" : Text)</span>
+            @if (!string.IsNullOrEmpty(Shortcut))
+            {
+                @* The tooltip says where the shortcut works; read aloud here it would only repeat the keys. *@
+                <span class="run-shortcut" aria-hidden="true"><MtKbd Key="@Shortcut" PlatformAware="false" /></span>
+            }
+        </MudButton>
+    </MudTooltip>
+    <AionMenu Class="run-options"
+              Icon="@AionIcons.RunOptions"
+              Size="Size.Small"
+              AriaLabel="More ways to run"
+              Disabled="@(Disabled || IsExecuting)"
+              AnchorOrigin="Origin.BottomLeft"
+              TransformOrigin="Origin.TopLeft">
+        <MudMenuItem Icon="@AionIcons.RunSelection" Disabled="@(!HasSelection)" OnClick="@OnRunSelection">
+            <span class="run-option-title">Run selection</span>
+            <span class="run-option-detail">@(HasSelection ? "Only the selected SQL" : "Select some SQL first")</span>
+        </MudMenuItem>
+        @if (ShowExplain)
+        {
+            <MudMenuItem Icon="@AionIcons.EstimatedQueryPlan" OnClick="@OnExplain">
+                <span class="run-option-title">Explain</span>
+                <span class="run-option-detail">Estimated plan, without running it</span>
+            </MudMenuItem>
+        }
+        @if (ShowExplainAnalyze)
+        {
+            <MudMenuItem Icon="@AionIcons.ActualQueryPlan" Disabled="@(ExplainAnalyzeBlockedReason != null)" OnClick="@OnExplainAnalyze">
+                <span class="run-option-title">Explain analyze</span>
+                <span class="run-option-detail">@(ExplainAnalyzeBlockedReason ?? "Actual plan; changes are rolled back")</span>
+            </MudMenuItem>
+        }
+    </AionMenu>
+</div>
 
 @code {
-    [Parameter]
-    public EventCallback OnClick { get; set; }
+    /// <summary>Runs the query, or cancels it while it runs.</summary>
+    [Parameter] public EventCallback OnClick { get; set; }
 
-    [Parameter]
-    public MudBlazor.Size Size { get; set; }
-
-    [Parameter] public string Text { get; set; } = "";
+    [Parameter] public string Text { get; set; } = "Run";
 
     [Parameter] public bool Disabled { get; set; }
 
     /// <summary>Why the query can't run, shown on hover while the button is disabled.</summary>
     [Parameter] public string? DisabledReason { get; set; }
 
-    /// <summary>Shown on hover while the button works, such as its keyboard shortcut, which also cancels.</summary>
+    /// <summary>Shown on hover while the button works, such as where its keyboard shortcut works.</summary>
     [Parameter] public string? Hint { get; set; }
+
+    /// <summary>The run shortcut as people read it on this platform, shown on the button.</summary>
+    [Parameter] public string? Shortcut { get; set; }
 
     [Parameter] public bool IsExecuting { get; set; }
 
+    /// <summary>Whether the editor has SQL selected, which is all Run selection would run.</summary>
+    [Parameter] public bool HasSelection { get; set; }
+
+    [Parameter] public EventCallback OnRunSelection { get; set; }
+
+    /// <summary>Whether the engine can show an estimated plan without running the statement.</summary>
+    [Parameter] public bool ShowExplain { get; set; }
+
+    [Parameter] public EventCallback OnExplain { get; set; }
+
+    /// <summary>Whether the engine can capture an actual plan.</summary>
+    [Parameter] public bool ShowExplainAnalyze { get; set; }
+
+    /// <summary>Why an actual plan can't be captured right now, such as an open transaction.</summary>
+    [Parameter] public string? ExplainAnalyzeBlockedReason { get; set; }
+
+    [Parameter] public EventCallback OnExplainAnalyze { get; set; }
+
     private string? TooltipText => Disabled ? DisabledReason : Hint;
 
-    private string GetButtonClass() => IsExecuting
-        ? "cancel-query-button rounded-xl py-2"
-        : "run-query-button rounded-xl py-2";
-
-    private string GetIcon() => IsExecuting ? AionIcons.Stop : AionIcons.Run;
-
-    private string GetButtonText() => IsExecuting ? "Cancel" : Text;
+    private string ButtonClass => IsExecuting ? "cancel-query-button" : "run-query-button";
 }
