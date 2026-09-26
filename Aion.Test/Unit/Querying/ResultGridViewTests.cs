@@ -39,6 +39,18 @@ public class ResultGridViewTests
     }
 
     [Fact]
+    public void Filter_MatchesTheRoundedNumberTheGridShows()
+    {
+        var rows = ResultRow.Wrap([
+            new Dictionary<string, object> { ["revenue"] = 259.96999999999997 },
+            new Dictionary<string, object> { ["revenue"] = 12.5 }
+        ]);
+
+        ResultGridView.Build(rows, filter: "259.97").Rows.Select(r => r.Index).ShouldBe([0]);
+        ResultGridView.Build(rows, filter: "259.969").Rows.Select(r => r.Index).ShouldBe([0]);
+    }
+
+    [Fact]
     public void Take_ReturnsAtMostTheLimit()
     {
         var view = ResultGridView.Build(Rows("a", "b", "c"), filter: null);

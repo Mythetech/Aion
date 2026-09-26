@@ -35,6 +35,16 @@
     width: 100%;
 }
 
+.query-result-table .cell-content.numeric {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.cell-null {
+    color: var(--mud-palette-text-disabled);
+    font-style: italic;
+}
+
 .query-result-table .cell-content:hover {
     background-color: rgba(var(--mud-palette-primary-rgb), 0.04);
 }

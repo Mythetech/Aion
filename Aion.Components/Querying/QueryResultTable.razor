@@ -53,8 +53,9 @@
         </TemplateColumn>
 
         @* Data columns *@
-        @foreach (var col in Result.Columns)
+        @foreach (var column in _columns)
         {
+            var col = column.Key;
             <TemplateColumn T="ResultRow" Title="@col" Resizable="true">
                 <CellTemplate>
                     @{
@@ -65,7 +66,7 @@
                         var cellClass = GetCellClass(rowIndex, col);
                         var rowClass = GetRowClass(rowIndex);
                     }
-                    <div class="cell-content @cellClass @rowClass"
+                    <div class="cell-content @(column.IsNumeric ? "numeric" : null) @cellClass @rowClass"
                          @oncontextmenu="@(e => ShowContextMenu(e, context.Item, col, value))"
                          @oncontextmenu:preventDefault="true"
                          @onclick="@(e => HandleCellClick(rowIndex, e))">
@@ -103,9 +104,15 @@
                                 <MudIcon Icon="@AionIcons.ForeignKey" Size="Size.Small" Class="ml-1" />
                             </MudLink>
                         }
+                        else if (effectiveValue is null)
+                        {
+                            <span class="cell-null">NULL</span>
+                        }
                         else
                         {
-                            <MudText Class="overflow-x-auto d-flex">@effectiveValue</MudText>
+                            var shown = ResultValueFormatter.Display(effectiveValue);
+                            var full = ResultValueFormatter.Full(effectiveValue);
+                            <span class="cell-value" title="@(shown == full ? null : full)">@shown</span>
                         }
                     </div>
                 </CellTemplate>
@@ -205,6 +212,7 @@
     private EditState? _subscribedEditState;
 
     private QueryResult? _viewResult;
+    private IReadOnlyList<ResultGridColumn> _columns = [];
     private IReadOnlyList<ResultRow> _rows = [];
     private ResultGridView _view = ResultGridView.Empty;
     private IReadOnlyList<ResultRow> _shownRows = [];
@@ -229,6 +237,7 @@
         if (!ReferenceEquals(_viewResult, Result))
         {
             _viewResult = Result;
+            _columns = ResultGridColumn.From(Result);
             _rows = ResultRow.Wrap(Result.Rows);
             _shownLimit = RowLimit;
         }

@@ -1,3 +1,4 @@
+using AngleSharp.Dom;
 using Aion.Components.Querying;
 using Aion.Components.Settings.Domains;
 using Aion.Contracts.Queries;
@@ -146,5 +147,54 @@ public class QueryResultTableTests : TestContext
         // Assert
         ShownIds(cut).ShouldBe(["1"]);
         cut.Find(".result-limit-bar").TextContent.ShouldContain("Showing 1 of 4 matching rows");
+    }
+
+    private static QueryResult Revenue() => new()
+    {
+        Columns = ["customer", "orders", "revenue"],
+        Rows =
+        [
+            new Dictionary<string, object> { ["customer"] = "Charlie", ["orders"] = 2L, ["revenue"] = 259.96999999999997 },
+            new Dictionary<string, object> { ["customer"] = "Alice", ["orders"] = 3L, ["revenue"] = null! }
+        ]
+    };
+
+    private static IElement Cell(IRenderedComponent<QueryResultTable> cut, int row, int column) =>
+        cut.FindAll("tbody tr.mud-table-row")[row].QuerySelectorAll("td")[column + 1];
+
+    [Fact]
+    public void FloatingPointCell_ShowsTheRoundedValue_WithEveryDigitInItsTitle()
+    {
+        var cut = Render(Revenue());
+
+        var value = Cell(cut, 0, 2).QuerySelector(".cell-value")!;
+        value.TextContent.ShouldBe("259.97");
+        value.GetAttribute("title").ShouldBe(259.96999999999997.ToString());
+    }
+
+    [Fact]
+    public void CellThatNeedsNoRounding_HasNoTitle()
+    {
+        var cut = Render(Revenue());
+
+        Cell(cut, 0, 1).QuerySelector(".cell-value")!.HasAttribute("title").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void NullCell_SaysNull()
+    {
+        var cut = Render(Revenue());
+
+        Cell(cut, 1, 2).QuerySelector(".cell-null")!.TextContent.ShouldBe("NULL");
+    }
+
+    [Fact]
+    public void NumberColumns_AreRightAligned_AndTextColumnsAreNot()
+    {
+        var cut = Render(Revenue());
+
+        Cell(cut, 0, 1).QuerySelector(".cell-content")!.ClassList.ShouldContain("numeric");
+        Cell(cut, 0, 2).QuerySelector(".cell-content")!.ClassList.ShouldContain("numeric");
+        Cell(cut, 0, 0).QuerySelector(".cell-content")!.ClassList.ShouldNotContain("numeric");
     }
 }
