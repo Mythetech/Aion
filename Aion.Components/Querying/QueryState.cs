@@ -201,6 +201,40 @@ public class QueryState : IConsumer<QueryChanged>
         OnStateChanged();
     }
 
+    /// <summary>
+    /// Whether the tab's runs start a transaction. Left alone while one is open: every run joins the open
+    /// transaction anyway, and only Commit or Rollback ends it.
+    /// </summary>
+    public void SetUseTransaction(QueryModel query, bool useTransaction)
+    {
+        var q = Queries.FirstOrDefault(x => x.Id.Equals(query.Id));
+        if (q == null || q.HasOpenTransaction) return;
+
+        q.UseTransaction = useTransaction;
+
+        OnStateChanged();
+    }
+
+    public void SetIncludeEstimatedPlan(QueryModel query, bool include)
+    {
+        var q = Queries.FirstOrDefault(x => x.Id.Equals(query.Id));
+        if (q == null) return;
+
+        q.IncludeEstimatedPlan = include;
+
+        OnStateChanged();
+    }
+
+    public void SetIncludeActualPlan(QueryModel query, bool include)
+    {
+        var q = Queries.FirstOrDefault(x => x.Id.Equals(query.Id));
+        if (q == null) return;
+
+        q.IncludeActualPlan = include;
+
+        OnStateChanged();
+    }
+
     public void UpdateQueryDatabase(QueryModel query, string databaseName)
     {
         var q = Queries.FirstOrDefault(x => x.Id.Equals(query.Id));

@@ -97,8 +97,8 @@ public class QueryEditorTransactionTests : TestContext
         _query.Transaction = transaction;
     }
 
-    private static IRenderedComponent<ToggleChip>? FindToggle(IRenderedComponent<QueryEditor> cut, string text) =>
-        cut.FindComponents<ToggleChip>().SingleOrDefault(c => c.Instance.Text == text);
+    private static IRenderedComponent<AionToggleIconButton>? FindToggle(IRenderedComponent<QueryEditor> cut, string label) =>
+        cut.FindComponents<AionToggleIconButton>().SingleOrDefault(c => c.Instance.Label == label);
 
     [Fact]
     public void RunButton_WithOpenTransactionAndNothingExecuting_OffersRunNotCancel()
@@ -200,14 +200,32 @@ public class QueryEditorTransactionTests : TestContext
     }
 
     [Fact]
+    public async Task Toggles_TurnTheTabsRunOptionsOnAndOff()
+    {
+        // Arrange
+        var cut = RenderComponent<QueryEditor>();
+
+        // Act
+        await FindToggle(cut, "Transactions")!.Find("button").ClickAsync(new MouseEventArgs());
+        await FindToggle(cut, "Estimated plan")!.Find("button").ClickAsync(new MouseEventArgs());
+        await FindToggle(cut, "Actual plan")!.Find("button").ClickAsync(new MouseEventArgs());
+
+        // Assert
+        _query.UseTransaction.ShouldBeTrue();
+        _query.IncludeEstimatedPlan.ShouldBeTrue();
+        _query.IncludeActualPlan.ShouldBeTrue();
+        FindToggle(cut, "Actual plan")!.Find("button").GetAttribute("aria-pressed").ShouldBe("true");
+    }
+
+    [Fact]
     public void PlanToggles_AreShownWhenProviderSupportsThem()
     {
         // Act
         var cut = RenderComponent<QueryEditor>();
 
         // Assert
-        FindToggle(cut, "Estimated Query Plan").ShouldNotBeNull();
-        FindToggle(cut, "Actual Query Plan").ShouldNotBeNull();
+        FindToggle(cut, "Estimated plan").ShouldNotBeNull();
+        FindToggle(cut, "Actual plan").ShouldNotBeNull();
         FindToggle(cut, "Transactions")!.Instance.Disabled.ShouldBeFalse();
     }
 
@@ -227,10 +245,10 @@ public class QueryEditorTransactionTests : TestContext
         var liteDb = RenderComponent<QueryEditor>();
 
         // Assert
-        FindToggle(sqlite, "Estimated Query Plan").ShouldNotBeNull();
-        FindToggle(sqlite, "Actual Query Plan").ShouldBeNull();
-        FindToggle(liteDb, "Estimated Query Plan").ShouldBeNull();
-        FindToggle(liteDb, "Actual Query Plan").ShouldBeNull();
+        FindToggle(sqlite, "Estimated plan").ShouldNotBeNull();
+        FindToggle(sqlite, "Actual plan").ShouldBeNull();
+        FindToggle(liteDb, "Estimated plan").ShouldBeNull();
+        FindToggle(liteDb, "Actual plan").ShouldBeNull();
     }
 
     [Fact]

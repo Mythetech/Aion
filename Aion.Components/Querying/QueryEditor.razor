@@ -51,25 +51,34 @@
 
             <MudSpacer/>
 
-            <ToggleChip Text="Transactions"
-                        Icon="@(State.Active.UseTransaction ? AionIcons.Transaction : AionIcons.TransactionOff)"
-                        Disabled="@HasOpenTransaction"
-                        DisabledTooltip="Commit or roll back the open transaction to change this"
-                        @bind-Value="State.Active.UseTransaction" />
+            <div class="editor-toggles" role="group" aria-label="Run options">
+                <AionToggleIconButton Icon="@AionIcons.TransactionOff"
+                                      PressedIcon="@AionIcons.Transaction"
+                                      Label="Transactions"
+                                      Description="Run in a transaction"
+                                      Pressed="@active.UseTransaction"
+                                      PressedChanged="@(on => State.SetUseTransaction(active, on))"
+                                      Disabled="@HasOpenTransaction"
+                                      DisabledReason="Commit or roll back the open transaction to change this" />
 
-            @if (ShowEstimatedPlanToggle)
-            {
-                <ToggleChip Text="Estimated Query Plan"
-                            Icon="@AionIcons.EstimatedQueryPlan"
-                            @bind-Value="State.Active.IncludeEstimatedPlan" />
-            }
+                @if (ShowEstimatedPlanToggle)
+                {
+                    <AionToggleIconButton Icon="@AionIcons.EstimatedQueryPlan"
+                                          Label="Estimated plan"
+                                          Description="Estimated plan with each run"
+                                          Pressed="@active.IncludeEstimatedPlan"
+                                          PressedChanged="@(on => State.SetIncludeEstimatedPlan(active, on))" />
+                }
 
-            @if (ShowActualPlanToggle)
-            {
-                <ToggleChip Text="Actual Query Plan"
-                            Icon="@AionIcons.ActualQueryPlan"
-                            @bind-Value="State.Active.IncludeActualPlan" />
-            }
+                @if (ShowActualPlanToggle)
+                {
+                    <AionToggleIconButton Icon="@AionIcons.ActualQueryPlan"
+                                          Label="Actual plan"
+                                          Description="Actual plan instead of results, changes rolled back"
+                                          Pressed="@active.IncludeActualPlan"
+                                          PressedChanged="@(on => State.SetIncludeActualPlan(active, on))" />
+                }
+            </div>
         }
     </MudStack>
 

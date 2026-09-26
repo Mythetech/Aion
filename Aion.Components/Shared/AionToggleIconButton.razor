@@ -1,0 +1,38 @@
+@* An icon-only on/off button: named by its label, pressed state announced, and explained on hover. *@
+<span class="aion-toggle-icon-button">
+    <MudTooltip Text="@TooltipText">
+        <MudToggleIconButton Icon="@Icon"
+                             ToggledIcon="@(PressedIcon ?? Icon)"
+                             Toggled="@Pressed"
+                             ToggledChanged="@PressedChanged"
+                             Disabled="@Disabled"
+                             Size="Size.Small"
+                             aria-label="@Label" />
+    </MudTooltip>
+</span>
+
+@code {
+    [Parameter, EditorRequired] public string Icon { get; set; } = default!;
+
+    /// <summary>The icon while on, when it should differ from <see cref="Icon"/>.</summary>
+    [Parameter] public string? PressedIcon { get; set; }
+
+    /// <summary>The button's accessible name. Its on or off state is announced separately, so leave it out.</summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = default!;
+
+    /// <summary>What turning it on does, for the tooltip; defaults to <see cref="Label"/>.</summary>
+    [Parameter] public string? Description { get; set; }
+
+    [Parameter] public bool Pressed { get; set; }
+
+    [Parameter] public EventCallback<bool> PressedChanged { get; set; }
+
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>Why it can't change right now, shown on hover while disabled.</summary>
+    [Parameter] public string? DisabledReason { get; set; }
+
+    private string TooltipText => Disabled && DisabledReason != null
+        ? DisabledReason
+        : $"{Description ?? Label}: {(Pressed ? "on" : "off")}";
+}
