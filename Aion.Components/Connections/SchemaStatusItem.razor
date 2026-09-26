@@ -1,0 +1,50 @@
+@using Aion.Components.Shared
+@using Aion.Components.Theme
+@using Aion.Contracts.Database
+
+@* One row standing in for a schema tree node's children while they load, after they failed to load, or when there are none. *@
+@if (IsVisible)
+{
+    <MudTreeViewItem T="string" Value="@Value" ReadOnly="true">
+        <BodyContent Context="ctx">
+            @if (State.IsFailed)
+            {
+                <div class="tree-status tree-status-failed" role="alert">
+                    <MudIcon Icon="@AionIcons.Error" Color="Color.Error" Size="Size.Small" Class="tree-status-icon" />
+                    <MudTooltip Text="@State.Error" RootClass="tree-status-message" Delay="300">
+                        <span class="tree-status-text">@State.Error</span>
+                    </MudTooltip>
+                    <AionIconButton Icon="@AionIcons.Retry" Tooltip="Retry" Size="Size.Small" OnClick="OnRetry" />
+                </div>
+            }
+            else if (State.IsLoaded)
+            {
+                <span class="tree-status-empty">@EmptyText</span>
+            }
+            else
+            {
+                <div class="tree-status tree-status-loading">
+                    <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="tree-status-spinner" />
+                    <span class="tree-status-text">Loading</span>
+                </div>
+            }
+        </BodyContent>
+    </MudTreeViewItem>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Value { get; set; } = "";
+
+    [Parameter, EditorRequired] public SchemaLoadState State { get; set; } = SchemaLoadState.NotLoaded;
+
+    /// <summary>
+    /// Whether the loaded node has nothing to list, which shows <see cref="EmptyText"/>.
+    /// </summary>
+    [Parameter] public bool IsEmpty { get; set; }
+
+    [Parameter] public string EmptyText { get; set; } = "";
+
+    [Parameter] public EventCallback OnRetry { get; set; }
+
+    private bool IsVisible => !State.IsLoaded || IsEmpty;
+}

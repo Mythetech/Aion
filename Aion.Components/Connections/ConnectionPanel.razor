@@ -59,9 +59,19 @@
     </MudStack>
 
     <MudTreeView T="string" Hover="true" Dense="true" ExpandOnClick="true" Class="h-100 mb-4">
+        @if (Connection.Databases.Count == 0)
+        {
+            <SchemaStatusItem Value="@($"{Connection.Id}/databases")" State="@DatabasesState" IsEmpty="true"
+                              EmptyText="No databases" OnRetry="RefreshConnection" />
+        }
+
         @foreach (var database in Connection.Databases)
         {
-            <MudTreeViewItem Text="@database.Name" Value="@database.Name" @ref="_databases[database.Name]"
+            var tablesKey = $"{database.Name}/Tables";
+            var indexesKey = $"{database.Name}/Indexes";
+            var functionsKey = $"{database.Name}/Functions";
+
+            <MudTreeViewItem @key="database.Name" Text="@database.Name" Value="@database.Name" @ref="_databases[database.Name]"
                              Icon="@AionIcons.Connection">
                 @* Database level *@
                 <BodyContent Context="ctx">
@@ -78,208 +88,205 @@
                                 </ActivatorContent>
                                 <ChildContent>
                                     <MudMenuItem OnClick="@(() => CreateTable(database))">Create Table</MudMenuItem>
-                                    <MudMenuItem OnClick="@(() => RefreshDatabase(database))">Refresh</MudMenuItem>
+                                    <MudMenuItem OnClick="@(() => RefreshSchema(database))">Refresh</MudMenuItem>
                                 </ChildContent>
                             </AionMenu>
                         </div>
                     </div>
                 </BodyContent>
-            
+
                 @* Tables level *@
                 <ChildContent>
-                    <MudTreeViewItem Text="Tables" Value="@($"{database.Name}/Tables")" Icon="@AionIcons.Table"
-                                     ExpandedChanged="@(() => LoadTables(database))">
-                        @if (database.TablesLoaded)
+                    <MudTreeViewItem Text="Tables" Value="@tablesKey" Icon="@AionIcons.Table"
+                                     Expanded="@IsExpanded(tablesKey, database.TablesState)"
+                                     ExpandedChanged="@(expanded => OnLazyItemExpandedChanged(tablesKey, expanded, () => LoadTables(database)))">
+                        @{
+                            var tables = database.TablesState.IsLoaded ? GetVisibleTables(database).ToList() : [];
+                        }
+                        <SchemaStatusItem Value="@($"{tablesKey}/status")" State="@database.TablesState"
+                                          IsEmpty="@(tables.Count == 0)" EmptyText="No tables"
+                                          OnRetry="@(() => LoadTables(database))" />
+
+                        @foreach (var table in tables)
                         {
-                            @foreach (var table in GetVisibleTables(database))
-                            {
-                                <MudTreeViewItem Text="@table.DisplayName" Value="@TableKey(database, table)" Icon="@AionIcons.Table"
-                                                 Expanded="@_expandedTables.Contains(TableKey(database, table))"
-                                                 ExpandedChanged="@(expanded => OnTableExpandedChanged(database, table, expanded))">
-                                    <BodyContent Context="ctx">
-                                        <div class="d-flex align-center justify-space-between w-100">
-                                            <div class="d-flex align-center">
-                                                <MudText>@table.DisplayName</MudText>
-                                            </div>
-                                            <div>
-                                                <AionMenu AnchorOrigin="Origin.BottomRight">
-                                                    <ActivatorContent>
-                                                        <MudIconButton Size="Size.Small" Icon="@AionIcons.More"
-                                                                       aria-label="@($"{table.DisplayName} actions")"
-                                                                       OnClick="@context.ToggleAsync" />
-                                                    </ActivatorContent>
-                                                    <ChildContent>
-                                                        <MudMenuItem OnClick="@(() => SelectTop1000(database.Name, table))">Select Top
-                                                            1000</MudMenuItem>
-                                                            <MudMenuItem OnClick="@(() => EditData(database.Name, table))">Edit Data
-                                                            </MudMenuItem>
-                                                            <MudMenuItem OnClick="@(() => GenerateData(database, table))">Generate Data
-                                                            </MudMenuItem>
-                                                            <MudMenuItem OnClick="@(() => RefreshTable(database))">Refresh</MudMenuItem>
-                                                        </ChildContent>
-                                                    </AionMenu>
+                            var tableKey = TableKey(database, table);
+                            var columnsState = database.ColumnsState(table.DisplayName);
+
+                            <MudTreeViewItem @key="tableKey" Text="@table.DisplayName" Value="@tableKey" Icon="@AionIcons.Table"
+                                             Expanded="@IsExpanded(tableKey, columnsState)"
+                                             ExpandedChanged="@(expanded => OnLazyItemExpandedChanged(tableKey, expanded, () => LoadColumns(database, table)))">
+                                <BodyContent Context="ctx">
+                                    <div class="d-flex align-center justify-space-between w-100">
+                                        <div class="d-flex align-center">
+                                            <MudText>@table.DisplayName</MudText>
+                                        </div>
+                                        <div>
+                                            <AionMenu AnchorOrigin="Origin.BottomRight">
+                                                <ActivatorContent>
+                                                    <MudIconButton Size="Size.Small" Icon="@AionIcons.More"
+                                                                   aria-label="@($"{table.DisplayName} actions")"
+                                                                   OnClick="@context.ToggleAsync" />
+                                                </ActivatorContent>
+                                                <ChildContent>
+                                                    <MudMenuItem OnClick="@(() => SelectTop1000(database.Name, table))">Select Top
+                                                        1000</MudMenuItem>
+                                                    <MudMenuItem OnClick="@(() => EditData(database.Name, table))">Edit Data</MudMenuItem>
+                                                    <MudMenuItem OnClick="@(() => GenerateData(database, table))">Generate Data</MudMenuItem>
+                                                    <MudMenuItem OnClick="@(() => RefreshSchema(database))">Refresh</MudMenuItem>
+                                                </ChildContent>
+                                            </AionMenu>
+                                        </div>
+                                    </div>
+                                </BodyContent>
+
+                                @* Columns, then the table's indexes and foreign keys *@
+                                <ChildContent>
+                                    @{
+                                        var columns = columnsState.IsLoaded ? database.TableColumns.GetValueOrDefault(table.DisplayName) ?? [] : [];
+                                    }
+                                    <SchemaStatusItem Value="@($"{tableKey}/status")" State="@columnsState"
+                                                      IsEmpty="@(columns.Count == 0)" EmptyText="No columns"
+                                                      OnRetry="@(() => LoadColumns(database, table))" />
+
+                                    @if (columnsState.IsLoaded)
+                                    {
+                                        @foreach (var column in columns)
+                                        {
+                                            <MudTreeViewItem @key="column.Name" Value="@($"{tableKey}/column/{column.Name}")"
+                                                             Icon="@ColumnIcon(column)" IconColor="@ColumnIconColor(column)">
+                                                <BodyContent Context="ctx">
+                                                    @* A native title keeps hover detail cheap: a MudTooltip per row would register a popover for every column. *@
+                                                    <div class="tree-row column-row" title="@ColumnTypeText.Describe(column, Connection.Type)">
+                                                        <span class="tree-row-name">@column.Name</span>
+                                                        <span class="column-type">@ColumnTypeText.Short(column, Connection.Type)@if (column.IsNullable){<span class="column-nullable">?</span>}</span>
+                                                    </div>
+                                                </BodyContent>
+                                            </MudTreeViewItem>
+                                        }
+
+                                        @if (ConnectionState.SupportsIndexes(Connection.Type))
+                                        {
+                                            var tableIndexesKey = $"{tableKey}/indexes";
+                                            var indexes = database.IndexesState.IsLoaded ? IndexesFor(database, table) : null;
+                                            <MudTreeViewItem @key="tableIndexesKey" Value="@tableIndexesKey" Icon="@AionIcons.Index"
+                                                             Expanded="@IsExpanded(tableIndexesKey, database.IndexesState)"
+                                                             ExpandedChanged="@(expanded => OnLazyItemExpandedChanged(tableIndexesKey, expanded, () => LoadIndexes(database)))"
+                                                             ChildContent="@(indexes is { Count: 0 } ? null : IndexRows(database, tableIndexesKey, indexes))">
+                                                <BodyContent Context="ctx">
+                                                    <div class="tree-row">
+                                                        <span class="tree-group-label">Indexes</span>
+                                                        @if (indexes is not null)
+                                                        {
+                                                            <span class="tree-count">@indexes.Count</span>
+                                                        }
+                                                    </div>
+                                                </BodyContent>
+                                            </MudTreeViewItem>
+                                        }
+
+                                        var foreignKeys = columns.Where(c => c.IsForeignKey).ToList();
+                                        var foreignKeysKey = $"{tableKey}/foreign-keys";
+                                        <MudTreeViewItem @key="foreignKeysKey" Value="@foreignKeysKey" Icon="@AionIcons.ForeignKey"
+                                                         ChildContent="@(foreignKeys.Count == 0 ? null : ForeignKeyRows(tableKey, foreignKeys))">
+                                            <BodyContent Context="ctx">
+                                                <div class="tree-row">
+                                                    <span class="tree-group-label">Foreign keys</span>
+                                                    <span class="tree-count">@foreignKeys.Count</span>
                                                 </div>
+                                            </BodyContent>
+                                        </MudTreeViewItem>
+                                    }
+                                </ChildContent>
+                            </MudTreeViewItem>
+                        }
+                    </MudTreeViewItem>
+
+                    @* Indexes level *@
+                    @if (ConnectionState.SupportsIndexes(Connection.Type))
+                    {
+                        <MudTreeViewItem Text="Indexes" Value="@indexesKey" Icon="@AionIcons.Index"
+                                         Expanded="@IsExpanded(indexesKey, database.IndexesState)"
+                                         ExpandedChanged="@(expanded => OnLazyItemExpandedChanged(indexesKey, expanded, () => LoadIndexes(database)))">
+                            <SchemaStatusItem Value="@($"{indexesKey}/status")" State="@database.IndexesState"
+                                              IsEmpty="@(database.Indexes.Count == 0)" EmptyText="No indexes"
+                                              OnRetry="@(() => LoadIndexes(database))" />
+
+                            @if (database.IndexesState.IsLoaded)
+                            {
+                                @foreach (var idx in database.Indexes)
+                                {
+                                    <MudTreeViewItem @key="idx.DisplayName" Value="@($"{indexesKey}/{idx.DisplayName}")"
+                                                     Icon="@(idx.IsPrimary ? AionIcons.Key : AionIcons.Index)">
+                                        <BodyContent Context="ctx">
+                                            <div class="d-flex align-center">
+                                                <MudText>@idx.DisplayName</MudText>
+                                                <MudText Class="ml-2 mud-text-secondary" Style="font-size: 0.8em;">
+                                                    @if (idx.Columns.Count > 0)
+                                                    {
+                                                        <span>(@string.Join(", ", idx.Columns))</span>
+                                                    }
+                                                    @if (idx.IsPrimary)
+                                                    {
+                                                        <span class="ml-1">PRIMARY</span>
+                                                    }
+                                                    else if (idx.IsUnique)
+                                                    {
+                                                        <span class="ml-1">UNIQUE</span>
+                                                    }
+                                                </MudText>
                                             </div>
                                         </BodyContent>
-
-                                        @* Columns, then the table's indexes and foreign keys *@
-                                        <ChildContent>
-                                            @if (database.LoadedColumnTables.Contains(table.DisplayName))
-                                            {
-                                                var tableKey = TableKey(database, table);
-                                                var columns = database.TableColumns[table.DisplayName];
-
-                                                @if (columns.Count == 0)
-                                                {
-                                                    <MudTreeViewItem Value="@($"{tableKey}/no-columns")" ReadOnly="true">
-                                                        <BodyContent Context="ctx">
-                                                            <span class="tree-empty">No columns</span>
-                                                        </BodyContent>
-                                                    </MudTreeViewItem>
-                                                }
-
-                                                @foreach (var column in columns)
-                                                {
-                                                    <MudTreeViewItem Value="@($"{tableKey}/column/{column.Name}")"
-                                                                     Icon="@ColumnIcon(column)" IconColor="@ColumnIconColor(column)">
-                                                        <BodyContent Context="ctx">
-                                                            @* A native title keeps hover detail cheap: a MudTooltip per row would register a popover for every column. *@
-                                                            <div class="tree-row column-row" title="@ColumnTypeText.Describe(column, Connection.Type)">
-                                                                <span class="tree-row-name">@column.Name</span>
-                                                                <span class="column-type">@ColumnTypeText.Short(column, Connection.Type)@if (column.IsNullable){<span class="column-nullable">?</span>}</span>
-                                                            </div>
-                                                        </BodyContent>
-                                                    </MudTreeViewItem>
-                                                }
-
-                                                @if (ConnectionState.SupportsIndexes(Connection.Type))
-                                                {
-                                                    var indexes = database.IndexesLoaded ? IndexesFor(database, table) : null;
-                                                    <MudTreeViewItem Value="@($"{tableKey}/indexes")" Icon="@AionIcons.Index"
-                                                                     ExpandedChanged="@(expanded => OnIndexesExpandedChanged(database, expanded))"
-                                                                     ChildContent="@(indexes is { Count: 0 } ? null : IndexRows(tableKey, indexes))">
-                                                        <BodyContent Context="ctx">
-                                                            <div class="tree-row">
-                                                                <span class="tree-group-label">Indexes</span>
-                                                                @if (indexes is not null)
-                                                                {
-                                                                    <span class="tree-count">@indexes.Count</span>
-                                                                }
-                                                            </div>
-                                                        </BodyContent>
-                                                    </MudTreeViewItem>
-                                                }
-
-                                                var foreignKeys = columns.Where(c => c.IsForeignKey).ToList();
-                                                <MudTreeViewItem Value="@($"{tableKey}/foreign-keys")" Icon="@AionIcons.ForeignKey"
-                                                                 ChildContent="@(foreignKeys.Count == 0 ? null : ForeignKeyRows(tableKey, foreignKeys))">
-                                                    <BodyContent Context="ctx">
-                                                        <div class="tree-row">
-                                                            <span class="tree-group-label">Foreign keys</span>
-                                                            <span class="tree-count">@foreignKeys.Count</span>
-                                                        </div>
-                                                    </BodyContent>
-                                                </MudTreeViewItem>
-                                            }
-                                            else
-                                            {
-                                                <MudProgressCircular Indeterminate="true" Size="Size.Small" />
-                                            }
-                                        </ChildContent>
                                     </MudTreeViewItem>
                                 }
                             }
-                else
+                        </MudTreeViewItem>
+                    }
+
+                    @* Functions level *@
+                    @if (ConnectionState.SupportsRoutines(Connection.Type))
+                    {
+                        <MudTreeViewItem Text="Functions" Value="@functionsKey" Icon="@AionIcons.Function"
+                                         Expanded="@IsExpanded(functionsKey, database.RoutinesState)"
+                                         ExpandedChanged="@(expanded => OnLazyItemExpandedChanged(functionsKey, expanded, () => LoadRoutines(database)))">
+                            <SchemaStatusItem Value="@($"{functionsKey}/status")" State="@database.RoutinesState"
+                                              IsEmpty="@(database.Routines.Count == 0)" EmptyText="No functions"
+                                              OnRetry="@(() => LoadRoutines(database))" />
+
+                            @if (database.RoutinesState.IsLoaded)
                             {
-                                <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+                                @foreach (var routine in database.Routines)
+                                {
+                                    var routineKey = $"{functionsKey}/{routine.DisplayName}{routine.ArgumentSignature}";
+                                    <MudTreeViewItem @key="routineKey" Value="@routineKey" Icon="@AionIcons.Function">
+                                        <BodyContent Context="ctx">
+                                            <div class="d-flex align-center">
+                                                <MudText>@routine.DisplayName</MudText>
+                                                <MudText Class="ml-2 mud-text-secondary" Style="font-size: 0.8em;">
+                                                    @if (!string.IsNullOrEmpty(routine.ArgumentSignature))
+                                                    {
+                                                        <span>@routine.ArgumentSignature</span>
+                                                    }
+                                                    @if (!string.IsNullOrEmpty(routine.ReturnType))
+                                                    {
+                                                        <span class="ml-1">→ @routine.ReturnType</span>
+                                                    }
+                                                </MudText>
+                                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
+                                                         Color="@(routine.Kind == RoutineKind.Function ? Color.Info : Color.Warning)"
+                                                         Class="ml-2">
+                                                    @routine.Kind.ToString().ToUpperInvariant()
+                                                </MudChip>
+                                            </div>
+                                        </BodyContent>
+                                    </MudTreeViewItem>
+                                }
                             }
                         </MudTreeViewItem>
-
-                        @* Indexes level *@
-                        @if (ConnectionState.SupportsIndexes(Connection.Type))
-                        {
-                            <MudTreeViewItem Text="Indexes" Value="@($"{database.Name}/Indexes")" Icon="@AionIcons.Index"
-                                             ExpandedChanged="@(() => LoadIndexes(database))">
-                                @if (database.IndexesLoaded)
-                                {
-                                    @foreach (var idx in database.Indexes)
-                                    {
-                                        <MudTreeViewItem Value="@($"{database.Name}/Indexes/{idx.DisplayName}")"
-                                                         Icon="@(idx.IsPrimary ? AionIcons.Key : AionIcons.Index)">
-                                            <BodyContent Context="ctx">
-                                                <div class="d-flex align-center">
-                                                    <MudText>@idx.DisplayName</MudText>
-                                                    <MudText Class="ml-2 mud-text-secondary" Style="font-size: 0.8em;">
-                                                        @if (idx.Columns.Count > 0)
-                                                        {
-                                                            <span>(@string.Join(", ", idx.Columns))</span>
-                                                        }
-                                                        @if (idx.IsPrimary)
-                                                        {
-                                                            <span class="ml-1">PRIMARY</span>
-                                                        }
-                                                        else if (idx.IsUnique)
-                                                        {
-                                                            <span class="ml-1">UNIQUE</span>
-                                                        }
-                                                    </MudText>
-                                                </div>
-                                            </BodyContent>
-                                        </MudTreeViewItem>
-                                    }
-                                }
-                                else
-                                {
-                                    <MudProgressCircular Indeterminate="true" Size="Size.Small" />
-                                }
-                            </MudTreeViewItem>
-                        }
-
-                        @* Functions level *@
-                        @if (ConnectionState.SupportsRoutines(Connection.Type))
-                        {
-                            <MudTreeViewItem Text="Functions" Value="@($"{database.Name}/Functions")" Icon="@AionIcons.Function"
-                                             ExpandedChanged="@(() => LoadRoutines(database))">
-                                @if (database.RoutinesLoaded)
-                                {
-                                    @foreach (var routine in database.Routines)
-                                    {
-                                        <MudTreeViewItem
-                                            Value="@($"{database.Name}/Functions/{routine.DisplayName}{routine.ArgumentSignature}")"
-                                            Icon="@AionIcons.Function">
-                                            <BodyContent Context="ctx">
-                                                <div class="d-flex align-center">
-                                                    <MudText>@routine.DisplayName</MudText>
-                                                    <MudText Class="ml-2 mud-text-secondary" Style="font-size: 0.8em;">
-                                                        @if (!string.IsNullOrEmpty(routine.ArgumentSignature))
-                                                        {
-                                                            <span>@routine.ArgumentSignature</span>
-                                                        }
-                                                        @if (!string.IsNullOrEmpty(routine.ReturnType))
-                                                        {
-                                                            <span class="ml-1">→ @routine.ReturnType</span>
-                                                        }
-                                                    </MudText>
-                                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
-                                                             Color="@(routine.Kind == RoutineKind.Function ? Color.Info : Color.Warning)"
-                                                             Class="ml-2">
-                                                        @routine.Kind.ToString().ToUpperInvariant()
-                                                    </MudChip>
-                                                </div>
-                                            </BodyContent>
-                                        </MudTreeViewItem>
-                                    }
-                                }
-                                else
-                                {
-                                    <MudProgressCircular Indeterminate="true" Size="Size.Small" />
-                                }
-                            </MudTreeViewItem>
-                        }
-                    </ChildContent>
-                </MudTreeViewItem>
-            }
-        </MudTreeView>
+                    }
+                </ChildContent>
+            </MudTreeViewItem>
+        }
+    </MudTreeView>
 
 @code {
     [Parameter] public ConnectionModel Connection { get; set; } = default!;
@@ -291,10 +298,33 @@
     [Inject] private BrowserSettings BrowserSettings { get; set; } = default!;
 
     private Dictionary<string, MudTreeViewItem<string>> _databases = new();
-    private readonly HashSet<string> _expandedTables = [];
+
+    // Tree values of the lazily loaded items the user has open. An item only renders open while its load has
+    // at least started, so a refresh that drops loaded data closes it instead of leaving it spinning.
+    private readonly HashSet<string> _expanded = [];
     private bool _isRefreshing;
 
     private static string TableKey(DatabaseModel database, TableInfo table) => $"{database.Name}|{table.DisplayName}";
+
+    private bool IsExpanded(string key, SchemaLoadState state) =>
+        _expanded.Contains(key) && state.Status != SchemaLoadStatus.NotLoaded;
+
+    private SchemaLoadState DatabasesState =>
+        _isRefreshing || Connection.HealthStatus == ConnectionHealthStatus.Checking ? SchemaLoadState.Loading
+        : Connection.Active ? SchemaLoadState.Loaded
+        : SchemaLoadState.Failed(GetConnectionErrorTooltip());
+
+    private async Task OnLazyItemExpandedChanged(string key, bool expanded, Func<Task> load)
+    {
+        if (!expanded)
+        {
+            _expanded.Remove(key);
+            return;
+        }
+
+        _expanded.Add(key);
+        await load();
+    }
 
     // MySQL lists tables without a schema but tags each index with its database name, so the schema
     // only narrows the match when the table has one.
@@ -304,16 +334,17 @@
                             && (string.IsNullOrEmpty(table.Schema) || index.TableSchema == table.Schema))
             .ToList();
 
-    private RenderFragment IndexRows(string tableKey, List<IndexInfo>? indexes) => @<text>
+    private RenderFragment IndexRows(DatabaseModel database, string groupKey, List<IndexInfo>? indexes) => @<text>
         @if (indexes is null)
         {
-            <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+            <SchemaStatusItem Value="@($"{groupKey}/status")" State="@database.IndexesState"
+                              OnRetry="@(() => LoadIndexes(database))" />
         }
         else
         {
             @foreach (var index in indexes)
             {
-                <MudTreeViewItem Value="@($"{tableKey}/indexes/{index.Name}")"
+                <MudTreeViewItem @key="index.Name" Value="@($"{groupKey}/{index.Name}")"
                                  Icon="@(index.IsPrimary ? AionIcons.PrimaryKey : AionIcons.Index)"
                                  IconColor="@(index.IsPrimary ? Color.Warning : Color.Default)">
                     <BodyContent Context="ctx">
@@ -502,8 +533,12 @@
 
     private async Task GenerateData(DatabaseModel database, TableInfo table)
     {
-        if (!database.LoadedColumnTables.Contains(table.DisplayName))
-            await ConnectionState.LoadColumnsAsync(Connection, database, table.Schema, table.Name);
+        var columnsState = await ConnectionState.LoadColumnsAsync(Connection, database, table.Schema, table.Name);
+        if (columnsState.IsFailed)
+        {
+            Snackbar.AddAionNotification($"Could not read the columns of {table.DisplayName}: {columnsState.Error}", Severity.Error);
+            return;
+        }
 
         var columns = database.TableColumns.GetValueOrDefault(table.DisplayName) ?? [];
         if (columns.Count == 0)
@@ -537,90 +572,38 @@
         var result = await dialog.Result;
 
         if (result is { Canceled: false, Data: true })
-            await RefreshTable(database);
+            await RefreshSchema(database);
     }
 
-    private async Task RefreshDatabase(DatabaseModel database)
+    private async Task RefreshSchema(DatabaseModel database)
     {
-        await ConnectionState.RefreshDatabaseAsync(Connection);
-        await RefreshTreeView();
+        await ConnectionState.RefreshSchemaAsync(Connection, database);
     }
 
-    private async Task RefreshTable(DatabaseModel database)
+    private async Task LoadTables(DatabaseModel database)
     {
-        database.TablesLoaded = false;
         await ConnectionState.LoadTablesAsync(Connection, database);
-        await RefreshTreeView();
     }
 
-    private async Task LoadTables(DatabaseModel? database)
+    private async Task LoadIndexes(DatabaseModel database)
     {
-        if (database == null || database.TablesLoaded)
-            return;
-        
-        await ConnectionState.LoadTablesAsync(Connection, database);
-        await RefreshTreeView();
-    }
-
-    private async Task LoadIndexes(DatabaseModel? database)
-    {
-        if (database == null || database.IndexesLoaded)
-            return;
-
         await ConnectionState.LoadIndexesAsync(Connection, database);
-        await RefreshTreeView();
     }
 
-    private async Task LoadRoutines(DatabaseModel? database)
+    private async Task LoadRoutines(DatabaseModel database)
     {
-        if (database == null || database.RoutinesLoaded)
-            return;
-
         await ConnectionState.LoadRoutinesAsync(Connection, database);
-        await RefreshTreeView();
     }
 
-    private async Task OnTableExpandedChanged(DatabaseModel database, TableInfo table, bool expanded)
+    private async Task LoadColumns(DatabaseModel database, TableInfo table)
     {
-        var key = TableKey(database, table);
-        if (!expanded)
-        {
-            _expandedTables.Remove(key);
-            return;
-        }
-
-        _expandedTables.Add(key);
-        await LoadColumns(database, table);
-    }
-
-    private async Task OnIndexesExpandedChanged(DatabaseModel database, bool expanded)
-    {
-        if (expanded)
-            await LoadIndexes(database);
-    }
-
-    private async Task LoadColumns(DatabaseModel? database, TableInfo table)
-    {
-        if (database == null)
-            return;
-
-        if (!database.LoadedColumnTables.Contains(table.DisplayName))
-        {
-            await ConnectionState.LoadColumnsAsync(Connection, database, table.Schema, table.Name);
-            await RefreshTreeView();
-        }
-    }
-
-    private Task RefreshTreeView()
-    {
-        StateHasChanged();
-        return Task.CompletedTask;
+        await ConnectionState.LoadColumnsAsync(Connection, database, table.Schema, table.Name);
     }
 
     public async Task Consume(ExpandDatabase message)
     {
         await Task.Yield();
-        
+
         if (_databases.TryGetValue(message.DatabaseName, out var treeview))
         {
             await treeview.ExpandAllAsync();
@@ -631,6 +614,7 @@
 
     protected override void OnInitialized()
     {
+        ConnectionState.ConnectionStateChanged += StateHasChanged;
         MessageBus.Subscribe<ExpandDatabase>(this);
         MessageBus.Subscribe<ExpandTable>(this);
         MessageBus.Subscribe<ConnectionHealthChanged>(this);
@@ -638,6 +622,7 @@
 
     public void Dispose()
     {
+        ConnectionState.ConnectionStateChanged -= StateHasChanged;
         MessageBus.Unsubscribe<ExpandDatabase>(this);
         MessageBus.Unsubscribe<ExpandTable>(this);
         MessageBus.Unsubscribe<ConnectionHealthChanged>(this);
@@ -659,11 +644,11 @@
             await treeview.ExpandAllAsync();
             await treeview.ReloadAsync();
         }
-        
+
         var table = message.Database.Tables.FirstOrDefault(t => t.DisplayName == message.TableDisplayName);
         if (table != null)
         {
-            _expandedTables.Add(TableKey(message.Database, table));
+            _expanded.Add(TableKey(message.Database, table));
             await LoadColumns(message.Database, table);
         }
 

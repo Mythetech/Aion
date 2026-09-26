@@ -52,9 +52,3 @@
     font-variant-numeric: tabular-nums;
     color: var(--mud-palette-text-secondary);
 }
-
-.tree-empty {
-    font-size: 0.875rem;
-    font-style: italic;
-    color: var(--mud-palette-text-secondary);
-}
