@@ -189,7 +189,7 @@ public class QueryResponsePanelTests : TestContext
         var cut = RenderComponent<QueryResponsePanel>();
 
         // Act
-        await cut.Find("[aria-label='Export to Csv']").ClickAsync(new());
+        await cut.Find("[aria-label='Export to CSV']").ClickAsync(new());
 
         // Assert
         await _bus.Received(1).PublishAsync(Arg.Is<Aion.Components.Querying.Commands.ExportResultsToCsv>(c => c.Result!.Rows.Count == 5));
@@ -211,7 +211,7 @@ public class QueryResponsePanelTests : TestContext
         await FindInResultsAsync(cut, "1", expectedRows: 7);
 
         // Act
-        await cut.Find("[aria-label='Export to Csv']").ClickAsync(new());
+        await cut.Find("[aria-label='Export to CSV']").ClickAsync(new());
 
         // Assert: ids 1 and 10 to 15 contain "1".
         await _bus.Received(1).PublishAsync(Arg.Is<Aion.Components.Querying.Commands.ExportResultsToCsv>(c =>
@@ -227,7 +227,7 @@ public class QueryResponsePanelTests : TestContext
         await FindInResultsAsync(cut, "12", expectedRows: 1);
 
         // Act
-        await cut.Find("[aria-label='Export to Json']").ClickAsync(new());
+        await cut.Find("[aria-label='Export to JSON']").ClickAsync(new());
         await cut.Find("[aria-label='Export to Excel']").ClickAsync(new());
 
         // Assert
