@@ -10,8 +10,6 @@ namespace Aion.Components.Querying.Results;
 /// </summary>
 public static class ResultValueFormatter
 {
-    public const int MaxFractionDigits = 6;
-
     // Below this a fixed six decimals would read as 0, so the value keeps its significant digits instead.
     private const double SmallestFixed = 0.5e-6;
 
@@ -19,6 +17,9 @@ public static class ResultValueFormatter
     private const double LargestFixed = 1e15;
 
     private const int MaxBinaryBytes = 32;
+
+    private const string FixedFormat = "0.######";
+    private const string SignificantFormat = "G6";
 
     private static readonly HashSet<string> NumericTypeNames = new(StringComparer.Ordinal)
     {
@@ -126,9 +127,9 @@ public static class ResultValueFormatter
             return value.ToString(provider);
 
         if (Math.Abs(value) < SmallestFixed)
-            return value.ToString("G" + MaxFractionDigits, provider);
+            return value.ToString(SignificantFormat, provider);
 
-        return value.ToString("0." + new string('#', MaxFractionDigits), provider);
+        return value.ToString(FixedFormat, provider);
     }
 
     private static string FormatBinary(byte[] bytes)
