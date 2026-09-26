@@ -46,7 +46,11 @@ public static class AionIcons
     
     public static string Delete => Round("delete");
 
+    public static string Undo => Round("undo");
+
     public static string Copy => Round("content_copy");
+
+    public static string More => Round("more_vert");
     
     public static string Save => Round("save");
     

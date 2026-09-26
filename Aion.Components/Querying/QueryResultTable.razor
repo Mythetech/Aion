@@ -1,3 +1,4 @@
+@using Aion.Components.History
 @using Aion.Components.Querying.Commands
 @using Aion.Components.Querying.Consumers
 @using Aion.Components.Querying.Editing
@@ -102,13 +103,12 @@
 </MudDataGrid>
 
 @* Context Menu *@
-<MudMenu @ref="_contextMenu"
-         Dense="true"
+<AionMenu @ref="_contextMenu"
          AnchorOrigin="Origin.BottomLeft"
          TransformOrigin="Origin.TopLeft"
          PositionAtCursor="true">
     <ChildContent>
-        <MudMenuItem OnClick="@CopyCellValue" Icon="@Icons.Material.Filled.ContentCopy">
+        <MudMenuItem OnClick="@CopyCellValue" Icon="@AionIcons.Copy">
             Copy Cell
         </MudMenuItem>
         <MudMenuItem OnClick="@CopyRowAsJson" Icon="@AionIcons.Json">
@@ -121,8 +121,8 @@
         @if (SelectionState.HasSelection)
         {
             <MudDivider />
-            <MudMenuItem OnClick="@CopySelectedRows" Icon="@Icons.Material.Filled.ContentCopy">
-                Copy Selected (@SelectionState.SelectedCount rows)
+            <MudMenuItem OnClick="@CopySelectedRows" Icon="@AionIcons.Copy">
+                Copy Selected (@QueryHistoryFormatter.Rows(SelectionState.SelectedCount))
             </MudMenuItem>
             <MudDivider />
             <MudMenuItem OnClick="@ExportSelectedCsv" Icon="@AionIcons.Csv">
@@ -141,19 +141,19 @@
             <MudDivider />
             @if (IsRowDeleted(GetRowIndex(_contextRow)))
             {
-                <MudMenuItem OnClick="@UndeleteContextRow" Icon="@Icons.Material.Filled.Undo" IconColor="Color.Success">
+                <MudMenuItem OnClick="@UndeleteContextRow" Icon="@AionIcons.Undo" IconColor="Color.Success">
                     Restore Row
                 </MudMenuItem>
             }
             else
             {
-                <MudMenuItem OnClick="@DeleteContextRow" Icon="@Icons.Material.Filled.Delete" IconColor="Color.Error">
+                <MudMenuItem OnClick="@DeleteContextRow" Icon="@AionIcons.Delete" IconColor="Color.Error">
                     Delete Row
                 </MudMenuItem>
             }
         }
     </ChildContent>
-</MudMenu>
+</AionMenu>
 
 @code {
     [Parameter] public required QueryResult Result { get; set; }
@@ -168,7 +168,7 @@
     [Inject] protected IMessageBus Bus { get; set; } = default!;
 
     private MudDataGrid<Dictionary<string, object>>? _dataGrid;
-    private MudMenu? _contextMenu;
+    private AionMenu? _contextMenu;
 
     // Context menu state
     private Dictionary<string, object>? _contextRow;

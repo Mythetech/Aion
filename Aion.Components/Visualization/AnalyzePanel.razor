@@ -18,7 +18,7 @@
     else
     {
         <div class="analyze-toolbar">
-            <MudMenu Dense="true" MaxHeight="360" AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft" data-field="group-by">
+            <AionMenu MaxHeight="360" AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft" data-field="group-by">
                 <ActivatorContent Context="menu">
                     <span class="field-pill" @onclick="@(() => menu.ToggleAsync())">
                         <span class="field-prefix">Group by</span>
@@ -35,9 +35,9 @@
                         </MudMenuItem>
                     }
                 </ChildContent>
-            </MudMenu>
+            </AionMenu>
 
-            <MudMenu Dense="true" MaxHeight="360" AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft" data-field="measure">
+            <AionMenu MaxHeight="360" AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft" data-field="measure">
                 <ActivatorContent Context="menu">
                     <span class="field-pill" @onclick="@(() => menu.ToggleAsync())">
                         <span class="field-value">@ChartText.FunctionName(_function)</span>
@@ -69,9 +69,9 @@
                         </MudMenuItem>
                     }
                 </ChildContent>
-            </MudMenu>
+            </AionMenu>
 
-            <MudMenu Dense="true" AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft" data-field="sort">
+            <AionMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft" data-field="sort">
                 <ActivatorContent Context="menu">
                     <span class="field-pill" @onclick="@(() => menu.ToggleAsync())">
                         <span class="field-prefix">Sort</span>
@@ -90,7 +90,7 @@
                         @Option($"{_groupBy}, ascending", _sort == AggregationSort.Label)
                     </MudMenuItem>
                 </ChildContent>
-            </MudMenu>
+            </AionMenu>
 
             <div class="toolbar-spacer"></div>
 

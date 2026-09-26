@@ -70,16 +70,17 @@
                             <MudText>@database.Name</MudText>
                         </div>
                         <div>
-                            <MudMenu Dense="true" AnchorOrigin="Origin.BottomRight">
+                            <AionMenu AnchorOrigin="Origin.BottomRight">
                                 <ActivatorContent>
-                                    <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.MoreVert"
+                                    <MudIconButton Size="Size.Small" Icon="@AionIcons.More"
+                                                   aria-label="@($"{database.Name} actions")"
                                                    OnClick="@context.ToggleAsync" />
                                 </ActivatorContent>
                                 <ChildContent>
                                     <MudMenuItem OnClick="@(() => CreateTable(database))">Create Table</MudMenuItem>
                                     <MudMenuItem OnClick="@(() => RefreshDatabase(database))">Refresh</MudMenuItem>
                                 </ChildContent>
-                            </MudMenu>
+                            </AionMenu>
                         </div>
                     </div>
                 </BodyContent>
@@ -100,9 +101,10 @@
                                                 <MudText>@table.DisplayName</MudText>
                                             </div>
                                             <div>
-                                                <MudMenu Dense="true" AnchorOrigin="Origin.BottomRight">
+                                                <AionMenu AnchorOrigin="Origin.BottomRight">
                                                     <ActivatorContent>
-                                                        <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.MoreVert"
+                                                        <MudIconButton Size="Size.Small" Icon="@AionIcons.More"
+                                                                       aria-label="@($"{table.DisplayName} actions")"
                                                                        OnClick="@context.ToggleAsync" />
                                                     </ActivatorContent>
                                                     <ChildContent>
@@ -114,7 +116,7 @@
                                                             </MudMenuItem>
                                                             <MudMenuItem OnClick="@(() => RefreshTable(database))">Refresh</MudMenuItem>
                                                         </ChildContent>
-                                                    </MudMenu>
+                                                    </AionMenu>
                                                 </div>
                                             </div>
                                         </BodyContent>

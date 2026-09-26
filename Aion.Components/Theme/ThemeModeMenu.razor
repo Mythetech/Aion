@@ -1,6 +1,7 @@
+@using Aion.Components.Shared
 @implements IDisposable
 
-<MudMenu ActivationEvent="MouseEvent.MouseOver" AnchorOrigin="Origin.TopRight">
+<AionMenu ActivationEvent="MouseEvent.MouseOver" AnchorOrigin="Origin.TopRight">
     <ActivatorContent>
         <MudIconButton Class="ml-1"
                        Icon="@(ThemeState.IsDarkMode ? AionIcons.DarkMode : AionIcons.LightMode)"
@@ -11,7 +12,7 @@
     <ChildContent>
         <ThemeModePicker Value="@ThemeState.Mode" ValueChanged="@ThemeState.SetModeAsync" />
     </ChildContent>
-</MudMenu>
+</AionMenu>
 
 @code {
     [Inject] private ThemeState ThemeState { get; set; } = default!;

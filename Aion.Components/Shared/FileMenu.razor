@@ -3,7 +3,7 @@
 @using MouseEvent = MudBlazor.MouseEvent
 @using Color = MudBlazor.Color
 
-<MudMenu Label="File" Dense ActivationEvent="MouseEvent.MouseOver">
+<AionMenu Label="File" ActivationEvent="MouseEvent.MouseOver">
     <MudMenuItem Icon="@AionIcons.Add" OnClick="OnNewDatabase">
         New Database...
     </MudMenuItem>
@@ -13,19 +13,19 @@
     <MudDivider />
     @if (Connections.Any())
     {
-        <MudMenu Label="Clear Database" StartIcon="@AionIcons.Delete" Dense>
+        <AionMenu Label="Clear Database" StartIcon="@AionIcons.Delete">
             @foreach (var connection in Connections)
             {
                 <MudMenuItem OnClick="@(() => OnClearDatabase.InvokeAsync(connection.Id))">
                     @connection.Name
                 </MudMenuItem>
             }
-        </MudMenu>
+        </AionMenu>
     }
     <MudMenuItem Icon="@AionIcons.ClearAll" IconColor="Color.Error" OnClick="OnClearAllClicked">
         Clear All Data
     </MudMenuItem>
-</MudMenu>
+</AionMenu>
 
 @code {
     [Parameter] public List<ConnectionModel> Connections { get; set; } = [];
