@@ -465,6 +465,14 @@ public class ConnectionPanelTests : TestContext
         table.FindAll(".column-row .tree-row-name").Select(name => name.TextContent).ToList();
 
     [Fact]
+    public void Filter_IsNamedForScreenReaders()
+    {
+        var cut = Render(ConnectionWithTables(Customers));
+
+        cut.Find(".schema-filter input").GetAttribute("aria-label").ShouldBe("Filter tables and columns");
+    }
+
+    [Fact]
     public async Task Filter_NarrowsTablesByNameIgnoringCase()
     {
         var cut = Render(ConnectionWithTables(Customers, Orders, OrderItems));
