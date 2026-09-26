@@ -36,9 +36,6 @@ public class ResultsExporterTests
     private JsonResultsExporter CreateJsonExporter() =>
         new(_state, Substitute.For<ILogger<JsonResultsExporter>>(), _bus, _saveService);
 
-    private CsvResultsExporter CreateCsvExporter() =>
-        new(_state, Substitute.For<ILogger<CsvResultsExporter>>(), _bus, _saveService);
-
     private ExcelResultsExporter CreateExcelExporter() =>
         new(_state, Substitute.For<ILogger<ExcelResultsExporter>>(), _bus, _saveService);
 
@@ -56,7 +53,9 @@ public class ResultsExporterTests
     {
         _saveService.SaveFileAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
 
-        await CreateCsvExporter().Consume(new ExportResultsToCsv(SampleResult()));
+        var exporter = new CsvResultsExporter(_state, Substitute.For<ILogger<CsvResultsExporter>>(), _bus, _saveService);
+
+        await exporter.Consume(new ExportResultsToCsv(SampleResult()));
 
         var notification = _notifications.ShouldHaveSingleItem();
         notification.Message.ShouldBe("CSV export cancelled");
