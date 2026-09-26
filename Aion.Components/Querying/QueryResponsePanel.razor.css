@@ -1,6 +1,4 @@
 .query-response-footer {
-    display: flex;
-    align-items: center;
     gap: 12px;
     min-height: 24px;
     padding-left: 16px;
@@ -38,6 +36,7 @@
 
 .query-messages {
     display: flex;
+    flex: 1 1 auto;
     align-items: baseline;
     gap: 12px;
     padding: 8px 4px;

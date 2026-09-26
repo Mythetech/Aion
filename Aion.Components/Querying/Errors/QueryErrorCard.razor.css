@@ -71,5 +71,6 @@
 }
 
 .query-error-name {
+    padding: 0 3px;
     font-weight: 500;
 }
