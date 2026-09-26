@@ -26,7 +26,7 @@ public class SqliteWasmCommands : IStandardDatabaseCommands
     {
         var columnDefs = columns.Select(c =>
         {
-            var def = $"\"{c.Name}\" {c.DataType}";
+            var def = $"{Dialect.QuoteIdentifier(c.Name)} {c.DataType}";
             if (c.IsPrimaryKey)
                 def += " PRIMARY KEY";
             else if (!c.IsNullable)
@@ -36,7 +36,7 @@ public class SqliteWasmCommands : IStandardDatabaseCommands
             return def;
         });
 
-        return Task.FromResult($"CREATE TABLE \"{name}\" (\n    {string.Join(",\n    ", columnDefs)}\n);");
+        return Task.FromResult($"CREATE TABLE {TableName(name)} (\n    {string.Join(",\n    ", columnDefs)}\n);");
     }
 
     public Task<string> GenerateDropTableScript(string database, string schema, string name)

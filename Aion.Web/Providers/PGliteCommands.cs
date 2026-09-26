@@ -25,10 +25,9 @@ public class PGliteCommands : IStandardDatabaseCommands
     public Task<string> GenerateCreateTableScript(string database, string schema, string name, IEnumerable<ColumnDefinition> columns)
     {
         var columnDefs = columns.Select(c =>
-            $"\"{c.Name}\" {c.DataType}{(c.IsPrimaryKey ? " PRIMARY KEY" : "")}{(!c.IsNullable && !c.IsPrimaryKey ? " NOT NULL" : "")}{(c.DefaultValue != null ? $" DEFAULT {c.DefaultValue}" : "")}");
+            $"{Dialect.QuoteIdentifier(c.Name)} {c.DataType}{(c.IsPrimaryKey ? " PRIMARY KEY" : "")}{(!c.IsNullable && !c.IsPrimaryKey ? " NOT NULL" : "")}{(c.DefaultValue != null ? $" DEFAULT {c.DefaultValue}" : "")}");
 
-        var schemaPrefix = string.IsNullOrEmpty(schema) || schema == "public" ? "" : $"\"{schema}\".";
-        return Task.FromResult($"CREATE TABLE {schemaPrefix}\"{name}\" (\n    {string.Join(",\n    ", columnDefs)}\n);");
+        return Task.FromResult($"CREATE TABLE {TableName(schema, name)} (\n    {string.Join(",\n    ", columnDefs)}\n);");
     }
 
     public Task<string> GenerateDropTableScript(string database, string schema, string name)
