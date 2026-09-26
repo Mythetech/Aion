@@ -242,6 +242,117 @@ public class QueryResponsePanelTests : TestContext
             c.Result!.Rows.Count == 1 && c.TotalRows == 15));
     }
 
+    private static QueryResult Prices() => new()
+    {
+        Columns = ["name", "price"],
+        Rows =
+        [
+            new Dictionary<string, object> { ["name"] = "bolt", ["price"] = 10m },
+            new Dictionary<string, object> { ["name"] = "nut", ["price"] = null! },
+            new Dictionary<string, object> { ["name"] = "gear", ["price"] = 9m },
+            new Dictionary<string, object> { ["name"] = "cog", ["price"] = 100m }
+        ]
+    };
+
+    private static Task SortByAsync(IRenderedComponent<QueryResponsePanel> cut, string column) =>
+        cut.FindAll(".column-heading").First(h => h.QuerySelector(".column-name")!.TextContent == column).ClickAsync(new());
+
+    private static List<string> ShownNames(IRenderedComponent<QueryResponsePanel> cut) =>
+        cut.FindAll("tbody tr.mud-table-row").Select(tr => tr.QuerySelectorAll("td")[1].TextContent.Trim()).ToList();
+
+    private static bool HasNames(QueryResult? result, params string[] names) =>
+        result!.Rows.Select(row => (string)row["name"]).SequenceEqual(names);
+
+    [Fact]
+    public async Task Exports_AfterSortingAColumn_WriteRowsInTheSortedOrder()
+    {
+        // Arrange
+        Complete(Prices());
+        var cut = RenderComponent<QueryResponsePanel>();
+        await SortByAsync(cut, "price");
+        await SortByAsync(cut, "price");
+
+        // Act
+        await cut.Find("[aria-label='Export to JSON']").ClickAsync(new());
+        await cut.Find("[aria-label='Export to CSV']").ClickAsync(new());
+        await cut.Find("[aria-label='Export to Excel']").ClickAsync(new());
+
+        // Assert: price descending, with NULL last.
+        await _bus.Received(1).PublishAsync(Arg.Is<Aion.Components.Querying.Commands.ExportResultsToJson>(c =>
+            HasNames(c.Result, "cog", "bolt", "gear", "nut") && c.TotalRows == 4));
+        await _bus.Received(1).PublishAsync(Arg.Is<Aion.Components.Querying.Commands.ExportResultsToCsv>(c =>
+            HasNames(c.Result, "cog", "bolt", "gear", "nut") && c.TotalRows == 4));
+        await _bus.Received(1).PublishAsync(Arg.Is<Aion.Components.Querying.Commands.ExportResultsToExcel>(c =>
+            HasNames(c.Result, "cog", "bolt", "gear", "nut") && c.TotalRows == 4));
+    }
+
+    [Fact]
+    public async Task ExportCsv_WhileFilteringASortedGrid_ExportsTheMatchingRowsInTheSortedOrder()
+    {
+        // Arrange
+        Complete(Rows(15));
+        var cut = RenderComponent<QueryResponsePanel>();
+        await SortByAsync(cut, "id");
+        await SortByAsync(cut, "id");
+        await FindInResultsAsync(cut, "1", expectedRows: 7);
+
+        // Act
+        await cut.Find("[aria-label='Export to CSV']").ClickAsync(new());
+
+        // Assert
+        await _bus.Received(1).PublishAsync(Arg.Is<Aion.Components.Querying.Commands.ExportResultsToCsv>(c =>
+            c.Result!.Rows.Select(r => (int)r["id"]).SequenceEqual(new[] { 15, 14, 13, 12, 11, 10, 1 }) && c.TotalRows == 15));
+    }
+
+    [Fact]
+    public async Task ExportCsv_AfterTheSortIsCleared_WritesRowsInFetchedOrder()
+    {
+        // Arrange
+        Complete(Prices());
+        var cut = RenderComponent<QueryResponsePanel>();
+        await SortByAsync(cut, "price");
+        await SortByAsync(cut, "price");
+        await SortByAsync(cut, "price");
+
+        // Act
+        await cut.Find("[aria-label='Export to CSV']").ClickAsync(new());
+
+        // Assert
+        await _bus.Received(1).PublishAsync(Arg.Is<Aion.Components.Querying.Commands.ExportResultsToCsv>(c =>
+            HasNames(c.Result, "bolt", "nut", "gear", "cog")));
+    }
+
+    [Fact]
+    public async Task Sort_OutlastsRunningTheQueryAgain()
+    {
+        // Arrange
+        Complete(Prices());
+        var cut = RenderComponent<QueryResponsePanel>();
+        await SortByAsync(cut, "price");
+
+        // Act
+        await RunAsync(cut, Prices());
+
+        // Assert
+        cut.WaitForAssertion(() => ShownNames(cut).ShouldBe(["gear", "bolt", "cog", "nut"]));
+    }
+
+    [Fact]
+    public async Task Sort_IsDroppedByAResultWithoutItsColumn()
+    {
+        // Arrange
+        Complete(Prices());
+        var cut = RenderComponent<QueryResponsePanel>();
+        await SortByAsync(cut, "price");
+        await RunAsync(cut, Rows(3));
+
+        // Act
+        await RunAsync(cut, Prices());
+
+        // Assert
+        cut.WaitForAssertion(() => ShownNames(cut).ShouldBe(["bolt", "nut", "gear", "cog"]));
+    }
+
     private static string Collapse(string text) => System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
 
     private void ConnectToCachedShop()

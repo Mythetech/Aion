@@ -94,6 +94,7 @@
                     <QueryResultTable Result="@State.Active.Result"
                                       QueryName="@State.Active.Name"
                                       SearchFilter="@_search"
+                                      @bind-Sort="_sort"
                                       SelectionState="@_selectionState"
                                       EditState="@GetEditState()"
                                       EditMetadata="@State.Active.EditMetadata"
@@ -205,6 +206,7 @@ else if (State?.Active?.IsExecuting ?? false)
     [Inject] protected QueryMessageLog MessageLog { get; set; } = default!;
 
     private string? _search = "";
+    private ResultSort? _sort;
     private const string Results = "results";
     private const string Analyze = "analyze";
     private const string Messages = "messages";
@@ -287,8 +289,9 @@ else if (State?.Active?.IsExecuting ?? false)
         _ => "query-message-info"
     };
 
-    // Exports follow find in results, so they hold the rows the grid shows rather than every row fetched.
-    private QueryResult RowsToExport(QueryResult result) => ResultRowFilter.Apply(result, _search);
+    // Exports follow find in results and the sort, so they hold the rows the grid shows, in its order, rather
+    // than every row fetched in the order it arrived.
+    private QueryResult RowsToExport(QueryResult result) => ResultGridView.Apply(result, _search, _sort);
 
     private static string FormatDuration(QueryModel query) =>
         query.ExecutionDuration is { } duration ? QueryTimer.FormatDuration(duration) : string.Empty;

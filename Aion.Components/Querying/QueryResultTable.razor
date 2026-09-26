@@ -12,6 +12,7 @@
 @using Aion.Contracts.Queries
 @using Microsoft.JSInterop
 @using MudBlazor.Services
+@using MudBlazor.State
 @using Mythetech.Framework.Infrastructure.MessageBus
 @inherits ComponentBaseWithState
 @implements IAsyncDisposable
@@ -66,7 +67,7 @@
         @foreach (var column in _columns)
         {
             var col = column.Key;
-            var direction = _sort?.Key == col ? _sort.Direction : (ResultSortDirection?)null;
+            var direction = _sortState.Value?.Key == col ? _sortState.Value.Direction : (ResultSortDirection?)null;
             <TemplateColumn T="ResultRow" Title="@column.Header" Resizable="true" Sortable="false"
                             CellClassFunc="@(row => EditCellClass(row, col))">
                 <HeaderTemplate>
@@ -214,6 +215,14 @@
     [Parameter] public required QueryResult Result { get; set; }
     [Parameter] public required string QueryName { get; set; }
     [Parameter] public string? SearchFilter { get; set; }
+
+    /// <summary>
+    /// The column the rows are sorted by, which the host binds so what it exports follows the grid's order.
+    /// </summary>
+    [Parameter] public ResultSort? Sort { get; set; }
+
+    [Parameter] public EventCallback<ResultSort?> SortChanged { get; set; }
+
     [Parameter] public RowSelectionState SelectionState { get; set; } = new();
     [Parameter] public EditState? EditState { get; set; }
     [Parameter] public QueryEditMetadata? EditMetadata { get; set; }
@@ -255,11 +264,15 @@
     private ResultGridView _view = ResultGridView.Empty;
     private IReadOnlyList<ResultRow> _shownRows = [];
     private int _shownLimit;
-    private ResultSort? _sort;
+    private readonly ParameterState<ResultSort?> _sortState;
+
+    // What the view was last built from. Sorting from a header builds it at once, and a host bound to the sort
+    // then hands the same sort back, which must not sort every row a second time.
+    private (IReadOnlyList<ResultRow> Rows, string? Filter, ResultSort? Sort)? _viewInputs;
 
     public QueryResultTable()
     {
-        // One handler for both, so a new result that arrives with a new filter builds the view once.
+        // One handler for all three, so a new result that arrives with a new filter or sort builds the view once.
         using var registerScope = CreateRegisterScope();
         registerScope.RegisterParameter<QueryResult>(nameof(Result))
             .WithParameter(() => Result)
@@ -267,11 +280,15 @@
         registerScope.RegisterParameter<string?>(nameof(SearchFilter))
             .WithParameter(() => SearchFilter)
             .WithChangeHandler(OnViewInputsChanged);
+        _sortState = registerScope.RegisterParameter<ResultSort?>(nameof(Sort))
+            .WithParameter(() => Sort)
+            .WithEventCallback(() => SortChanged)
+            .WithChangeHandler(OnViewInputsChanged);
     }
 
     private int RowLimit => ResultsSettings.EffectiveRowLimit;
 
-    private void OnViewInputsChanged()
+    private async Task OnViewInputsChanged()
     {
         if (!ReferenceEquals(_viewResult, Result))
         {
@@ -286,9 +303,9 @@
             _cellElements.Clear();
 
             // Running the query again keeps its sort; a result without that column starts unsorted.
-            if (_sort != null && !Result.Columns.Contains(_sort.Key))
+            if (_sortState.Value is { } sort && !Result.Columns.Contains(sort.Key))
             {
-                _sort = null;
+                await _sortState.SetValueAsync(null);
             }
         }
 
@@ -298,13 +315,20 @@
 
     private void RebuildView()
     {
-        _view = ResultGridView.Build(_rows, SearchFilter, _sort);
+        var inputs = (_rows, SearchFilter, _sortState.Value);
+        if (_viewInputs == inputs)
+        {
+            return;
+        }
+
+        _viewInputs = inputs;
+        _view = ResultGridView.Build(_rows, SearchFilter, _sortState.Value);
         _shownRows = _view.Take(_shownLimit);
     }
 
-    private void ToggleSort(string column)
+    private async Task ToggleSort(string column)
     {
-        _sort = ResultSort.Next(_sort, column);
+        await _sortState.SetValueAsync(ResultSort.Next(_sortState.Value, column));
         RebuildView();
     }
 
