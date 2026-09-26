@@ -3,7 +3,7 @@
 
 @if (!string.IsNullOrWhiteSpace(Tooltip))
 {
-    <MudTooltip Text="@Tooltip" Color="@Color">
+    <MudTooltip Text="@Tooltip" Color="@Color" Placement="@TooltipPlacement">
         <MudIconButton Class="@Class"
                        Color="@Color"
                        OnClick="@OnClick"
@@ -52,6 +52,12 @@ else
 
     [Parameter]
     public string Tooltip { get; set; } = "";
+
+    /// <summary>
+    /// Where the tooltip opens. A button at the top of a panel can move it aside so it doesn't cover the content below.
+    /// </summary>
+    [Parameter]
+    public Placement TooltipPlacement { get; set; } = Placement.Bottom;
 
     /// <summary>
     /// The button's accessible name. Icon-only buttons otherwise announce their icon ligature,

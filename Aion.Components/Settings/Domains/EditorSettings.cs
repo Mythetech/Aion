@@ -1,4 +1,4 @@
-using MudBlazor;
+using Aion.Components.Theme;
 using Mythetech.Framework.Infrastructure.Settings;
 
 namespace Aion.Components.Settings.Domains;
@@ -10,7 +10,7 @@ public class EditorSettings : SettingsBase
 {
     public override string SettingsId => "Editor";
     public override string DisplayName => "Editor";
-    public override string Icon => Icons.Material.Filled.Code;
+    public override string Icon => AionIcons.Editor;
     public override int Order => 14;
 
     [Setting(

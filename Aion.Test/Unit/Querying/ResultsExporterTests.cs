@@ -49,6 +49,20 @@ public class ResultsExporterTests
     }
 
     [Fact]
+    public async Task CsvExport_Cancelled_SaysCsv()
+    {
+        _saveService.SaveFileAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
+
+        var exporter = new CsvResultsExporter(_state, Substitute.For<ILogger<CsvResultsExporter>>(), _bus, _saveService);
+
+        await exporter.Consume(new ExportResultsToCsv(SampleResult()));
+
+        var notification = _notifications.ShouldHaveSingleItem();
+        notification.Message.ShouldBe("CSV export cancelled");
+        notification.Severity.ShouldBe(Severity.Info);
+    }
+
+    [Fact]
     public async Task JsonExport_Cancelled_SaysJson()
     {
         _saveService.SaveFileAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);

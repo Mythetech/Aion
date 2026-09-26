@@ -52,6 +52,20 @@ public static class AionIcons
 
     public static string Copy => Round("content_copy");
 
+    public static string Bug => Round("bug_report");
+
+    public static string Editor => Round("code");
+
+    public static string JsonNull => Round("pen_size_1");
+
+    public static string JsonDate => Round("calendar_today");
+
+    public static string JsonText => Round("text_fields");
+
+    public static string JsonNumber => Round("numbers");
+
+    public static string JsonArray => Round("stacks");
+
     public static string More => Round("more_vert");
     
     public static string Save => Round("save");

@@ -23,7 +23,7 @@
     <DialogActions>
         <MudLink OnClick="OpenMythetech" Class="app-header-font">Mythetech</MudLink>
         <MudLink OnClick="OpenGithub">GitHub</MudLink>
-        <AionIconButton OnClick="@OpenGithubIssues" Size="Size.Small" Color="Color.Error" Tooltip="Report Issue" Icon="@AionIcons.Round("bug_report")" />
+        <AionIconButton OnClick="@OpenGithubIssues" Size="Size.Small" Color="Color.Error" Tooltip="Report Issue" Icon="@AionIcons.Bug" />
         <MudSpacer/>
         <MudButton OnClick="Cancel">Close</MudButton>
     </DialogActions>
@@ -33,7 +33,6 @@
     private IMudDialogInstance MudDialog { get; set; }
     private void Cancel() => MudDialog.Cancel();
     private const string GitHubLink = "https://github.com/Mythetech/Aion/";
-    private const string GitHubIssuesLink = $"{GitHubLink}issues/new";
     private const string MythetechLink = "https://www.mythetech.com";
 
     private Task OpenMythetech()
@@ -48,9 +47,11 @@
     
     private Task OpenGithubIssues()
     {
-        return LinkOpenService.OpenLinkAsync(GitHubIssuesLink);
+        return BugReporter.OpenAsync();
     }
 
     [Inject] ILinkOpenService LinkOpenService { get; set; }
+
+    [Inject] BugReporter BugReporter { get; set; } = default!;
 
 }

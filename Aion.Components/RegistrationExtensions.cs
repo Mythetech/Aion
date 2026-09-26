@@ -3,6 +3,7 @@ using Aion.Components.Connections;
 using Aion.Components.Connections.Services;
 using Aion.Components.ForeignKeys;
 using Aion.Components.History;
+using Aion.Components.Infrastructure;
 using Aion.Components.Querying;
 using Aion.Components.Querying.Editing;
 using Aion.Components.Querying.Errors;
@@ -57,6 +58,7 @@ public static class RegistrationExtensions
         services.AddTransient<SearchService>();
         services.AddSingleton<SqlCompletionService>();
         services.AddSingleton<QueryErrorSuggester>();
+        services.AddSingleton<BugReporter>();
         services.AddSingleton<ISqlChangeGenerator, SqlChangeGenerator>();
         services.AddTransient<PendingChangesSqlBuilder>();
 

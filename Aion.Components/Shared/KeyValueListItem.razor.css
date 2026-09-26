@@ -1,0 +1,22 @@
+.kv-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+    font-size: var(--mud-typography-body1-size);
+}
+
+.kv-key {
+    flex: 0 0 auto;
+    color: var(--mud-palette-text-secondary);
+}
+
+.kv-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+}

@@ -1,3 +1,22 @@
+.connection-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    width: 100%;
+    border-bottom: 1px solid var(--mud-palette-divider);
+}
+
+/* A full-size spinner would make the Checking chip taller than the Connected chip it replaces. */
+.health-spinner {
+    display: inline-flex;
+    margin-right: 4px;
+}
+
+.health-spinner ::deep .mud-progress-circular {
+    width: 12px;
+    height: 12px;
+}
+
 .tree-row {
     display: flex;
     align-items: baseline;

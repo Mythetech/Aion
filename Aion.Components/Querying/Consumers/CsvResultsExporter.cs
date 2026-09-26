@@ -51,7 +51,7 @@ public class CsvResultsExporter : IConsumer<ExportResultsToCsv>
 
             if (!success)
             {
-                await _bus.PublishAsync(new AddNotification($"Csv export cancelled", Severity.Info));
+                await _bus.PublishAsync(new AddNotification("CSV export cancelled", Severity.Info));
                 return;
             }
             
