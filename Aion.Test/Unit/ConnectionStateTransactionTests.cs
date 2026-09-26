@@ -112,6 +112,63 @@ public class ConnectionStateTransactionTests
         _query.Transaction!.Value.StatementCount.ShouldBe(1);
     }
 
+    private void NextStatementReturns(QueryResult result) =>
+        _provider.ExecuteInTransactionAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(result);
+
+    [Fact]
+    public async Task Run_WithOpenTransaction_AddsUpTheRowsEachStatementChanged()
+    {
+        // Arrange
+        _query.UseTransaction = true;
+        NextStatementReturns(new QueryResult { RowsAffected = 2 });
+        await _sut.ExecuteQueryAsync(_query, CancellationToken.None);
+        NextStatementReturns(new QueryResult { Columns = ["id"], Rows = [new() { ["id"] = 1 }] });
+        await _sut.ExecuteQueryAsync(_query, CancellationToken.None);
+
+        // Act
+        NextStatementReturns(new QueryResult { RowsAffected = 3 });
+        await _sut.ExecuteQueryAsync(_query, CancellationToken.None);
+
+        // Assert
+        _query.Transaction!.Value.StatementCount.ShouldBe(3);
+        _query.Transaction.Value.RowsChanged.ShouldBe(5);
+    }
+
+    [Fact]
+    public async Task Run_WithOpenTransaction_DoesNotCountRowsOfAFailedStatement()
+    {
+        // Arrange
+        _query.UseTransaction = true;
+        NextStatementReturns(new QueryResult { RowsAffected = 2 });
+        await _sut.ExecuteQueryAsync(_query, CancellationToken.None);
+
+        // Act
+        NextStatementReturns(new QueryResult { Error = "duplicate key", RowsAffected = 4 });
+        await _sut.ExecuteQueryAsync(_query, CancellationToken.None);
+
+        // Assert
+        _query.Transaction!.Value.RowsChanged.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Run_AfterCommit_StartsCountingRowsFromZero()
+    {
+        // Arrange
+        _query.UseTransaction = true;
+        NextStatementReturns(new QueryResult { RowsAffected = 7 });
+        await _sut.ExecuteQueryAsync(_query, CancellationToken.None);
+        await _sut.CommitTransactionAsync(_query);
+
+        // Act
+        NextStatementReturns(new QueryResult { RowsAffected = 1 });
+        await _sut.ExecuteQueryAsync(_query, CancellationToken.None);
+
+        // Assert
+        _query.Transaction!.Value.StatementCount.ShouldBe(1);
+        _query.Transaction.Value.RowsChanged.ShouldBe(1);
+    }
+
     [Fact]
     public async Task Run_WithOpenTransactionAndToggleOff_StillRunsInsideTransaction()
     {

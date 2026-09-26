@@ -168,7 +168,7 @@ public class ConnectionState
                 result = await provider.ExecuteInTransactionAsync(connectionString, sql, transaction.Id, cancellationToken);
                 if (result.Success)
                 {
-                    query.Transaction = transaction.WithStatementExecuted();
+                    query.Transaction = transaction.WithStatementExecuted(result.RowsAffected);
                 }
             }
             else
