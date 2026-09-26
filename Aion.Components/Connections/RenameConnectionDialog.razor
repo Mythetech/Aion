@@ -1,0 +1,65 @@
+@using Aion.Components.Shared
+
+<MudDialog Class="aion-transparent-dialog">
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudTextField @bind-Value="_name"
+                          @ref="_input"
+                          Label="Connection Name"
+                          Required="true"
+                          RequiredError="Name is required"
+                          Immediate="true"
+                          OnKeyDown="OnKeyDown" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <PrimaryActionButton OnClick="Submit" Text="Rename" />
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public Guid ConnectionId { get; set; }
+
+    [Inject] private ConnectionState Connections { get; set; } = default!;
+
+    private MudForm? _form;
+    private MudTextField<string>? _input;
+    private string _name = "";
+
+    protected override void OnInitialized()
+    {
+        _name = Connections.Connections.FirstOrDefault(c => c.Id == ConnectionId)?.Name ?? "";
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _input != null)
+        {
+            await _input.FocusAsync();
+        }
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await Submit();
+        }
+    }
+
+    private async Task Submit()
+    {
+        if (_form == null) return;
+
+        await _form.Validate();
+        if (!_form.IsValid) return;
+
+        await Connections.RenameConnectionAsync(ConnectionId, _name);
+        MudDialog.Close(DialogResult.Ok(_name));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

@@ -67,18 +67,26 @@ public class ConnectionPromptTests
     }
 
     [Fact]
-    public async Task BrowserPrompt_Edit_OpensTheConnectionDialog()
+    public async Task BrowserPrompt_EditInBrowserDatabase_OpensTheRenameDialog()
     {
+        // An in-browser database has no server, port or credentials, so its name is the only thing to edit.
         var prompt = new BrowserConnectionPrompt(_bus);
+        var id = Guid.NewGuid();
         var initialValues = new ConnectionDialogModel
         {
-            EditingConnectionId = Guid.NewGuid(),
-            Type = DatabaseType.WasmSQLite
+            EditingConnectionId = id,
+            Name = "sample_store",
+            Type = DatabaseType.WasmPostgreSQL
         };
 
         await prompt.PromptAsync(initialValues);
 
-        await _bus.Received(1).PublishAsync(Arg.Is<ShowDialog>(d => d.Dialog == typeof(ConnectionDialog)));
+        await _bus.Received(1).PublishAsync(Arg.Is<ShowDialog>(d =>
+            d.Dialog == typeof(RenameConnectionDialog)
+            && d.Title == "Rename sample_store"
+            && d.Parameters != null
+            && d.Parameters.Get<Guid>(nameof(RenameConnectionDialog.ConnectionId)) == id));
+        await _bus.DidNotReceive().PublishAsync(Arg.Is<ShowDialog>(d => d.Dialog == typeof(ConnectionDialog)));
         await _bus.DidNotReceive().PublishAsync(Arg.Any<CreateBrowserDatabase>());
     }
 

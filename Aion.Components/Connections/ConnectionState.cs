@@ -702,5 +702,19 @@ public class ConnectionState
         return result;
     }
 
+    /// <summary>
+    /// Changes only the connection's name, so the saved connection string and the open connection stay as they are.
+    /// </summary>
+    public async Task RenameConnectionAsync(Guid id, string name)
+    {
+        var connection = Connections.FirstOrDefault(c => c.Id == id);
+        var trimmed = name.Trim();
+        if (connection == null || trimmed.Length == 0 || trimmed == connection.Name) return;
+
+        connection.Name = trimmed;
+        await _connectionService.UpdateConnection(connection);
+        OnConnectionStateChanged();
+    }
+
     public IDatabaseProvider GetProvider(DatabaseType type) => _providerFactory.GetProvider(type);
 }
