@@ -1,0 +1,83 @@
+@using Microsoft.Extensions.Logging
+@using Microsoft.JSInterop
+@using Mythetech.Framework.Infrastructure.Guards
+@implements IDisposable
+
+@* MudThemeProvider only watches the OS while the mode is System, so an OS change can never override an explicit Light or Dark choice. *@
+<MudThemeProvider @ref="_mudThemeProvider"
+                  Theme="@_theme"
+                  IsDarkMode="@ThemeState.IsDarkMode"
+                  IsDarkModeChanged="@ThemeState.SetSystemPreference"
+                  ObserveSystemDarkModeChange="@ThemeState.FollowsSystem" />
+
+@code {
+    private const string MonacoGuard = "monaco";
+
+    [Inject] private ThemeState ThemeState { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private IJsGuardService JsGuards { get; set; } = default!;
+    [Inject] private ILogger<AionThemeProvider> Logger { get; set; } = default!;
+
+    private readonly MudTheme _theme = new AionTheme();
+    private MudThemeProvider _mudThemeProvider = default!;
+    private bool _followingSystem;
+    private bool? _editorIsDark;
+
+    protected override void OnInitialized()
+    {
+        ThemeState.ThemeChanged += OnThemeChanged;
+    }
+
+    /// <summary>
+    /// Reads the operating system's color preference into <see cref="ThemeState"/>.
+    /// Layouts await this before hiding the splash so the first visible frame has the right theme.
+    /// </summary>
+    public async Task RefreshSystemPreferenceAsync()
+    {
+        ThemeState.SetSystemPreference(await _mudThemeProvider.GetSystemDarkModeAsync());
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!ThemeState.FollowsSystem)
+        {
+            _followingSystem = false;
+        }
+        else if (!_followingSystem)
+        {
+            // The OS is not watched outside System mode, so the last known preference may be stale.
+            _followingSystem = true;
+            await RefreshSystemPreferenceAsync();
+        }
+
+        await SyncEditorThemeAsync();
+    }
+
+    private async Task SyncEditorThemeAsync()
+    {
+        if (_editorIsDark == ThemeState.IsDarkMode)
+            return;
+
+        if (!await JsGuards.WaitForReadyAsync(JS, MonacoGuard))
+            return;
+
+        var isDark = ThemeState.IsDarkMode;
+
+        try
+        {
+            await BlazorMonaco.Editor.Global.SetTheme(JS, isDark ? "vs-dark" : "vs");
+            _editorIsDark = isDark;
+        }
+        catch (JSException ex)
+        {
+            Logger.LogWarning(ex, "Could not apply the {Theme} theme to the query editor", isDark ? "dark" : "light");
+        }
+    }
+
+    private void OnThemeChanged() => StateHasChanged();
+
+    public void Dispose()
+    {
+        ThemeState.ThemeChanged -= OnThemeChanged;
+    }
+}

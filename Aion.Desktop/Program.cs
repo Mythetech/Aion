@@ -11,6 +11,7 @@ using Mythetech.Framework.Infrastructure.Plugins;
 using Mythetech.Framework.Infrastructure.Settings;
 using Mythetech.Framework.Infrastructure.Initialization;
 using Aion.Components.Querying;
+using Aion.Components.Settings;
 using Aion.Desktop.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -100,7 +101,8 @@ namespace Aion.Desktop
 
             // Settings
             appBuilder.Services.AddSettingsStorage<AionSettingsStorage>();
-            appBuilder.Services.RegisterSettingsFromAssembly(typeof(UpdateSettings).Assembly);
+            appBuilder.Services.AddAionDesktopSettings();
+            appBuilder.Services.AddSettingsSection<UpdateSettings>();
 
             // Update service
             appBuilder.Services.AddUpdateService(options =>

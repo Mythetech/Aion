@@ -1,0 +1,10 @@
+.theme-mode-picker ::deep .mud-toggle-group {
+    align-items: center;
+}
+
+.theme-mode-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 4px;
+}

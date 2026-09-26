@@ -46,11 +46,11 @@ public class SettingsState
     public T? GetSettings<T>() where T : SettingsBase => _provider.GetSettings<T>();
 
     /// <summary>
-    /// Notifies listeners that settings have changed.
-    /// Called after the settings dialog commits changes.
+    /// Persists and broadcasts a settings section that was edited, then tells listeners.
     /// </summary>
-    public void NotifyChanged()
+    public async Task SaveAsync(SettingsBase settings)
     {
+        await _provider.NotifySettingsChangedAsync(settings);
         SettingsChanged?.Invoke(this);
     }
 }

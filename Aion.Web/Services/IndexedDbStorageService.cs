@@ -97,6 +97,25 @@ public class IndexedDbStorageService
         await module.InvokeVoidAsync("deleteDatabaseMeta", name);
     }
 
+    public async Task SaveSettingsAsync(string settingsId, string json)
+    {
+        var module = await GetModuleAsync();
+        await module.InvokeVoidAsync("saveSettings", settingsId, json);
+    }
+
+    public async Task<string?> LoadSettingsAsync(string settingsId)
+    {
+        var module = await GetModuleAsync();
+        return await module.InvokeAsync<string?>("loadSettings", settingsId);
+    }
+
+    public async Task<List<SettingsRecord>> LoadAllSettingsAsync()
+    {
+        var module = await GetModuleAsync();
+        var json = await module.InvokeAsync<string>("loadAllSettings");
+        return JsonSerializer.Deserialize<List<SettingsRecord>>(json, JsonOptions) ?? [];
+    }
+
     public async Task ClearAllAsync()
     {
         var module = await GetModuleAsync();
@@ -157,3 +176,5 @@ public record QueryRecord
 }
 
 public record DatabaseMeta(string Name, DatabaseType Type, DateTime CreatedAt);
+
+public record SettingsRecord(string SettingsId, string Json);

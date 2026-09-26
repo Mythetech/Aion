@@ -1,5 +1,5 @@
 const DB_NAME = 'aion-storage';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise = null;
 
@@ -19,6 +19,9 @@ function openDb() {
             }
             if (!db.objectStoreNames.contains('databases')) {
                 db.createObjectStore('databases', { keyPath: 'name' });
+            }
+            if (!db.objectStoreNames.contains('settings')) {
+                db.createObjectStore('settings', { keyPath: 'settingsId' });
             }
         };
 
@@ -122,6 +125,36 @@ export async function deleteDatabaseMeta(name) {
         tx.objectStore('databases').delete(name);
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
+    });
+}
+
+export async function saveSettings(settingsId, json) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('settings', 'readwrite');
+        tx.objectStore('settings').put({ settingsId, json, updatedAt: new Date().toISOString() });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+export async function loadSettings(settingsId) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('settings', 'readonly');
+        const request = tx.objectStore('settings').get(settingsId);
+        request.onsuccess = () => resolve(request.result ? request.result.json : null);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+export async function loadAllSettings() {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('settings', 'readonly');
+        const request = tx.objectStore('settings').getAll();
+        request.onsuccess = () => resolve(JSON.stringify(request.result.map(r => ({ settingsId: r.settingsId, json: r.json }))));
+        request.onerror = () => reject(request.error);
     });
 }
 
