@@ -1,0 +1,18 @@
+<span class="chart-tip" style="@Style" role="tooltip">
+    <span class="chart-tip-label">@Label</span>
+    <span class="chart-tip-value">@SeriesName: <strong>@ValueText</strong></span>
+</span>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string SeriesName { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string ValueText { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Style { get; set; }
+}

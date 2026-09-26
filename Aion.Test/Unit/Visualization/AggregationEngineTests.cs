@@ -145,22 +145,6 @@ public class AggregationEngineTests
     }
 
     [Fact]
-    public void GetGroupableColumns_ShouldExcludeHighCardinalityColumns()
-    {
-        var rows = Enumerable.Range(0, 100).Select(i => new Dictionary<string, object>
-        {
-            ["id"] = i,
-            ["status"] = i % 3 == 0 ? "active" : "inactive"
-        }).ToList();
-
-        var result = CreateResult(["id", "status"], rows);
-
-        var groupable = _sut.GetGroupableColumns(result);
-
-        groupable.ShouldContain("status");
-    }
-
-    [Fact]
     public void GetMeasurableColumns_ShouldDetectNumericColumns()
     {
         var result = CreateResult(
@@ -175,54 +159,6 @@ public class AggregationEngineTests
         measurable.ShouldContain("age");
         measurable.ShouldContain("score");
         measurable.ShouldNotContain("name");
-    }
-
-    [Fact]
-    public void RecommendedChartType_FewGroupsWithCount_ShouldSuggestPie()
-    {
-        var result = CreateResult(
-            ["status", "count"],
-            [
-                new() { ["status"] = "active", ["count"] = 10 },
-                new() { ["status"] = "inactive", ["count"] = 5 },
-                new() { ["status"] = "pending", ["count"] = 3 }
-            ]);
-
-        var agg = _sut.Aggregate(result, "status", "count", AggregateFunction.Count);
-
-        agg.RecommendedChartType.ShouldBe(ChartTypeRecommendation.Pie);
-    }
-
-    [Fact]
-    public void RecommendedChartType_ManyGroups_ShouldSuggestLine()
-    {
-        var rows = Enumerable.Range(1, 20).Select(i => new Dictionary<string, object>
-        {
-            ["month"] = $"2024-{i:D2}",
-            ["revenue"] = i * 1000
-        }).ToList();
-
-        var result = CreateResult(["month", "revenue"], rows);
-
-        var agg = _sut.Aggregate(result, "month", "revenue", AggregateFunction.Sum);
-
-        agg.RecommendedChartType.ShouldBe(ChartTypeRecommendation.Line);
-    }
-
-    [Fact]
-    public void RecommendedChartType_ModerateGroupsWithSum_ShouldSuggestBar()
-    {
-        var rows = Enumerable.Range(1, 10).Select(i => new Dictionary<string, object>
-        {
-            ["dept"] = $"Dept{i}",
-            ["budget"] = i * 5000
-        }).ToList();
-
-        var result = CreateResult(["dept", "budget"], rows);
-
-        var agg = _sut.Aggregate(result, "dept", "budget", AggregateFunction.Sum);
-
-        agg.RecommendedChartType.ShouldBe(ChartTypeRecommendation.Bar);
     }
 
     [Fact]
@@ -255,6 +191,237 @@ public class AggregationEngineTests
         var agg = _sut.Aggregate(result, "name", "val", AggregateFunction.Count);
 
         agg.Labels.ShouldBe(["Alice", "Bob", "Charlie"]);
+    }
+
+    [Fact]
+    public void SuggestSelection_GroupedResult_SumsTheMeasureTheRowsAreOrderedBy()
+    {
+        var result = CreateResult(
+            ["customer", "city", "orders", "revenue"],
+            [
+                new() { ["customer"] = "Charlie Davis", ["city"] = "Denver", ["orders"] = 3L, ["revenue"] = 259.96999999999997 },
+                new() { ["customer"] = "Alice Johnson", ["city"] = "Austin", ["orders"] = 2L, ["revenue"] = 234.95 },
+                new() { ["customer"] = "George Kim", ["city"] = "Denver", ["orders"] = 2L, ["revenue"] = 164.98 },
+                new() { ["customer"] = "Bob Smith", ["city"] = "Boston", ["orders"] = 3L, ["revenue"] = 124.97 },
+                new() { ["customer"] = "Hannah Lee", ["city"] = "Austin", ["orders"] = 1L, ["revenue"] = 44.99 }
+            ]);
+
+        var selection = _sut.SuggestSelection(result);
+
+        selection.ShouldBe(new AnalysisSelection("customer", "revenue", AggregateFunction.Sum));
+    }
+
+    [Fact]
+    public void SuggestSelection_CountThatIsOrderedByCoincidence_LosesToTheStrictlyOrderedMeasure()
+    {
+        var result = CreateResult(
+            ["customer", "orders", "revenue"],
+            [
+                new() { ["customer"] = "Charlie Davis", ["orders"] = 3L, ["revenue"] = 259.97 },
+                new() { ["customer"] = "Alice Johnson", ["orders"] = 2L, ["revenue"] = 234.95 },
+                new() { ["customer"] = "George Kim", ["orders"] = 2L, ["revenue"] = 164.98 },
+                new() { ["customer"] = "Hannah Lee", ["orders"] = 1L, ["revenue"] = 44.99 }
+            ]);
+
+        var selection = _sut.SuggestSelection(result);
+
+        selection!.MeasureColumn.ShouldBe("revenue");
+    }
+
+    [Fact]
+    public void SuggestSelection_PlainTableWithIdColumn_SkipsTheIdForGroupAndMeasure()
+    {
+        var result = CreateResult(
+            ["id", "name", "category", "price", "stock"],
+            [
+                new() { ["id"] = 1L, ["name"] = "Laptop", ["category"] = "Electronics", ["price"] = 999.99, ["stock"] = 5L },
+                new() { ["id"] = 2L, ["name"] = "Desk", ["category"] = "Furniture", ["price"] = 249.5, ["stock"] = 12L },
+                new() { ["id"] = 3L, ["name"] = "Mouse", ["category"] = "Electronics", ["price"] = 19.99, ["stock"] = 80L },
+                new() { ["id"] = 4L, ["name"] = "Chair", ["category"] = "Furniture", ["price"] = 149.0, ["stock"] = 7L }
+            ]);
+
+        var selection = _sut.SuggestSelection(result);
+
+        selection.ShouldBe(new AnalysisSelection("name", "price", AggregateFunction.Sum));
+    }
+
+    [Fact]
+    public void SuggestSelection_NoNumericColumns_CountsRowsByATextColumnThatRepeats()
+    {
+        var result = CreateResult(
+            ["name", "city"],
+            [
+                new() { ["name"] = "Alice", ["city"] = "Austin" },
+                new() { ["name"] = "Bob", ["city"] = "Boston" },
+                new() { ["name"] = "Charlie", ["city"] = "Austin" }
+            ]);
+
+        var selection = _sut.SuggestSelection(result);
+
+        selection.ShouldBe(new AnalysisSelection("city", null, AggregateFunction.Count));
+    }
+
+    [Fact]
+    public void SuggestSelection_OnlyIdNumericColumns_FallsBackToCount()
+    {
+        var result = CreateResult(
+            ["customer_id", "status"],
+            [
+                new() { ["customer_id"] = 1, ["status"] = "shipped" },
+                new() { ["customer_id"] = 2, ["status"] = "pending" },
+                new() { ["customer_id"] = 3, ["status"] = "shipped" }
+            ]);
+
+        var selection = _sut.SuggestSelection(result);
+
+        selection.ShouldBe(new AnalysisSelection("status", null, AggregateFunction.Count));
+    }
+
+    [Fact]
+    public void SuggestSelection_AllNumericColumns_GroupsByTheFirstColumn()
+    {
+        var result = CreateResult(
+            ["year", "total"],
+            [
+                new() { ["year"] = 2023, ["total"] = 10.5 },
+                new() { ["year"] = 2024, ["total"] = 7.25 }
+            ]);
+
+        var selection = _sut.SuggestSelection(result);
+
+        selection.ShouldBe(new AnalysisSelection("year", "total", AggregateFunction.Sum));
+    }
+
+    [Fact]
+    public void SuggestSelection_EmptyResult_ReturnsNull()
+    {
+        _sut.SuggestSelection(CreateResult(["a"], [])).ShouldBeNull();
+    }
+
+    [Fact]
+    public void GetMeasurableColumns_ParsesNumericStringsWithInvariantCulture()
+    {
+        var result = CreateResult(
+            ["label", "amount", "localized"],
+            [
+                new() { ["label"] = "a", ["amount"] = "12.50", ["localized"] = "12,5" },
+                new() { ["label"] = "b", ["amount"] = null!, ["localized"] = "7,25" },
+                new() { ["label"] = "c", ["amount"] = "3", ["localized"] = "1,5" }
+            ]);
+
+        var measurable = _sut.GetMeasurableColumns(result);
+
+        measurable.ShouldBe(["amount"]);
+    }
+
+    [Theory]
+    [InlineData("id", true)]
+    [InlineData("ID", true)]
+    [InlineData("customer_id", true)]
+    [InlineData("customerId", true)]
+    [InlineData("CustomerID", true)]
+    [InlineData("paid", false)]
+    [InlineData("PAID", false)]
+    [InlineData("valid", false)]
+    [InlineData("revenue", false)]
+    public void IsIdLike_RecognizesKeyColumnNames(string column, bool expected)
+    {
+        AggregationEngine.IsIdLike(column).ShouldBe(expected);
+    }
+
+    [Fact]
+    public void Labels_NumericGroupKeys_ShouldSortNumerically()
+    {
+        var result = CreateResult(
+            ["bucket", "val"],
+            [
+                new() { ["bucket"] = 10, ["val"] = 1 },
+                new() { ["bucket"] = 2, ["val"] = 1 },
+                new() { ["bucket"] = null!, ["val"] = 1 },
+                new() { ["bucket"] = 1, ["val"] = 1 }
+            ]);
+
+        var agg = _sut.Aggregate(result, "bucket", "val", AggregateFunction.Count);
+
+        agg.Labels.ShouldBe(["1", "2", "10", AggregationEngine.NullLabel]);
+    }
+
+    [Fact]
+    public void Labels_NumericStringGroupKeys_ShouldSortNumerically()
+    {
+        var result = CreateResult(
+            ["bucket"],
+            [
+                new() { ["bucket"] = "10" },
+                new() { ["bucket"] = "2" },
+                new() { ["bucket"] = "1.5" }
+            ]);
+
+        var agg = _sut.Aggregate(result, "bucket", null, AggregateFunction.Count);
+
+        agg.Labels.ShouldBe(["1.5", "2", "10"]);
+    }
+
+    [Fact]
+    public void Labels_MixedTextAndNumberKeys_ShouldSortAsStrings()
+    {
+        var result = CreateResult(
+            ["code"],
+            [
+                new() { ["code"] = "b10" },
+                new() { ["code"] = "10" },
+                new() { ["code"] = "b2" },
+                new() { ["code"] = "2" }
+            ]);
+
+        var agg = _sut.Aggregate(result, "code", null, AggregateFunction.Count);
+
+        agg.Labels.ShouldBe(["10", "2", "b10", "b2"]);
+    }
+
+    [Fact]
+    public void Labels_DoubleGroupKeys_ShouldDropFloatingPointNoise()
+    {
+        var result = CreateResult(
+            ["total"],
+            [new() { ["total"] = 259.96999999999997 }]);
+
+        var agg = _sut.Aggregate(result, "total", null, AggregateFunction.Count);
+
+        agg.Labels.ShouldBe(["259.97"]);
+    }
+
+    [Fact]
+    public void ValueDescendingSort_ShouldPutLargestGroupFirst()
+    {
+        var result = CreateResult(
+            ["name", "val"],
+            [
+                new() { ["name"] = "Alice", ["val"] = 5 },
+                new() { ["name"] = "Bob", ["val"] = 20 },
+                new() { ["name"] = "Charlie", ["val"] = 10 }
+            ]);
+
+        var agg = _sut.Aggregate(result, "name", "val", AggregateFunction.Sum, AggregationSort.ValueDescending);
+
+        agg.Labels.ShouldBe(["Bob", "Charlie", "Alice"]);
+        agg.Values.ShouldBe([20.0, 10.0, 5.0]);
+    }
+
+    [Fact]
+    public void ValueAscendingSort_ShouldPutSmallestGroupFirst()
+    {
+        var result = CreateResult(
+            ["name", "val"],
+            [
+                new() { ["name"] = "Alice", ["val"] = 5 },
+                new() { ["name"] = "Bob", ["val"] = 20 },
+                new() { ["name"] = "Charlie", ["val"] = 10 }
+            ]);
+
+        var agg = _sut.Aggregate(result, "name", "val", AggregateFunction.Sum, AggregationSort.ValueAscending);
+
+        agg.Labels.ShouldBe(["Alice", "Charlie", "Bob"]);
     }
 
     private static QueryResult CreateResult(

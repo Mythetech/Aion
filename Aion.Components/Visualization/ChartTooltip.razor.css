@@ -1,0 +1,31 @@
+/* Hidden until the parent chart's hovered or focused mark reveals it, so hovering never costs a render. */
+.chart-tip {
+    position: absolute;
+    z-index: 3;
+    display: none;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 140px;
+    max-width: 280px;
+    padding: 6px 10px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 6px;
+    background: var(--mud-palette-gray-darker);
+    color: var(--mud-palette-dark-text);
+    box-shadow: var(--mud-elevation-4);
+    font-size: 11px;
+    line-height: 1.4;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.chart-tip-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 600;
+}
+
+.chart-tip-value {
+    opacity: 0.85;
+    font-variant-numeric: tabular-nums;
+}

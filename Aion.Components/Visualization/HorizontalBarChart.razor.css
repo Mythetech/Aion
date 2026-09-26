@@ -1,0 +1,124 @@
+.hbar {
+    display: flex;
+    flex-direction: column;
+    font-size: 12px;
+    color: var(--mud-palette-text-primary);
+}
+
+.hbar-plot {
+    position: relative;
+}
+
+.hbar-grid {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(var(--label-width) + 8px + var(--negative-room));
+    right: var(--value-room);
+    pointer-events: none;
+}
+
+.hbar-gridline {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--mud-palette-lines-default);
+    opacity: 0.6;
+}
+
+.hbar-gridline.baseline {
+    opacity: 1;
+}
+
+/* Rows share the pane height (less the card's heading and axis) so a typical result fits without scrolling. */
+.hbar-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--label-width) 1fr;
+    column-gap: 8px;
+    align-items: center;
+    height: clamp(17px, calc((100cqh - 66px) / var(--rows)), 26px);
+    border-radius: 4px;
+    outline: none;
+}
+
+.hbar-row:hover,
+.hbar-row:focus-visible {
+    z-index: 2;
+    background: var(--mud-palette-action-default-hover);
+}
+
+.hbar-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+}
+
+.hbar-track {
+    position: relative;
+    height: 100%;
+    margin-left: var(--negative-room);
+    margin-right: var(--value-room);
+}
+
+.hbar-bar {
+    position: absolute;
+    top: 50%;
+    height: min(12px, 60%);
+    transform: translateY(-50%);
+    border-radius: 0 4px 4px 0;
+    background: var(--chart-mark, var(--mud-palette-primary));
+    transition: background-color 0.12s ease;
+}
+
+.hbar-bar.negative {
+    border-radius: 4px 0 0 4px;
+}
+
+.hbar-row:hover .hbar-bar,
+.hbar-row:focus-visible .hbar-bar {
+    background: var(--chart-mark-hover, var(--mud-palette-primary-darken));
+}
+
+.hbar-value {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 11px;
+    white-space: nowrap;
+    color: var(--mud-palette-text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.hbar-track ::deep .chart-tip {
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.hbar-row:hover ::deep .chart-tip,
+.hbar-row:focus-visible ::deep .chart-tip {
+    display: flex;
+}
+
+.hbar-axis {
+    margin-top: 4px;
+    padding-left: calc(var(--label-width) + 8px + var(--negative-room));
+    padding-right: var(--value-room);
+}
+
+.hbar-axis-track {
+    position: relative;
+    height: 16px;
+}
+
+.hbar-tick {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    font-size: 11px;
+    white-space: nowrap;
+    color: var(--mud-palette-text-secondary);
+    font-variant-numeric: tabular-nums;
+}

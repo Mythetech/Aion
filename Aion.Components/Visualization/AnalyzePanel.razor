@@ -1,89 +1,271 @@
 @using Aion.Contracts.Queries
+@using Aion.Components.Shared
+@using Aion.Components.Theme
+@using MudBlazor.State
+@inherits ComponentBaseWithState
 
-<MudStack Spacing="3" Class="pa-4 h-100">
-    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.End">
-        <MudSelect T="string"
-                   @bind-Value="_groupByColumn"
-                   Label="Group By"
-                   Variant="Variant.Outlined"
-                   Margin="Margin.Dense"
-                   Style="min-width: 180px;">
-            @foreach (var col in _groupableColumns)
+<div class="analyze-panel">
+    @if (_groupBy is null)
+    {
+        <div class="analyze-empty">
+            <MudIcon Icon="@AionIcons.Analyze" Class="analyze-empty-icon" />
+            <MudText Typo="Typo.subtitle2">Nothing to chart</MudText>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                Analyze charts the rows of the current result. Run a query that returns at least one row and column.
+            </MudText>
+        </div>
+    }
+    else
+    {
+        <div class="analyze-toolbar">
+            <MudMenu Dense="true" MaxHeight="360" AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft" data-field="group-by">
+                <ActivatorContent Context="menu">
+                    <span class="field-pill" @onclick="@(() => menu.ToggleAsync())">
+                        <span class="field-prefix">Group by</span>
+                        <span class="field-value">@_groupBy</span>
+                        <MudIcon Icon="@AionIcons.DropDown" Size="Size.Small" Class="field-chevron" />
+                    </span>
+                </ActivatorContent>
+                <ChildContent>
+                    @foreach (var column in _resultState.Value.Columns)
+                    {
+                        var option = column;
+                        <MudMenuItem OnClick="@(() => SelectGroupBy(option))">
+                            @Option(option, option == _groupBy)
+                        </MudMenuItem>
+                    }
+                </ChildContent>
+            </MudMenu>
+
+            <MudMenu Dense="true" MaxHeight="360" AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft" data-field="measure">
+                <ActivatorContent Context="menu">
+                    <span class="field-pill" @onclick="@(() => menu.ToggleAsync())">
+                        <span class="field-value">@ChartText.FunctionName(_function)</span>
+                        <span class="field-prefix">of</span>
+                        <span class="field-value">@(IsCounting ? "rows" : _measure)</span>
+                        <MudIcon Icon="@AionIcons.DropDown" Size="Size.Small" Class="field-chevron" />
+                    </span>
+                </ActivatorContent>
+                <ChildContent>
+                    <div class="menu-section">Function</div>
+                    @foreach (var function in AvailableFunctions)
+                    {
+                        var option = function;
+                        <MudMenuItem OnClick="@(() => SelectFunction(option))">
+                            @Option(ChartText.FunctionName(option), option == _function)
+                        </MudMenuItem>
+                    }
+                    <MudDivider Class="my-1" />
+                    <div class="menu-section">Measure</div>
+                    @if (_measurableColumns.Count == 0)
+                    {
+                        <div class="menu-note">No numeric columns in this result</div>
+                    }
+                    @foreach (var column in _measurableColumns)
+                    {
+                        var option = column;
+                        <MudMenuItem OnClick="@(() => SelectMeasure(option))">
+                            @Option(option, !IsCounting && option == _measure)
+                        </MudMenuItem>
+                    }
+                </ChildContent>
+            </MudMenu>
+
+            <MudMenu Dense="true" AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft" data-field="sort">
+                <ActivatorContent Context="menu">
+                    <span class="field-pill" @onclick="@(() => menu.ToggleAsync())">
+                        <span class="field-prefix">Sort</span>
+                        <span class="field-value">@SortText</span>
+                        <MudIcon Icon="@AionIcons.DropDown" Size="Size.Small" Class="field-chevron" />
+                    </span>
+                </ActivatorContent>
+                <ChildContent>
+                    <MudMenuItem OnClick="@(() => SelectSort(AggregationSort.ValueDescending))">
+                        @Option("Value, high to low", _sort == AggregationSort.ValueDescending)
+                    </MudMenuItem>
+                    <MudMenuItem OnClick="@(() => SelectSort(AggregationSort.ValueAscending))">
+                        @Option("Value, low to high", _sort == AggregationSort.ValueAscending)
+                    </MudMenuItem>
+                    <MudMenuItem OnClick="@(() => SelectSort(AggregationSort.Label))">
+                        @Option($"{_groupBy}, ascending", _sort == AggregationSort.Label)
+                    </MudMenuItem>
+                </ChildContent>
+            </MudMenu>
+
+            <div class="toolbar-spacer"></div>
+
+            <MudToggleGroup T="string"
+                            Size="Size.Small"
+                            Color="Color.Primary"
+                            Value="@_chartType.ToString()"
+                            ValueChanged="SelectChartType"
+                            Class="chart-type-toggle">
+                <ToggleIcon Value="@nameof(AnalyzeChartType.HorizontalBar)" Icon="@AionIcons.HorizontalBarChart" Text="Horizontal bars" />
+                <ToggleIcon Value="@nameof(AnalyzeChartType.VerticalBar)" Icon="@AionIcons.VerticalBarChart" Text="Vertical bars" />
+                <ToggleIcon Value="@nameof(AnalyzeChartType.Line)" Icon="@AionIcons.LineChart" Text="Line" />
+                <ToggleIcon Value="@nameof(AnalyzeChartType.Table)" Icon="@AionIcons.Table" Text="Table" />
+            </MudToggleGroup>
+        </div>
+
+        <div class="analyze-body">
+            @if (_model is null)
             {
-                <MudSelectItem T="string" Value="@col">@col</MudSelectItem>
+                <div class="analyze-empty">
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                        No groups to chart for @_groupBy. Pick another column to group by.
+                    </MudText>
+                </div>
             }
-        </MudSelect>
-
-        <MudSelect T="string"
-                   @bind-Value="_measureColumn"
-                   Label="Measure"
-                   Variant="Variant.Outlined"
-                   Margin="Margin.Dense"
-                   Style="min-width: 180px;">
-            @foreach (var col in _measurableColumns)
+            else
             {
-                <MudSelectItem T="string" Value="@col">@col</MudSelectItem>
+                <div class="chart-card @(_chartType is AnalyzeChartType.VerticalBar or AnalyzeChartType.Line ? "chart-card-fill" : "")">
+                    <div class="chart-heading">
+                        <div class="chart-title">@_model.Title</div>
+                        <div class="chart-subtitle">@_model.Subtitle</div>
+                    </div>
+
+                    @switch (_chartType)
+                    {
+                        case AnalyzeChartType.HorizontalBar:
+                            <HorizontalBarChart Model="@_model" />
+                            break;
+                        case AnalyzeChartType.VerticalBar:
+                            <CategoryChart Model="@_model" />
+                            break;
+                        case AnalyzeChartType.Line:
+                            <CategoryChart Model="@_model" IsLine="true" />
+                            break;
+                        default:
+                            <AggregationTable Model="@_model" />
+                            break;
+                    }
+
+                    @if (_model.IsTruncated && _chartType != AnalyzeChartType.Table)
+                    {
+                        <div class="chart-note">
+                            Showing the first @_model.Items.Count.ToString("N0") of @_model.AllItems.Count.ToString("N0") groups. The table view lists all of them.
+                        </div>
+                    }
+                </div>
             }
-        </MudSelect>
-
-        <MudSelect T="AggregateFunction"
-                   @bind-Value="_function"
-                   Label="Function"
-                   Variant="Variant.Outlined"
-                   Margin="Margin.Dense"
-                   Style="min-width: 140px;">
-            @foreach (var fn in Enum.GetValues<AggregateFunction>())
-            {
-                <MudSelectItem T="AggregateFunction" Value="@fn">@fn</MudSelectItem>
-            }
-        </MudSelect>
-
-        <MudButton Color="Color.Primary"
-                   Variant="Variant.Filled"
-                   Size="Size.Small"
-                   OnClick="RunAggregation"
-                   Disabled="@(!CanRun)">
-            Analyze
-        </MudButton>
-    </MudStack>
-
-    <MudDivider />
-
-    <div class="flex-grow-1 overflow-auto">
-        <ResultChart Result="@_result" />
-    </div>
-</MudStack>
+        </div>
+    }
+</div>
 
 @code {
+    private readonly AggregationEngine _engine = new();
+    private readonly ParameterState<QueryResult> _resultState;
+
+    private IReadOnlyList<string> _measurableColumns = [];
+    private string? _groupBy;
+    private string? _measure;
+    private AggregateFunction _function = AggregateFunction.Count;
+    private AggregationSort _sort = AggregationSort.ValueDescending;
+    private AnalyzeChartType _chartType = AnalyzeChartType.HorizontalBar;
+    private AnalyzeChartModel? _model;
+
     [Parameter, EditorRequired]
     public QueryResult Result { get; set; } = default!;
 
-    private readonly AggregationEngine _engine = new();
-    private IReadOnlyList<string> _groupableColumns = [];
-    private IReadOnlyList<string> _measurableColumns = [];
-    private string? _groupByColumn;
-    private string? _measureColumn;
-    private AggregateFunction _function = AggregateFunction.Count;
-    private AggregationResult? _result;
-
-    protected override void OnParametersSet()
+    public AnalyzePanel()
     {
-        _groupableColumns = _engine.GetGroupableColumns(Result);
-        _measurableColumns = _engine.GetMeasurableColumns(Result);
-
-        if (_groupByColumn is null && _groupableColumns.Count > 0)
-            _groupByColumn = _groupableColumns[0];
-
-        if (_measureColumn is null && _measurableColumns.Count > 0)
-            _measureColumn = _measurableColumns[0];
+        using var registerScope = CreateRegisterScope();
+        _resultState = registerScope.RegisterParameter<QueryResult>(nameof(Result))
+            .WithParameter(() => Result)
+            .WithChangeHandler(OnResultChanged);
     }
 
-    private bool CanRun => !string.IsNullOrEmpty(_groupByColumn);
+    private bool IsCounting => _function == AggregateFunction.Count || _measure is null;
 
-    private void RunAggregation()
+    private IEnumerable<AggregateFunction> AvailableFunctions => _measurableColumns.Count == 0
+        ? [AggregateFunction.Count]
+        : Enum.GetValues<AggregateFunction>();
+
+    private string SortText => _sort switch
     {
-        if (_groupByColumn is null) return;
+        AggregationSort.ValueDescending => "value ↓",
+        AggregationSort.ValueAscending => "value ↑",
+        _ => _groupBy ?? string.Empty
+    };
 
-        _result = _engine.Aggregate(Result, _groupByColumn, _measureColumn ?? _groupByColumn, _function);
+    private void OnResultChanged(ParameterChangedEventArgs<QueryResult> args)
+    {
+        var result = args.Value;
+        _measurableColumns = _engine.GetMeasurableColumns(result);
+
+        // Re-running the same query keeps the fields the user picked; a different shape of result starts from fresh defaults.
+        var sameShape = args.LastValue is not null
+                        && args.LastValue.Columns.SequenceEqual(result.Columns)
+                        && _groupBy is not null
+                        && (_measure is null || _measurableColumns.Contains(_measure));
+
+        if (!sameShape)
+        {
+            var suggestion = _engine.SuggestSelection(result);
+            _groupBy = suggestion?.GroupByColumn;
+            _measure = suggestion?.MeasureColumn;
+            _function = suggestion?.Function ?? AggregateFunction.Count;
+        }
+
+        Redraw();
+        StateHasChanged();
     }
+
+    private void SelectGroupBy(string column)
+    {
+        _groupBy = column;
+        Redraw();
+    }
+
+    private void SelectFunction(AggregateFunction function)
+    {
+        _function = function;
+        if (function != AggregateFunction.Count && _measure is null)
+            _measure = DefaultMeasure();
+        Redraw();
+    }
+
+    private void SelectMeasure(string column)
+    {
+        _measure = column;
+        if (_function == AggregateFunction.Count)
+            _function = AggregateFunction.Sum;
+        Redraw();
+    }
+
+    private void SelectSort(AggregationSort sort)
+    {
+        _sort = sort;
+        Redraw();
+    }
+
+    private void SelectChartType(string? value)
+    {
+        if (!Enum.TryParse<AnalyzeChartType>(value, out var chartType))
+            return;
+
+        // A line joins neighboring categories, which only reads as a trend when they are in their natural order.
+        if (chartType == AnalyzeChartType.Line && _chartType != AnalyzeChartType.Line && _sort != AggregationSort.Label)
+            _sort = AggregationSort.Label;
+
+        _chartType = chartType;
+        Redraw();
+    }
+
+    private string? DefaultMeasure()
+        => _measurableColumns.FirstOrDefault(c => c != _groupBy && !AggregationEngine.IsIdLike(c))
+           ?? _measurableColumns.FirstOrDefault();
+
+    private void Redraw()
+    {
+        _model = _groupBy is null
+            ? null
+            : AnalyzeChartModel.Create(_engine.Aggregate(_resultState.Value, _groupBy, IsCounting ? null : _measure, _function, _sort));
+    }
+
+    private static RenderFragment Option(string text, bool selected) =>
+        @<span class="menu-option @(selected ? "selected" : "")">
+            <MudIcon Icon="@AionIcons.Accept" Size="Size.Small" Class="menu-check" />
+            <span class="menu-option-text">@text</span>
+        </span>;
 }

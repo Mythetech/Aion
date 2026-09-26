@@ -121,4 +121,14 @@ public static class AionIcons
     public static string Sample => Round("science");
 
     public static string ClearAll => Round("delete_sweep");
+
+    public static string DropDown => Round("arrow_drop_down");
+
+    public static string HorizontalBarChart => Round("align_horizontal_left");
+
+    public static string VerticalBarChart => Round("bar_chart");
+
+    public static string LineChart => Round("show_chart");
+
+    public static string Analyze => Round("insights");
 }
