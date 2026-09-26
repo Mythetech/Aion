@@ -321,6 +321,90 @@ public class ConnectionStateSchemaLoadTests
         _connection.Databases.Select(d => d.Name).ShouldBe([Database, "new_database"]);
     }
 
+    private static TableInfo Counted(TableInfo table, long rows) => table with { RowCount = TableRowCount.Exact(rows) };
+
+    private static TableInfo Estimated(TableInfo table, long rows) => table with { RowCount = TableRowCount.Estimated(rows) };
+
+    [Fact]
+    public async Task RefreshRowCounts_UpdatesTheExactCountsOfTheListedTables()
+    {
+        TablesAre(Counted(Products, 3), Counted(Orders, 0));
+        await _sut.LoadTablesAsync(_connection, _database);
+        TablesAre(Counted(Products, 4), Counted(Orders, 0));
+
+        await _sut.RefreshRowCountsAsync(_connection.Id, Database);
+
+        _database.Tables.ShouldBe([Counted(Products, 4), Counted(Orders, 0)]);
+    }
+
+    [Fact]
+    public async Task RefreshRowCounts_KeepsTheTablesListedWhileTheCountsLoad()
+    {
+        TablesAre(Counted(Products, 3));
+        await _sut.LoadTablesAsync(_connection, _database);
+        SchemaLoadState? stateWhileCounting = null;
+        _connectionService.GetTablesAsync(Arg.Any<string>(), Database, DatabaseType.PostgreSQL).Returns(_ =>
+        {
+            stateWhileCounting = _database.TablesState;
+            return [Counted(Products, 4)];
+        });
+
+        await _sut.RefreshRowCountsAsync(_connection.Id, Database);
+
+        stateWhileCounting.ShouldBe(SchemaLoadState.Loaded);
+    }
+
+    [Fact]
+    public async Task RefreshRowCounts_LeavesTheRestOfTheTreeAsItWas()
+    {
+        TablesAre(Counted(Products, 3));
+        await _sut.LoadTablesAsync(_connection, _database);
+        await _sut.LoadColumnsAsync(_connection, _database, Products.Schema, Products.Name);
+        await _sut.LoadIndexesAsync(_connection, _database);
+        _provider.ClearReceivedCalls();
+        Indexes.ClearReceivedCalls();
+
+        await _sut.RefreshRowCountsAsync(_connection.Id, Database);
+
+        await _provider.DidNotReceiveWithAnyArgs().GetColumnsAsync(default!, default!, default!, default!);
+        await Indexes.DidNotReceiveWithAnyArgs().GetIndexesAsync(default!, default!);
+        _database.ColumnsState(Products.DisplayName).ShouldBe(SchemaLoadState.Loaded);
+    }
+
+    [Fact]
+    public async Task RefreshRowCounts_WhenTheTreeShowsOnlyEstimates_LeavesThemAlone()
+    {
+        TablesAre(Estimated(Products, 3));
+        await _sut.LoadTablesAsync(_connection, _database);
+        _connectionService.ClearReceivedCalls();
+
+        await _sut.RefreshRowCountsAsync(_connection.Id, Database);
+
+        await _connectionService.DidNotReceiveWithAnyArgs().GetTablesAsync(default!, default!, default);
+    }
+
+    [Fact]
+    public async Task RefreshRowCounts_WhenTheTablesWereNeverListed_LeavesThemUnloaded()
+    {
+        await _sut.RefreshRowCountsAsync(_connection.Id, Database);
+
+        _database.TablesState.ShouldBe(SchemaLoadState.NotLoaded);
+        await _connectionService.DidNotReceiveWithAnyArgs().GetTablesAsync(default!, default!, default);
+    }
+
+    [Fact]
+    public async Task RefreshRowCounts_WhenCountingFails_KeepsTheCountsItHad()
+    {
+        TablesAre(Counted(Products, 3));
+        await _sut.LoadTablesAsync(_connection, _database);
+        TablesFail("database is locked");
+
+        await _sut.RefreshRowCountsAsync(_connection.Id, Database);
+
+        _database.TablesState.ShouldBe(SchemaLoadState.Loaded);
+        _database.Tables.ShouldBe([Counted(Products, 3)]);
+    }
+
     [Fact]
     public async Task RefreshDatabase_KeepsLoadedDatabasesSoTheTreeKeepsItsShape()
     {

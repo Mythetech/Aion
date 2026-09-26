@@ -556,6 +556,40 @@ public class ConnectionState
         }
     }
 
+    /// <summary>
+    /// Counts the rows of the database's listed tables again after a statement changed its rows. Only exact
+    /// counts are worth it: an estimate comes from statistics the engine updates on its own schedule, which one
+    /// statement rarely moves. The tables stay listed while they are counted, and nothing else is reloaded, so the
+    /// tree neither flickers nor loses what the user had open.
+    /// </summary>
+    public async Task RefreshRowCountsAsync(Guid connectionId, string? databaseName)
+    {
+        var connection = Connections.FirstOrDefault(c => c.Id == connectionId);
+        var database = connection?.Databases.FirstOrDefault(d => d.Name == databaseName);
+        if (connection == null || database is not { TablesState.IsLoaded: true }
+            || !database.Tables.Any(t => t.RowCount is { IsEstimate: false }))
+            return;
+
+        Dictionary<string, TableRowCount?> counts;
+        try
+        {
+            var connectionString = GetProvider(connection.Type).UpdateConnectionString(connection.ConnectionString, database.Name);
+            var tables = await _connectionService.GetTablesAsync(connectionString, database.Name, connection.Type);
+            counts = tables.DistinctBy(t => t.DisplayName).ToDictionary(t => t.DisplayName, t => t.RowCount);
+        }
+        catch (Exception ex)
+        {
+            // The counts it had are still the best it can show, so a failure here is not worth marking the tables failed.
+            _logger.LogWarning(ex, "Could not count the rows of the tables in database {Database}", database.Name);
+            return;
+        }
+
+        database.Tables = database.Tables
+            .Select(t => counts.TryGetValue(t.DisplayName, out var count) ? t with { RowCount = count } : t)
+            .ToList();
+        OnConnectionStateChanged();
+    }
+
     private async Task<SchemaLoadState> FetchTablesAsync(ConnectionModel connection, DatabaseModel database)
     {
         database.TablesState = SchemaLoadState.Loading;
