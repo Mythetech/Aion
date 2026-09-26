@@ -4,6 +4,7 @@ using Aion.Components.Settings.Domains;
 using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
 using Bunit;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using MudBlazor.Services;
 using Mythetech.Framework.Infrastructure.MessageBus;
@@ -292,5 +293,81 @@ public class QueryResultTableTests : TestContext
 
         cut.FindAll(".column-heading")[1].ClassList.ShouldContain("numeric");
         cut.FindAll(".column-heading")[0].ClassList.ShouldNotContain("numeric");
+    }
+
+    private static IElement RowNumber(IRenderedComponent<QueryResultTable> cut, int row) =>
+        cut.FindAll("tbody tr.mud-table-row")[row].QuerySelector(".row-number")!;
+
+    [Fact]
+    public void RowNumbersReplaceCheckboxes()
+    {
+        var cut = Render(Numbered(3));
+
+        cut.FindAll(".mud-checkbox").ShouldBeEmpty();
+        cut.FindAll("tbody .row-number").Select(n => n.TextContent.Trim()).ShouldBe(["1", "2", "3"]);
+    }
+
+    [Fact]
+    public async Task RowNumbers_CountRowsInTheOrderShown()
+    {
+        var cut = RenderPrices();
+
+        await ClickHeaderAsync(cut, "price");
+
+        cut.FindAll("tbody .row-number").Select(n => n.TextContent.Trim()).ShouldBe(["1", "2", "3", "4"]);
+    }
+
+    [Fact]
+    public async Task ClickingARowNumber_TogglesThatRowAndKeepsTheRest()
+    {
+        var selection = new RowSelectionState();
+        var cut = Render(Numbered(3), selection);
+
+        await RowNumber(cut, 0).ClickAsync(new());
+        await RowNumber(cut, 2).ClickAsync(new());
+        selection.SelectedIndices.OrderBy(i => i).ShouldBe([0, 2]);
+
+        await RowNumber(cut, 0).ClickAsync(new());
+        selection.SelectedIndices.ShouldBe([2]);
+    }
+
+    [Fact]
+    public async Task ShiftClickingARowNumber_SelectsTheRowsBetween()
+    {
+        var selection = new RowSelectionState();
+        var cut = RenderPrices(selection);
+        await ClickHeaderAsync(cut, "price");
+
+        await RowNumber(cut, 0).ClickAsync(new());
+        await RowNumber(cut, 2).ClickAsync(new MouseEventArgs { ShiftKey = true });
+
+        // Sorted by price the first three rows are gear, bolt and cog: rows 2, 0 and 3 of the result.
+        selection.SelectedIndices.OrderBy(i => i).ShouldBe([0, 2, 3]);
+    }
+
+    [Fact]
+    public async Task RowNumberHeader_SelectsEveryRowThenClears_IncludingRowsBeyondTheLimit()
+    {
+        _settings.RowLimit = 2;
+        var selection = new RowSelectionState();
+        var cut = Render(Numbered(5), selection);
+
+        await cut.Find(".row-number-toggle").ClickAsync(new());
+        selection.SelectedIndices.OrderBy(i => i).ShouldBe([0, 1, 2, 3, 4]);
+        cut.Find(".row-number-toggle").GetAttribute("aria-pressed").ShouldBe("true");
+
+        await cut.Find(".row-number-toggle").ClickAsync(new());
+        selection.SelectedIndices.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task SelectedRows_AreHighlighted()
+    {
+        var selection = new RowSelectionState();
+        var cut = Render(Numbered(3), selection);
+
+        await RowNumber(cut, 1).ClickAsync(new());
+
+        cut.FindAll("tbody tr.mud-table-row").Select(tr => tr.ClassList.Contains("row-selected")).ShouldBe([false, true, false]);
     }
 }

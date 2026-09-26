@@ -26,31 +26,37 @@
              ItemSize="@RowHeight"
              OverscanCount="20"
              ColumnResizeMode="ResizeMode.Container"
+             RowClassFunc="@RowClass"
              Class="query-result-table">
     <Columns>
-        @* Selection column *@
+        @* Row numbers, which also select rows *@
         <TemplateColumn T="ResultRow"
                         Title=""
                         Sortable="false"
                         Filterable="false"
                         Resizable="false"
-                        CellStyle="width: 40px; min-width: 40px; max-width: 40px;">
+                        HeaderClass="row-number-header"
+                        CellClass="row-number-cell">
             <HeaderTemplate>
-                <MudCheckBox T="bool"
-                             Value="@SelectionState.SelectAllChecked"
-                             ValueChanged="@ToggleSelectAll"
-                             Size="Size.Small"
-                             Dense="true" />
+                @{
+                    var allSelected = SelectionState.AreAllSelected(_view.Order);
+                }
+                <button type="button"
+                        class="row-number-toggle"
+                        aria-pressed="@(allSelected ? "true" : "false")"
+                        aria-label="@(allSelected ? "Clear selection" : SelectAllLabel)"
+                        title="@(allSelected ? "Clear selection" : SelectAllLabel)"
+                        @onclick="ToggleSelectAll">#</button>
             </HeaderTemplate>
             <CellTemplate>
                 @{
                     var rowIndex = context.Item.Index;
+                    var selected = SelectionState.IsSelected(rowIndex);
                 }
-                <MudCheckBox T="bool"
-                             Value="@SelectionState.IsSelected(rowIndex)"
-                             ValueChanged="@(v => HandleRowSelect(rowIndex, v))"
-                             Size="Size.Small"
-                             Dense="true" />
+                <button type="button"
+                        class="row-number"
+                        aria-pressed="@(selected ? "true" : "false")"
+                        @onclick="@(e => HandleRowNumberClick(rowIndex, e))">@(_view.PositionOf(rowIndex) + 1)</button>
             </CellTemplate>
         </TemplateColumn>
 
@@ -114,14 +120,14 @@
                         }
                         else if (effectiveValue != null && effectiveValue.ToString()!.StartsWith('{') && effectiveValue.ToString()!.EndsWith('}'))
                         {
-                            <MudLink Class="overflow-x-auto d-flex"
+                            <MudLink Class="cell-link"
                                      OnClick="@(async () => await OpenJsonDetailView(col, effectiveValue.ToString()!))">
                                 @effectiveValue
                             </MudLink>
                         }
                         else if (IsForeignKeyColumn(col, out var fkInfo) && effectiveValue != null)
                         {
-                            <MudLink Class="overflow-x-auto d-flex"
+                            <MudLink Class="cell-link"
                                      OnClick="@(async () => await OpenForeignKeyView(col, fkInfo!, effectiveValue, context.Item))">
                                 @effectiveValue
                                 <MudIcon Icon="@AionIcons.ForeignKey" Size="Size.Small" Class="ml-1" />
@@ -135,7 +141,7 @@
                         {
                             var shown = ResultValueFormatter.Display(effectiveValue, column.Type);
                             var full = ResultValueFormatter.Full(effectiveValue);
-                            <span class="cell-value" title="@(shown == full ? null : full)">@shown</span>
+                            <span class="cell-value" title="@(shown == full && shown?.Length <= LongValueLength ? null : full)">@shown</span>
                         }
                     </div>
                 </CellTemplate>
@@ -224,7 +230,10 @@
     [Inject] protected IMessageBus Bus { get; set; } = default!;
     [Inject] protected ResultsSettings ResultsSettings { get; set; } = default!;
 
-    private const int RowHeight = 37;
+    private const int RowHeight = 28;
+
+    // Values longer than this may be cut short by the column, so their cell carries the full text as a title.
+    private const int LongValueLength = 40;
 
     private AionMenu? _contextMenu;
 
@@ -385,35 +394,30 @@
 
     private void HandleCellClick(int rowIndex, MouseEventArgs e)
     {
-        SelectionState.ToggleSelection(rowIndex, e.CtrlKey, e.ShiftKey, Result.Rows.Count);
-        StateHasChanged();
+        SelectionState.ToggleSelection(rowIndex, e.CtrlKey || e.MetaKey, e.ShiftKey, _view.Order);
     }
 
-    private void HandleRowSelect(int rowIndex, bool selected)
+    private void HandleRowNumberClick(int rowIndex, MouseEventArgs e)
     {
-        if (selected)
-        {
-            SelectionState.ToggleSelection(rowIndex, ctrlKey: true, shiftKey: false, Result.Rows.Count);
-        }
-        else
-        {
-            SelectionState.SelectedIndices.Remove(rowIndex);
-        }
-        StateHasChanged();
+        SelectionState.ToggleRow(rowIndex, e.ShiftKey, _view.Order);
     }
 
-    private void ToggleSelectAll(bool selectAll)
+    private string SelectAllLabel => _view.IsFiltered ? "Select all matching rows" : "Select all rows";
+
+    private void ToggleSelectAll()
     {
-        if (selectAll)
-        {
-            SelectionState.SelectAll(Result.Rows.Count);
-        }
-        else
+        if (SelectionState.AreAllSelected(_view.Order))
         {
             SelectionState.ClearSelection();
         }
-        StateHasChanged();
+        else
+        {
+            SelectionState.SelectAll(_view.Order);
+        }
     }
+
+    private string? RowClass(ResultRow row, int position) =>
+        SelectionState.IsSelected(row.Index) ? "row-selected" : null;
 
     private async Task ShowContextMenu(MouseEventArgs e, ResultRow row, string column, object? value)
     {
@@ -425,7 +429,7 @@
         var rowIndex = row.Index;
         if (!SelectionState.IsSelected(rowIndex))
         {
-            SelectionState.ToggleSelection(rowIndex, ctrlKey: false, shiftKey: false, Result.Rows.Count);
+            SelectionState.ToggleSelection(rowIndex, ctrlKey: false, shiftKey: false, _view.Order);
         }
 
         if (_contextMenu != null)

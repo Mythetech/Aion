@@ -6,6 +6,9 @@ namespace Aion.Components.Querying.Results;
 /// </summary>
 public sealed class ResultGridView
 {
+    private int[]? _order;
+    private int[]? _positions;
+
     private ResultGridView(IReadOnlyList<ResultRow> rows, bool isFiltered)
     {
         Rows = rows;
@@ -22,6 +25,32 @@ public sealed class ResultGridView
     /// Whether find-in-results text narrowed the rows, so counts should say "matching".
     /// </summary>
     public bool IsFiltered { get; }
+
+    /// <summary>
+    /// Each shown row's place in the result, from top to bottom, which is what selection ranges follow.
+    /// </summary>
+    public IReadOnlyList<int> Order => _order ??= Rows.Select(row => row.Index).ToArray();
+
+    /// <summary>
+    /// Where a result row appears in the grid, counting from 0, or -1 when it is not shown.
+    /// </summary>
+    public int PositionOf(int rowIndex)
+    {
+        _positions ??= BuildPositions();
+        return rowIndex >= 0 && rowIndex < _positions.Length ? _positions[rowIndex] : -1;
+    }
+
+    private int[] BuildPositions()
+    {
+        var positions = new int[Rows.Count == 0 ? 0 : Rows.Max(row => row.Index) + 1];
+        Array.Fill(positions, -1);
+        for (var position = 0; position < Rows.Count; position++)
+        {
+            positions[Rows[position].Index] = position;
+        }
+
+        return positions;
+    }
 
     public static ResultGridView Build(IReadOnlyList<ResultRow> rows, string? filter, ResultSort? sort = null)
     {

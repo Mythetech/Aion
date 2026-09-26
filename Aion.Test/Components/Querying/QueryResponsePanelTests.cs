@@ -154,7 +154,7 @@ public class QueryResponsePanelTests : TestContext
         Complete(Rows(3));
         var cut = RenderComponent<QueryResponsePanel>();
         var selection = cut.FindComponent<QueryResultTable>().Instance.SelectionState;
-        await cut.InvokeAsync(() => selection.ToggleSelection(1, ctrlKey: true, shiftKey: false, totalRows: 3));
+        await cut.InvokeAsync(() => selection.ToggleSelection(1, ctrlKey: true, shiftKey: false, order: [0, 1, 2]));
 
         // Act
         await cut.InvokeAsync(() => _state.RenameQuery(_query, "Renamed"));
@@ -170,7 +170,7 @@ public class QueryResponsePanelTests : TestContext
         Complete(Rows(3));
         var cut = RenderComponent<QueryResponsePanel>();
         var selection = cut.FindComponent<QueryResultTable>().Instance.SelectionState;
-        await cut.InvokeAsync(() => selection.ToggleSelection(1, ctrlKey: true, shiftKey: false, totalRows: 3));
+        await cut.InvokeAsync(() => selection.ToggleSelection(1, ctrlKey: true, shiftKey: false, order: [0, 1, 2]));
 
         // Act
         await cut.InvokeAsync(() => Complete(Rows(2)));

@@ -14,9 +14,89 @@
 }
 
 /* MudBlazor makes the table container a scroll container too; left as one, virtualization would measure
-   against a box as tall as every row and render them all. */
+   against a box as tall as every row and render them all. Resizable columns size it to its content, so a
+   minimum width makes a narrow result still fill the pane. */
 .result-grid ::deep .mud-table-container {
     overflow: visible;
+    min-width: 100%;
+}
+
+/* 27px plus the row's 1px border line makes the 28px rows virtualization is told to expect. */
+.result-grid ::deep .mud-table-body .mud-table-row .mud-table-cell {
+    height: 27px;
+    padding: 0 12px;
+    padding-inline: 12px;
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
+    white-space: nowrap;
+}
+
+/* A shadow draws the header's bottom line, because a collapsed table border scrolls away from a sticky cell. */
+.result-grid ::deep .mud-table-head .mud-table-cell {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding: 4px 12px;
+    padding-inline: 12px;
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
+    vertical-align: bottom;
+    border-bottom: none;
+    background-color: var(--mud-palette-surface);
+    box-shadow: inset 0 -1px 0 var(--mud-palette-table-lines);
+}
+
+.result-grid ::deep .row-number-header,
+.result-grid ::deep .mud-table-body .mud-table-row .row-number-cell {
+    width: 1%;
+    padding: 0;
+    padding-inline: 0;
+    border-right: 1px solid var(--mud-palette-table-lines);
+}
+
+.result-grid ::deep .mud-table-head .row-number-header {
+    vertical-align: middle;
+}
+
+.result-grid ::deep .mud-table-body .row-selected > .mud-table-cell {
+    background-color: rgba(var(--mud-palette-primary-rgb), 0.1);
+}
+
+.row-number,
+.row-number-toggle {
+    display: block;
+    width: 100%;
+    min-width: 3.5ch;
+    padding: 0 8px;
+    border: 0;
+    background: none;
+    color: var(--mud-palette-text-secondary);
+    font: inherit;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    cursor: pointer;
+    user-select: none;
+}
+
+.row-number {
+    line-height: 27px;
+}
+
+.row-number:hover,
+.row-number-toggle:hover {
+    color: var(--mud-palette-primary);
+}
+
+.row-number[aria-pressed="true"],
+.row-number-toggle[aria-pressed="true"] {
+    color: var(--mud-palette-primary);
+    font-weight: 600;
+}
+
+.row-number:focus-visible,
+.row-number-toggle:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: -2px;
 }
 
 .result-limit-bar {
@@ -78,13 +158,31 @@
     color: var(--mud-palette-primary);
 }
 
+/* Rows keep one line, so every row has the height virtualization expects; long values are cut short and
+   carry their full text in the title. */
 .query-result-table .cell-content {
     cursor: default;
     user-select: text;
     width: 100%;
+    max-width: 32rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.result-grid ::deep .cell-link {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .query-result-table .cell-content.numeric {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.result-grid ::deep .cell-content.numeric input {
     text-align: right;
     font-variant-numeric: tabular-nums;
 }
