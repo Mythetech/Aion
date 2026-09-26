@@ -29,6 +29,8 @@
     min-width: 0;
     height: 32px;
     padding: 0 6px 0 10px;
+    /* Past the point where the names are gone, the button clips rather than drawing over the toggles. */
+    overflow: hidden;
     border: 1px solid var(--mud-palette-lines-inputs);
     border-radius: 8px;
     background-color: var(--mud-palette-surface);

@@ -1,10 +1,43 @@
+/*
+    Run and the toggles keep their size; only the connection picker shrinks, truncating its names, so the
+    toolbar never pushes Run off screen. The toolbar is a size container so it can shed extras by its own
+    width, which the schema and side panels change without the window changing.
+*/
+.editor-toolbar {
+    container: editor-toolbar / inline-size;
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 8px;
+}
+
+.editor-toolbar ::deep .connection-picker-host {
+    max-width: 28rem;
+}
+
 .editor-toggles {
     display: inline-flex;
     flex: none;
     align-items: center;
     gap: 2px;
+    margin-left: auto;
     padding: 2px;
     border: 1px solid var(--mud-palette-lines-default);
     border-radius: 8px;
     background-color: var(--mud-palette-surface);
+}
+
+/* The selectors name the owning component's root too, to outrank that component's own display rules. */
+@container editor-toolbar (max-width: 440px) {
+    .editor-toolbar ::deep .run-split .run-shortcut {
+        display: none;
+    }
+}
+
+@container editor-toolbar (max-width: 360px) {
+    .editor-toolbar ::deep .connection-picker-host .connection-picker-trigger > .picker-engine {
+        display: none;
+    }
 }

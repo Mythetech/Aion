@@ -28,7 +28,7 @@
 
 <MudStack Class="h-100" Spacing="0">
     <Aion.Components.Querying.TabBar.AionTabBar OnTabActivated="OnTabChanged" OnAddQuery="QueryAddClicked" />
-    <MudStack Row="true" AlignItems="AlignItems.Center" Class="editor-toolbar pa-2">
+    <div class="editor-toolbar">
         @if (State?.Active is { } active)
         {
             <RunQueryButton OnClick="RunQuery"
@@ -48,8 +48,6 @@
             <ConnectionPicker Query="@active"
                               Disabled="@HasOpenTransaction"
                               DisabledReason="Commit or roll back the open transaction to change the connection" />
-
-            <MudSpacer/>
 
             <div class="editor-toggles" role="group" aria-label="Run options">
                 <AionToggleIconButton Icon="@AionIcons.TransactionOff"
@@ -80,7 +78,7 @@
                 }
             </div>
         }
-    </MudStack>
+    </div>
 
     @if (State?.Active is { HasOpenTransaction: true } transactionQuery)
     {
