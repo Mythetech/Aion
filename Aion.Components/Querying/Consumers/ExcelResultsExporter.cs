@@ -56,15 +56,17 @@ public class ExcelResultsExporter : IConsumer<ExportResultsToExcel>
             worksheet.Columns().AdjustToContents();
 
             var fileName = $"query_results_{DateTime.Now:yyyyMMddHHmmss}.xlsx";
-            string? location = await _service.PromptFileSaveAsync(fileName);
 
-            if (string.IsNullOrWhiteSpace(location))
+            // Saved to memory and handed over as bytes: in the browser a picked file name is not a writable path.
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+
+            if (!await _service.SaveFileAsync(fileName, stream.ToArray()))
             {
                 await _bus.PublishAsync(new AddNotification("Excel export cancelled", Severity.Info));
                 return;
             }
-            workbook.SaveAs(location);
-            
+
             _logger.LogInformation("Exported query results to Excel: {FileName}", fileName);
             await _bus.PublishAsync(new AddNotification($"Exported results to {fileName}", Severity.Success));
         }

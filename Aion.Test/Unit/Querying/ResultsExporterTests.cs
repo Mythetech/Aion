@@ -3,6 +3,7 @@ using Aion.Components.Querying.Commands;
 using Aion.Components.Querying.Consumers;
 using Aion.Components.Shared.Snackbar.Commands;
 using Aion.Contracts.Queries;
+using ClosedXML.Excel;
 using Microsoft.Extensions.Logging;
 using MudBlazor;
 using Mythetech.Framework.Infrastructure.Files;
@@ -38,6 +39,15 @@ public class ResultsExporterTests
     private ExcelResultsExporter CreateExcelExporter() =>
         new(_state, Substitute.For<ILogger<ExcelResultsExporter>>(), _bus, _saveService);
 
+    private SelectedRowsExporter CreateSelectedRowsExporter() =>
+        new(Substitute.For<ILogger<SelectedRowsExporter>>(), _bus, _saveService);
+
+    private static IXLWorksheet OpenWorksheet(byte[] data)
+    {
+        var workbook = new XLWorkbook(new MemoryStream(data));
+        return workbook.Worksheets.First();
+    }
+
     [Fact]
     public async Task JsonExport_Cancelled_SaysJson()
     {
@@ -69,7 +79,7 @@ public class ResultsExporterTests
 
         var notification = _notifications.ShouldHaveSingleItem();
         notification.Severity.ShouldBe(Severity.Warning);
-        await _saveService.DidNotReceiveWithAnyArgs().SaveFileAsync(default!, default!);
+        _saveService.ReceivedCalls().ShouldBeEmpty();
     }
 
     [Fact]
@@ -88,9 +98,60 @@ public class ResultsExporterTests
     [Fact]
     public async Task ExcelExport_Cancelled_SaysExcel()
     {
-        _saveService.PromptFileSaveAsync(Arg.Any<string>(), Arg.Any<string>()).Returns((string?)null);
+        _saveService.SaveFileAsync(Arg.Any<string>(), Arg.Any<byte[]>()).Returns(false);
 
         await CreateExcelExporter().Consume(new ExportResultsToExcel(SampleResult()));
+
+        var notification = _notifications.ShouldHaveSingleItem();
+        notification.Message.ShouldBe("Excel export cancelled");
+        notification.Severity.ShouldBe(Severity.Info);
+    }
+
+    [Fact]
+    public async Task ExcelExport_SavesTheWorkbookBytesThroughTheFileService()
+    {
+        string? fileName = null;
+        byte[]? data = null;
+        _saveService.SaveFileAsync(Arg.Any<string>(), Arg.Any<byte[]>())
+            .Returns(call => { fileName = call.ArgAt<string>(0); data = call.ArgAt<byte[]>(1); return true; });
+
+        await CreateExcelExporter().Consume(new ExportResultsToExcel(SampleResult()));
+
+        fileName.ShouldNotBeNull().ShouldEndWith(".xlsx");
+        var sheet = OpenWorksheet(data.ShouldNotBeNull());
+        sheet.Cell(1, 1).GetString().ShouldBe("id");
+        sheet.Cell(1, 2).GetString().ShouldBe("name");
+        sheet.Cell(2, 2).GetString().ShouldBe("widget");
+        await _saveService.DidNotReceiveWithAnyArgs().PromptFileSaveAsync(default!, default!);
+        _notifications.ShouldHaveSingleItem().Severity.ShouldBe(Severity.Success);
+    }
+
+    [Fact]
+    public async Task SelectedRowsExcelExport_SavesTheWorkbookBytesThroughTheFileService()
+    {
+        string? fileName = null;
+        byte[]? data = null;
+        _saveService.SaveFileAsync(Arg.Any<string>(), Arg.Any<byte[]>())
+            .Returns(call => { fileName = call.ArgAt<string>(0); data = call.ArgAt<byte[]>(1); return true; });
+        var rows = new List<Dictionary<string, object>> { new() { ["id"] = 7, ["name"] = "gadget" } };
+
+        await CreateSelectedRowsExporter().Consume(new ExportSelectedRows(rows, ["id", "name"], "Excel"));
+
+        fileName.ShouldNotBeNull().ShouldEndWith(".xlsx");
+        var sheet = OpenWorksheet(data.ShouldNotBeNull());
+        sheet.Cell(2, 1).GetString().ShouldBe("7");
+        sheet.Cell(2, 2).GetString().ShouldBe("gadget");
+        await _saveService.DidNotReceiveWithAnyArgs().PromptFileSaveAsync(default!, default!);
+        _notifications.ShouldHaveSingleItem().Severity.ShouldBe(Severity.Success);
+    }
+
+    [Fact]
+    public async Task SelectedRowsExcelExport_Cancelled_SaysExcel()
+    {
+        _saveService.SaveFileAsync(Arg.Any<string>(), Arg.Any<byte[]>()).Returns(false);
+        var rows = new List<Dictionary<string, object>> { new() { ["id"] = 7 } };
+
+        await CreateSelectedRowsExporter().Consume(new ExportSelectedRows(rows, ["id"], "Excel"));
 
         var notification = _notifications.ShouldHaveSingleItem();
         notification.Message.ShouldBe("Excel export cancelled");
