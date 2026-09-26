@@ -40,6 +40,36 @@ public class PostgreSqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
     }
 
     [Fact]
+    public async Task FailedStatement_UsesThePositionPostgresReports()
+    {
+        // Act: the message names no token, so only the reported position can place this error.
+        var result = await Provider.ExecuteQueryAsync(DatabaseConnectionString,
+            $"SELECT name\nFROM {TestTable}\nWHERE id = 'x'", CancellationToken.None);
+
+        // Assert
+        result.ErrorDetail.ShouldNotBeNull();
+        result.ErrorDetail.Code.ShouldBe("SQLSTATE 22P02");
+        result.ErrorDetail.Token.ShouldBeNull();
+        result.ErrorDetail.Line.ShouldBe(3);
+        result.ErrorDetail.Column.ShouldBe(12);
+        result.ErrorDetail.EndColumn.ShouldBe(15);
+    }
+
+    [Fact]
+    public async Task FailedStatement_InALaterStatement_IsPlacedInThatStatement()
+    {
+        // Act
+        var result = await Provider.ExecuteQueryAsync(DatabaseConnectionString,
+            $"SELECT 1;\nSELECT name FROM {TestTable} WHERE id = 'x'", CancellationToken.None);
+
+        // Assert
+        result.ErrorDetail.ShouldNotBeNull();
+        result.ErrorDetail.Line.ShouldBe(2);
+        result.ErrorDetail.Column.ShouldBe(40);
+        result.ErrorDetail.EndColumn.ShouldBe(43);
+    }
+
+    [Fact]
     public async Task GetDatabases_ShouldReturnDatabases()
     {
         // Act

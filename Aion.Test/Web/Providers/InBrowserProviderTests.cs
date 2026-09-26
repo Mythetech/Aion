@@ -61,7 +61,7 @@ public class InBrowserProviderTests
     {
         // Arrange
         RunReturns("""
-            {"error": {"message": "column \"categry_id\" does not exist", "code": "42703", "position": "27", "detail": null, "hint": null}}
+            {"error": {"message": "column \"categry_id\" does not exist", "code": "42703", "position": "33", "detail": null, "hint": null}}
             """);
         var provider = new PGliteProvider(_js.Runtime);
 
@@ -75,6 +75,9 @@ public class InBrowserProviderTests
         result.ErrorDetail.Code.ShouldBe("SQLSTATE 42703");
         result.ErrorDetail.Kind.ShouldBe(QueryErrorKind.UnknownColumn);
         result.ErrorDetail.Token.ShouldBe("categry_id");
+        result.ErrorDetail.Line.ShouldBe(1);
+        result.ErrorDetail.Column.ShouldBe(33);
+        result.ErrorDetail.EndColumn.ShouldBe(43);
     }
 
     [Fact]

@@ -90,6 +90,53 @@ public class QueryResponsePanelTests : TestContext
     }
 
     [Fact]
+    public async Task FailedRun_WithAPosition_ShowsItAndOffersGoToLine()
+    {
+        // Arrange
+        _query.Query = "SELECT name, price\nFROM products\nWHERE categry_id = 2";
+        Complete(new QueryResult { Error = "no such column: categry_id" });
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act
+        cut.Find(".query-error-location").TextContent.ShouldBe("Line 3, column 7");
+        await cut.FindComponent<QueryErrorCard>().Find(".query-error-goto").ClickAsync(new());
+
+        // Assert
+        cut.Find(".query-error-goto").TextContent.Trim().ShouldBe("Go to line 3");
+        await _bus.Received(1).PublishAsync(Arg.Is<Aion.Components.Querying.Commands.GoToQueryPosition>(
+            c => c.QueryId == _query.Id && c.Line == 3 && c.Column == 7));
+    }
+
+    [Fact]
+    public void FailedRun_WithoutAPosition_OffersNoGoToLine()
+    {
+        // Arrange
+        Complete(new QueryResult { Error = "division by zero" });
+
+        // Act
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Assert
+        cut.FindAll(".query-error-goto").ShouldBeEmpty();
+        cut.FindAll(".query-error-location").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task MessagesTab_LogsWhereTheErrorIs()
+    {
+        // Arrange
+        _query.Query = "SELECT *\nFROM prodcts";
+        Complete(new QueryResult { Error = "no such table: prodcts" });
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act
+        await cut.FindAll(".mud-tab").First(t => t.TextContent.Contains("Messages")).ClickAsync(new());
+
+        // Assert
+        cut.Find(".query-message-error").TextContent.ShouldBe("Error at line 2, column 6: no such table: prodcts");
+    }
+
+    [Fact]
     public void FailedRun_FooterShowsFailedAndDurationInsteadOfResultCount()
     {
         // Arrange

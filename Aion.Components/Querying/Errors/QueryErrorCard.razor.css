@@ -59,3 +59,8 @@
     background-color: var(--mud-palette-action-default-hover);
     overflow-wrap: anywhere;
 }
+
+.query-error-location {
+    font-size: 0.8125rem;
+    color: var(--mud-palette-text-secondary);
+}

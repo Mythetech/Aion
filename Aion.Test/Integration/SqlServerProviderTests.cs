@@ -139,6 +139,21 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
     }
 
     [Fact]
+    public async Task FailedStatement_UsesTheLineSqlServerReports()
+    {
+        // Act: the message names no token, so only the reported line can place this error.
+        var result = await Provider.ExecuteQueryAsync(DatabaseConnectionString,
+            "-- converts a string\n  SELECT CAST('x' AS int)", CancellationToken.None);
+
+        // Assert
+        result.ErrorDetail.ShouldNotBeNull();
+        result.ErrorDetail.Code.ShouldBe("Msg 245");
+        result.ErrorDetail.Line.ShouldBe(2);
+        result.ErrorDetail.Column.ShouldBe(3);
+        result.ErrorDetail.EndColumn.ShouldBe(26);
+    }
+
+    [Fact]
     public async Task GetQueryPlan_ShouldReturnPlan()
     {
         // Arrange

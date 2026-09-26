@@ -76,8 +76,6 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
 
     public async Task<QueryResult> ExecuteQueryAsync(string connectionString, string query, CancellationToken cancellationToken)
     {
-        var result = new QueryResult();
-
         try
         {
             var builder = new NpgsqlConnectionStringBuilder(connectionString);
@@ -91,6 +89,26 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
             await conn.OpenAsync(cancellationToken);
 
             using var cmd = new NpgsqlCommand(query, conn);
+            return await ReadResultAsync(cmd, query, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            var result = new QueryResult();
+            result.SetError(PostgreSqlErrors.ToQueryError(ex, query));
+            return result;
+        }
+    }
+
+    /// <summary>
+    /// Runs the command and reads its first result set. Failures are mapped here, while the command
+    /// can still tell which of its statements failed.
+    /// </summary>
+    private static async Task<QueryResult> ReadResultAsync(NpgsqlCommand cmd, string query, CancellationToken cancellationToken)
+    {
+        var result = new QueryResult();
+
+        try
+        {
             using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
             for (int i = 0; i < reader.FieldCount; i++)
@@ -112,14 +130,13 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
             // RecordsAffected is only final once every result set has been consumed, and is -1 when no statement changed rows.
             await reader.CloseAsync();
             result.RowsAffected = reader.RecordsAffected >= 0 ? reader.RecordsAffected : null;
-
-            return result;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            result.SetError(PostgreSqlErrors.ToQueryError(ex, query));
-            return result;
+            result.SetError(PostgreSqlErrors.ToQueryError(ex, query, cmd));
         }
+
+        return result;
     }
 
     public string UpdateConnectionString(string connectionString, string database)
@@ -524,39 +541,8 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
             return new QueryResult { Error = TransactionNotOpenMessage };
         }
 
-        var result = new QueryResult();
-        try
-        {
-            using var cmd = new NpgsqlCommand(query, open.Connection, open.Transaction);
-            using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-
-            for (int i = 0; i < reader.FieldCount; i++)
-            {
-                result.Columns.Add(reader.GetName(i));
-            }
-
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                var row = new Dictionary<string, object>();
-                for (int i = 0; i < reader.FieldCount; i++)
-                {
-                    var value = reader.GetValue(i);
-                    row[result.Columns[i]] = value == DBNull.Value ? null : value;
-                }
-                result.Rows.Add(row);
-            }
-
-            // RecordsAffected is only final once every result set has been consumed, and is -1 when no statement changed rows.
-            await reader.CloseAsync();
-            result.RowsAffected = reader.RecordsAffected >= 0 ? reader.RecordsAffected : null;
-
-            return result;
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            result.SetError(PostgreSqlErrors.ToQueryError(ex, query));
-            return result;
-        }
+        using var cmd = new NpgsqlCommand(query, open.Connection, open.Transaction);
+        return await ReadResultAsync(cmd, query, cancellationToken);
     }
 
     public QueryPlanTree? ParsePlan(QueryPlan plan)

@@ -109,14 +109,24 @@ public class QueryState : IConsumer<QueryChanged>
         OnStateChanged();
     }
 
-    public void SetResult(QueryModel query, QueryResult result)
+    /// <param name="executedFrom">
+    /// Where the run text started in the tab's SQL when only a selection was run, so the error's
+    /// position can be moved from the selection into the whole text.
+    /// </param>
+    public void SetResult(QueryModel query, QueryResult result, (int Line, int Column)? executedFrom = null)
     {
         var q = Queries.FirstOrDefault(x => x.Id.Equals(query.Id));
 
         if (q == null) return;
-        
+
+        if (executedFrom is var (line, column) && result.ErrorDetail is { } error)
+        {
+            result.ErrorDetail = error.ShiftedTo(line, column);
+        }
+
         q.Result = result;
-        
+        q.ResultSourceText = q.Query;
+
         OnStateChanged();
     }
 

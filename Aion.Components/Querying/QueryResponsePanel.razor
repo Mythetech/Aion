@@ -99,7 +99,7 @@
                 }
                 else if (!queryResult.Success)
                 {
-                    <span class="query-message-text query-message-error">Error: @(queryResult.ErrorDetail?.Message ?? queryResult.Error)</span>
+                    <span class="query-message-text query-message-error">@QueryErrorText.LogLine(queryResult.ErrorDetail ?? QueryErrorNormalizer.Normalize(queryResult.Error!))</span>
                 }
                 else
                 {

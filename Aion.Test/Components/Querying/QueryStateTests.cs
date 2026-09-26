@@ -378,4 +378,54 @@ public class QueryStateTests
         _state.Queries[0].SavedQuery.ShouldBe("SELECT 1");
         _state.Queries[0].IsDirty.ShouldBeFalse();
     }
+
+    [Fact]
+    public void SetResult_WithASelectionStart_MovesTheErrorIntoTheWholeText()
+    {
+        // Arrange
+        var query = _state.Queries[0];
+        var result = new QueryResult();
+        result.SetError(QueryErrorNormalizer.Normalize("no such column: x", "SELECT x FROM t"));
+
+        // Act
+        _state.SetResult(query, result, executedFrom: (4, 3));
+
+        // Assert
+        query.Result!.ErrorDetail!.Line.ShouldBe(4);
+        query.Result.ErrorDetail.Column.ShouldBe(10);
+    }
+
+    [Fact]
+    public void ErrorLocation_IsCurrentUntilTheTabsSqlChanges()
+    {
+        // Arrange
+        var query = _state.Queries[0];
+        query.Query = "SELECT x FROM t";
+        var result = new QueryResult();
+        result.SetError(QueryErrorNormalizer.Normalize("no such column: x", query.Query));
+
+        // Act
+        _state.SetResult(query, result);
+        var beforeEdit = query.ErrorLocationIsCurrent;
+        query.Query = "SELECT y FROM t";
+
+        // Assert
+        beforeEdit.ShouldBeTrue();
+        query.ErrorLocationIsCurrent.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void ErrorLocation_WithoutAPosition_IsNeverCurrent()
+    {
+        // Arrange
+        var query = _state.Queries[0];
+        var result = new QueryResult();
+        result.SetError(QueryErrorNormalizer.Normalize("division by zero", query.Query));
+
+        // Act
+        _state.SetResult(query, result);
+
+        // Assert
+        query.ErrorLocationIsCurrent.ShouldBeFalse();
+    }
 }

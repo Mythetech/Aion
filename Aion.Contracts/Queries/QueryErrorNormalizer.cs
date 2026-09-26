@@ -34,18 +34,32 @@ public static partial class QueryErrorNormalizer
     public static QueryError Normalize(string raw, string? sql = null, EngineErrorDetails? engine = null)
     {
         var (message, parsedCode) = StripDriverText(engine?.Message ?? raw);
-        var (kind, token, title) = Classify(message);
+        var classified = Classify(message);
+        var line = engine?.Line ?? classified.Line;
+
+        var span = string.IsNullOrEmpty(sql)
+            ? null
+            : SqlErrorLocator.Locate(sql, classified.Kind, classified.Token, engine?.Position,
+                engine?.StatementOffset ?? 0, line, classified.QuotedText);
 
         return new QueryError
         {
             Raw = raw,
             Message = message,
-            Title = title,
-            Kind = kind,
-            Token = token,
-            Code = engine?.Code ?? parsedCode
+            Title = classified.Title,
+            Kind = classified.Kind,
+            Token = classified.Token,
+            Code = engine?.Code ?? parsedCode,
+            Line = span?.Line ?? line,
+            Column = span?.Column,
+            EndColumn = span?.EndColumn
         };
     }
+
+    /// <param name="QuotedText">SQL the message quotes verbatim from the failure point (MySQL's "near '...'").</param>
+    /// <param name="Line">A line number the message states (MySQL's "at line N").</param>
+    private sealed record Classification(
+        QueryErrorKind Kind, string? Token, string Title, string? QuotedText = null, int? Line = null);
 
     private static (string Message, string? Code) StripDriverText(string text)
     {
@@ -92,16 +106,18 @@ public static partial class QueryErrorNormalizer
         return string.Join('\n', lines[..end]);
     }
 
-    private static (QueryErrorKind Kind, string? Token, string Title) Classify(string message)
+    private static Classification Classify(string message)
     {
         var mySqlSyntax = MySqlSyntaxNear().Match(message);
         if (mySqlSyntax.Success)
         {
-            var near = mySqlSyntax.Groups["near"].Value.TrimStart();
+            var near = mySqlSyntax.Groups["near"].Value;
+            var line = int.TryParse(mySqlSyntax.Groups["line"].Value, out var parsed) ? parsed : (int?)null;
             var firstWord = near.Split((char[]?)null, 2, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+
             return firstWord == null
-                ? (QueryErrorKind.Syntax, null, "Syntax error at end of input")
-                : (QueryErrorKind.Syntax, firstWord, TitleFor(QueryErrorKind.Syntax));
+                ? new Classification(QueryErrorKind.Syntax, null, "Syntax error at end of input", Line: line)
+                : new Classification(QueryErrorKind.Syntax, firstWord, TitleFor(QueryErrorKind.Syntax), near.TrimStart(), line);
         }
 
         var firstLine = FirstLine(message);
@@ -113,12 +129,12 @@ public static partial class QueryErrorNormalizer
             var token = match.Groups["t"].Value.Trim();
             if (token.Length > 0)
             {
-                return (kind, token, TitleFor(kind));
+                return new Classification(kind, token, TitleFor(kind));
             }
         }
 
         var bareKind = SyntaxWithoutToken().IsMatch(firstLine) ? QueryErrorKind.Syntax : QueryErrorKind.General;
-        return (bareKind, null, Capitalize(firstLine));
+        return new Classification(bareKind, null, Capitalize(firstLine));
     }
 
     private static string TitleFor(QueryErrorKind kind) => kind switch

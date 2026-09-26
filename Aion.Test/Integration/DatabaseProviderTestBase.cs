@@ -145,6 +145,20 @@ public abstract class DatabaseProviderTestBase : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FailedStatement_ReportsTheLineAndColumnOfTheUnknownColumn()
+    {
+        // Act
+        var result = await Provider.ExecuteQueryAsync(
+            DatabaseConnectionString, $"SELECT id,\n  categry_id\nFROM {TestTable}", CancellationToken.None);
+
+        // Assert
+        result.ErrorDetail.ShouldNotBeNull();
+        result.ErrorDetail.Line.ShouldBe(2);
+        result.ErrorDetail.Column.ShouldBe(3);
+        result.ErrorDetail.EndColumn.ShouldBe(13);
+    }
+
+    [Fact]
     public async Task Transaction_Rollback_ShouldLeaveDataUnchanged()
     {
         // Arrange

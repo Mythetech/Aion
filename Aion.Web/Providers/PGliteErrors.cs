@@ -20,7 +20,8 @@ public static class PGliteErrors
         return QueryErrorNormalizer.Normalize(BuildRaw(message, code, detail, hint), sql, new EngineErrorDetails
         {
             Message = message,
-            Code = code == null ? null : $"SQLSTATE {code}"
+            Code = code == null ? null : $"SQLSTATE {code}",
+            Position = int.TryParse(ReadString(error, "position"), out var position) ? position : null
         });
     }
 

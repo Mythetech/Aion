@@ -14,7 +14,8 @@ public static class SqlServerErrors
 
         return QueryErrorNormalizer.Normalize(sqlServer.Message, sql, new EngineErrorDetails
         {
-            Code = $"Msg {sqlServer.Number}"
+            Code = $"Msg {sqlServer.Number}",
+            Line = sqlServer.LineNumber > 0 ? sqlServer.LineNumber : null
         });
     }
 }
