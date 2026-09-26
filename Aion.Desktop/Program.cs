@@ -1,5 +1,6 @@
 using Aion.Components;
 using Aion.Components.Connections;
+using Aion.Components.History;
 using Aion.Components.Infrastructure;
 using Hermes;
 using Hermes.Blazor;
@@ -124,9 +125,11 @@ namespace Aion.Desktop
             appBuilder.Services.AddInitializationHook<ErrorReportingHook>();
             appBuilder.Services.AddSingleton<StartupUpdateCheck>();
             appBuilder.Services.AddInitializationHook(sp => sp.GetRequiredService<StartupUpdateCheck>());
+            appBuilder.Services.AddInitializationHook<QueryHistoryInitializationHook>();
 
             appBuilder.Services.AddSingleton<IConnectionStorage, FileConnectionStorage>();
             appBuilder.Services.AddSingleton<IQuerySaveService, FileQuerySaveService>();
+            appBuilder.Services.AddSingleton<IQueryHistoryStore>(_ => new FileQueryHistoryStore(FileQueryHistoryStore.DefaultFilePath));
             
             // Native menu services
             appBuilder.Services.AddSingleton<INativeMenuService, Desktop.NativeMenu.NativeMenuService>();

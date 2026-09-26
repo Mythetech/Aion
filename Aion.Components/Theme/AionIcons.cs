@@ -25,6 +25,10 @@ public static class AionIcons
     public static string Close => Round("close");
     
     public static string Success => Round("check_circle");
+
+    public static string Error => Round("error");
+
+    public static string Cancelled => Round("cancel");
     
     public static string Back => Round("arrow_back");
     

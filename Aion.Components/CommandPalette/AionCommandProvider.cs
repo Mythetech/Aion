@@ -1,5 +1,6 @@
 using Aion.Components.Connections;
 using Aion.Components.Connections.Commands;
+using Aion.Components.NativeMenu;
 using Aion.Components.Querying.Commands;
 using Aion.Components.RequestContextPanel.Commands;
 using Aion.Components.Settings.Commands;
@@ -34,6 +35,15 @@ public sealed class AionCommandProvider : ICommandProvider
                 Keywords: ["history", "past", "recent", "log"],
                 InvokeAsync: _ => _bus.PublishAsync(new ActivatePanel("history")),
                 Group: "Panels"),
+
+            new(
+                Id: "action.clear-history",
+                Title: "Clear History",
+                Description: null,
+                Icon: AionIcons.ClearAll,
+                Keywords: ["history", "clear", "delete", "recent", "log"],
+                InvokeAsync: _ => _bus.PublishAsync(new ClearHistory()),
+                Group: "Actions"),
 
             new(
                 Id: "action.run-query",

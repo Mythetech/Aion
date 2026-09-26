@@ -1,4 +1,5 @@
 using Aion.Components.Connections;
+using Aion.Components.History;
 using Aion.Components.Querying;
 using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
@@ -38,6 +39,7 @@ public class StorageRestoreServiceTests
             new IndexedDbStorageService(_js.Runtime),
             connectionState,
             queryState,
+            new HistoryState(Substitute.For<IQueryHistoryStore>(), NullLogger<HistoryState>.Instance),
             factory,
             _sqliteInitializer,
             NullLogger<StorageRestoreService>.Instance);
