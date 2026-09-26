@@ -80,6 +80,14 @@ public class ConnectionPanelTests : TestContext
             .Single(item => item.FindAll(".column-row").Count == 1 && item.Find(".column-row .tree-row-name").TextContent == column);
 
     [Fact]
+    public void Header_NamesTheEngineInsteadOfTheEnum()
+    {
+        var cut = Render(ConnectionWithLoadedColumns(ProductColumns()));
+
+        cut.Find("h6").TextContent.ShouldBe("SQLite · in-browser");
+    }
+
+    [Fact]
     public void ColumnRow_ShowsNameAndShortTypeOnOneLine()
     {
         var cut = Render(ConnectionWithLoadedColumns(ProductColumns()));

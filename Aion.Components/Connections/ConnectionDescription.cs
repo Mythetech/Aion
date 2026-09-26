@@ -33,6 +33,17 @@ public static class ConnectionDescription
         _ => type.ToString()
     };
 
+    /// <summary>
+    /// A compact engine name for narrow places such as the schema panel header, where the in-browser engines
+    /// read better as "SQLite · in-browser" than as their longer <see cref="EngineName"/>.
+    /// </summary>
+    public static string EngineLabel(DatabaseType type) => type switch
+    {
+        DatabaseType.WasmSQLite => "SQLite · in-browser",
+        DatabaseType.WasmPostgreSQL => "PGlite · in-browser",
+        _ => EngineName(type)
+    };
+
     public static string? Host(ConnectionModel connection)
     {
         var connectionString = connection.ConnectionString;

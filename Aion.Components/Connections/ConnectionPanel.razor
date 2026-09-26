@@ -53,7 +53,7 @@
     </MudStack>
 
     <MudStack Row="true" AlignItems="AlignItems.Center">
-        <h6>@Connection.Type</h6>
+        <h6>@ConnectionDescription.EngineLabel(Connection.Type)</h6>
         <MudSpacer />
         <AionIconButton Icon="@AionIcons.Add" Tooltip="Add Database" OnClick="AddDatabase" />
     </MudStack>
