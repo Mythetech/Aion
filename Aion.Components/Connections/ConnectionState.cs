@@ -400,6 +400,10 @@ public class ConnectionState
 
     public bool SupportsActualPlan(DatabaseType type) => _providerFactory.GetProvider(type) is IActualQueryPlanProvider;
 
+    public bool SupportsCreatingTables(DatabaseType type) => _providerFactory.GetProvider(type) is ISqlDialectProvider;
+
+    public bool SupportsCreatingDatabases(DatabaseType type) => _providerFactory.GetProvider(type) is IDatabaseCreationProvider;
+
     // Every schema load below records a failure on the model instead of throwing: callers range from the
     // schema tree to autocomplete, and each decides whether a failure matters to it by reading the state.
 
@@ -463,6 +467,28 @@ public class ConnectionState
         if (forgotColumns)
         {
             OnConnectionStateChanged();
+        }
+    }
+
+    /// <summary>
+    /// Brings the schema up to date after a statement that changed it ran on the connection. A change to the
+    /// databases lists them again; anything else reloads what was loaded for the database it ran against.
+    /// </summary>
+    public async Task RefreshAfterSchemaChangeAsync(Guid connectionId, string? databaseName, bool databasesChanged)
+    {
+        var connection = Connections.FirstOrDefault(c => c.Id == connectionId);
+        if (connection == null) return;
+
+        if (databasesChanged)
+        {
+            await RefreshDatabaseAsync(connection);
+            return;
+        }
+
+        var database = connection.Databases.FirstOrDefault(d => d.Name == databaseName);
+        if (database != null)
+        {
+            await RefreshSchemaAsync(connection, database);
         }
     }
 

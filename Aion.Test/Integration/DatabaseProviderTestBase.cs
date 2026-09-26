@@ -147,6 +147,24 @@ public abstract class DatabaseProviderTestBase : IAsyncLifetime
     }
 
     [Fact]
+    public async Task CreateTableTemplate_RunsAsWrittenAndNumbersNewRows()
+    {
+        // Arrange
+        var dialect = ((ISqlDialectProvider)Provider).Dialect;
+
+        // Act
+        await ExecuteOrFailAsync(DatabaseConnectionString, dialect.CreateTableTemplate());
+        await ExecuteOrFailAsync(DatabaseConnectionString, "INSERT INTO new_table (name) VALUES ('first')");
+        var rows = await ExecuteOrFailAsync(DatabaseConnectionString, "SELECT id, name, created_at FROM new_table");
+
+        // Assert
+        (await Provider.GetTablesAsync(DatabaseConnectionString, TestDatabase)).ShouldContain(t => t.Name == "new_table");
+        var row = rows.Rows.ShouldHaveSingleItem();
+        Convert.ToInt64(row["id"]).ShouldBe(1);
+        row["created_at"].ShouldNotBeNull();
+    }
+
+    [Fact]
     public async Task ForeignKeyLookup_FindsTheReferencedRowFromTheProvidersOwnForeignKeyMetadata()
     {
         // Arrange

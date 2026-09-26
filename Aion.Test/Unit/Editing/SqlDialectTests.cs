@@ -214,6 +214,25 @@ public class SqlDialectTests
         sql.ShouldBe("SELECT TOP (1) * FROM [dbo].[customers]\nWHERE [id] = 7;");
     }
 
+    public static TheoryData<SqlDialect, string, string> CreateTableTemplates => new()
+    {
+        { PostgreSqlDialect.Instance, "CREATE TABLE \"public\".\"new_table\"", "GENERATED ALWAYS AS IDENTITY PRIMARY KEY" },
+        { SqlServerDialect.Instance, "CREATE TABLE [dbo].[new_table]", "IDENTITY(1,1) NOT NULL PRIMARY KEY" },
+        { MySqlDialect.Instance, "CREATE TABLE `new_table`", "AUTO_INCREMENT PRIMARY KEY" },
+        { SqliteDialect.Instance, "CREATE TABLE \"new_table\"", "INTEGER PRIMARY KEY" },
+    };
+
+    [Theory]
+    [MemberData(nameof(CreateTableTemplates))]
+    public void CreateTableTemplate_UsesTheEnginesQuotingAndKeySyntax(SqlDialect dialect, string start, string key)
+    {
+        var template = dialect.CreateTableTemplate();
+
+        template.ShouldStartWith(start);
+        template.ShouldContain(key);
+        template.ShouldNotContain("SERIAL");
+    }
+
     private static T WithCulture<T>(string culture, Func<T> action)
     {
         var original = CultureInfo.CurrentCulture;

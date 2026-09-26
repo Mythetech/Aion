@@ -7,17 +7,11 @@ public class PostgreSqlCommands : IStandardDatabaseCommands
 {
     private static readonly PostgreSqlDialect Dialect = PostgreSqlDialect.Instance;
 
+    // Owner, encoding and locale come from the server's defaults: a fixed owner or locale fails on servers
+    // without that role or locale installed.
     public Task<string> GenerateCreateDatabaseScript(string name)
     {
-        return Task.FromResult($@"
-CREATE DATABASE ""{name}""
-    WITH
-    OWNER = postgres
-    ENCODING = 'UTF8'
-    LC_COLLATE = 'en_US.utf8'
-    LC_CTYPE = 'en_US.utf8'
-    TABLESPACE = pg_default
-    CONNECTION LIMIT = -1;");
+        return Task.FromResult($"CREATE DATABASE {Dialect.QuoteIdentifier(name)};");
     }
 
     public Task<string> GenerateDropDatabaseScript(string name)

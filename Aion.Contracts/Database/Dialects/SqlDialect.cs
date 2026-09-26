@@ -76,6 +76,12 @@ public abstract class SqlDialect
     public virtual string SelectRows(string qualifiedTable, string? predicate = null, int? limit = null) =>
         $"SELECT * FROM {qualifiedTable}{WhereClause(predicate)}{(limit is { } count ? $"\nLIMIT {count.ToString(CultureInfo.InvariantCulture)}" : "")};";
 
+    /// <summary>
+    /// A CREATE TABLE statement with placeholder names, a generated key and the engine's usual types, for the
+    /// user to edit and run. It goes in the engine's default schema where the engine has one.
+    /// </summary>
+    public abstract string CreateTableTemplate();
+
     protected static string WhereClause(string? predicate) =>
         string.IsNullOrWhiteSpace(predicate) ? "" : $"\nWHERE {predicate}";
 

@@ -55,7 +55,10 @@
     <MudStack Row="true" AlignItems="AlignItems.Center">
         <h6>@ConnectionDescription.EngineLabel(Connection.Type)</h6>
         <MudSpacer />
-        <AionIconButton Icon="@AionIcons.Add" Tooltip="Add Database" OnClick="AddDatabase" />
+        @if (ConnectionState.SupportsCreatingDatabases(Connection.Type))
+        {
+            <AionIconButton Icon="@AionIcons.Add" Tooltip="Add Database" OnClick="AddDatabase" />
+        }
     </MudStack>
 
     <MudTreeView T="string" Hover="true" Dense="true" ExpandOnClick="true" Class="h-100 mb-4">
@@ -87,7 +90,10 @@
                                                    OnClick="@context.ToggleAsync" />
                                 </ActivatorContent>
                                 <ChildContent>
-                                    <MudMenuItem OnClick="@(() => CreateTable(database))">Create Table</MudMenuItem>
+                                    @if (ConnectionState.SupportsCreatingTables(Connection.Type))
+                                    {
+                                        <MudMenuItem OnClick="@(() => CreateTable(database))">Create Table</MudMenuItem>
+                                    }
                                     <MudMenuItem OnClick="@(() => RefreshSchema(database))">Refresh</MudMenuItem>
                                 </ChildContent>
                             </AionMenu>
@@ -466,50 +472,12 @@
 
     private async Task AddDatabase()
     {
-        var options = AionDialogs.CreateDefaultOptions();
-        
-        var dialog = await DialogService.ShowAsync<CreateDatabaseDialog>("New Database", options);
-        var result = await dialog.Result;
-        
-        if (result.Canceled) return;
-        
-        var databaseName = (string)result.Data;
-
-        var script = await ConnectionState.GetProvider(Connection.Type).Commands.GenerateCreateDatabaseScript(databaseName);
-        var queryResult = await ConnectionState.ExecuteQueryAsync(new QueryModel()
-        {
-            ConnectionId = Connection.Id,
-            DatabaseName = databaseName,
-            Query = script
-        }, new CancellationToken());
-        
-        if (!string.IsNullOrWhiteSpace(queryResult.Error))
-        {
-            Snackbar.AddAionNotification(queryResult.Error, Severity.Error);
-            return;
-        }
-        
-        await MessageBus.PublishAsync(new DatabaseCreated(Connection, databaseName));
+        await MessageBus.PublishAsync(new OpenCreateDatabaseTemplate(Connection.Id));
     }
 
     private async Task CreateTable(DatabaseModel database)
     {
-        var provider = ConnectionState.GetProvider(Connection.Type);
-        var script = await provider.Commands.GenerateCreateTableScript(
-            database.Name,
-            "public",
-            "NewTable",
-            new[] {
-                new ColumnDefinition("Id", "INTEGER", false, "SERIAL"),
-                new ColumnDefinition("Name", "VARCHAR(100)", false)
-            });
-
-        var result = await ConnectionState.ExecuteQueryAsync(new QueryModel()
-        {
-            ConnectionId = Connection.Id,
-            DatabaseName = database.Name,
-            Query = script
-        }, new CancellationToken());
+        await MessageBus.PublishAsync(new OpenCreateTableTemplate(Connection.Id, database.Name));
     }
 
     private async Task OpenFirstRows(string databaseName, TableInfo table)

@@ -222,6 +222,29 @@ public class ConnectionStateSchemaLoadTests
     }
 
     [Fact]
+    public async Task SchemaChange_InTheDatabase_ReloadsItsLoadedTables()
+    {
+        TablesAre(Products);
+        await _sut.LoadTablesAsync(_connection, _database);
+        TablesAre(Products, Orders);
+
+        await _sut.RefreshAfterSchemaChangeAsync(_connection.Id, Database, databasesChanged: false);
+
+        _database.Tables.ShouldBe([Products, Orders]);
+        await _connectionService.DidNotReceiveWithAnyArgs().GetDatabasesAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task SchemaChange_ToDatabases_ListsTheDatabasesAgain()
+    {
+        _connectionService.GetDatabasesAsync(Arg.Any<string>(), DatabaseType.PostgreSQL).Returns([Database, "new_database"]);
+
+        await _sut.RefreshAfterSchemaChangeAsync(_connection.Id, Database, databasesChanged: true);
+
+        _connection.Databases.Select(d => d.Name).ShouldBe([Database, "new_database"]);
+    }
+
+    [Fact]
     public async Task RefreshDatabase_KeepsLoadedDatabasesSoTheTreeKeepsItsShape()
     {
         TablesAre(Products);

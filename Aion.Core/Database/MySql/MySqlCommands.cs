@@ -9,10 +9,7 @@ public class MySqlCommands : IStandardDatabaseCommands
 
     public Task<string> GenerateCreateDatabaseScript(string name)
     {
-        return Task.FromResult($@"
-CREATE DATABASE `{name}`
-    DEFAULT CHARACTER SET utf8mb4
-    DEFAULT COLLATE utf8mb4_unicode_ci;");
+        return Task.FromResult($"CREATE DATABASE {Dialect.QuoteIdentifier(name)}\n    DEFAULT CHARACTER SET utf8mb4;");
     }
 
     public Task<string> GenerateDropDatabaseScript(string name)

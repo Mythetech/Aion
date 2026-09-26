@@ -48,4 +48,14 @@ public sealed class MySqlDialect : SqlDialect
     protected override int FractionalSecondDigits => 6;
 
     protected override bool UseIsoDateTimeSeparator => false;
+
+    // The connection's database is the only schema level MySQL has, so the table is not qualified.
+    public override string CreateTableTemplate() =>
+        """
+        CREATE TABLE `new_table` (
+            `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            `name` varchar(100) NOT NULL,
+            `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        """;
 }

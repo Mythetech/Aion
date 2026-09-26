@@ -7,11 +7,10 @@ public class SqlServerCommands : IStandardDatabaseCommands
 {
     private static readonly SqlServerDialect Dialect = SqlServerDialect.Instance;
 
+    // The collation comes from the server's default, the same as a database created in SQL Server's own tools.
     public Task<string> GenerateCreateDatabaseScript(string name)
     {
-        return Task.FromResult($@"
-CREATE DATABASE [{name}]
-COLLATE Latin1_General_CI_AS;");
+        return Task.FromResult($"CREATE DATABASE {Dialect.QuoteIdentifier(name)};");
     }
 
     public Task<string> GenerateDropDatabaseScript(string name)
