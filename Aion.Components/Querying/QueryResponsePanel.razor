@@ -14,6 +14,7 @@
 @using Aion.Components.Shared.Loaders
 @using Aion.Components.Querying
 @using Aion.Components.Visualization
+@using Aion.Components.Querying.Errors
 @implements IDisposable
 
 @if (State?.Active?.Result != null && (!State?.Active?.IsExecuting ?? false))
@@ -67,19 +68,44 @@
         @if (_activeTab == Results)
         {
             <MudStack Class="h-100 w-100 overflow-auto flex-shrink-1">
-                <QueryResultTable Result="@State.Active.Result"
-                                  QueryName="@State.Active.Name"
-                                  SearchFilter="@_search"
-                                  SelectionState="@_selectionState"
-                                  EditState="@GetEditState()"
-                                  EditMetadata="@State.Active.EditMetadata"
-                                  ConnectionId="@State.Active.ConnectionId"
-                                  DatabaseName="@State.Active.DatabaseName" />
+                @if (queryResult.Cancelled)
+                {
+                    <MudText Typo="Typo.body2" Class="query-cancelled mud-text-secondary ma-2">The query was cancelled before it finished.</MudText>
+                }
+                else if (!queryResult.Success)
+                {
+                    <QueryErrorCard Query="@State.Active" />
+                }
+                else
+                {
+                    <QueryResultTable Result="@State.Active.Result"
+                                      QueryName="@State.Active.Name"
+                                      SearchFilter="@_search"
+                                      SelectionState="@_selectionState"
+                                      EditState="@GetEditState()"
+                                      EditMetadata="@State.Active.EditMetadata"
+                                      ConnectionId="@State.Active.ConnectionId"
+                                      DatabaseName="@State.Active.DatabaseName" />
+                }
             </MudStack>
         }
         else if (_activeTab == Messages)
         {
-            <MudText>@State.Active.Result.Error</MudText>
+            <div class="query-messages">
+                <span class="query-message-time">@queryResult.ExecutedAt.ToString("T")</span>
+                @if (queryResult.Cancelled)
+                {
+                    <span class="query-message-text">Query cancelled</span>
+                }
+                else if (!queryResult.Success)
+                {
+                    <span class="query-message-text query-message-error">Error: @queryResult.Error</span>
+                }
+                else
+                {
+                    <span class="query-message-text">@DescribeResult(queryResult)</span>
+                }
+            </div>
         }
         else if (_activeTab == EstimatedPlan)
         {
@@ -106,13 +132,26 @@
         {
             <AnalyzePanel Result="@queryResult" />
         }
-        <MudStack Row="true" AlignItems="AlignItems.Center">
-            <MudText Typo="Typo.caption" Class="mud-text-secondary ml-4">
-                @DescribeResult(queryResult)
-            </MudText>
-            <MudDivider Vertical="true" />
-            <QueryTimer StartTime="@State.Active.ExecutionStartTime" EndTime="@State.Active.ExecutionEndTime" Typo="Typo.caption" />
-        </MudStack>
+        <div class="query-response-footer">
+            @if (queryResult.Cancelled)
+            {
+                <span class="query-status-cancelled">Cancelled</span>
+                <span class="query-status-duration">@FormatDuration(State.Active)</span>
+            }
+            else if (!queryResult.Success)
+            {
+                <span class="query-status-failed">Failed</span>
+                <span class="query-status-duration">@FormatDuration(State.Active)</span>
+            }
+            else
+            {
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    @DescribeResult(queryResult)
+                </MudText>
+                <MudDivider Vertical="true" />
+                <QueryTimer StartTime="@State.Active.ExecutionStartTime" EndTime="@State.Active.ExecutionEndTime" Typo="Typo.caption" />
+            }
+        </div>
     </MudStack>
 }
 else if (State?.Active?.IsExecuting ?? false)
@@ -164,6 +203,9 @@ else if (State?.Active?.IsExecuting ?? false)
 
         StateHasChanged();
     }
+
+    private static string FormatDuration(QueryModel query) =>
+        query.ExecutionDuration is { } duration ? QueryTimer.FormatDuration(duration) : string.Empty;
 
     private static string DescribeResult(QueryResult result) =>
         result.Columns.Count == 0 && result.RowsAffected is { } affected

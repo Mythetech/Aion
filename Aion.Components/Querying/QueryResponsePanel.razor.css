@@ -1,0 +1,60 @@
+.query-response-footer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 24px;
+    padding-left: 16px;
+    font-size: 0.75rem;
+}
+
+.query-status-failed,
+.query-status-cancelled {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+}
+
+.query-status-failed {
+    color: var(--mud-palette-error);
+}
+
+.query-status-cancelled {
+    color: var(--mud-palette-text-secondary);
+}
+
+.query-status-failed::before,
+.query-status-cancelled::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: currentColor;
+}
+
+.query-status-duration {
+    color: var(--mud-palette-text-secondary);
+}
+
+.query-messages {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 8px 4px;
+    font-family: var(--mud-typography-monospace, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+    font-size: 0.8125rem;
+}
+
+.query-message-time {
+    flex-shrink: 0;
+    color: var(--mud-palette-text-secondary);
+}
+
+.query-message-text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.query-message-error {
+    color: var(--mud-palette-error);
+}

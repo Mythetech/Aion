@@ -79,6 +79,22 @@ public class QueryEditorTests : TestContext
     }
 
     [Fact]
+    public void FailedRun_ShowsNoErrorBannerAboveTheEditor()
+    {
+        // Arrange
+        var query = _state.Queries[0];
+        _state.SetActive(query);
+        query.SetResult(new Aion.Contracts.Queries.QueryResult { Error = "no such column: categry_id" });
+
+        // Act
+        var cut = RenderComponent<QueryEditor>();
+
+        // Assert
+        cut.FindAll(".mud-alert").ShouldBeEmpty();
+        cut.Markup.ShouldNotContain("categry_id");
+    }
+
+    [Fact]
     public void Editor_FollowsItsContainerSize()
     {
         // Arrange

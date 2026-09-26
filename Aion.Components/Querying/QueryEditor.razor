@@ -90,11 +90,7 @@
         <TransactionBar Query="@transactionQuery" />
     }
 
-    @if (State?.Active?.Result?.Error != null)
-    {
-        <MudAlert Severity="Severity.Error" Class="my-2">@State.Active.Result.Error</MudAlert>
-    }
-    else if (State?.Active?.ResultNotice != null)
+    @if (State?.Active?.ResultNotice != null)
     {
         <MudAlert Severity="Severity.Info" Class="my-2">@State.Active.ResultNotice</MudAlert>
     }

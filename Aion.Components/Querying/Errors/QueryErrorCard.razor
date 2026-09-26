@@ -1,0 +1,38 @@
+@using Aion.Components.Infrastructure.Commands
+@using Aion.Components.Theme
+@using Aion.Contracts.Queries
+@using Mythetech.Framework.Components.Buttons
+@using Mythetech.Framework.Infrastructure.MessageBus
+
+<div class="query-error-card" role="alert">
+    <MudIcon Icon="@AionIcons.Error" Color="Color.Error" Size="Size.Small" Class="query-error-icon" />
+    <div class="query-error-body">
+        <div class="query-error-headline">
+            <span class="query-error-title">@Result.Error</span>
+        </div>
+        <div class="query-error-actions">
+            <MtButton Class="query-error-copy"
+                      Variant="Variant.Outlined"
+                      Size="Size.Small"
+                      Text="Copy error"
+                      OnClick="CopyAsync" />
+        </div>
+        @if (Meta != null)
+        {
+            <div class="query-error-meta">@Meta</div>
+        }
+    </div>
+</div>
+
+@code {
+    [Inject] protected IMessageBus Bus { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public QueryModel Query { get; set; } = default!;
+
+    private QueryResult Result => Query.Result!;
+
+    private string? Meta => Query.ExecutionDuration is { } duration ? QueryTimer.FormatDuration(duration) : null;
+
+    private async Task CopyAsync() => await Bus.PublishAsync(new CopyToClipboard(Result.Error ?? string.Empty));
+}

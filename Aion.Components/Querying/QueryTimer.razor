@@ -26,7 +26,7 @@
         }
     }
 
-    private string FormatDuration(TimeSpan duration)
+    public static string FormatDuration(TimeSpan duration)
     {
         if (duration.TotalHours >= 1)
             return $"{duration.TotalHours:F1}h";
