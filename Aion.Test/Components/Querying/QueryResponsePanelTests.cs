@@ -1,6 +1,7 @@
 using Aion.Components.Connections;
 using Aion.Components.Infrastructure.Commands;
 using Aion.Components.Querying;
+using Aion.Components.Settings.Domains;
 using Aion.Components.Querying.Errors;
 using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
@@ -32,6 +33,7 @@ public class QueryResponsePanelTests : TestContext
             Substitute.For<IConnectionService>(), Substitute.For<IDatabaseProviderFactory>(), _bus, new NullLogger<ConnectionState>());
 
         Services.AddSingleton(_bus);
+        Services.AddSingleton(new ResultsSettings());
         Services.AddSingleton(_state);
         Services.AddSingleton(_connections);
         Services.AddSingleton(new SqlCompletionService(_connections));
@@ -175,6 +177,21 @@ public class QueryResponsePanelTests : TestContext
 
         // Assert
         selection.SelectedIndices.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task ExportCsv_ExportsEveryFetchedRow_NotJustTheRowsShown()
+    {
+        // Arrange
+        Services.GetRequiredService<ResultsSettings>().RowLimit = 2;
+        Complete(Rows(5));
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act
+        await cut.Find("[aria-label='Export to Csv']").ClickAsync(new());
+
+        // Assert
+        await _bus.Received(1).PublishAsync(Arg.Is<Aion.Components.Querying.Commands.ExportResultsToCsv>(c => c.Result!.Rows.Count == 5));
     }
 
     private static string Collapse(string text) => System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
