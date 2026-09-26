@@ -1,0 +1,15 @@
+@* A page-wide hotkey for a chord from AionKeyBindings. A null chord registers nothing. *@
+
+@if (Chord is { } chord)
+{
+    @foreach (var modifiers in chord.HotkeyModifiers)
+    {
+        <MudHotkey Key="@chord.HotkeyKey" KeyModifiers="@modifiers" OnHotkeyPressed="@OnPressed" />
+    }
+}
+
+@code {
+    [Parameter] public KeyChord? Chord { get; set; }
+
+    [Parameter] public EventCallback OnPressed { get; set; }
+}

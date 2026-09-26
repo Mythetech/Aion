@@ -9,12 +9,14 @@ using Aion.Components.Querying.Errors;
 using Aion.Components.Search;
 using Aion.Components.Settings;
 using Aion.Components.Shared.Snackbar;
+using Aion.Components.Shortcuts;
 using Aion.Contracts.Database;
 using Aion.Contracts.Queries.Editing;
 using Microsoft.Extensions.DependencyInjection;
 using MudBlazor;
 using MudBlazor.Services;
 using Mythetech.Framework.Components.CommandPalette;
+using Mythetech.Framework.Components.Kbd;
 using Mythetech.Framework.Infrastructure.Plugins;
 
 namespace Aion.Components;
@@ -59,6 +61,7 @@ public static class RegistrationExtensions
 
         services.AddCommandPalette();
         services.AddCommandProvider<AionCommandProvider>();
+        services.AddSingleton(sp => AionKeyBindings.For(sp.GetRequiredService<IPlatformDetector>()));
 
         return services;
     }

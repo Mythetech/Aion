@@ -8,6 +8,7 @@
 @using BlazorMonaco.Languages
 @using Aion.Components.Shared
 @using Aion.Components.Shared.Snackbar.Commands
+@using Aion.Components.Shortcuts
 @using Aion.Components.Theme
 @using Aion.Components.Settings.Domains
 @using Aion.Contracts.Connections
@@ -85,6 +86,7 @@
                             OnClick="RunQuery"
                             Disabled="@(!CanExecuteQuery)"
                             DisabledReason="@RunBlockedReason"
+                            Hint="@($"{Keys.Describe(Keys.RunQuery)} in the editor")"
                             IsExecuting="@State.Active.IsExecuting"/>
         }
     </MudStack>
@@ -110,7 +112,8 @@
     [Inject] protected SqlCompletionService CompletionService { get; set; } = default!;
     [Inject] protected IJSRuntime JS { get; set; } = default!;
     [Inject] protected EditorSettings EditorSettings { get; set; } = default!;
-    
+    [Inject] protected AionKeyBindings Keys { get; set; } = default!;
+
     private bool _initialized = false;
 
     private readonly Dictionary<Guid, CancellationTokenSource> _runningQueries = new();
@@ -310,7 +313,7 @@
         {
             Id = RunQueryActionId,
             Label = "Run Query",
-            Keybindings = [(int)KeyMod.CtrlCmd | (int)KeyCode.Enter],
+            Keybindings = [Keys.RunQuery.EditorKeybinding],
             ContextMenuGroupId = "navigation",
             ContextMenuOrder = 1f,
             Run = _ => RequestRunFromEditor()
@@ -320,23 +323,19 @@
         {
             Id = "expand-select-star",
             Label = "Expand SELECT *",
-            Keybindings = new[] { (int)KeyMod.CtrlCmd | (int)KeyMod.Shift | (int)KeyCode.KeyE },
+            Keybindings = [Keys.ExpandSelectStar.EditorKeybinding],
             ContextMenuGroupId = "navigation",
             ContextMenuOrder = 1.5f,
             Run = _ => _editorActions.Writer.TryWrite(EditorAction.ExpandSelectStar)
         });
 
         // Monaco treats Cmd/Ctrl+K as the start of a two-key chord, so the page-level palette hotkey never
-        // sees it while the editor has focus. Cmd/Ctrl+Shift+P is the palette key editors use.
+        // sees it while the editor has focus.
         await _editor.AddAction(new ActionDescriptor
         {
             Id = "aion.command-palette",
             Label = "Command Palette",
-            Keybindings =
-            [
-                (int)KeyMod.CtrlCmd | (int)KeyCode.KeyK,
-                (int)KeyMod.CtrlCmd | (int)KeyMod.Shift | (int)KeyCode.KeyP
-            ],
+            Keybindings = [Keys.CommandPalette.EditorKeybinding, Keys.CommandPaletteAlternate.EditorKeybinding],
             Run = _ => _editorActions.Writer.TryWrite(EditorAction.OpenCommandPalette)
         });
     }

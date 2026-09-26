@@ -8,6 +8,7 @@
 @using Aion.Components.RequestContextPanel
 @using Aion.Components.RequestContextPanel.Commands
 @using Aion.Components.Shared
+@using Aion.Components.Shortcuts
 @using Aion.Components.Theme
 @using Microsoft.JSInterop
 @implements IAsyncDisposable
@@ -52,10 +53,9 @@
         </SecondPanel>
     </MudSplitPanel>
     <QueryAutoSaver />
-    <MudHotkey Key="JsKey.KeyT" KeyModifiers="@CtrlOnly" OnHotkeyPressed="@HandleNewQuery" />
-    <MudHotkey Key="JsKey.KeyT" KeyModifiers="@MetaOnly" OnHotkeyPressed="@HandleNewQuery" />
-    <MudHotkey Key="JsKey.KeyN" KeyModifiers="@CtrlOnly" OnHotkeyPressed="@HandleNewConnection" />
-    <MudHotkey Key="JsKey.KeyN" KeyModifiers="@MetaOnly" OnHotkeyPressed="@HandleNewConnection" />
+    <ChordHotkey Chord="@Keys.NewQuery" OnPressed="@HandleNewQuery" />
+    <ChordHotkey Chord="@Keys.NewQueryAlternate" OnPressed="@HandleNewQuery" />
+    <ChordHotkey Chord="@Keys.NewConnection" OnPressed="@HandleNewConnection" />
 </MudStack>
 
 
@@ -69,6 +69,8 @@
     [Inject] protected QueryState QueryState { get; set; } = default!;
 
     [Inject] protected IJSRuntime JS { get; set; } = default!;
+
+    [Inject] protected AionKeyBindings Keys { get; set; } = default!;
 
     private RequestContextPanel.RequestContextPanel _requestContextPanel = default!;
     
@@ -177,9 +179,6 @@
         StateHasChanged();
         return Task.CompletedTask;
     }
-
-    private static readonly IEnumerable<JsKeyModifier> CtrlOnly = new[] { JsKeyModifier.ControlLeft };
-    private static readonly IEnumerable<JsKeyModifier> MetaOnly = new[] { JsKeyModifier.MetaLeft };
 
     private async Task HandleNewQuery()
     {

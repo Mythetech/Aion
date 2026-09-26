@@ -1,14 +1,24 @@
 @using Aion.Components.CommandPalette.Commands
+@using Aion.Components.Shortcuts
 @using Mythetech.Framework.Components.CommandPalette
 @using Mythetech.Framework.Infrastructure.MessageBus
 @inherits ComponentConsumer<OpenCommandPalette>
 
-<CommandPaletteHost @ref="_host" BackgroundClass="aion-dialog" />
+@* The palette's key comes from AionKeyBindings like every other shortcut, so the built-in one is off. *@
+<CommandPaletteHost @ref="_host" BackgroundClass="aion-dialog" DisableBuiltInHotkey="true" />
+<ChordHotkey Chord="@Keys.CommandPalette" OnPressed="OpenAsync" />
 
 @code {
+    [Inject] private AionKeyBindings Keys { get; set; } = default!;
+
     private CommandPaletteHost? _host;
 
     protected override async Task Consume(OpenCommandPalette message, CancellationToken cancellationToken)
+    {
+        await OpenAsync();
+    }
+
+    private async Task OpenAsync()
     {
         if (_host != null)
         {

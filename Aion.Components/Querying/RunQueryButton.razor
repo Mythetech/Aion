@@ -24,9 +24,12 @@
     /// <summary>Why the query can't run, shown on hover while the button is disabled.</summary>
     [Parameter] public string? DisabledReason { get; set; }
 
+    /// <summary>Shown on hover while the button works, such as its keyboard shortcut, which also cancels.</summary>
+    [Parameter] public string? Hint { get; set; }
+
     [Parameter] public bool IsExecuting { get; set; }
 
-    private string? TooltipText => Disabled ? DisabledReason : null;
+    private string? TooltipText => Disabled ? DisabledReason : Hint;
 
     private string GetButtonClass() => IsExecuting
         ? "cancel-query-button rounded-xl py-2"

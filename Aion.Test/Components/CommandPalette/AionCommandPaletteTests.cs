@@ -1,5 +1,6 @@
 using Aion.Components.CommandPalette;
 using Aion.Components.CommandPalette.Commands;
+using Aion.Components.Shortcuts;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -25,6 +26,18 @@ public class AionCommandPaletteTests : TestContext
         _bus = new InMemoryMessageBus(Services, new NullLogger<InMemoryMessageBus>(),
             Enumerable.Empty<IMessagePipe>(), Enumerable.Empty<IConsumerFilter>());
         Services.AddSingleton(_bus);
+        Services.AddSingleton(AionKeyBindings.ForBrowser(isMac: true));
+    }
+
+    [Fact]
+    public void PageHotkey_IsTheOneInAionKeyBindings()
+    {
+        // Act
+        var cut = RenderComponent<AionCommandPalette>();
+
+        // Assert
+        cut.FindComponent<CommandPaletteHost>().Instance.DisableBuiltInHotkey.ShouldBeTrue();
+        cut.FindComponent<ChordHotkey>().Instance.Chord.ShouldBe(new KeyChord("K"));
     }
 
     [Fact]
