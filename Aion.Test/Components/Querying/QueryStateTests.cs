@@ -570,6 +570,33 @@ public class QueryStateTests
     }
 
     [Fact]
+    public async Task AutoSave_ThatClearsNoUnsavedMark_RaisesNoStateChanged()
+    {
+        // Arrange
+        var state = new QueryState(_messageBus, _saveService, autoSaveDelay: TimeSpan.Zero);
+        await state.InitializeAsync();
+        var saved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _saveService.SaveQueryAsync(Arg.Any<QueryModel>()).Returns(_ =>
+        {
+            saved.TrySetResult();
+            return Task.CompletedTask;
+        });
+        var raised = 0;
+        state.StateChanged += () => Interlocked.Increment(ref raised);
+        using var stop = new CancellationTokenSource();
+        var autoSave = state.SaveWhenEditsPauseAsync(stop.Token);
+
+        // Act
+        state.RenameQuery(state.Queries[0], "Renamed");
+        await saved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.Delay(50);
+
+        // Assert: only the rename itself was announced, so views such as the results grid aren't reset.
+        raised.ShouldBe(1);
+        await StopAsync(stop, autoSave);
+    }
+
+    [Fact]
     public void HasSql_IsFalseForATabWithOnlyWhitespace()
     {
         // Arrange

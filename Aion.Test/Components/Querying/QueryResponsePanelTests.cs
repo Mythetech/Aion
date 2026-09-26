@@ -139,6 +139,44 @@ public class QueryResponsePanelTests : TestContext
         cut.Find(".query-message-error").TextContent.ShouldBe("Error at line 2, column 6: no such table: prodcts");
     }
 
+    private static QueryResult Rows(int count) => new()
+    {
+        Columns = ["id"],
+        Rows = Enumerable.Range(1, count).Select(i => new Dictionary<string, object> { ["id"] = i }).ToList()
+    };
+
+    [Fact]
+    public async Task SelectedRows_SurviveChangesThatDontTouchTheResult()
+    {
+        // Arrange
+        Complete(Rows(3));
+        var cut = RenderComponent<QueryResponsePanel>();
+        var selection = cut.FindComponent<QueryResultTable>().Instance.SelectionState;
+        await cut.InvokeAsync(() => selection.ToggleSelection(1, ctrlKey: true, shiftKey: false, totalRows: 3));
+
+        // Act
+        await cut.InvokeAsync(() => _state.RenameQuery(_query, "Renamed"));
+
+        // Assert
+        selection.SelectedIndices.ShouldBe([1]);
+    }
+
+    [Fact]
+    public async Task SelectedRows_ClearWhenTheResultIsReplaced()
+    {
+        // Arrange
+        Complete(Rows(3));
+        var cut = RenderComponent<QueryResponsePanel>();
+        var selection = cut.FindComponent<QueryResultTable>().Instance.SelectionState;
+        await cut.InvokeAsync(() => selection.ToggleSelection(1, ctrlKey: true, shiftKey: false, totalRows: 3));
+
+        // Act
+        await cut.InvokeAsync(() => Complete(Rows(2)));
+
+        // Assert
+        selection.SelectedIndices.ShouldBeEmpty();
+    }
+
     private static string Collapse(string text) => System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
 
     private void ConnectToCachedShop()

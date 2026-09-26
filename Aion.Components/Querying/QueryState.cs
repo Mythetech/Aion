@@ -388,11 +388,13 @@ public class QueryState : IConsumer<QueryChanged>
 
     private async Task SaveOpenTabsAsync()
     {
+        var markCleared = false;
         foreach (var query in Queries.ToList())
         {
             // A tab closed while earlier tabs were being written must not be written back after its delete.
             if (!Queries.Contains(query)) continue;
 
+            var wasDirty = query.IsDirty;
             try
             {
                 await SaveTabAsync(query);
@@ -401,9 +403,16 @@ public class QueryState : IConsumer<QueryChanged>
             {
                 _logger.LogWarning(ex, "Failed to save query tab {QueryId}", query.Id);
             }
+
+            markCleared |= wasDirty && !query.IsDirty;
         }
 
-        OnViewChanged();
+        // Most saves follow a change that was already announced; announcing them again would re-render
+        // every view, such as the results grid, for nothing on screen.
+        if (markCleared)
+        {
+            OnViewChanged();
+        }
     }
 
     private void NormalizeOrder()
