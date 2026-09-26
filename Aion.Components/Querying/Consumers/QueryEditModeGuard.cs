@@ -30,7 +30,7 @@ public class QueryEditModeGuard : IConsumer<QueryExecuted>
             return;
         }
 
-        var exitReason = GetExitReason(query, metadata);
+        var exitReason = GetExitReason(query, metadata, message.ExecutedSql);
         if (exitReason != null)
         {
             query.EditMetadata = null;
@@ -46,14 +46,14 @@ public class QueryEditModeGuard : IConsumer<QueryExecuted>
         }
     }
 
-    private static string? GetExitReason(QueryModel query, QueryEditMetadata metadata)
+    private static string? GetExitReason(QueryModel query, QueryEditMetadata metadata, string executedSql)
     {
         if (query.ConnectionId != metadata.ConnectionId || query.DatabaseName != metadata.SourceDatabase)
         {
             return "the query now runs against a different connection or database";
         }
 
-        var parsed = EditableQueryParser.Parse(query.Query);
+        var parsed = EditableQueryParser.Parse(executedSql);
         if (parsed.Target == null)
         {
             return $"the query is no longer a simple SELECT from '{metadata.SourceTable}'";

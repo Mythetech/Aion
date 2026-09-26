@@ -326,17 +326,14 @@
         {
             var fullText = _editor != null ? await _editor.GetValue() : query.Query;
             var selected = await GetSelectedTextAsync();
-            var textToExecute = selected?.Text ?? fullText;
 
             await ClearErrorMarkerAsync();
 
-            query.Query = textToExecute;
-            var result = await Connections.ExecuteQueryAsync(query, cancellation.Token);
+            var result = await Connections.ExecuteQueryAsync(query, selected?.Text ?? fullText, cancellation.Token);
 
-            query.Query = fullText;
             State.SetResult(query, result, selected is { Selection: var selection }
                 ? (selection.StartLineNumber, selection.StartColumn)
-                : null);
+                : null, sourceText: fullText);
 
             await RefreshErrorMarkerAsync();
         }

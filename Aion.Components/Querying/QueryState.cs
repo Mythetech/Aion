@@ -113,7 +113,11 @@ public class QueryState : IConsumer<QueryChanged>
     /// Where the run text started in the tab's SQL when only a selection was run, so the error's
     /// position can be moved from the selection into the whole text.
     /// </param>
-    public void SetResult(QueryModel query, QueryResult result, (int Line, int Column)? executedFrom = null)
+    /// <param name="sourceText">
+    /// The tab's whole text when the run started. Edits made while the statement ran are not what the
+    /// error's position refers to.
+    /// </param>
+    public void SetResult(QueryModel query, QueryResult result, (int Line, int Column)? executedFrom = null, string? sourceText = null)
     {
         var q = Queries.FirstOrDefault(x => x.Id.Equals(query.Id));
 
@@ -125,7 +129,7 @@ public class QueryState : IConsumer<QueryChanged>
         }
 
         q.Result = result;
-        q.ResultSourceText = q.Query;
+        q.ResultSourceText = sourceText ?? q.Query;
 
         OnStateChanged();
     }

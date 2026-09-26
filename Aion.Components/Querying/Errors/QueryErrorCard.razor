@@ -73,7 +73,7 @@
         _suggestedFor = error;
         _suggestion = null;
 
-        var suggestion = await Suggester.SuggestAsync(error, Query.Query, Query.ConnectionId, Query.DatabaseName);
+        var suggestion = await Suggester.SuggestAsync(error, Query.ExecutedSql ?? Query.Query, Query.ConnectionId, Query.DatabaseName);
 
         // A newer run may have replaced the error while the schema was loading.
         if (error == _suggestedFor)

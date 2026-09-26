@@ -54,8 +54,7 @@ public class WebPersistenceManager : IConsumer<QueryExecuted>, IAsyncDisposable
     {
         if (message.Query.Result is not { Success: true }) return;
 
-        var queryText = message.Query.Query;
-        if (IsMutatingQuery(queryText))
+        if (IsMutatingQuery(message.ExecutedSql))
         {
             await PersistDatabaseAsync(message.Query);
         }

@@ -124,7 +124,14 @@ public class ConnectionState
     public const string ActualPlanInTransactionMessage =
         "Actual query plans can't be captured while this tab has an open transaction. Commit or roll back first, or turn off Actual Query Plan.";
 
-    public async Task<QueryResult> ExecuteQueryAsync(QueryModel query, CancellationToken cancellationToken)
+    public Task<QueryResult> ExecuteQueryAsync(QueryModel query, CancellationToken cancellationToken) =>
+        ExecuteQueryAsync(query, query.Query, cancellationToken);
+
+    /// <summary>
+    /// Runs <paramref name="sql"/> as the tab's statement. The tab's own text is never touched, so
+    /// running a selection, or editing while a run is in progress, leaves the editor as the user left it.
+    /// </summary>
+    public async Task<QueryResult> ExecuteQueryAsync(QueryModel query, string sql, CancellationToken cancellationToken)
     {
         var connection = Connections.FirstOrDefault(x => x.Id == query.ConnectionId);
         if (connection == null) return new QueryResult { Error = "Connection not found" };
@@ -132,20 +139,20 @@ public class ConnectionState
         var provider = GetProvider(connection.Type);
         var connectionString = provider.UpdateConnectionString(connection.ConnectionString, query.DatabaseName);
 
-        try 
+        try
         {
-            query.StartExecution();
+            query.StartExecution(sql);
             await NotifyQueryChanged();
-            
+
             if (query.IncludeEstimatedPlan && provider is IEstimatedQueryPlanProvider estimatedPlans)
             {
-                query.EstimatedPlan = await GetEstimatedPlanAsync(estimatedPlans, connectionString, query.Query, cancellationToken);
+                query.EstimatedPlan = await GetEstimatedPlanAsync(estimatedPlans, connectionString, sql, cancellationToken);
                 await NotifyQueryChanged();
             }
 
             if (query.IncludeActualPlan && provider is IActualQueryPlanProvider actualPlans)
             {
-                return await CaptureActualPlanAsync(query, actualPlans, connectionString, cancellationToken);
+                return await CaptureActualPlanAsync(query, actualPlans, connectionString, sql, cancellationToken);
             }
 
             if (query.UseTransaction && !query.HasOpenTransaction)
@@ -159,7 +166,7 @@ public class ConnectionState
             {
                 // Once a transaction is open every run in the tab joins it, even if the toggle was
                 // switched off: running outside it could block on the tab's own locks.
-                result = await provider.ExecuteInTransactionAsync(connectionString, query.Query, transaction.Id, cancellationToken);
+                result = await provider.ExecuteInTransactionAsync(connectionString, sql, transaction.Id, cancellationToken);
                 if (result.Success)
                 {
                     query.Transaction = transaction.WithStatementExecuted();
@@ -167,7 +174,7 @@ public class ConnectionState
             }
             else
             {
-                result = await provider.ExecuteQueryAsync(connectionString, query.Query, cancellationToken);
+                result = await provider.ExecuteQueryAsync(connectionString, sql, cancellationToken);
             }
 
             query.SetResult(result);
@@ -212,7 +219,7 @@ public class ConnectionState
     }
 
     private async Task<QueryResult> CaptureActualPlanAsync(
-        QueryModel query, IActualQueryPlanProvider plans, string connectionString, CancellationToken cancellationToken)
+        QueryModel query, IActualQueryPlanProvider plans, string connectionString, string sql, CancellationToken cancellationToken)
     {
         QueryResult result;
         if (query.HasOpenTransaction)
@@ -224,7 +231,7 @@ public class ConnectionState
         {
             // Cleared first so a failed capture never leaves an earlier statement's plan on screen.
             query.ActualPlan = null;
-            query.ActualPlan = await plans.GetActualPlanAsync(connectionString, query.Query, cancellationToken);
+            query.ActualPlan = await plans.GetActualPlanAsync(connectionString, sql, cancellationToken);
             result = new QueryResult();
             query.SetResult(result, ActualPlanNotice);
         }
