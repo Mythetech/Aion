@@ -204,9 +204,11 @@ public class PostgreSqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
     public async Task GetColumns_ReportsTypesTheSchemaTreeShortens()
     {
         await ExecuteOrFailAsync(DatabaseConnectionString, """
+            CREATE TYPE mood AS ENUM ('ok', 'sad');
             CREATE TABLE column_types (
                 a_varchar varchar(255), a_char char(3), a_text text, a_timestamp timestamp, a_timestamptz timestamptz,
-                a_time time, a_timetz timetz, a_double double precision, a_numeric numeric(10,2), a_varbit varbit(8), a_ints int[])
+                a_time time, a_timetz timetz, a_double double precision, a_numeric numeric(10,2), a_varbit varbit(8), a_ints int[],
+                a_tags varchar(20)[], a_mood mood, a_moods mood[])
             """);
 
         var columns = await Provider.GetColumnsAsync(DatabaseConnectionString, TestDatabase, "public", "column_types");
@@ -214,7 +216,8 @@ public class PostgreSqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         columns.Select(c => ColumnTypeText.Short(c, DatabaseType.PostgreSQL)).ShouldBe(
         [
             "varchar(255)", "char(3)", "text", "timestamp", "timestamptz",
-            "time", "timetz", "double", "numeric", "varbit(8)", "array"
+            "time", "timetz", "double", "numeric", "varbit(8)", "integer[]",
+            "varchar[]", "mood", "mood[]"
         ]);
     }
 

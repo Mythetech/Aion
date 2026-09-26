@@ -301,7 +301,8 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
                 c.column_default,
                 c.character_maximum_length,
                 CASE WHEN pk.constraint_type = 'PRIMARY KEY' THEN true ELSE false END as is_primary_key,
-                CASE WHEN c.column_default LIKE 'nextval%' OR c.is_identity = 'YES' THEN true ELSE false END as is_identity
+                CASE WHEN c.column_default LIKE 'nextval%' OR c.is_identity = 'YES' THEN true ELSE false END as is_identity,
+                c.udt_name
             FROM information_schema.columns c
             LEFT JOIN (
                 SELECT ku.column_name, tc.constraint_type
@@ -331,7 +332,8 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
                 DefaultValue = reader.IsDBNull(3) ? null : reader.GetString(3),
                 MaxLength = reader.IsDBNull(4) ? null : reader.GetInt32(4),
                 IsPrimaryKey = reader.GetBoolean(5),
-                IsIdentity = reader.GetBoolean(6)
+                IsIdentity = reader.GetBoolean(6),
+                UdtName = reader.IsDBNull(7) ? null : reader.GetString(7)
             });
         }
 

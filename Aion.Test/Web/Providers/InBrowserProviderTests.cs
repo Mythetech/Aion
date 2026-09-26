@@ -228,6 +228,24 @@ public class InBrowserProviderTests
     }
 
     [Fact]
+    public async Task PGlite_GetColumnsAsync_KeepsTheUdtNameOfArraysAndUserDefinedTypes()
+    {
+        CatalogReturns(sql => sql.Contains("information_schema.columns")
+            ? """
+              {"rows": [
+                {"column_name": "tags", "data_type": "ARRAY", "udt_name": "_int4", "is_nullable": true, "column_default": null, "character_maximum_length": null, "is_primary_key": false, "is_identity": false},
+                {"column_name": "mood", "data_type": "USER-DEFINED", "udt_name": "mood", "is_nullable": true, "column_default": null, "character_maximum_length": null, "is_primary_key": false, "is_identity": false}
+              ]}
+              """
+            : """{"rows": []}""");
+        var provider = new PGliteProvider(_js.Runtime);
+
+        var columns = await provider.GetColumnsAsync("pglite://shop", "shop", "public", "moods");
+
+        columns.Select(c => c.UdtName).ShouldBe(["_int4", "mood"]);
+    }
+
+    [Fact]
     public async Task SqliteWasm_GetDatabasesAsync_ListsOnlyTheConnectionsOwnDatabase()
     {
         var provider = new SqliteWasmProvider(Substitute.For<ISqliteWasmDatabaseService>());

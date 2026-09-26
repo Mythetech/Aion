@@ -118,7 +118,8 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
                 c.column_default,
                 c.character_maximum_length,
                 CASE WHEN pk.constraint_type = 'PRIMARY KEY' THEN true ELSE false END as is_primary_key,
-                CASE WHEN c.column_default LIKE 'nextval%' OR c.is_identity = 'YES' THEN true ELSE false END as is_identity
+                CASE WHEN c.column_default LIKE 'nextval%' OR c.is_identity = 'YES' THEN true ELSE false END as is_identity,
+                c.udt_name
             FROM information_schema.columns c
             LEFT JOIN (
                 SELECT ku.column_name, tc.constraint_type
@@ -148,7 +149,8 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
                 MaxLength = row.TryGetProperty("character_maximum_length", out var ml) && ml.ValueKind != JsonValueKind.Null
                     ? ml.GetInt32() : null,
                 IsPrimaryKey = row.GetProperty("is_primary_key").GetBoolean(),
-                IsIdentity = row.GetProperty("is_identity").GetBoolean()
+                IsIdentity = row.GetProperty("is_identity").GetBoolean(),
+                UdtName = row.TryGetProperty("udt_name", out var udt) && udt.ValueKind == JsonValueKind.String ? udt.GetString() : null
             });
         }
 

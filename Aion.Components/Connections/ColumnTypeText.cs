@@ -25,6 +25,25 @@ public static partial class ColumnTypeText
         ["time with time zone"] = "timetz"
     };
 
+    // PostgreSQL's internal type names, as udt_name reports them, spelled the way information_schema spells the
+    // same type on a plain column, so an integer[] column reads like an integer one.
+    private static readonly Dictionary<string, string> PostgresInternalNames = new(StringComparer.Ordinal)
+    {
+        ["int2"] = "smallint",
+        ["int4"] = "integer",
+        ["int8"] = "bigint",
+        ["float4"] = "real",
+        ["float8"] = "double precision",
+        ["bool"] = "boolean",
+        ["bpchar"] = "character",
+        ["varchar"] = "character varying",
+        ["varbit"] = "bit varying",
+        ["timestamp"] = "timestamp without time zone",
+        ["timestamptz"] = "timestamp with time zone",
+        ["time"] = "time without time zone",
+        ["timetz"] = "time with time zone"
+    };
+
     // MySQL and SQL Server also report a length for text, blob, enum, xml and spatial columns, but that is a
     // storage limit or value width rather than something written in the type, so it is left off.
     private static readonly HashSet<string> SizedTypes = new(StringComparer.Ordinal)
@@ -35,6 +54,9 @@ public static partial class ColumnTypeText
 
     public static string Short(ColumnInfo column, DatabaseType engine)
     {
+        if (PostgresTypeName(column, engine) is { } named)
+            return named.EndsWith("[]", StringComparison.Ordinal) ? ShortName(named[..^2], engine) + "[]" : named;
+
         var type = Tidy(column.DataType).ToLowerInvariant();
         if (type.Length == 0)
             return "";
@@ -63,9 +85,12 @@ public static partial class ColumnTypeText
     public static string Describe(ColumnInfo column, DatabaseType engine)
     {
         var type = Tidy(column.DataType);
+        var named = PostgresTypeName(column, engine);
         var parts = new List<string>
         {
-            type.Length == 0 ? "no declared type" : type + (type.Contains('(') ? "" : Length(column, type.ToLowerInvariant(), engine)),
+            named is not null ? (IsUserDefined(column) ? $"{named} (user-defined type)" : named)
+            : type.Length == 0 ? "no declared type"
+            : type + (type.Contains('(') ? "" : Length(column, type.ToLowerInvariant(), engine)),
             column.IsNullable ? "NULL" : "NOT NULL"
         };
 
@@ -83,6 +108,25 @@ public static partial class ColumnTypeText
 
         return string.Join(Separator, parts);
     }
+
+    // information_schema names only the category of an array or a user-defined type (enum, composite, or an
+    // extension type such as citext); udt_name holds the type itself, with a leading underscore on an array type.
+    private static string? PostgresTypeName(ColumnInfo column, DatabaseType engine)
+    {
+        if (engine is not (DatabaseType.PostgreSQL or DatabaseType.WasmPostgreSQL) || string.IsNullOrEmpty(column.UdtName))
+            return null;
+
+        if (column.DataType.Equals("ARRAY", StringComparison.OrdinalIgnoreCase) && column.UdtName.StartsWith('_'))
+        {
+            var element = column.UdtName[1..];
+            return PostgresInternalNames.GetValueOrDefault(element, element) + "[]";
+        }
+
+        return IsUserDefined(column) ? column.UdtName : null;
+    }
+
+    private static bool IsUserDefined(ColumnInfo column) =>
+        column.DataType.Equals("USER-DEFINED", StringComparison.OrdinalIgnoreCase);
 
     private static string ShortName(string name, DatabaseType engine)
     {
