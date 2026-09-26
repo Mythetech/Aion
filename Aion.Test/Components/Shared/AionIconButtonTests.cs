@@ -1,6 +1,7 @@
 using Aion.Components.Shared;
 using Aion.Components.Theme;
 using Bunit;
+using MudBlazor;
 using MudBlazor.Services;
 using Shouldly;
 
@@ -43,6 +44,17 @@ public class AionIconButtonTests : TestContext
             .Add(x => x.AriaLabel, "About Aion"));
 
         cut.Find("button").GetAttribute("aria-label").ShouldBe("About Aion");
+    }
+
+    [Fact]
+    public void TooltipPlacement_IsPassedToTheTooltip()
+    {
+        var cut = RenderComponent<AionIconButton>(p => p
+            .Add(x => x.Icon, AionIcons.Close)
+            .Add(x => x.Tooltip, "Close panel")
+            .Add(x => x.TooltipPlacement, Placement.Left));
+
+        cut.FindComponent<MudTooltip>().Instance.Placement.ShouldBe(Placement.Left);
     }
 
     [Fact]

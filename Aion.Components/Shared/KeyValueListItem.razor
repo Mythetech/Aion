@@ -1,13 +1,8 @@
-<MudStack Row="true" Class="w-100" Justify="Justify.SpaceBetween">
-    <MudText Class="mud-text-secondary">
-        @Key
-    </MudText>
-    <MudTooltip Text="@Value">
-        <MudText Class="text-truncate">
-            @Value
-        </MudText>
-    </MudTooltip>
-</MudStack>
+@* A native title keeps the full value on hover; a tooltip wrapper can't shrink in the row, so long values wrapped and clipped. *@
+<div class="kv-row">
+    <span class="kv-key">@Key</span>
+    <span class="kv-value" title="@Value">@Value</span>
+</div>
 
 @code {
     [Parameter] public string Key { get; set; } = default!;
