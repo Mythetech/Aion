@@ -30,6 +30,9 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
             .Build();
     }
 
+    protected override string GeneratedRowsTableSql =>
+        "CREATE TABLE generated_rows (id int IDENTITY(1,1) NOT NULL PRIMARY KEY, label nvarchar(20) NOT NULL, active bit NOT NULL, note nvarchar(max) NULL, code int NULL UNIQUE)";
+
     protected override string UnknownColumnCode => "Msg 207";
 
     protected override string[] TestTableResultTypes => ["int", "varchar", "text"];

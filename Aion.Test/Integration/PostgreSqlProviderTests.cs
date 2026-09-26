@@ -25,6 +25,9 @@ public class PostgreSqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
             .Build();
     }
 
+    protected override string GeneratedRowsTableSql =>
+        "CREATE TABLE generated_rows (id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY, label varchar(20) NOT NULL, active boolean NOT NULL, note text NULL, code integer UNIQUE)";
+
     protected override string UnknownColumnCode => "SQLSTATE 42703";
 
     protected override string[] TestTableResultTypes => ["integer", "varchar(100)", "text"];

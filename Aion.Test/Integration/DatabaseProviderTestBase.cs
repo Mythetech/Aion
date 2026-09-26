@@ -1,6 +1,7 @@
 using Aion.Components.Connections;
 using Aion.Components.ForeignKeys;
 using Aion.Components.RequestContextPanel;
+using Aion.Components.Scaffolding.DataGeneration;
 using Aion.Core.Database;
 using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
@@ -129,6 +130,110 @@ public abstract class DatabaseProviderTestBase : IAsyncLifetime
 
     /// <summary>The engine's code for an unknown column, as the provider formats it.</summary>
     protected abstract string UnknownColumnCode { get; }
+
+    /// <summary>
+    /// CREATE TABLE generated_rows in the engine's own DDL: an identity key the engine numbers, a required
+    /// label up to 20 characters, a required flag in the engine's boolean type, a nullable note and a unique code.
+    /// </summary>
+    protected abstract string GeneratedRowsTableSql { get; }
+
+    private async Task<DataGenerationModel> GenerationModelAsync(string table, int rows)
+    {
+        var columns = await Provider.GetColumnsAsync(DatabaseConnectionString, TestDatabase, TestSchema, table);
+        return new DataGenerationModel
+        {
+            TableName = table,
+            Schema = TestSchema,
+            Database = TestDatabase,
+            RowCount = rows,
+            ColumnGenerators = DataGenerationPlan.CreateBindings(columns, Provider.DatabaseType)
+        };
+    }
+
+    private static ColumnGeneratorBinding Column(DataGenerationModel model, string name) =>
+        model.ColumnGenerators.Single(b => string.Equals(b.Column.Name, name, StringComparison.OrdinalIgnoreCase));
+
+    [Fact]
+    public async Task GenerateData_WritesQuotedTextFlagsAndNullsAndLeavesTheIdentityToTheEngine()
+    {
+        // Arrange
+        string[] labels = ["O'Brien", "it's", @"back\slash"];
+        await ExecuteOrFailAsync(DatabaseConnectionString, GeneratedRowsTableSql);
+        var model = await GenerationModelAsync("generated_rows", 250);
+        Column(model, "id").FilledByDatabase.ShouldBe("identity");
+        Column(model, "active").Generator.ShouldBeOfType<BooleanGenerator>();
+        Column(model, "label").Generator = new CustomListGenerator();
+        Column(model, "label").Options.CustomValues = string.Join(", ", labels);
+        DataGenerationPlan.CompatibleGenerators(Column(model, "note")).ShouldContain(g => g is NullGenerator);
+        Column(model, "note").Generator = new NullGenerator();
+        Column(model, "code").Generator = new AutoIncrementGenerator();
+
+        // Act
+        var result = await new DataGenerationService().GenerateAsync(model, Provider, DatabaseConnectionString);
+
+        // Assert
+        result.Error.ShouldBeNull();
+        result.RowsInserted.ShouldBe(250);
+        var rows = (await ExecuteOrFailAsync(DatabaseConnectionString, "SELECT id, label, active, note, code FROM generated_rows ORDER BY id")).Rows;
+        rows.Count.ShouldBe(250);
+        rows.Select(r => Convert.ToInt64(r["id"])).ShouldBe(Enumerable.Range(1, 250).Select(i => (long)i));
+        rows.Select(r => (string)r["label"]).Distinct().ShouldBe(labels, ignoreOrder: true);
+        rows.Select(r => Convert.ToBoolean(r["active"])).Distinct().Count().ShouldBe(2);
+        rows.ShouldAllBe(r => r["note"] == null || r["note"] is DBNull);
+        rows.Select(r => Convert.ToInt64(r["code"])).ShouldBe(Enumerable.Range(1, 250).Select(i => (long)i));
+    }
+
+    [Fact]
+    public async Task GenerateData_WhenALaterBatchIsRejected_AddsNoRows()
+    {
+        // Arrange: code 250 is taken, so only the second batch of 200 collides.
+        await ExecuteOrFailAsync(DatabaseConnectionString, GeneratedRowsTableSql);
+        var model = await GenerationModelAsync("generated_rows", 250);
+        Column(model, "label").Generator = new NameGenerator();
+        Column(model, "code").Generator = new AutoIncrementGenerator();
+        Column(model, "code").Options.StartValue = 1;
+        var seed = await new DataGenerationService().GenerateAsync(await GenerationModelWithCodeAsync(250), Provider, DatabaseConnectionString);
+        seed.Error.ShouldBeNull();
+
+        // Act
+        var result = await new DataGenerationService().GenerateAsync(model, Provider, DatabaseConnectionString);
+
+        // Assert
+        result.RowsInserted.ShouldBe(0);
+        result.Error.ShouldNotBeNull().ShouldStartWith("Inserting rows 201 to 250 failed, so no rows were added: ");
+        var count = await ExecuteOrFailAsync(DatabaseConnectionString, "SELECT COUNT(*) AS row_count FROM generated_rows");
+        Convert.ToInt64(count.Rows[0]["row_count"]).ShouldBe(1);
+    }
+
+    private async Task<DataGenerationModel> GenerationModelWithCodeAsync(int code)
+    {
+        var model = await GenerationModelAsync("generated_rows", 1);
+        Column(model, "code").Generator = new AutoIncrementGenerator();
+        Column(model, "code").Options.StartValue = code;
+        return model;
+    }
+
+    [Fact]
+    public async Task GenerateData_PointsForeignKeysAtRowsTheReferencedTableHolds()
+    {
+        // Arrange
+        await ExecuteOrFailAsync(DatabaseConnectionString, "CREATE TABLE gen_parent (id int NOT NULL PRIMARY KEY, name varchar(20))");
+        await ExecuteOrFailAsync(DatabaseConnectionString, "INSERT INTO gen_parent (id, name) VALUES (1, 'a'), (2, 'b'), (5, 'c')");
+        await ExecuteOrFailAsync(DatabaseConnectionString,
+            "CREATE TABLE gen_child (id int NOT NULL PRIMARY KEY, parent_id int NOT NULL, FOREIGN KEY (parent_id) REFERENCES gen_parent (id))");
+        var model = await GenerationModelAsync("gen_child", 50);
+        Column(model, "parent_id").Generator.ShouldBeOfType<ReferencedValueGenerator>();
+        Column(model, "id").Generator.ShouldBeOfType<AutoIncrementGenerator>();
+
+        // Act
+        var result = await new DataGenerationService().GenerateAsync(model, Provider, DatabaseConnectionString);
+
+        // Assert
+        result.Error.ShouldBeNull();
+        var rows = (await ExecuteOrFailAsync(DatabaseConnectionString, "SELECT id, parent_id FROM gen_child ORDER BY id")).Rows;
+        rows.Select(r => Convert.ToInt64(r["id"])).ShouldBe(Enumerable.Range(1, 50).Select(i => (long)i));
+        rows.ShouldAllBe(r => new long[] { 1, 2, 5 }.Contains(Convert.ToInt64(r["parent_id"])));
+    }
 
     /// <summary>The short types the results grid shows for the test table's id, name and description columns.</summary>
     protected abstract string[] TestTableResultTypes { get; }
