@@ -10,7 +10,8 @@ namespace Aion.Components.Querying.Consumers;
 /// Keeps edit mode tied to the rows it was entered for. When a tab runs SQL that no longer reads the edit table
 /// from the same connection and database, or the new results lack the primary key, edit mode ends so edits are
 /// never written against the wrong table. Pending changes are dropped on every re-run because they refer to rows
-/// of the previous result.
+/// of the previous result. Read-only rows keep their table only for foreign key links, which go quietly once the
+/// SQL reads something else, since they would point from another table's columns.
 /// </summary>
 public class QueryEditModeGuard : IConsumer<QueryExecuted>
 {
@@ -25,8 +26,18 @@ public class QueryEditModeGuard : IConsumer<QueryExecuted>
     {
         var query = message.Query;
         var metadata = query.EditMetadata;
-        if (metadata?.IsEditMode != true)
+        if (metadata == null)
         {
+            return;
+        }
+
+        if (!metadata.IsEditMode)
+        {
+            if (GetSourceChange(query, metadata, message.ExecutedSql) != null)
+            {
+                query.EditMetadata = null;
+            }
+
             return;
         }
 
@@ -48,6 +59,31 @@ public class QueryEditModeGuard : IConsumer<QueryExecuted>
 
     private static string? GetExitReason(QueryModel query, QueryEditMetadata metadata, string executedSql)
     {
+        if (GetSourceChange(query, metadata, executedSql) is { } sourceChange)
+        {
+            return sourceChange;
+        }
+
+        var result = query.Result;
+        if (result is { Success: true })
+        {
+            var missingKeys = metadata.ColumnMetadata
+                .Where(c => c.IsPrimaryKey && !result.Columns.Contains(c.Name, StringComparer.OrdinalIgnoreCase))
+                .Select(c => c.Name)
+                .ToList();
+
+            if (missingKeys.Count > 0)
+            {
+                return $"the results do not include the primary key column(s) {string.Join(", ", missingKeys)}";
+            }
+        }
+
+        return null;
+    }
+
+    // Why the rows no longer come from the metadata's table, or null while they still do.
+    private static string? GetSourceChange(QueryModel query, QueryEditMetadata metadata, string executedSql)
+    {
         if (query.ConnectionId != metadata.ConnectionId || query.DatabaseName != metadata.SourceDatabase)
         {
             return "the query now runs against a different connection or database";
@@ -65,20 +101,6 @@ public class QueryEditModeGuard : IConsumer<QueryExecuted>
         if (!sameTable)
         {
             return $"the query no longer reads from '{metadata.SourceTable}'";
-        }
-
-        var result = query.Result;
-        if (result is { Success: true })
-        {
-            var missingKeys = metadata.ColumnMetadata
-                .Where(c => c.IsPrimaryKey && !result.Columns.Contains(c.Name, StringComparer.OrdinalIgnoreCase))
-                .Select(c => c.Name)
-                .ToList();
-
-            if (missingKeys.Count > 0)
-            {
-                return $"the results do not include the primary key column(s) {string.Join(", ", missingKeys)}";
-            }
         }
 
         return null;

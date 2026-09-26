@@ -479,6 +479,22 @@ public class ConnectionState
             : FetchColumnsAsync(connection, database, new TableInfo(schema, table));
 
     /// <summary>
+    /// A table's columns, foreign keys included, loaded first when they are not yet. Null when the database is not
+    /// listed or the columns could not be read, which the load has already recorded for the schema tree.
+    /// </summary>
+    public async Task<IReadOnlyList<ColumnInfo>?> GetTableColumnsAsync(ConnectionModel connection, string databaseName, string schema, string table)
+    {
+        var database = connection.Databases.FirstOrDefault(d => d.Name == databaseName);
+        if (database == null)
+        {
+            return null;
+        }
+
+        var state = await LoadColumnsAsync(connection, database, schema, table);
+        return state.IsLoaded ? database.TableColumns.GetValueOrDefault(new TableInfo(schema, table).DisplayName) : null;
+    }
+
+    /// <summary>
     /// Loads again every part of the database's schema that was loaded or failed to load, and forgets the
     /// columns of tables that no longer exist. Parts nobody asked for stay unloaded.
     /// </summary>

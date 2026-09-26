@@ -80,18 +80,16 @@ public class TableEditorOpener : IConsumer<OpenTableEditor>
             query.DatabaseName = message.DatabaseName;
             query.Query = selectSql.Trim();
 
-            if (readOnlyReason == null)
+            // Rows opened read-only still come from this one table, so its foreign keys keep their links.
+            query.EditMetadata = new QueryEditMetadata
             {
-                query.EditMetadata = new QueryEditMetadata
-                {
-                    SourceTable = message.TableName,
-                    SourceSchema = message.Schema,
-                    SourceDatabase = message.DatabaseName,
-                    ConnectionId = connection.Id,
-                    ColumnMetadata = columns.ToList(),
-                    IsEditMode = true
-                };
-            }
+                SourceTable = message.TableName,
+                SourceSchema = message.Schema,
+                SourceDatabase = message.DatabaseName,
+                ConnectionId = connection.Id,
+                ColumnMetadata = columns.ToList(),
+                IsEditMode = readOnlyReason == null
+            };
 
             await _bus.PublishAsync(new FocusQuery(query));
 
@@ -114,11 +112,24 @@ public class TableEditorOpener : IConsumer<OpenTableEditor>
 }
 
 /// <summary>
-/// Metadata stored on QueryModel for edit mode support. Pending changes live here too, so leaving edit mode
-/// or pointing it at another table can never carry edits over to rows they were not made against.
+/// The one table a tab's rows are read from, with its columns, which is what foreign key links and edit mode
+/// need. Rows opened read-only keep it for their links without edit mode. Pending changes live here too, so
+/// leaving edit mode or pointing it at another table can never carry edits over to rows they were not made against.
 /// </summary>
 public class QueryEditMetadata
 {
+    /// <summary>
+    /// Rows read from one table without edit mode, so each foreign key value links to the row it references.
+    /// </summary>
+    public static QueryEditMetadata ForReadOnlyRows(Guid connectionId, string database, string schema, string table, IEnumerable<ColumnInfo> columns) => new()
+    {
+        SourceTable = table,
+        SourceSchema = schema,
+        SourceDatabase = database,
+        ConnectionId = connectionId,
+        ColumnMetadata = columns.ToList()
+    };
+
     public string? SourceTable { get; set; }
     public string? SourceSchema { get; set; }
     public string? SourceDatabase { get; set; }
@@ -131,4 +142,16 @@ public class QueryEditMetadata
     public List<ColumnInfo> ColumnMetadata { get; set; } = [];
     public bool IsEditMode { get; set; }
     public EditState EditState { get; } = new() { IsEditMode = true };
+
+    /// <summary>
+    /// The same table without edit mode, and so without its pending changes.
+    /// </summary>
+    public QueryEditMetadata WithoutEditing() => new()
+    {
+        SourceTable = SourceTable,
+        SourceSchema = SourceSchema,
+        SourceDatabase = SourceDatabase,
+        ConnectionId = ConnectionId,
+        ColumnMetadata = ColumnMetadata
+    };
 }

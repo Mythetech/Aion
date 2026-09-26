@@ -593,8 +593,42 @@ public class QueryResponsePanelTests : TestContext
         await cut.Find(".pending-bar-stop").ClickAsync(new());
 
         // Assert
-        _query.EditMetadata.ShouldBeNull();
+        _query.EditMetadata?.IsEditMode.ShouldNotBe(true);
         cut.FindAll(".pending-bar").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task StopEditing_KeepsTheForeignKeyLinks()
+    {
+        // Arrange
+        _query.ConnectionId = Guid.NewGuid();
+        _query.DatabaseName = "shop";
+        _query.EditMetadata = new Aion.Components.Querying.Consumers.QueryEditMetadata
+        {
+            SourceTable = "orders",
+            SourceDatabase = "shop",
+            ConnectionId = _query.ConnectionId,
+            IsEditMode = true,
+            ColumnMetadata =
+            [
+                new ColumnInfo { Name = "id", IsPrimaryKey = true },
+                new ColumnInfo
+                {
+                    Name = "customer_id",
+                    ForeignKey = new ForeignKeyInfo { ColumnName = "customer_id", ReferencedTable = "customers", ReferencedColumn = "id" }
+                }
+            ]
+        };
+        Complete(new QueryResult { Columns = ["id", "customer_id"], Rows = [new Dictionary<string, object> { ["id"] = 1, ["customer_id"] = 7 }] });
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act
+        await cut.Find(".pending-bar-stop").ClickAsync(new());
+
+        // Assert
+        _query.EditMetadata.ShouldNotBeNull().IsEditMode.ShouldBeFalse();
+        cut.FindAll(".cell-nav").ShouldBeEmpty();
+        cut.FindAll("[aria-label='Show customer_id reference']").Count.ShouldBe(1);
     }
 
     [Fact]

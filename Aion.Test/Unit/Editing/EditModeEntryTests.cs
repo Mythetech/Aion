@@ -54,7 +54,7 @@ public class EditModeEntryTests
 
         var query = await OpenTableEditor(fixture, [new ColumnInfo { Name = "name" }]);
 
-        query.EditMetadata.ShouldBeNull();
+        query.EditMetadata?.IsEditMode.ShouldNotBe(true);
         query.Query.ShouldStartWith("SELECT * FROM");
         var notification = fixture.Notifications().ShouldHaveSingleItem();
         notification.Severity.ShouldBe(Severity.Warning);
@@ -68,8 +68,26 @@ public class EditModeEntryTests
 
         var query = await OpenTableEditor(fixture, EditingFixture.UserColumns());
 
-        query.EditMetadata.ShouldBeNull();
+        query.EditMetadata?.IsEditMode.ShouldNotBe(true);
         fixture.Notifications().ShouldHaveSingleItem().Message.ShouldContain("not supported");
+    }
+
+    [Fact]
+    public async Task TableEditor_OpeningReadOnly_StillLinksTheTablesForeignKeys()
+    {
+        var fixture = new EditingFixture();
+        var teamId = new ColumnInfo
+        {
+            Name = "team_id",
+            ForeignKey = new ForeignKeyInfo { ColumnName = "team_id", ReferencedSchema = "public", ReferencedTable = "teams", ReferencedColumn = "id" }
+        };
+
+        var query = await OpenTableEditor(fixture, [new ColumnInfo { Name = "name" }, teamId]);
+
+        var source = query.EditMetadata.ShouldNotBeNull();
+        source.IsEditMode.ShouldBeFalse();
+        source.SourceTable.ShouldBe("users");
+        source.ColumnMetadata.Single(c => c.IsForeignKey).ForeignKey!.ReferencedTable.ShouldBe("teams");
     }
 
     private static async Task<(QueryModel Query, EditingFixture Fixture)> EnableFromQuery(string sql, bool supportsEditing = true)

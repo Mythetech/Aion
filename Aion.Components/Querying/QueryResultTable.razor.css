@@ -233,7 +233,19 @@
     color: var(--mud-palette-text-secondary);
 }
 
-.cell-nav .cell-value {
+/* Read-only rows from one known table link their foreign key values; a long value is cut short, not its link. */
+.query-result-table .cell-content.cell-fk-value {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.query-result-table .cell-content.cell-fk-value.numeric {
+    justify-content: flex-end;
+}
+
+.cell-nav .cell-value,
+.cell-fk-value .cell-value {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;

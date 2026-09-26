@@ -351,10 +351,11 @@ else if (State?.Active?.IsExecuting ?? false)
 
     private void ExitEditMode()
     {
-        if (State.Active == null) return;
+        if (State.Active?.EditMetadata is not { } metadata) return;
 
-        // Pending changes live on the metadata, so clearing it also drops them
-        State.Active.EditMetadata = null;
+        // Pending changes live on the metadata, so a new one drops them; the rows still come from the same table,
+        // so its foreign keys keep their links.
+        State.Active.EditMetadata = metadata.WithoutEditing();
 
         StateHasChanged();
     }

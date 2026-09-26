@@ -1,6 +1,8 @@
+using Aion.Components.Connections;
 using Aion.Components.ForeignKeys.Commands;
 using Aion.Components.Querying;
 using Aion.Components.Querying.Commands;
+using Aion.Components.Querying.Consumers;
 using Aion.Components.Shared.Snackbar.Commands;
 using MudBlazor;
 using Mythetech.Framework.Infrastructure.MessageBus;
@@ -14,12 +16,14 @@ namespace Aion.Components.ForeignKeys.Consumers;
 public class ForeignKeyRowsOpener : IConsumer<OpenForeignKeyRows>
 {
     private readonly IForeignKeyService _foreignKeys;
+    private readonly ConnectionState _connections;
     private readonly QueryState _queries;
     private readonly IMessageBus _bus;
 
-    public ForeignKeyRowsOpener(IForeignKeyService foreignKeys, QueryState queries, IMessageBus bus)
+    public ForeignKeyRowsOpener(IForeignKeyService foreignKeys, ConnectionState connections, QueryState queries, IMessageBus bus)
     {
         _foreignKeys = foreignKeys;
+        _connections = connections;
         _queries = queries;
         _bus = bus;
     }
@@ -38,6 +42,15 @@ public class ForeignKeyRowsOpener : IConsumer<OpenForeignKeyRows>
         query.ConnectionId = detail.ConnectionId;
         query.DatabaseName = detail.DatabaseName;
         query.Query = lookup.Sql;
+
+        // The related rows come from one table too, so their own foreign keys can be followed further.
+        var schema = detail.ReferencedSchema ?? "";
+        var connection = _connections.Connections.FirstOrDefault(c => c.Id == detail.ConnectionId);
+        if (connection != null
+            && await _connections.GetTableColumnsAsync(connection, detail.DatabaseName, schema, detail.ReferencedTable) is { } columns)
+        {
+            query.EditMetadata = QueryEditMetadata.ForReadOnlyRows(connection.Id, detail.DatabaseName, schema, detail.ReferencedTable, columns);
+        }
 
         // The editor loads a tab's text when it is told to focus it, and Run reads the editor, so the run
         // waits for the focus to finish.

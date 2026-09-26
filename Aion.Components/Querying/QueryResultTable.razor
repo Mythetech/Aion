@@ -99,7 +99,8 @@
                     {
                         var value = context.Item.Values.GetValueOrDefault(col);
                         var rowIndex = context.Item.Index;
-                        <div class="cell-content @(column.IsNumeric ? "numeric" : null)"
+                        var foreignKey = value is not null && IsForeignKeyColumn(col, out var reference) ? reference : null;
+                        <div class="cell-content @(column.IsNumeric ? "numeric" : null) @(foreignKey is null ? null : "cell-fk-value")"
                              @oncontextmenu="@(e => ShowContextMenu(e, context.Item, col, value))"
                              @oncontextmenu:preventDefault="true"
                              @onclick="@(e => HandleCellClick(rowIndex, e))">
@@ -117,6 +118,10 @@
                             else
                             {
                                 @CellValue(value, column)
+                            }
+                            @if (foreignKey is not null)
+                            {
+                                @ForeignKeyLink(context.Item, col, foreignKey, value!)
                             }
                         </div>
                     }
@@ -553,16 +558,22 @@
 
         if (value is not null && IsForeignKeyColumn(col, out var foreignKey))
         {
-            @* Foreign key metadata only exists in edit mode, so the editable cell is where the reference opens from. *@
-            <button type="button"
-                    class="cell-fk"
-                    aria-label="@($"Show {col} reference")"
-                    title="@($"Show {foreignKey!.ReferencedTable} row")"
-                    @onclick="@(() => OpenForeignKeyView(col, foreignKey, value, row))"
-                    @onclick:stopPropagation="true">
-                <MudIcon Icon="@AionIcons.ForeignKey" Size="Size.Small" />
-            </button>
+            @ForeignKeyLink(row, col, foreignKey!, value)
         }
+    };
+
+    // Opens the row a foreign key value references. Only rows from one known table carry the column metadata
+    // that says which columns are foreign keys, whether they are being edited or only read.
+    private RenderFragment ForeignKeyLink(ResultRow row, string column, ForeignKeyInfo foreignKey, object value) => __builder =>
+    {
+        <button type="button"
+                class="cell-fk"
+                aria-label="@($"Show {column} reference")"
+                title="@($"Show {foreignKey.ReferencedTable} row")"
+                @onclick="@(() => OpenForeignKeyView(column, foreignKey, value, row))"
+                @onclick:stopPropagation="true">
+            <MudIcon Icon="@AionIcons.ForeignKey" Size="Size.Small" />
+        </button>
     };
 
     private RenderFragment CellValue(object value, ResultGridColumn column) => __builder =>
