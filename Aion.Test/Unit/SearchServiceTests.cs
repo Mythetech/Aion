@@ -62,8 +62,8 @@ public class SearchServiceTests
     [InlineData(DatabaseType.SQLServer, "Server=tcp:sql01.example.com,1433;Password=secret", "SQL Server on sql01.example.com")]
     [InlineData(DatabaseType.MySQL, "Server=mysql.local;Port=3306;User=root;Password=secret", "MySQL on mysql.local")]
     [InlineData(DatabaseType.LiteDB, "Filename=/Users/me/data/app.db;Password=secret", "LiteDB on app.db")]
-    [InlineData(DatabaseType.WasmPostgreSQL, "pglite://sample_store", "PostgreSQL (PGlite) on sample_store")]
-    [InlineData(DatabaseType.WasmSQLite, "Data Source=sample_store;Mode=Memory;Cache=Shared", "SQLite (In-Browser) on sample_store")]
+    [InlineData(DatabaseType.WasmPostgreSQL, "pglite://sample_store", "PostgreSQL (PGlite)")]
+    [InlineData(DatabaseType.WasmSQLite, "Data Source=sample_store;Mode=Memory;Cache=Shared", "SQLite (In-Browser)")]
     [InlineData(DatabaseType.PostgreSQL, "not a connection string", "PostgreSQL")]
     public async Task ConnectionResult_DescribesEngineAndHostOnly(DatabaseType type, string connectionString, string expected)
     {
