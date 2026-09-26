@@ -11,13 +11,14 @@ using Shouldly;
 
 namespace Aion.Test.Components.Querying.TabBar;
 
-public class AionTabBarCloseTests : TestContext
+public class AionTabBarMenuTests : TestContext
 {
     private readonly QueryState _state;
     private readonly IRenderedComponent<MudPopoverProvider> _popovers;
     private readonly IRenderedComponent<MudDialogProvider> _dialogs;
+    private readonly List<QueryModel> _activated = [];
 
-    public AionTabBarCloseTests()
+    public AionTabBarMenuTests()
     {
         _state = new QueryState(Substitute.For<IMessageBus>(), Substitute.For<IQuerySaveService>());
         Services.AddSingleton(_state);
@@ -50,13 +51,50 @@ public class AionTabBarCloseTests : TestContext
             .ContextMenuAsync(new MouseEventArgs());
         _popovers.WaitForAssertion(() => _popovers.FindAll(".mud-list-item").ShouldNotBeEmpty());
 
-        return _popovers.FindAll(".mud-list-item").First(li => li.TextContent.Trim() == item).ClickAsync(new MouseEventArgs());
+        return _popovers.FindAll(".mud-list-item")
+            .First(li => li.QuerySelector(".mud-list-item-text")?.TextContent.Trim() == item)
+            .ClickAsync(new MouseEventArgs());
     }
 
     private async Task AnswerAsync(string button) =>
         await _dialogs.FindAll("button").First(b => b.TextContent.Trim() == button).ClickAsync(new MouseEventArgs());
 
     private IEnumerable<string> TabNames => _state.Queries.Select(q => q.Name);
+
+    private IRenderedComponent<AionTabBar> RenderTabBar() =>
+        RenderComponent<AionTabBar>(p => p.Add(x => x.OnTabActivated, query => _activated.Add(query)));
+
+    [Fact]
+    public async Task Clone_ShowsTheCloneInTheEditor()
+    {
+        // Arrange
+        Tab("Report", "SELECT 1");
+        var cut = RenderTabBar();
+
+        // Act
+        await await ChooseFromTabMenuAsync(cut, "Report", "Clone");
+
+        // Assert
+        _activated.ShouldHaveSingleItem().ShouldBe(_state.Active);
+        _state.Active!.Query.ShouldBe("SELECT 1");
+        _state.Queries.Count.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task CloseToRight_ShowsTheTabThatBecomesActive()
+    {
+        // Arrange
+        var report = Tab("Report", "");
+        Tab("Totals", "");
+        var cut = RenderTabBar();
+
+        // Act
+        await await ChooseFromTabMenuAsync(cut, "Report", "Close to Right");
+
+        // Assert
+        _state.Active.ShouldBe(report);
+        _activated.ShouldHaveSingleItem().ShouldBe(report);
+    }
 
     [Fact]
     public async Task ClosingATabWithoutSql_DoesNotAsk()

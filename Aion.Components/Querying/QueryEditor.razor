@@ -13,6 +13,7 @@
 @using Aion.Components.Settings.Domains
 @using Aion.Contracts.Connections
 @using Aion.Contracts.Queries
+@using Microsoft.Extensions.Logging
 @using Microsoft.JSInterop
 @using Mythetech.Framework.Infrastructure.Guards
 @using Mythetech.Framework.Infrastructure.Settings.Events
@@ -113,6 +114,7 @@
     [Inject] protected IJSRuntime JS { get; set; } = default!;
     [Inject] protected EditorSettings EditorSettings { get; set; } = default!;
     [Inject] protected AionKeyBindings Keys { get; set; } = default!;
+    [Inject] protected ILogger<QueryEditor> Logger { get; set; } = default!;
 
     private bool _initialized = false;
 
@@ -140,7 +142,8 @@
         OpenCommandPalette
     }
 
-    private sealed record RunRequested;
+    /// <param name="Query">The tab the editor showed when the shortcut was pressed.</param>
+    private sealed record RunRequested(QueryModel Query);
 
     private const string RunQueryActionId = "aion.run-query";
 
@@ -168,9 +171,12 @@
         }
     }
     
-    private string? RunBlockedReason => SelectedConnection == null
-        ? "Choose a connection"
-        : string.IsNullOrEmpty(State.Active?.DatabaseName) ? "Choose a database" : null;
+    private string? RunBlockedReason => State.Active is { } active ? RunBlockedReasonFor(active) : "Choose a connection";
+
+    private string? RunBlockedReasonFor(QueryModel query) =>
+        Connections.Connections.All(c => c.Id != query.ConnectionId) ? "Choose a connection"
+        : string.IsNullOrEmpty(query.DatabaseName) ? "Choose a database"
+        : null;
 
     private bool CanExecuteQuery => RunBlockedReason == null;
     
@@ -225,12 +231,9 @@
         _editorActions.Writer.TryComplete();
         _runRequests.Writer.TryComplete();
 
-        // Cancelled synchronously so no run can finish and remove itself partway through the loop, and the
-        // run loop below isn't left waiting on a long statement.
-        foreach (var running in _runningQueries.Values.ToList())
-        {
-            running.Cancel();
-        }
+        // Every cancel is requested before the first await, so no run can finish and dispose its token
+        // source in between, and the run loop below isn't left waiting on a long statement.
+        await Task.WhenAll(_runningQueries.Values.ToList().Select(running => running.CancelAsync()));
 
         if (_editorActionLoop != null)
         {
@@ -361,26 +364,50 @@
         }
     }
 
-    /// <summary>
-    /// Pressing the run shortcut again while the tab's statement runs cancels it. Cancelling is
-    /// synchronous, so it takes effect now instead of waiting in the queue behind the run it stops.
-    /// </summary>
     private void RequestRunFromEditor()
     {
-        if (_shownQuery != null && _runningQueries.TryGetValue(_shownQuery.Id, out var running))
+        if (_shownQuery is { } query)
         {
-            running.Cancel();
-            return;
+            _runRequests.Writer.TryWrite(new RunRequested(query));
         }
-
-        _runRequests.Writer.TryWrite(new RunRequested());
     }
 
+    // A statement can run for minutes, so the loop starts each run and reads on instead of waiting for it:
+    // pressing the shortcut again must cancel the run it follows, and a run in another tab must not queue
+    // behind it. The runs are still awaited, as they finish or when the loop ends.
     private async Task ProcessRunRequestsAsync()
     {
-        await foreach (var _ in _runRequests.Reader.ReadAllAsync())
+        var runs = new List<Task>();
+        await foreach (var request in _runRequests.Reader.ReadAllAsync())
         {
-            await InvokeAsync(RunQuery);
+            runs.RemoveAll(run => run.IsCompletedSuccessfully);
+            runs.Add(InvokeAsync(() => RunFromShortcutAsync(request.Query)));
+        }
+
+        await Task.WhenAll(runs);
+    }
+
+    private async Task RunFromShortcutAsync(QueryModel query)
+    {
+        try
+        {
+            await RunQueryAsync(query);
+        }
+        catch (Exception ex)
+        {
+            // Query errors are already results; this is the editor itself failing, such as the page closing.
+            Logger.LogWarning(ex, "Running the query from the editor shortcut failed");
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // A tab can become active without the editor being told, such as a clone or a tab closing, so after
+        // each render the editor catches up with whichever tab is active.
+        if (_initialized && State.Active is { } active && active.Id != _shownQuery?.Id)
+        {
+            await ShowQueryAsync(active);
+            await RefreshErrorMarkerAsync();
         }
     }
 
@@ -414,15 +441,15 @@
         return (text, selection);
     }
 
-    /// <summary>
-    /// Runs the active tab's statement, inside its transaction when one is open. While that tab is
-    /// executing the same action cancels the statement; it never ends the transaction, which only the
-    /// Commit and Rollback buttons do.
-    /// </summary>
-    private async Task RunQuery()
-    {
-        var query = State.Active ?? State.Queries.First();
+    private async Task RunQuery() => await RunQueryAsync(_shownQuery ?? State.Active ?? State.Queries.First());
 
+    /// <summary>
+    /// Runs the tab's statement, inside its transaction when one is open. While that tab is executing
+    /// the same action cancels the statement; it never ends the transaction, which only the Commit and
+    /// Rollback buttons do.
+    /// </summary>
+    private async Task RunQueryAsync(QueryModel query)
+    {
         if (_runningQueries.TryGetValue(query.Id, out var running))
         {
             await running.CancelAsync();
@@ -434,8 +461,10 @@
 
         try
         {
-            var fullText = _editor != null ? await _editor.GetValue() : query.Query;
-            var selected = await GetSelectedTextAsync();
+            // The editor's text and selection belong to this tab only while the editor shows it.
+            var shown = _editor != null && _shownQuery?.Id == query.Id;
+            var fullText = shown ? await _editor!.GetValue() : query.Query;
+            var selected = shown ? await GetSelectedTextAsync() : null;
 
             // Typing reaches the tab through the editor's change events; taking the text once more here
             // means the save, the run and the error position all see the same SQL.
@@ -443,7 +472,7 @@
             await Bus.PublishAsync(new SaveQuery(query));
 
             // The button explains itself on hover; a shortcut or the palette gets told instead.
-            if (RunBlockedReason is { } blocked)
+            if (RunBlockedReasonFor(query) is { } blocked)
             {
                 await Bus.PublishAsync(new AddNotification(blocked, Severity.Info));
                 return;

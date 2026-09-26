@@ -156,7 +156,10 @@
     {
         if (!await ConfirmDiscardAsync(OrderedQueries.Where(q => q.Order > query.Order))) return;
 
+        var active = State.Active;
         await State.CloseToRight(query);
+        if (State.Active != active && State.Active != null && OnTabActivated.HasDelegate)
+            await OnTabActivated.InvokeAsync(State.Active);
     }
 
     private async Task HandleCloseAll()
@@ -198,9 +201,11 @@
         return result is { Canceled: false };
     }
 
-    private void HandleClone(QueryModel query)
+    private async Task HandleClone(QueryModel query)
     {
-        State.Clone(query);
+        var clone = State.Clone(query);
+        if (OnTabActivated.HasDelegate)
+            await OnTabActivated.InvokeAsync(clone);
     }
 
     private async Task HandleRename(QueryModel query)

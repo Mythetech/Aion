@@ -34,8 +34,12 @@ public class QueryEditorRunTests : TestContext
     private readonly List<QueryExecuted> _executed = [];
     private readonly TaskCompletionSource<QueryResult> _providerResult = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _providerStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly ConnectionModel _connection = new() { Name = "Local", Type = DatabaseType.WasmSQLite, ConnectionString = "Data Source=shop.db" };
     private string? _textDuringRun;
     private CancellationToken _runToken;
+    private int _runsStarted;
+    private readonly TaskCompletionSource _secondRunStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _runCancelled = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public QueryEditorRunTests()
     {
@@ -57,6 +61,8 @@ public class QueryEditorRunTests : TestContext
             .Returns(call =>
             {
                 _runToken = call.Arg<CancellationToken>();
+                _runToken.Register(() => _runCancelled.TrySetResult());
+                if (Interlocked.Increment(ref _runsStarted) == 2) _secondRunStarted.TrySetResult();
                 _textDuringRun = _query!.Query;
                 _providerStarted.TrySetResult();
                 return _providerResult.Task;
@@ -65,10 +71,9 @@ public class QueryEditorRunTests : TestContext
         _bus = new InMemoryMessageBus(Services, new NullLogger<InMemoryMessageBus>(),
             Enumerable.Empty<IMessagePipe>(), Enumerable.Empty<IConsumerFilter>());
         _state = new QueryState(_bus, Substitute.For<IQuerySaveService>());
-        var connection = new ConnectionModel { Name = "Local", Type = DatabaseType.WasmSQLite, ConnectionString = "Data Source=shop.db" };
         var connections = new ConnectionState(Substitute.For<IConnectionService>(), factory, _bus, new NullLogger<ConnectionState>())
         {
-            Connections = [connection]
+            Connections = [_connection]
         };
         _bus.Subscribe<QueryChanged>(_state);
         _bus.Subscribe(new RecordingConsumer(_executed));
@@ -82,7 +87,7 @@ public class QueryEditorRunTests : TestContext
         Services.AddSingleton(Aion.Components.Shortcuts.AionKeyBindings.ForDesktop(isMac: false));
 
         _query = _state.Queries[0];
-        _query.ConnectionId = connection.Id;
+        _query.ConnectionId = _connection.Id;
         _query.DatabaseName = "shop";
         _query.Query = Full;
         _state.SetActive(_query);
@@ -184,10 +189,51 @@ public class QueryEditorRunTests : TestContext
         await cut.InvokeAsync(() => editor.ActionCallback("aion.run-query"));
 
         // Assert
-        _runToken.IsCancellationRequested.ShouldBeTrue();
+        await _runCancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
         _providerResult.SetCanceled();
         cut.WaitForAssertion(() => _query.IsExecuting.ShouldBeFalse());
         await _provider.Received(1).ExecuteQueryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunShortcutInAnotherTab_StartsWhileTheFirstTabStillRuns()
+    {
+        // Arrange
+        var other = _state.AddQuery("Other");
+        _state.UpdateQueryConnection(other, _connection);
+        _state.UpdateQueryDatabase(other, "shop");
+        var cut = RenderComponent<QueryEditor>();
+        var editor = InitializedEditor(cut);
+        await cut.InvokeAsync(() => _bus.PublishAsync(new FocusQuery(_query)));
+        await cut.InvokeAsync(() => editor.ActionCallback("aion.run-query"));
+        await _providerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Act
+        await cut.InvokeAsync(() => _bus.PublishAsync(new FocusQuery(other)));
+        await cut.InvokeAsync(() => editor.ActionCallback("aion.run-query"));
+
+        // Assert
+        await _secondRunStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        _query.IsExecuting.ShouldBeTrue();
+        _providerResult.SetResult(new QueryResult());
+        cut.WaitForAssertion(() => other.IsExecuting.ShouldBeFalse());
+        _query.IsExecuting.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task ActiveTabChangedOutsideTheEditor_IsShownInTheEditor()
+    {
+        // Arrange
+        var cut = RenderComponent<QueryEditor>();
+        InitializedEditor(cut);
+
+        // Act
+        var added = await cut.InvokeAsync(() => _state.AddQuery("Added elsewhere"));
+
+        // Assert
+        cut.WaitForAssertion(() =>
+            JSInterop.Invocations["blazorMonaco.editor.setValue"].Last().Arguments[1].ShouldBe(added.Query));
+        _query.Query.ShouldBe(Full);
     }
 
     [Fact]
