@@ -86,6 +86,10 @@ public static class AionIcons
 
     public static string Key => Round("key");
 
+    public static string PrimaryKey => Round("key");
+
+    public static string ForeignKey => Round("link");
+
     public static string Json => Round("file_json");
 
     public static string Csv => Round("csv");

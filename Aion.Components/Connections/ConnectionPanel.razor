@@ -128,22 +128,12 @@
                                                     @foreach (var column in database.TableColumns[table.DisplayName])
                                                     {
                                                         <MudTreeViewItem Value="@($"{database.Name}|{table.DisplayName}/Columns/{column.Name}")"
-                                                                         Icon="@(column.IsPrimaryKey ? Icons.Material.Filled.Key : AionIcons.Column)">
+                                                                         Icon="@ColumnIcon(column)" IconColor="@ColumnIconColor(column)">
                                                             <BodyContent Context="ctx">
-                                                                <div class="d-flex align-center">
-                                                                    <MudText>@column.Name</MudText>
-                                                                    <MudText Class="ml-2 mud-text-secondary" Style="font-size: 0.8em;">
-                                                                        @column.DataType@(column.MaxLength.HasValue ? $"({column.MaxLength})" : "")
-                                                                        @(column.IsNullable ? "NULL" : "NOT NULL")
-                                                                        @if (column.IsIdentity)
-                                                                        {
-                                                                            <span class="ml-1">(Identity)</span>
-                                                                        }
-                                                                        @if (!string.IsNullOrEmpty(column.DefaultValue))
-                                                                        {
-                                                                            <span class="ml-1">DEFAULT @column.DefaultValue</span>
-                                                                        }
-                                                                    </MudText>
+                                                                @* A native title keeps hover detail cheap: a MudTooltip per row would register a popover for every column. *@
+                                                                <div class="column-row" title="@ColumnTypeText.Describe(column, Connection.Type)">
+                                                                    <span class="column-name">@column.Name</span>
+                                                                    <span class="column-type">@ColumnTypeText.Short(column, Connection.Type)@if (column.IsNullable){<span class="column-nullable">?</span>}</span>
                                                                 </div>
                                                             </BodyContent>
                                                         </MudTreeViewItem>
@@ -285,6 +275,13 @@
         "index" => AionIcons.Index,
         _ => AionIcons.Info
     };
+
+    private static string ColumnIcon(ColumnInfo column) =>
+        column.IsPrimaryKey ? AionIcons.PrimaryKey
+        : column.IsForeignKey ? AionIcons.ForeignKey
+        : AionIcons.Column;
+
+    private static Color ColumnIconColor(ColumnInfo column) => column.IsPrimaryKey ? Color.Warning : Color.Default;
 
     private string GetConnectionErrorTooltip()
     {

@@ -1,0 +1,29 @@
+.column-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.column-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.875rem;
+}
+
+/* The type never shrinks, so a long column name gives way to it. */
+.column-type {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    font-family: var(--mud-typography-monospace, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+    font-size: 0.75rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+.column-nullable {
+    color: var(--mud-palette-text-disabled);
+}
