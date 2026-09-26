@@ -2,6 +2,7 @@ using Mythetech.Framework.Infrastructure.MessageBus;
 using Aion.Components.Querying;
 using Aion.Components.Querying.Commands;
 using Aion.Contracts.Connections;
+using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
 using NSubstitute;
 using Shouldly;
@@ -128,6 +129,64 @@ public class QueryStateTests
 
         // Assert
         query.ConnectionId.ShouldBe(connection.Id);
+        query.DatabaseName.ShouldBeNull();
+    }
+
+    [Fact]
+    public void ChoosingAConnectionWithOneDatabase_SelectsIt()
+    {
+        // Arrange
+        var query = _state.Queries[0];
+        var connection = new ConnectionModel
+        {
+            Type = DatabaseType.WasmSQLite,
+            ConnectionString = "Data Source=sample_store.db",
+            Databases = [new DatabaseModel { Name = "sample_store" }]
+        };
+
+        // Act
+        _state.UpdateQueryConnection(query, connection);
+
+        // Assert
+        query.DatabaseName.ShouldBe("sample_store");
+    }
+
+    [Fact]
+    public void ChoosingAConnectionThatNamesADatabase_SelectsIt()
+    {
+        // Arrange
+        var query = _state.Queries[0];
+        var connection = new ConnectionModel
+        {
+            Type = DatabaseType.PostgreSQL,
+            ConnectionString = "Host=localhost;Database=Sales;Username=app",
+            Databases = [new DatabaseModel { Name = "postgres" }, new DatabaseModel { Name = "sales" }]
+        };
+
+        // Act
+        _state.UpdateQueryConnection(query, connection);
+
+        // Assert
+        query.DatabaseName.ShouldBe("sales");
+    }
+
+    [Fact]
+    public void ChoosingAServerWithSeveralDatabasesAndNoneNamed_LeavesTheChoiceToTheUser()
+    {
+        // Arrange
+        var query = _state.Queries[0];
+        query.DatabaseName = "old";
+        var connection = new ConnectionModel
+        {
+            Type = DatabaseType.PostgreSQL,
+            ConnectionString = "Host=localhost;Username=app",
+            Databases = [new DatabaseModel { Name = "postgres" }, new DatabaseModel { Name = "sales" }]
+        };
+
+        // Act
+        _state.UpdateQueryConnection(query, connection);
+
+        // Assert
         query.DatabaseName.ShouldBeNull();
     }
 

@@ -420,7 +420,7 @@
     private async Task NewQuery()
     {
         var query = QueryState.AddQuery("Untitled");
-        query.ConnectionId = Connection.Id;
+        QueryState.UpdateQueryConnection(query, Connection);
         await MessageBus.PublishAsync(new FocusQuery(query));
     }
 

@@ -3,6 +3,7 @@ using Aion.Components.Querying;
 using Aion.Components.Querying.Commands;
 using Aion.Components.Querying.Events;
 using Aion.Components.Settings.Domains;
+using Aion.Components.Shared.Snackbar.Commands;
 using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
@@ -131,6 +132,32 @@ public class QueryEditorRunTests : TestContext
 
         // Assert
         _query.Query.ShouldBe(typed);
+    }
+
+    [Fact]
+    public async Task RunWithoutADatabase_SaysWhyInsteadOfRunning()
+    {
+        // Arrange
+        var notifications = new List<AddNotification>();
+        _bus.Subscribe(new NotificationRecorder(notifications));
+        _state.UpdateQueryDatabase(_query, "");
+        var cut = RenderComponent<QueryEditor>();
+
+        // Act
+        await cut.InvokeAsync(() => _bus.PublishAsync(new RunQuery()));
+
+        // Assert
+        await _provider.DidNotReceiveWithAnyArgs().ExecuteQueryAsync(default!, default!, default);
+        notifications.ShouldHaveSingleItem().Message.ShouldBe("Choose a database");
+    }
+
+    private sealed class NotificationRecorder(List<AddNotification> notifications) : IConsumer<AddNotification>
+    {
+        public Task Consume(AddNotification message)
+        {
+            notifications.Add(message);
+            return Task.CompletedTask;
+        }
     }
 
     [Fact]

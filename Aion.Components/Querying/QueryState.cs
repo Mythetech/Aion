@@ -169,7 +169,7 @@ public class QueryState : IConsumer<QueryChanged>
         if (q == null) return;
 
         q.ConnectionId = connection.Id;
-        q.DatabaseName = null;
+        q.DatabaseName = DefaultDatabase.For(connection);
 
         OnStateChanged();
     }

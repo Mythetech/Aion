@@ -2,6 +2,7 @@ using Aion.Core.Database;
 using Aion.Components.Connections;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using Aion.Components.Querying;
+using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
@@ -92,6 +93,38 @@ public class QueryEditorTests : TestContext
         // Assert
         cut.FindAll(".mud-alert").ShouldBeEmpty();
         cut.Markup.ShouldNotContain("categry_id");
+    }
+
+    [Fact]
+    public void Run_WithAConnectionButNoDatabase_IsDisabledAndSaysWhy()
+    {
+        // Arrange
+        var connection = new ConnectionModel { Name = "pg", Type = DatabaseType.PostgreSQL, ConnectionString = "Host=pg" };
+        _connections.Connections = [connection];
+        var query = _state.Queries[0];
+        query.ConnectionId = connection.Id;
+        _state.SetActive(query);
+
+        // Act
+        var cut = RenderComponent<QueryEditor>();
+
+        // Assert
+        var run = cut.FindComponent<RunQueryButton>().Instance;
+        run.Disabled.ShouldBeTrue();
+        run.DisabledReason.ShouldBe("Choose a database");
+    }
+
+    [Fact]
+    public void Run_WithoutAConnection_SaysToChooseOne()
+    {
+        // Arrange
+        _state.SetActive(_state.Queries[0]);
+
+        // Act
+        var cut = RenderComponent<QueryEditor>();
+
+        // Assert
+        cut.FindComponent<RunQueryButton>().Instance.DisabledReason.ShouldBe("Choose a connection");
     }
 
     [Fact]

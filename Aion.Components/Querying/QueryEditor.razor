@@ -6,6 +6,7 @@
 @using BlazorMonaco.Editor
 @using BlazorMonaco.Languages
 @using Aion.Components.Shared
+@using Aion.Components.Shared.Snackbar.Commands
 @using Aion.Components.Theme
 @using Aion.Components.Settings.Domains
 @using Aion.Contracts.Connections
@@ -82,6 +83,7 @@
             <RunQueryButton Text="Run"
                             OnClick="RunQuery"
                             Disabled="@(!CanExecuteQuery)"
+                            DisabledReason="@RunBlockedReason"
                             IsExecuting="@State.Active.IsExecuting"/>
         }
     </MudStack>
@@ -150,7 +152,11 @@
         }
     }
     
-    private bool CanExecuteQuery => SelectedConnection != null;
+    private string? RunBlockedReason => SelectedConnection == null
+        ? "Choose a connection"
+        : string.IsNullOrEmpty(State.Active?.DatabaseName) ? "Choose a database" : null;
+
+    private bool CanExecuteQuery => RunBlockedReason == null;
     
     private StandaloneCodeEditor? _editor;
 
@@ -349,7 +355,12 @@
             State.EditQueryText(query, fullText);
             await Bus.PublishAsync(new SaveQuery(query));
 
-            if (!CanExecuteQuery) return;
+            // The button explains itself on hover; a shortcut or the palette gets told instead.
+            if (RunBlockedReason is { } blocked)
+            {
+                await Bus.PublishAsync(new AddNotification(blocked, Severity.Info));
+                return;
+            }
 
             await ClearErrorMarkerAsync();
 

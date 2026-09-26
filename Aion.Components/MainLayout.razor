@@ -235,7 +235,7 @@
     {
         if (_contextMenuConnection == null) return;
         var query = QueryState.AddQuery("Untitled");
-        query.ConnectionId = _contextMenuConnection.Id;
+        QueryState.UpdateQueryConnection(query, _contextMenuConnection);
         await Bus.PublishAsync(new FocusQuery(query));
     }
 
