@@ -27,6 +27,24 @@ export async function query(name, sql) {
     };
 }
 
+// Reports a failed statement as data. An error thrown across JS interop reaches .NET as text with the
+// JS stack appended, losing the SQLSTATE and the position PostgreSQL reported.
+export async function run(name, sql) {
+    try {
+        return { ...(await query(name, sql)), error: null };
+    } catch (e) {
+        return {
+            error: {
+                message: e?.message ?? String(e),
+                code: e?.code ?? null,
+                position: e?.position ?? null,
+                detail: e?.detail ?? null,
+                hint: e?.hint ?? null
+            }
+        };
+    }
+}
+
 export async function exec(name, sql) {
     const db = instances[name];
     if (!db) throw new Error(`Database '${name}' not found`);

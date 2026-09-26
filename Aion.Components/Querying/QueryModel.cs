@@ -18,6 +18,16 @@ public class QueryModel
     [JsonIgnore]
     public string? ResultNotice { get; private set; }
 
+    /// <summary>
+    /// The tab's full SQL when its result arrived. Error positions refer to this text, so the editor
+    /// only marks the error while the tab still holds it.
+    /// </summary>
+    [JsonIgnore]
+    public string? ResultSourceText { get; internal set; }
+
+    [JsonIgnore]
+    public bool ErrorLocationIsCurrent => Result?.ErrorDetail?.Line != null && ResultSourceText == Query;
+
     // Not persisted: a saved "executing" flag would leave a tab stuck showing Cancel after a restart.
     [JsonIgnore]
     public bool IsExecuting { get; set; }
@@ -67,6 +77,13 @@ public class QueryModel
 
     public void SetResult(QueryResult result, string? notice = null)
     {
+        // Providers without structured driver errors, and failures raised before a provider ran, only
+        // set the text. Query still holds the SQL that was run here, which locates the error.
+        if (result is { Error: { } raw, ErrorDetail: null })
+        {
+            result.ErrorDetail = QueryErrorNormalizer.Normalize(raw, Query);
+        }
+
         Result = result;
         ResultNotice = notice;
         IsExecuting = false;

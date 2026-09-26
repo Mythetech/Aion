@@ -1,0 +1,76 @@
+.query-error-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 8px 4px;
+    padding: 14px 16px;
+    border: 1px solid color-mix(in srgb, var(--mud-palette-error) 35%, transparent);
+    border-left: 4px solid var(--mud-palette-error);
+    border-radius: var(--mud-default-borderradius);
+    background-color: var(--mud-palette-surface);
+}
+
+.query-error-card ::deep .query-error-icon {
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+.query-error-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.query-error-headline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 10px;
+    row-gap: 4px;
+}
+
+.query-error-title {
+    font-weight: 600;
+    color: var(--mud-palette-error);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.query-error-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.query-error-meta {
+    font-family: var(--mud-typography-monospace, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+    font-size: 0.75rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+.query-error-token,
+.query-error-name {
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: var(--mud-typography-monospace, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--mud-palette-text-primary);
+    background-color: var(--mud-palette-action-default-hover);
+    overflow-wrap: anywhere;
+}
+
+.query-error-location {
+    font-size: 0.8125rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+.query-error-suggestion {
+    font-size: 0.875rem;
+}
+
+.query-error-name {
+    padding: 0 3px;
+    font-weight: 500;
+}

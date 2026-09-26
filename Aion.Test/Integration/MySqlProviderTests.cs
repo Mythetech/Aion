@@ -32,6 +32,8 @@ public class MySqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
             .Build();
     }
 
+    protected override string UnknownColumnCode => "Error 1054";
+
     public override async Task InitializeAsync()
     {
         try 
@@ -52,6 +54,23 @@ public class MySqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
     {
         await base.DisposeAsync();
         await _container.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task SyntaxError_IsPlacedAtTheTextMySqlQuotes()
+    {
+        // Act
+        var result = await Provider.ExecuteQueryAsync(DatabaseConnectionString,
+            $"SELECT id\nFROM {TestTable}\nWHERE id = = 1", CancellationToken.None);
+
+        // Assert
+        result.ErrorDetail.ShouldNotBeNull();
+        result.ErrorDetail.Code.ShouldBe("Error 1064");
+        result.ErrorDetail.Kind.ShouldBe(Aion.Contracts.Queries.QueryErrorKind.Syntax);
+        result.ErrorDetail.Token.ShouldBe("=");
+        result.ErrorDetail.Line.ShouldBe(3);
+        result.ErrorDetail.Column.ShouldBe(12);
+        result.ErrorDetail.EndColumn.ShouldBe(13);
     }
 
     [Fact]

@@ -18,6 +18,7 @@
 @implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.FocusQuery>
 @implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.CreateQuery>
 @implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.RunQuery>
+@implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Aion.Components.Querying.Commands.GoToQueryPosition>
 @implements Mythetech.Framework.Infrastructure.MessageBus.IConsumer<Mythetech.Framework.Infrastructure.Settings.Events.SettingsModelChanged<Aion.Components.Settings.Domains.EditorSettings>>
 
 
@@ -90,11 +91,7 @@
         <TransactionBar Query="@transactionQuery" />
     }
 
-    @if (State?.Active?.Result?.Error != null)
-    {
-        <MudAlert Severity="Severity.Error" Class="my-2">@State.Active.Result.Error</MudAlert>
-    }
-    else if (State?.Active?.ResultNotice != null)
+    @if (State?.Active?.ResultNotice != null)
     {
         <MudAlert Severity="Severity.Info" Class="my-2">@State.Active.ResultNotice</MudAlert>
     }
@@ -114,6 +111,12 @@
     private bool _initialized = false;
 
     private readonly Dictionary<Guid, CancellationTokenSource> _runningQueries = new();
+
+    private const string ErrorMarkerOwner = "aion-query-error";
+
+    // What the editor's error marker currently shows, so edits that don't change it skip the JS call.
+    private Guid? _markedQueryId;
+    private QueryError? _markedError;
 
     // Monaco invokes editor actions through a synchronous callback, so requests are queued here and
     // handled by an awaited reader loop instead of being fired and forgotten.
@@ -174,6 +177,7 @@
         Bus.Subscribe<FocusQuery>(this);
         Bus.Subscribe<CreateQuery>(this);
         Bus.Subscribe<RunQuery>(this);
+        Bus.Subscribe<GoToQueryPosition>(this);
         Bus.Subscribe<SettingsModelChanged<EditorSettings>>(this);
 
         base.OnInitialized();
@@ -187,6 +191,7 @@
         Bus.Unsubscribe<FocusQuery>(this);
         Bus.Unsubscribe<CreateQuery>(this);
         Bus.Unsubscribe<RunQuery>(this);
+        Bus.Unsubscribe<GoToQueryPosition>(this);
         Bus.Unsubscribe<SettingsModelChanged<EditorSettings>>(this);
 
         _expandSelectStarRequests.Writer.TryComplete();
@@ -226,6 +231,8 @@
         
         var text = await _editor.GetValue();
         State.Active.Query = text;
+
+        await RefreshErrorMarkerAsync();
     }
 
     protected async Task HandleInit()
@@ -268,6 +275,7 @@
         if (_editor != null)
         {
             await _editor.SetValue(query.Query);
+            await RefreshErrorMarkerAsync();
         }
     }
 
@@ -320,11 +328,17 @@
             var selected = await GetSelectedTextAsync();
             var textToExecute = selected?.Text ?? fullText;
 
+            await ClearErrorMarkerAsync();
+
             query.Query = textToExecute;
             var result = await Connections.ExecuteQueryAsync(query, cancellation.Token);
 
             query.Query = fullText;
-            State.SetResult(query, result);
+            State.SetResult(query, result, selected is { Selection: var selection }
+                ? (selection.StartLineNumber, selection.StartColumn)
+                : null);
+
+            await RefreshErrorMarkerAsync();
         }
         finally
         {
@@ -352,6 +366,66 @@
     public async Task Consume(RunQuery message)
     {
         await RunQuery();
+    }
+
+    public async Task Consume(GoToQueryPosition message)
+    {
+        if (_editor == null || State.Active?.Id != message.QueryId) return;
+
+        var position = new BlazorMonaco.Position { LineNumber = message.Line, Column = message.Column };
+        await _editor.SetPosition(position, "aion-go-to-error");
+        await _editor.RevealPositionInCenterIfOutsideViewport(position);
+        await _editor.Focus();
+    }
+
+    /// <summary>
+    /// Marks the active tab's error in the editor while the tab still holds the SQL the error was
+    /// reported against, and clears the mark otherwise.
+    /// </summary>
+    private async Task RefreshErrorMarkerAsync()
+    {
+        var query = State.Active is { ErrorLocationIsCurrent: true } active ? active : null;
+        var error = query?.Result?.ErrorDetail;
+        if (query?.Id == _markedQueryId && error == _markedError) return;
+
+        await SetErrorMarkerAsync(query?.Id, error);
+    }
+
+    private async Task ClearErrorMarkerAsync()
+    {
+        if (_markedQueryId == null) return;
+
+        await SetErrorMarkerAsync(null, null);
+    }
+
+    private async Task SetErrorMarkerAsync(Guid? queryId, QueryError? error)
+    {
+        if (_editor == null) return;
+
+        var markers = error is { Line: { } line }
+            ? new List<MarkerData>
+            {
+                new()
+                {
+                    Severity = MarkerSeverity.Error,
+                    Message = error.Message,
+                    Source = error.Code,
+                    StartLineNumber = line,
+                    StartColumn = error.Column ?? 1,
+                    EndLineNumber = line,
+                    // Monaco clamps the end to the line, so an unknown column marks the whole line.
+                    EndColumn = error.EndColumn ?? int.MaxValue,
+                    RelatedInformation = [],
+                    Tags = []
+                }
+            }
+            : [];
+
+        var model = await _editor.GetModel();
+        await BlazorMonaco.Editor.Global.SetModelMarkers(JS, model, ErrorMarkerOwner, markers);
+
+        _markedQueryId = error == null ? null : queryId;
+        _markedError = error;
     }
 
     public async Task Consume(SettingsModelChanged<EditorSettings> message)

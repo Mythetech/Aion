@@ -30,6 +30,8 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
             .Build();
     }
 
+    protected override string UnknownColumnCode => "Msg 207";
+
     public override async Task InitializeAsync()
     {
         try 
@@ -135,6 +137,21 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         ValidateQueryResult(selectResult);
         selectResult.Rows.Count.ShouldBe(1);
         selectResult.Rows[0]["name"].ToString().ShouldBe("Test");
+    }
+
+    [Fact]
+    public async Task FailedStatement_UsesTheLineSqlServerReports()
+    {
+        // Act: the message names no token, so only the reported line can place this error.
+        var result = await Provider.ExecuteQueryAsync(DatabaseConnectionString,
+            "-- converts a string\n  SELECT CAST('x' AS int)", CancellationToken.None);
+
+        // Assert
+        result.ErrorDetail.ShouldNotBeNull();
+        result.ErrorDetail.Code.ShouldBe("Msg 245");
+        result.ErrorDetail.Line.ShouldBe(2);
+        result.ErrorDetail.Column.ShouldBe(3);
+        result.ErrorDetail.EndColumn.ShouldBe(26);
     }
 
     [Fact]

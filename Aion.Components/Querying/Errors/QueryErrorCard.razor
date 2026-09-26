@@ -1,0 +1,104 @@
+@using Aion.Components.Infrastructure.Commands
+@using Aion.Components.Querying.Commands
+@using Aion.Components.Theme
+@using Aion.Contracts.Queries
+@using Mythetech.Framework.Components.Buttons
+@using Mythetech.Framework.Infrastructure.MessageBus
+
+<div class="query-error-card" role="alert">
+    <MudIcon Icon="@AionIcons.Error" Color="Color.Error" Size="Size.Small" Class="query-error-icon" />
+    <div class="query-error-body">
+        <div class="query-error-headline">
+            <span class="query-error-title">@Error.Title</span>
+            @if (Error.Token != null)
+            {
+                <code class="query-error-token">@Error.Token</code>
+            }
+            @if (QueryErrorText.Location(Error) is { } location)
+            {
+                <span class="query-error-location">@location</span>
+            }
+        </div>
+        @if (_suggestion is { } suggestion)
+        {
+            <div class="query-error-suggestion">
+                Did you mean <code class="query-error-name">@suggestion.Name</code>?
+                @if (suggestion.Table != null)
+                {
+                    <span>It's a column on <code class="query-error-name">@suggestion.Table</code>.</span>
+                }
+            </div>
+        }
+        <div class="query-error-actions">
+            @if (Error.Line is { } line)
+            {
+                <MtButton Class="query-error-goto"
+                          Variant="Variant.Outlined"
+                          Size="Size.Small"
+                          Text="@($"Go to line {line}")"
+                          OnClick="GoToAsync" />
+            }
+            <MtButton Class="query-error-copy"
+                      Variant="Variant.Outlined"
+                      Size="Size.Small"
+                      Text="Copy error"
+                      OnClick="CopyAsync" />
+        </div>
+        @if (Meta.Count > 0)
+        {
+            <div class="query-error-meta">@string.Join(" · ", Meta)</div>
+        }
+    </div>
+</div>
+
+@code {
+    [Inject] protected IMessageBus Bus { get; set; } = default!;
+    [Inject] protected QueryErrorSuggester Suggester { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public QueryModel Query { get; set; } = default!;
+
+    private QueryResult Result => Query.Result!;
+
+    private QueryError Error => Result.ErrorDetail ?? QueryErrorNormalizer.Normalize(Result.Error ?? string.Empty);
+
+    private QueryError? _suggestedFor;
+    private ErrorSuggestion? _suggestion;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var error = Error;
+        if (error == _suggestedFor) return;
+
+        _suggestedFor = error;
+        _suggestion = null;
+
+        var suggestion = await Suggester.SuggestAsync(error, Query.Query, Query.ConnectionId, Query.DatabaseName);
+
+        // A newer run may have replaced the error while the schema was loading.
+        if (error == _suggestedFor)
+        {
+            _suggestion = suggestion;
+        }
+    }
+
+    private List<string> Meta
+    {
+        get
+        {
+            var meta = new List<string>();
+            if (Error.Code is { } code) meta.Add(code);
+            if (Query.ExecutionDuration is { } duration) meta.Add(QueryTimer.FormatDuration(duration));
+            return meta;
+        }
+    }
+
+    private async Task CopyAsync() => await Bus.PublishAsync(new CopyToClipboard(Error.Raw));
+
+    private async Task GoToAsync()
+    {
+        if (Error.Line is not { } line) return;
+
+        await Bus.PublishAsync(new GoToQueryPosition(Query.Id, line, Error.Column ?? 1));
+    }
+}

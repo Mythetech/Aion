@@ -7,6 +7,13 @@ public class QueryResult
     public int RowCount => Rows.Count;
     public DateTime ExecutedAt { get; set; } = DateTime.Now;
     public string? Error { get; set; }
+
+    /// <summary>
+    /// The structured form of <see cref="Error"/>, with the message normalized and the engine's code
+    /// and position kept separately. Null for successful results.
+    /// </summary>
+    public QueryError? ErrorDetail { get; set; }
+
     public bool Success => Error == null;
 
     public bool Cancelled { get; set; } = false;
@@ -17,6 +24,12 @@ public class QueryResult
     /// </summary>
     public int? RowsAffected { get; set; }
 
+    public void SetError(QueryError error)
+    {
+        Error = error.Raw;
+        ErrorDetail = error;
+    }
+
     public QueryResult Clone()
     {
         return new QueryResult()
@@ -25,6 +38,7 @@ public class QueryResult
             Rows = Rows.ToList(),
             ExecutedAt = ExecutedAt,
             Error = Error,
+            ErrorDetail = ErrorDetail,
             Cancelled = Cancelled,
             RowsAffected = RowsAffected
         };
