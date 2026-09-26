@@ -58,6 +58,14 @@
         }
     </MudStack>
 
+    <div class="schema-filter">
+        <MudTextField T="string" Value="@_filterText" ValueChanged="OnFilterChanged" OnKeyDown="OnFilterKeyDown"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" DebounceInterval="150"
+                      Clearable="true" Adornment="Adornment.Start" AdornmentIcon="@AionIcons.Search"
+                      Placeholder="Filter tables and columns" />
+    </div>
+
+    <div class="schema-tree">
     <MudTreeView T="string" Hover="true" Dense="true" ExpandOnClick="true" Class="h-100 mb-4">
         @if (Connection.Databases.Count == 0)
         {
@@ -70,9 +78,13 @@
             var tablesKey = $"{database.Name}/Tables";
             var indexesKey = $"{database.Name}/Indexes";
             var functionsKey = $"{database.Name}/Functions";
+            var visibleTables = database.TablesState.IsLoaded ? GetVisibleTables(database).ToList() : [];
+            var tableMatches = _filter.Apply(visibleTables, database);
 
             <MudTreeViewItem @key="database.Name" Text="@database.Name" Value="@database.Name" @ref="_databases[database.Name]"
-                             Icon="@AionIcons.Connection">
+                             Icon="@AionIcons.Connection"
+                             Expanded="@(_openDatabases.Contains(database.Name) || (_filter.IsActive && tableMatches.Count > 0))"
+                             ExpandedChanged="@(open => OnDatabaseExpandedChanged(database, open))">
                 @* Database level *@
                 <BodyContent Context="ctx">
                     <div class="d-flex align-center justify-space-between w-100">
@@ -101,22 +113,22 @@
                 @* Tables level *@
                 <ChildContent>
                     <MudTreeViewItem Text="Tables" Value="@tablesKey" Icon="@AionIcons.Table"
-                                     Expanded="@IsExpanded(tablesKey, database.TablesState)"
+                                     EndText="@GroupCount(database.TablesState, tableMatches.Count, visibleTables.Count)"
+                                     EndTextTypo="Typo.caption" EndTextClass="tree-group-count"
+                                     Expanded="@(IsExpanded(tablesKey, database.TablesState) || (_filter.IsActive && tableMatches.Count > 0))"
                                      ExpandedChanged="@(expanded => OnLazyItemExpandedChanged(tablesKey, expanded, () => LoadTables(database)))">
-                        @{
-                            var tables = database.TablesState.IsLoaded ? GetVisibleTables(database).ToList() : [];
-                        }
                         <SchemaStatusItem Value="@($"{tablesKey}/status")" State="@database.TablesState"
-                                          IsEmpty="@(tables.Count == 0)" EmptyText="No tables"
+                                          IsEmpty="@(tableMatches.Count == 0)" EmptyText="@(_filter.IsActive ? "No tables match" : "No tables")"
                                           OnRetry="@(() => LoadTables(database))" />
 
-                        @foreach (var table in tables)
+                        @foreach (var match in tableMatches)
                         {
+                            var table = match.Table;
                             var tableKey = TableKey(database, table);
                             var columnsState = database.ColumnsState(table.DisplayName);
 
                             <MudTreeViewItem @key="tableKey" Text="@table.DisplayName" Value="@tableKey" Icon="@AionIcons.Table"
-                                             Expanded="@IsExpanded(tableKey, columnsState)"
+                                             Expanded="@(match.MatchedByColumns || IsExpanded(tableKey, columnsState))"
                                              ExpandedChanged="@(expanded => OnLazyItemExpandedChanged(tableKey, expanded, () => LoadColumns(database, table)))">
                                 <BodyContent Context="ctx">
                                     <div class="d-flex align-center justify-space-between w-100">
@@ -141,62 +153,16 @@
                                     </div>
                                 </BodyContent>
 
-                                @* Columns, then the table's indexes and foreign keys *@
+                                @* Columns, then the table's indexes and foreign keys. A table the filter kept for its
+                                   columns lists only those, since the groups would only push them apart. *@
                                 <ChildContent>
-                                    @{
-                                        var columns = columnsState.IsLoaded ? database.TableColumns.GetValueOrDefault(table.DisplayName) ?? [] : [];
-                                    }
-                                    <SchemaStatusItem Value="@($"{tableKey}/status")" State="@columnsState"
-                                                      IsEmpty="@(columns.Count == 0)" EmptyText="No columns"
-                                                      OnRetry="@(() => LoadColumns(database, table))" />
-
-                                    @if (columnsState.IsLoaded)
+                                    @if (match.MatchedByColumns)
                                     {
-                                        @foreach (var column in columns)
-                                        {
-                                            <MudTreeViewItem @key="column.Name" Value="@($"{tableKey}/column/{column.Name}")"
-                                                             Icon="@ColumnIcon(column)" IconColor="@ColumnIconColor(column)">
-                                                <BodyContent Context="ctx">
-                                                    @* A native title keeps hover detail cheap: a MudTooltip per row would register a popover for every column. *@
-                                                    <div class="tree-row column-row" title="@ColumnTypeText.Describe(column, Connection.Type)">
-                                                        <span class="tree-row-name">@column.Name</span>
-                                                        <span class="column-type">@ColumnTypeText.Short(column, Connection.Type)@if (column.IsNullable){<span class="column-nullable">?</span>}</span>
-                                                    </div>
-                                                </BodyContent>
-                                            </MudTreeViewItem>
-                                        }
-
-                                        @if (ConnectionState.SupportsIndexes(Connection.Type))
-                                        {
-                                            var tableIndexesKey = $"{tableKey}/indexes";
-                                            var indexes = database.IndexesState.IsLoaded ? IndexesFor(database, table) : null;
-                                            <MudTreeViewItem @key="tableIndexesKey" Value="@tableIndexesKey" Icon="@AionIcons.Index"
-                                                             Expanded="@IsExpanded(tableIndexesKey, database.IndexesState)"
-                                                             ExpandedChanged="@(expanded => OnLazyItemExpandedChanged(tableIndexesKey, expanded, () => LoadIndexes(database)))"
-                                                             ChildContent="@(indexes is { Count: 0 } ? null : IndexRows(database, tableIndexesKey, indexes))">
-                                                <BodyContent Context="ctx">
-                                                    <div class="tree-row">
-                                                        <span class="tree-group-label">Indexes</span>
-                                                        @if (indexes is not null)
-                                                        {
-                                                            <span class="tree-count">@indexes.Count</span>
-                                                        }
-                                                    </div>
-                                                </BodyContent>
-                                            </MudTreeViewItem>
-                                        }
-
-                                        var foreignKeys = columns.Where(c => c.IsForeignKey).ToList();
-                                        var foreignKeysKey = $"{tableKey}/foreign-keys";
-                                        <MudTreeViewItem @key="foreignKeysKey" Value="@foreignKeysKey" Icon="@AionIcons.ForeignKey"
-                                                         ChildContent="@(foreignKeys.Count == 0 ? null : ForeignKeyRows(tableKey, foreignKeys))">
-                                            <BodyContent Context="ctx">
-                                                <div class="tree-row">
-                                                    <span class="tree-group-label">Foreign keys</span>
-                                                    <span class="tree-count">@foreignKeys.Count</span>
-                                                </div>
-                                            </BodyContent>
-                                        </MudTreeViewItem>
+                                        @ColumnRows(tableKey, match.MatchingColumns!)
+                                    }
+                                    else
+                                    {
+                                        @TableContents(database, table, tableKey, columnsState)
                                     }
                                 </ChildContent>
                             </MudTreeViewItem>
@@ -268,6 +234,7 @@
             </MudTreeViewItem>
         }
     </MudTreeView>
+    </div>
 
 @code {
     [Parameter] public ConnectionModel Connection { get; set; } = default!;
@@ -283,12 +250,130 @@
     // Tree values of the lazily loaded items the user has open. An item only renders open while its load has
     // at least started, so a refresh that drops loaded data closes it instead of leaving it spinning.
     private readonly HashSet<string> _expanded = [];
+
+    // Databases the user has open. While a filter is active, databases with matches also show open, and
+    // clearing the filter falls back to this set, so the tree returns to the shape the user left it in.
+    private readonly HashSet<string> _openDatabases = [];
+
+    // The text as typed; the filter trims it, and binding the field to the trimmed text would drop a space mid-word.
+    private string _filterText = "";
+    private SchemaTreeFilter _filter = new("");
     private bool _isRefreshing;
 
     private static string TableKey(DatabaseModel database, TableInfo table) => $"{database.Name}|{table.DisplayName}";
 
     private bool IsExpanded(string key, SchemaLoadState state) =>
         _expanded.Contains(key) && state.Status != SchemaLoadStatus.NotLoaded;
+
+    private string? GroupCount(SchemaLoadState state, int shown, int total) =>
+        !state.IsLoaded ? null
+        : _filter.IsActive ? $"{shown} of {total}"
+        : total.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    private void OnDatabaseExpandedChanged(DatabaseModel database, bool open)
+    {
+        if (open)
+            _openDatabases.Add(database.Name);
+        else
+            _openDatabases.Remove(database.Name);
+    }
+
+    private async Task OnFilterChanged(string? text)
+    {
+        _filterText = text ?? "";
+        _filter = new SchemaTreeFilter(_filterText);
+
+        if (_filter.IsActive)
+            await LoadTablesToFilterAsync();
+    }
+
+    private void OnFilterKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key != "Escape")
+            return;
+
+        _filterText = "";
+        _filter = new SchemaTreeFilter("");
+    }
+
+    // The filter only reads what is loaded, so it lists the tables of the databases it can show: the only one,
+    // or the ones open in the tree. Other databases on a server are left alone so typing never queries them all.
+    private async Task LoadTablesToFilterAsync()
+    {
+        var databases = Connection.Databases.Count == 1
+            ? Connection.Databases.ToList()
+            : Connection.Databases.Where(database => _openDatabases.Contains(database.Name)).ToList();
+
+        foreach (var database in databases.Where(database => database.TablesState.Status == SchemaLoadStatus.NotLoaded))
+        {
+            await ConnectionState.LoadTablesAsync(Connection, database);
+        }
+    }
+
+    private RenderFragment ColumnRows(string tableKey, IReadOnlyList<ColumnInfo> columns) => @<text>
+        @foreach (var column in columns)
+        {
+            <MudTreeViewItem @key="column.Name" Value="@($"{tableKey}/column/{column.Name}")"
+                             Icon="@ColumnIcon(column)" IconColor="@ColumnIconColor(column)">
+                <BodyContent Context="ctx">
+                    @* A native title keeps hover detail cheap: a MudTooltip per row would register a popover for every column. *@
+                    <div class="tree-row column-row" title="@ColumnTypeText.Describe(column, Connection.Type)">
+                        <span class="tree-row-name">@column.Name</span>
+                        <span class="column-type">@ColumnTypeText.Short(column, Connection.Type)@if (column.IsNullable){<span class="column-nullable">?</span>}</span>
+                    </div>
+                </BodyContent>
+            </MudTreeViewItem>
+        }
+    </text>;
+
+    // Columns, then the table's indexes and foreign keys.
+    private RenderFragment TableContents(DatabaseModel database, TableInfo table, string tableKey, SchemaLoadState columnsState)
+    {
+        var columns = columnsState.IsLoaded ? database.TableColumns.GetValueOrDefault(table.DisplayName) ?? [] : [];
+
+        return @<text>
+            <SchemaStatusItem Value="@($"{tableKey}/status")" State="@columnsState"
+                              IsEmpty="@(columns.Count == 0)" EmptyText="No columns"
+                              OnRetry="@(() => LoadColumns(database, table))" />
+
+            @if (columnsState.IsLoaded)
+            {
+                @ColumnRows(tableKey, columns)
+
+                @if (ConnectionState.SupportsIndexes(Connection.Type))
+                {
+                    var tableIndexesKey = $"{tableKey}/indexes";
+                    var indexes = database.IndexesState.IsLoaded ? IndexesFor(database, table) : null;
+                    <MudTreeViewItem @key="tableIndexesKey" Value="@tableIndexesKey" Icon="@AionIcons.Index"
+                                     Expanded="@IsExpanded(tableIndexesKey, database.IndexesState)"
+                                     ExpandedChanged="@(expanded => OnLazyItemExpandedChanged(tableIndexesKey, expanded, () => LoadIndexes(database)))"
+                                     ChildContent="@(indexes is { Count: 0 } ? null : IndexRows(database, tableIndexesKey, indexes))">
+                        <BodyContent Context="ctx">
+                            <div class="tree-row">
+                                <span class="tree-group-label">Indexes</span>
+                                @if (indexes is not null)
+                                {
+                                    <span class="tree-count">@indexes.Count</span>
+                                }
+                            </div>
+                        </BodyContent>
+                    </MudTreeViewItem>
+                }
+
+                var foreignKeys = columns.Where(c => c.IsForeignKey).ToList();
+                var foreignKeysKey = $"{tableKey}/foreign-keys";
+                <MudTreeViewItem @key="foreignKeysKey" Value="@foreignKeysKey" Icon="@AionIcons.ForeignKey"
+                                 ChildContent="@(foreignKeys.Count == 0 ? null : ForeignKeyRows(tableKey, foreignKeys))">
+                    <BodyContent Context="ctx">
+                        <div class="tree-row">
+                            <span class="tree-group-label">Foreign keys</span>
+                            <span class="tree-count">@foreignKeys.Count</span>
+                        </div>
+                    </BodyContent>
+                </MudTreeViewItem>
+            }
+        </text>;
+    }
 
     private SchemaLoadState DatabasesState =>
         _isRefreshing || Connection.HealthStatus == ConnectionHealthStatus.Checking ? SchemaLoadState.Loading

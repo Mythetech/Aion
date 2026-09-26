@@ -6,6 +6,8 @@ using Aion.Components.Theme;
 using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 using Bunit;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using MudBlazor;
@@ -391,6 +393,130 @@ public class ConnectionPanelTests : TestContext
         });
 
         cut.Find(".tree-status-failed").TextContent.ShouldContain("Connection refused");
+    }
+
+    private static readonly TableInfo Customers = new("", "customers");
+    private static readonly TableInfo Orders = new("", "orders");
+    private static readonly TableInfo OrderItems = new("", "order_items");
+
+    private static List<string> ListedTables(IRenderedComponent<ConnectionPanel> cut) =>
+        cut.FindComponents<MudTreeViewItem<string>>()
+            .Select(item => item.Instance.Value ?? "")
+            .Where(value => value.StartsWith($"{Database}|") && !value.Contains('/'))
+            .Select(value => value[(Database.Length + 1)..])
+            .ToList();
+
+    private static Task FilterAsync(IRenderedComponent<ConnectionPanel> cut, string text) =>
+        cut.Find(".schema-filter input").InputAsync(new ChangeEventArgs { Value = text });
+
+    private static List<string> ColumnNames(IRenderedComponent<MudTreeViewItem<string>> table) =>
+        table.FindAll(".column-row .tree-row-name").Select(name => name.TextContent).ToList();
+
+    [Fact]
+    public async Task Filter_NarrowsTablesByNameIgnoringCase()
+    {
+        var cut = Render(ConnectionWithTables(Customers, Orders, OrderItems));
+
+        await FilterAsync(cut, "ORDER");
+
+        cut.WaitForAssertion(() => ListedTables(cut).ShouldBe(["orders", "order_items"]));
+    }
+
+    [Fact]
+    public async Task Filter_OpensATableMatchedByALoadedColumnAndListsOnlyThatColumn()
+    {
+        var connection = ConnectionWithLoadedColumns(ProductColumns());
+        connection.Databases[0].Tables.Add(Customers);
+        var cut = Render(connection);
+
+        await FilterAsync(cut, "STOCK");
+
+        cut.WaitForAssertion(() => ListedTables(cut).ShouldBe(["products"]));
+        TableItem(cut, Products).Instance.Expanded.ShouldBeTrue();
+        ColumnNames(TableItem(cut, Products)).ShouldBe(["stock_quantity"]);
+        TableItem(cut, Products).FindAll(".tree-group-label").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Filter_KeepsEveryColumnOfATableMatchedByName()
+    {
+        var cut = Render(ConnectionWithLoadedColumns(ProductColumns()));
+
+        await FilterAsync(cut, "prod");
+
+        cut.WaitForAssertion(() => ListedTables(cut).ShouldBe(["products"]));
+        ColumnNames(TableItem(cut, Products)).ShouldBe(["id", "name", "category_id", "description", "stock_quantity"]);
+    }
+
+    [Fact]
+    public async Task ClearingTheFilter_RestoresEveryTableAndTheExpansionTheUserHad()
+    {
+        _provider.GetColumnsAsync(Arg.Any<string>(), Database, "", "orders")
+            .Returns([new ColumnInfo { Name = "id", DataType = "INTEGER" }]);
+        var connection = ConnectionWithLoadedColumns(ProductColumns());
+        connection.Databases[0].Tables.Add(Orders);
+        var cut = Render(connection);
+        await ToggleAsync(TableItem(cut, Orders));
+        cut.WaitForAssertion(() => TableItem(cut, Orders).Instance.Expanded.ShouldBeTrue());
+
+        await FilterAsync(cut, "stock");
+        cut.WaitForAssertion(() => ListedTables(cut).ShouldBe(["products"]));
+        await FilterAsync(cut, "");
+
+        cut.WaitForAssertion(() => ListedTables(cut).ShouldBe(["products", "orders"]));
+        TableItem(cut, Orders).Instance.Expanded.ShouldBeTrue();
+        TableItem(cut, Products).Instance.Expanded.ShouldBeFalse();
+        ColumnNames(TableItem(cut, Products)).Count.ShouldBe(5);
+    }
+
+    [Fact]
+    public async Task EscapeInTheFilter_ClearsIt()
+    {
+        var cut = Render(ConnectionWithTables(Customers, Orders));
+        await FilterAsync(cut, "cust");
+        cut.WaitForAssertion(() => ListedTables(cut).ShouldBe(["customers"]));
+
+        await cut.Find(".schema-filter input").KeyDownAsync(new KeyboardEventArgs { Key = "Escape" });
+
+        cut.WaitForAssertion(() => ListedTables(cut).ShouldBe(["customers", "orders"]));
+        cut.Find(".schema-filter input").GetAttribute("value").ShouldBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task FilterWithoutMatches_SaysSoInsteadOfNoTables()
+    {
+        var cut = Render(ConnectionWithTables(Customers, Orders));
+
+        await FilterAsync(cut, "zzz");
+
+        cut.WaitForAssertion(() => NamedItem(cut, $"{Database}/Tables").Find(".tree-status-empty").TextContent
+            .ShouldBe("No tables match"));
+    }
+
+    [Fact]
+    public async Task Filter_OnAConnectionWithOneDatabase_LoadsItsTablesAndOpensThem()
+    {
+        _connectionService.GetTablesAsync(Arg.Any<string>(), Database, DatabaseType.WasmSQLite).Returns([Products, Customers]);
+        var cut = Render(ConnectionWithUnloadedDatabase());
+
+        await FilterAsync(cut, "prod");
+
+        cut.WaitForAssertion(() => ListedTables(cut).ShouldBe(["products"]));
+        IsOpen(NamedItem(cut, Database)).ShouldBeTrue();
+        IsOpen(NamedItem(cut, $"{Database}/Tables")).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task ClearingTheFilter_ClosesTheDatabaseItOpened()
+    {
+        _connectionService.GetTablesAsync(Arg.Any<string>(), Database, DatabaseType.WasmSQLite).Returns([Products]);
+        var cut = Render(ConnectionWithUnloadedDatabase());
+        await FilterAsync(cut, "prod");
+        cut.WaitForAssertion(() => IsOpen(NamedItem(cut, Database)).ShouldBeTrue());
+
+        await FilterAsync(cut, "");
+
+        cut.WaitForAssertion(() => IsOpen(NamedItem(cut, Database)).ShouldBeFalse());
     }
 
     [Fact]

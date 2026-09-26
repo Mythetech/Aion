@@ -71,3 +71,29 @@
     font-variant-numeric: tabular-nums;
     color: var(--mud-palette-text-secondary);
 }
+
+.schema-filter {
+    padding: 4px 0 6px;
+}
+
+/* A dense outlined field is still a form control; in the side panel it sits as a compact search row. */
+.schema-filter ::deep .mud-input-control {
+    margin-top: 0;
+}
+
+.schema-filter ::deep .mud-input.mud-input-outlined input {
+    padding-top: 6px;
+    padding-bottom: 6px;
+    font-size: 0.8125rem;
+}
+
+.schema-filter ::deep .mud-input-adornment .mud-icon-root {
+    font-size: 1.125rem;
+}
+
+.schema-tree ::deep .tree-group-count {
+    margin-left: 8px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--mud-palette-text-secondary);
+}
