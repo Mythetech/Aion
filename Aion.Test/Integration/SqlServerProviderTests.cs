@@ -32,6 +32,8 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
 
     protected override string UnknownColumnCode => "Msg 207";
 
+    protected override string[] TestTableResultTypes => ["int", "varchar", "text"];
+
     public override async Task InitializeAsync()
     {
         try 

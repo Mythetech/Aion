@@ -7,14 +7,15 @@ export async function create(name) {
     instances[name] = await PGlite.create(`idb://${name}`);
 }
 
-export async function query(name, sql) {
+async function select(name, sql, options) {
     const db = instances[name];
     if (!db) throw new Error(`Database '${name}' not found`);
 
-    const result = await db.query(sql);
+    const result = await db.query(sql, [], options);
 
     return {
         columns: result.fields.map(f => f.name),
+        types: result.fields.map(f => f.dataTypeID),
         rows: result.rows.map(row => {
             const mapped = {};
             result.fields.forEach(f => {
@@ -27,11 +28,35 @@ export async function query(name, sql) {
     };
 }
 
+export async function query(name, sql) {
+    return await select(name, sql);
+}
+
+// Results shown in the grid keep PostgreSQL's own text for dates, times and JSON: as JS values, dates would
+// cross into .NET as UTC ISO strings (shifting timestamps without a time zone and adding a time to plain dates)
+// and JSON would arrive as nested objects. A bigint beyond a JS number's exact range stays text, because
+// JSON cannot carry a BigInt.
+const asText = value => value;
+const bigint = value => {
+    const n = BigInt(value);
+    return n >= BigInt(Number.MIN_SAFE_INTEGER) && n <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(n) : value;
+};
+const resultParsers = {
+    20: bigint,
+    114: asText,
+    1082: asText,
+    1083: asText,
+    1114: asText,
+    1184: asText,
+    1266: asText,
+    3802: asText
+};
+
 // Reports a failed statement as data. An error thrown across JS interop reaches .NET as text with the
 // JS stack appended, losing the SQLSTATE and the position PostgreSQL reported.
 export async function run(name, sql) {
     try {
-        return { ...(await query(name, sql)), error: null };
+        return { ...(await select(name, sql, { parsers: resultParsers })), error: null };
     } catch (e) {
         return {
             error: {

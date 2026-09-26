@@ -220,6 +220,14 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
                 result.Columns.Add(col.GetString() ?? "");
             }
 
+            if (jsResult.TryGetProperty("types", out var types) && types.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var type in types.EnumerateArray())
+                {
+                    result.ColumnTypes.Add(type.ValueKind == JsonValueKind.Number ? PGliteTypeNames.For(type.GetInt32()) : null);
+                }
+            }
+
             foreach (var row in jsResult.GetProperty("rows").EnumerateArray())
             {
                 var dict = new Dictionary<string, object>();

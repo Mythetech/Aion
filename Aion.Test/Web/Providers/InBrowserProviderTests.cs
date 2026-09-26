@@ -115,6 +115,22 @@ public class InBrowserProviderTests
     }
 
     [Fact]
+    public async Task PGlite_ExecuteQueryAsync_NamesEachColumnsTypeFromItsTypeId()
+    {
+        // Arrange
+        RunReturns("""
+            {"columns": ["id", "price", "mood"], "types": [23, 701, 91234], "rows": [{"id": 1, "price": 2.5, "mood": "ok"}], "affectedRows": 0, "error": null}
+            """);
+        var provider = new PGliteProvider(_js.Runtime);
+
+        // Act
+        var result = await provider.ExecuteQueryAsync("pglite://shop", "SELECT id, price, mood FROM products", CancellationToken.None);
+
+        // Assert
+        result.ColumnTypes.ShouldBe(["integer", "double precision", null]);
+    }
+
+    [Fact]
     public async Task SqliteWasm_GetDatabasesAsync_ListsOnlyTheConnectionsOwnDatabase()
     {
         var provider = new SqliteWasmProvider(Substitute.For<ISqliteWasmDatabaseService>());

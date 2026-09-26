@@ -27,6 +27,8 @@ public class PostgreSqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
 
     protected override string UnknownColumnCode => "SQLSTATE 42703";
 
+    protected override string[] TestTableResultTypes => ["integer", "varchar(100)", "text"];
+
     public override async Task InitializeAsync()
     {
         await _container.StartAsync();

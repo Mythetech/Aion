@@ -114,6 +114,24 @@ public class ColumnTypeTextTests
         ColumnTypeText.Short(Column(dataType), DatabaseType.LiteDB).ShouldBe(expected);
     }
 
+    [Theory]
+    [InlineData("character varying", DatabaseType.PostgreSQL, "varchar")]
+    [InlineData("character varying(20)", DatabaseType.PostgreSQL, "varchar(20)")]
+    [InlineData("double precision", DatabaseType.WasmPostgreSQL, "double")]
+    [InlineData("timestamp without time zone", DatabaseType.PostgreSQL, "timestamp")]
+    [InlineData("integer[]", DatabaseType.PostgreSQL, "integer[]")]
+    [InlineData("character varying[]", DatabaseType.WasmPostgreSQL, "varchar[]")]
+    [InlineData("INTEGER", DatabaseType.WasmSQLite, "integer")]
+    [InlineData("VARCHAR", DatabaseType.MySQL, "varchar")]
+    [InlineData("INT UNSIGNED", DatabaseType.MySQL, "int unsigned")]
+    [InlineData("nvarchar", DatabaseType.SQLServer, "nvarchar")]
+    [InlineData("timestamp", DatabaseType.SQLServer, "rowversion")]
+    [InlineData(null, DatabaseType.PostgreSQL, "")]
+    public void Short_ResultColumnType_UsesTheSameCompactNames(string? type, DatabaseType engine, string expected)
+    {
+        ColumnTypeText.Short(type, engine).ShouldBe(expected);
+    }
+
     [Fact]
     public void Describe_ListsFullTypeNullabilityKeysIdentityAndDefault()
     {

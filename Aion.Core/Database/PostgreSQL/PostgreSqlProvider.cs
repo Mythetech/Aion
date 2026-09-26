@@ -113,21 +113,7 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
         {
             using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
-            for (int i = 0; i < reader.FieldCount; i++)
-            {
-                result.Columns.Add(reader.GetName(i));
-            }
-
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                var row = new Dictionary<string, object>();
-                for (int i = 0; i < reader.FieldCount; i++)
-                {
-                    var value = reader.GetValue(i);
-                    row[result.Columns[i]] = value == DBNull.Value ? null : value;
-                }
-                result.Rows.Add(row);
-            }
+            await QueryResultReader.ReadAsync(reader, result, cancellationToken);
 
             // RecordsAffected is only final once every result set has been consumed, and is -1 when no statement changed rows.
             await reader.CloseAsync();

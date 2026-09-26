@@ -130,6 +130,33 @@ public abstract class DatabaseProviderTestBase : IAsyncLifetime
     /// <summary>The engine's code for an unknown column, as the provider formats it.</summary>
     protected abstract string UnknownColumnCode { get; }
 
+    /// <summary>The short types the results grid shows for the test table's id, name and description columns.</summary>
+    protected abstract string[] TestTableResultTypes { get; }
+
+    [Fact]
+    public async Task Select_ReportsEachColumnsType()
+    {
+        // Arrange
+        await InsertRowAsync(1, "a");
+
+        // Act
+        var result = await ExecuteOrFailAsync(DatabaseConnectionString, $"SELECT id, name, description FROM {TestTable}");
+
+        // Assert
+        result.ColumnTypes.Select(type => ColumnTypeText.Short(type, Provider.DatabaseType)).ShouldBe(TestTableResultTypes);
+    }
+
+    [Fact]
+    public async Task Select_WithoutRows_StillReportsEachColumnsType()
+    {
+        // Act
+        var result = await ExecuteOrFailAsync(DatabaseConnectionString, $"SELECT id, name, description FROM {TestTable}");
+
+        // Assert
+        result.Rows.ShouldBeEmpty();
+        result.ColumnTypes.Select(type => ColumnTypeText.Short(type, Provider.DatabaseType)).ShouldBe(TestTableResultTypes);
+    }
+
     [Fact]
     public async Task FirstRowsSelect_RunsOnTheEngineAndStopsAtTheLimit()
     {

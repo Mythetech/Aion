@@ -4,8 +4,8 @@ using Aion.Contracts.Database;
 namespace Aion.Components.Connections;
 
 /// <summary>
-/// Formats column metadata for the schema tree: a short type that fits beside the column name and a
-/// full description for the hover tooltip. PostgreSQL and PGlite report information_schema spellings
+/// Formats column metadata for the schema tree and the results grid: a short type that fits beside the
+/// column name and a full description for the hover tooltip. PostgreSQL and PGlite report information_schema spellings
 /// ("character varying", "timestamp with time zone"), MySQL and SQL Server report short lowercase
 /// names with the length in a separate field, and SQLite reports the declared type text as written.
 /// </summary>
@@ -43,6 +43,21 @@ public static partial class ColumnTypeText
         name = ShortName(name, engine);
 
         return name + (arguments ?? Length(column, name, engine));
+    }
+
+    /// <summary>
+    /// The short form of a type as a query result reports it, where any length is already part of the name.
+    /// </summary>
+    public static string Short(string? dataType, DatabaseType engine)
+    {
+        var type = Tidy(dataType).ToLowerInvariant();
+        if (type.Length == 0)
+            return "";
+
+        var (name, arguments) = SplitArguments(type);
+        return name.EndsWith("[]", StringComparison.Ordinal)
+            ? ShortName(name[..^2], engine) + "[]" + arguments
+            : ShortName(name, engine) + arguments;
     }
 
     public static string Describe(ColumnInfo column, DatabaseType engine)

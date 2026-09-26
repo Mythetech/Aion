@@ -3,6 +3,13 @@ namespace Aion.Contracts.Queries;
 public class QueryResult
 {
     public List<string> Columns { get; set; } = [];
+
+    /// <summary>
+    /// Each column's type as the provider names it ("integer", "VARCHAR", "double precision"), in the order of
+    /// <see cref="Columns"/>. Shorter than <see cref="Columns"/>, or null for a column, when the provider cannot tell.
+    /// </summary>
+    public List<string?> ColumnTypes { get; set; } = [];
+
     public List<Dictionary<string, object>> Rows { get; set; } = [];
     public int RowCount => Rows.Count;
     public DateTime ExecutedAt { get; set; } = DateTime.Now;
@@ -24,6 +31,8 @@ public class QueryResult
     /// </summary>
     public int? RowsAffected { get; set; }
 
+    public string? ColumnType(int ordinal) => ordinal < ColumnTypes.Count ? ColumnTypes[ordinal] : null;
+
     public void SetError(QueryError error)
     {
         Error = error.Raw;
@@ -35,6 +44,7 @@ public class QueryResult
         return new QueryResult()
         {
             Columns = Columns.ToList(),
+            ColumnTypes = ColumnTypes.ToList(),
             Rows = Rows.ToList(),
             ExecutedAt = ExecutedAt,
             Error = Error,
