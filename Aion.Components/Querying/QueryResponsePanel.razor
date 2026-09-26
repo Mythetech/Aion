@@ -85,7 +85,8 @@
                                       EditState="@GetEditState()"
                                       EditMetadata="@State.Active.EditMetadata"
                                       ConnectionId="@State.Active.ConnectionId"
-                                      DatabaseName="@State.Active.DatabaseName" />
+                                      DatabaseName="@State.Active.DatabaseName"
+                                      DatabaseType="@GetActiveDatabaseType()" />
                 }
             </MudStack>
         }

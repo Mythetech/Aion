@@ -88,6 +88,10 @@ public static class AionIcons
     public static string Column => Round("view_column"); 
     public static string Index => Round("sort");
 
+    public static string SortAscending => Round("arrow_upward");
+
+    public static string SortDescending => Round("arrow_downward");
+
     public static string Function => Round("function");
 
     public static string Key => Round("key");

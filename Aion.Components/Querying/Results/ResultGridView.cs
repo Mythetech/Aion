@@ -1,8 +1,8 @@
 namespace Aion.Components.Querying.Results;
 
 /// <summary>
-/// The rows the results grid shows, in the order it shows them. It is built once whenever the result or the
-/// find-in-results text changes, so rendering a row never has to search the whole result.
+/// The rows the results grid shows, in the order it shows them. It is built once whenever the result, the
+/// find-in-results text or the sort changes, so rendering a row never has to search the whole result.
 /// </summary>
 public sealed class ResultGridView
 {
@@ -23,11 +23,19 @@ public sealed class ResultGridView
     /// </summary>
     public bool IsFiltered { get; }
 
-    public static ResultGridView Build(IReadOnlyList<ResultRow> rows, string? filter)
+    public static ResultGridView Build(IReadOnlyList<ResultRow> rows, string? filter, ResultSort? sort = null)
     {
-        if (string.IsNullOrEmpty(filter))
-            return new ResultGridView(rows, false);
+        var isFiltered = !string.IsNullOrEmpty(filter);
+        var shown = isFiltered ? Filter(rows, filter!) : rows;
 
+        if (sort != null)
+            shown = ResultSorter.Sort(shown, sort);
+
+        return new ResultGridView(shown, isFiltered);
+    }
+
+    private static List<ResultRow> Filter(IReadOnlyList<ResultRow> rows, string filter)
+    {
         var matching = new List<ResultRow>();
         foreach (var row in rows)
         {
@@ -35,7 +43,7 @@ public sealed class ResultGridView
                 matching.Add(row);
         }
 
-        return new ResultGridView(matching, true);
+        return matching;
     }
 
     public IReadOnlyList<ResultRow> Take(int limit)

@@ -29,6 +29,55 @@
     color: var(--mud-palette-text-secondary);
 }
 
+.column-heading {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.column-heading.numeric {
+    align-items: flex-end;
+    text-align: right;
+}
+
+.column-heading:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
+}
+
+.column-name-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.column-name {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.column-type {
+    font-size: 0.6875rem;
+    line-height: 1.2;
+    font-weight: 400;
+    white-space: nowrap;
+    color: var(--mud-palette-text-secondary);
+}
+
+.result-grid ::deep .column-sort-icon {
+    font-size: 0.875rem;
+    color: var(--mud-palette-primary);
+}
+
 .query-result-table .cell-content {
     cursor: default;
     user-select: text;

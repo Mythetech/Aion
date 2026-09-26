@@ -1,6 +1,7 @@
 using AngleSharp.Dom;
 using Aion.Components.Querying;
 using Aion.Components.Settings.Domains;
+using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
@@ -196,5 +197,100 @@ public class QueryResultTableTests : TestContext
         Cell(cut, 0, 1).QuerySelector(".cell-content")!.ClassList.ShouldContain("numeric");
         Cell(cut, 0, 2).QuerySelector(".cell-content")!.ClassList.ShouldContain("numeric");
         Cell(cut, 0, 0).QuerySelector(".cell-content")!.ClassList.ShouldNotContain("numeric");
+    }
+
+    private static QueryResult Prices() => new()
+    {
+        Columns = ["name", "price"],
+        ColumnTypes = ["character varying", "numeric"],
+        Rows =
+        [
+            new Dictionary<string, object> { ["name"] = "bolt", ["price"] = 10m },
+            new Dictionary<string, object> { ["name"] = "nut", ["price"] = null! },
+            new Dictionary<string, object> { ["name"] = "gear", ["price"] = 9m },
+            new Dictionary<string, object> { ["name"] = "cog", ["price"] = 100m }
+        ]
+    };
+
+    private IRenderedComponent<QueryResultTable> RenderPrices(RowSelectionState? selection = null) =>
+        RenderComponent<QueryResultTable>(p =>
+        {
+            p.Add(x => x.Result, Prices())
+                .Add(x => x.QueryName, "Query1")
+                .Add(x => x.DatabaseType, DatabaseType.PostgreSQL);
+            if (selection != null)
+                p.Add(x => x.SelectionState, selection);
+        });
+
+    private static List<string> ShownNames(IRenderedComponent<QueryResultTable> cut) =>
+        cut.FindAll("tbody tr.mud-table-row")
+            .Select(tr => tr.QuerySelectorAll("td")[1].TextContent.Trim())
+            .ToList();
+
+    private static Task ClickHeaderAsync(IRenderedComponent<QueryResultTable> cut, string column) =>
+        cut.FindAll(".column-heading").First(h => h.QuerySelector(".column-name")!.TextContent == column).ClickAsync(new());
+
+    [Fact]
+    public async Task ClickingAHeader_SortsAscendingThenDescendingThenBackToFetchedOrder()
+    {
+        var cut = RenderPrices();
+
+        await ClickHeaderAsync(cut, "price");
+        ShownNames(cut).ShouldBe(["gear", "bolt", "cog", "nut"]);
+
+        await ClickHeaderAsync(cut, "price");
+        ShownNames(cut).ShouldBe(["cog", "bolt", "gear", "nut"]);
+
+        await ClickHeaderAsync(cut, "price");
+        ShownNames(cut).ShouldBe(["bolt", "nut", "gear", "cog"]);
+    }
+
+    [Fact]
+    public async Task SortedHeader_SaysWhichWayItIsSorted()
+    {
+        var cut = RenderPrices();
+
+        await ClickHeaderAsync(cut, "price");
+
+        cut.FindAll(".column-heading")[1].GetAttribute("aria-label").ShouldBe("price, sorted ascending. Sort descending");
+        cut.FindAll(".column-heading")[0].GetAttribute("aria-label").ShouldBe("name. Sort ascending");
+    }
+
+    [Fact]
+    public async Task ClickingACellAfterSorting_SelectsThatRowsPlaceInTheResult()
+    {
+        var selection = new RowSelectionState();
+        var cut = RenderPrices(selection);
+        await ClickHeaderAsync(cut, "price");
+
+        await cut.FindAll("tbody tr.mud-table-row")[0].QuerySelector(".cell-content")!.ClickAsync(new());
+
+        selection.SelectedIndices.ShouldBe([2]);
+    }
+
+    [Fact]
+    public void Headers_ShowEachColumnsShortType()
+    {
+        var cut = RenderPrices();
+
+        cut.FindAll(".column-heading .column-type").Select(t => t.TextContent).ShouldBe(["varchar", "numeric"]);
+    }
+
+    [Fact]
+    public void Headers_WithoutAKnownType_ShowOnlyTheName()
+    {
+        var cut = Render(Numbered(1));
+
+        cut.FindAll(".column-heading .column-type").ShouldBeEmpty();
+        cut.FindAll(".column-heading .column-name").Select(n => n.TextContent).ShouldBe(["id", "name"]);
+    }
+
+    [Fact]
+    public void NumericColumnHeader_IsRightAlignedWithItsValues()
+    {
+        var cut = RenderPrices();
+
+        cut.FindAll(".column-heading")[1].ClassList.ShouldContain("numeric");
+        cut.FindAll(".column-heading")[0].ClassList.ShouldNotContain("numeric");
     }
 }

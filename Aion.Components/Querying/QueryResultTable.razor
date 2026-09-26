@@ -19,7 +19,9 @@
              Items="@_shownRows"
              Dense="true"
              Hover="true"
-             Filterable="true"
+             Filterable="false"
+             SortMode="SortMode.None"
+             ShowColumnOptions="false"
              Virtualize="true"
              ItemSize="@RowHeight"
              OverscanCount="20"
@@ -56,7 +58,28 @@
         @foreach (var column in _columns)
         {
             var col = column.Key;
-            <TemplateColumn T="ResultRow" Title="@col" Resizable="true">
+            var direction = _sort?.Key == col ? _sort.Direction : (ResultSortDirection?)null;
+            <TemplateColumn T="ResultRow" Title="@col" Resizable="true" Sortable="false">
+                <HeaderTemplate>
+                    <button type="button"
+                            class="column-heading @(column.IsNumeric ? "numeric" : null)"
+                            aria-label="@SortLabel(col, direction)"
+                            title="@SortLabel(col, direction)"
+                            @onclick="@(() => ToggleSort(col))">
+                        <span class="column-name-line">
+                            <span class="column-name">@col</span>
+                            @if (direction is { } sortDirection)
+                            {
+                                <MudIcon Icon="@(sortDirection == ResultSortDirection.Ascending ? AionIcons.SortAscending : AionIcons.SortDescending)"
+                                         Class="column-sort-icon" />
+                            }
+                        </span>
+                        @if (column.TypeLabel.Length > 0)
+                        {
+                            <span class="column-type">@column.TypeLabel</span>
+                        }
+                    </button>
+                </HeaderTemplate>
                 <CellTemplate>
                     @{
                         var row = context.Item.Values;
@@ -110,7 +133,7 @@
                         }
                         else
                         {
-                            var shown = ResultValueFormatter.Display(effectiveValue);
+                            var shown = ResultValueFormatter.Display(effectiveValue, column.Type);
                             var full = ResultValueFormatter.Full(effectiveValue);
                             <span class="cell-value" title="@(shown == full ? null : full)">@shown</span>
                         }
@@ -196,6 +219,7 @@
     [Parameter] public QueryEditMetadata? EditMetadata { get; set; }
     [Parameter] public Guid? ConnectionId { get; set; }
     [Parameter] public string? DatabaseName { get; set; }
+    [Parameter] public DatabaseType DatabaseType { get; set; }
 
     [Inject] protected IMessageBus Bus { get; set; } = default!;
     [Inject] protected ResultsSettings ResultsSettings { get; set; } = default!;
@@ -217,6 +241,7 @@
     private ResultGridView _view = ResultGridView.Empty;
     private IReadOnlyList<ResultRow> _shownRows = [];
     private int _shownLimit;
+    private ResultSort? _sort;
 
     public QueryResultTable()
     {
@@ -237,15 +262,39 @@
         if (!ReferenceEquals(_viewResult, Result))
         {
             _viewResult = Result;
-            _columns = ResultGridColumn.From(Result);
+            _columns = ResultGridColumn.From(Result, DatabaseType);
             _rows = ResultRow.Wrap(Result.Rows);
             _shownLimit = RowLimit;
+
+            // Running the query again keeps its sort; a result without that column starts unsorted.
+            if (_sort != null && !Result.Columns.Contains(_sort.Key))
+            {
+                _sort = null;
+            }
         }
 
-        _view = ResultGridView.Build(_rows, SearchFilter);
-        _shownRows = _view.Take(_shownLimit);
+        RebuildView();
         StateHasChanged();
     }
+
+    private void RebuildView()
+    {
+        _view = ResultGridView.Build(_rows, SearchFilter, _sort);
+        _shownRows = _view.Take(_shownLimit);
+    }
+
+    private void ToggleSort(string column)
+    {
+        _sort = ResultSort.Next(_sort, column);
+        RebuildView();
+    }
+
+    private static string SortLabel(string column, ResultSortDirection? direction) => direction switch
+    {
+        ResultSortDirection.Ascending => $"{column}, sorted ascending. Sort descending",
+        ResultSortDirection.Descending => $"{column}, sorted descending. Clear sort",
+        _ => $"{column}. Sort ascending"
+    };
 
     private void LoadMore()
     {
