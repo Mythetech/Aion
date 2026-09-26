@@ -103,9 +103,15 @@
 
     // Always shown rather than only when the names are cut short: it also says which server the tab runs on.
     private string TooltipText => Disabled && DisabledReason != null ? DisabledReason
-        : Connection is { } connection
-            ? $"{connection.Name} › {Query.DatabaseName ?? "no database chosen"} · {ConnectionDescription.Describe(connection)}"
-            : "Choose the connection and database this tab runs on";
+        : Connection is { } connection ? $"{FullNames(connection)} · {ConnectionDescription.Describe(connection)}"
+        : "Choose the connection and database this tab runs on";
+
+    private string FullNames(ConnectionModel connection) => Query.DatabaseName switch
+    {
+        null => $"{connection.Name} › no database chosen",
+        var database when database == connection.Name => connection.Name,
+        var database => $"{connection.Name} › {database}"
+    };
 
     private void Choose(ConnectionModel connection, string database)
     {

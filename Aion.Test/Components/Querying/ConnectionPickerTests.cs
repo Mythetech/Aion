@@ -140,6 +140,19 @@ public class ConnectionPickerTests : TestContext
     }
 
     [Fact]
+    public void Tooltip_ForADatabaseNamedLikeItsConnection_NamesItOnce()
+    {
+        // Arrange
+        _state.UpdateQueryConnection(_query, _sample);
+
+        // Act
+        var cut = RenderPicker();
+
+        // Assert
+        cut.FindComponent<MudTooltip>().Instance.Text.ShouldStartWith("sample_store · SQLite");
+    }
+
+    [Fact]
     public async Task Menu_ListsEachConnectionsDatabasesUnderIt()
     {
         // Arrange
