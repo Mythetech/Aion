@@ -1,3 +1,4 @@
+@using Aion.Components.History
 @using Aion.Components.Querying.Commands
 @using Aion.Components.Querying.Consumers
 @using Aion.Components.Querying.Editing
@@ -121,7 +122,7 @@
         {
             <MudDivider />
             <MudMenuItem OnClick="@CopySelectedRows" Icon="@AionIcons.Copy">
-                Copy Selected (@SelectionState.SelectedCount rows)
+                Copy Selected (@QueryHistoryFormatter.Rows(SelectionState.SelectedCount))
             </MudMenuItem>
             <MudDivider />
             <MudMenuItem OnClick="@ExportSelectedCsv" Icon="@AionIcons.Csv">
