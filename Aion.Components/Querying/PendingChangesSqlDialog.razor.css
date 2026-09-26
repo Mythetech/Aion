@@ -1,0 +1,26 @@
+.sql-review-caption {
+    margin: 0 0 12px;
+    font-size: 0.8125rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+.sql-review-statements {
+    max-height: 50vh;
+    overflow: auto;
+    padding: 8px 12px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--mud-default-borderradius);
+    background-color: var(--mud-palette-background);
+}
+
+.sql-statement {
+    margin: 0 0 12px;
+    font-family: var(--mud-typography-monospace, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+    font-size: 0.8125rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.sql-statement:last-child {
+    margin-bottom: 0;
+}

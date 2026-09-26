@@ -1,0 +1,99 @@
+@using Aion.Components.Infrastructure.Commands
+@using Aion.Components.Querying.Editing
+@using Aion.Components.Theme
+@using Aion.Contracts.Queries.Editing
+@using Mythetech.Framework.Infrastructure.MessageBus
+
+<MudDialog Class="aion-transparent-dialog">
+    <DialogContent>
+        <div class="sql-review">
+            @if (_loading)
+            {
+                <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+            }
+            else if (_error is not null)
+            {
+                <MudAlert Severity="Severity.Error" Dense="true">@_error</MudAlert>
+            }
+            else
+            {
+                <p class="sql-review-caption">@Caption</p>
+                <div class="sql-review-statements">
+                    @foreach (var statement in _statements)
+                    {
+                        <pre class="sql-statement">@statement</pre>
+                    }
+                </div>
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Class="sql-review-copy"
+                   StartIcon="@AionIcons.Copy"
+                   Disabled="@(_statements.Count == 0)"
+                   OnClick="CopyAsync">
+            Copy SQL
+        </MudButton>
+        <MudSpacer />
+        <MudButton OnClick="Close">Close</MudButton>
+        <MudButton Class="sql-review-apply"
+                   Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   DropShadow="false"
+                   Disabled="@(_loading || _error is not null || _statements.Count == 0)"
+                   OnClick="ApplyAsync">
+            @PendingChangesBar.ApplyText(EditState.TotalChangeCount)
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter, EditorRequired] public EditState EditState { get; set; } = default!;
+    [Parameter, EditorRequired] public EditableQueryResult EditableResult { get; set; } = default!;
+    [Parameter] public EventCallback OnApply { get; set; }
+
+    [Inject] private PendingChangesSqlBuilder SqlBuilder { get; set; } = default!;
+    [Inject] private IMessageBus Bus { get; set; } = default!;
+
+    private bool _loading = true;
+    private string? _error;
+    private List<string> _statements = [];
+
+    private string Caption => _statements.Count == 1
+        ? "This statement runs on its own. Applying reports an error if it changes anything other than exactly one row."
+        : $"These {_statements.Count} statements run in one transaction. If any fails, or an UPDATE or DELETE changes anything other than exactly one row, all of them are rolled back.";
+
+    // The applier builds its statements through the same builder, so this is exactly what Apply runs.
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var plan = await SqlBuilder.BuildAsync(EditableResult, EditState.PendingChanges);
+            _error = plan.Generation.ValidationError;
+            _statements = _error is null ? plan.Generation.Statements.Select(s => s.Sql).ToList() : [];
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task CopyAsync()
+    {
+        await Bus.PublishAsync(new CopyToClipboard(string.Join("\n\n", _statements)));
+    }
+
+    private async Task ApplyAsync()
+    {
+        MudDialog.Close(DialogResult.Ok(true));
+        await OnApply.InvokeAsync();
+    }
+
+    private void Close() => MudDialog.Cancel();
+}

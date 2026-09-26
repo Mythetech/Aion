@@ -366,6 +366,59 @@ public class QueryResponsePanelTests : TestContext
         await _bus.Received(1).PublishAsync(Arg.Is<CopyToClipboard>(c => c.Text == raw));
     }
 
+    private void CompleteInEditMode()
+    {
+        _query.EditMetadata = new Aion.Components.Querying.Consumers.QueryEditMetadata
+        {
+            SourceTable = "products",
+            IsEditMode = true,
+            ColumnMetadata = [new ColumnInfo { Name = "id", IsPrimaryKey = true }]
+        };
+        Complete(Rows(2));
+    }
+
+    [Fact]
+    public void EditMode_ShowsThePendingBar_InsteadOfAnEditTab()
+    {
+        // Arrange
+        CompleteInEditMode();
+
+        // Act
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Assert
+        cut.Find(".pending-bar-title").TextContent.ShouldBe("Editing products");
+        cut.FindAll(".mud-tab").ShouldNotContain(tab => tab.TextContent.Contains("Edit"));
+    }
+
+    [Fact]
+    public void ReadMode_ShowsNoPendingBar()
+    {
+        // Arrange
+        Complete(Rows(2));
+
+        // Act
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Assert
+        cut.FindAll(".pending-bar").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task StopEditing_EndsEditMode()
+    {
+        // Arrange
+        CompleteInEditMode();
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Act
+        await cut.Find(".pending-bar-stop").ClickAsync(new());
+
+        // Assert
+        _query.EditMetadata.ShouldBeNull();
+        cut.FindAll(".pending-bar").ShouldBeEmpty();
+    }
+
     [Fact]
     public async Task MessagesTab_LogsTheError()
     {
