@@ -98,6 +98,21 @@ public class QueryErrorSuggesterTests
     }
 
     [Fact]
+    public async Task UnknownTable_WhoseQuotedSchemaHasAStraySpace_SuggestsTheTableItReadsLike()
+    {
+        // Arrange: a space typed inside the quotes names schema "tstransit ", which PostgreSQL reports as
+        // "tstransit .message_data", a name that reads like the listed table.
+        _database.Tables = [new TableInfo("tstransit", "message"), new TableInfo("tstransit", "message_data")];
+
+        // Act
+        var suggestion = await SuggestAsync("42P01: relation \"tstransit .message_data\" does not exist",
+            "SELECT * FROM \"tstransit \" .\"message_data\"\nLIMIT 1000;");
+
+        // Assert
+        suggestion.ShouldBe(new ErrorSuggestion("tstransit.message_data"));
+    }
+
+    [Fact]
     public async Task NoCloseName_SuggestsNothing()
     {
         // Act

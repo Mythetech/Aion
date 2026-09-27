@@ -38,12 +38,22 @@ public class QueryErrorSuggester
 
         var (qualifier, name) = SplitQualifier(token);
         return error.Kind == QueryErrorKind.UnknownTable
-            ? SuggestTable(name, database)
+            ? SuggestTable(token, name, database)
             : await SuggestColumnAsync(name, qualifier, sql, connection, database);
     }
 
-    private static ErrorSuggestion? SuggestTable(string name, DatabaseModel database)
+    private static ErrorSuggestion? SuggestTable(string token, string name, DatabaseModel database)
     {
+        // A space typed inside a quoted name is part of the name, so "tstransit ".message_data looks up a schema that
+        // does not exist while reading like one that does. The table name alone matches exactly, so edit distance
+        // would never point at it.
+        var unspaced = string.Concat(token.Where(c => !char.IsWhiteSpace(c)));
+        if (unspaced != token
+            && database.Tables.FirstOrDefault(t => t.DisplayName.Equals(unspaced, StringComparison.OrdinalIgnoreCase)) is { } listed)
+        {
+            return new ErrorSuggestion(listed.DisplayName);
+        }
+
         var match = IdentifierMatcher.Closest(name, database.Tables.Select(t => t.Name).Distinct());
         return match == null ? null : new ErrorSuggestion(match);
     }
