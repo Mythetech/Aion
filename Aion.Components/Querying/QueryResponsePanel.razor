@@ -59,12 +59,6 @@
                     Placeholder="Find in results..." />
             </div>
             <div class="results-actions">
-                @if (_selectionState.HasSelection)
-                {
-                    <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">
-                        @_selectionState.SelectedCount selected
-                    </MudChip>
-                }
                 <AionIconButton Icon="@AionIcons.Json" Tooltip="Export to JSON" OnClick="async () => await Bus.PublishAsync(new ExportResultsToJson(RowsToExport(queryResult), queryResult.Rows.Count))" />
                 <AionIconButton Icon="@AionIcons.Csv" Tooltip="Export to CSV" OnClick="async () => await Bus.PublishAsync(new ExportResultsToCsv(RowsToExport(queryResult), queryResult.Rows.Count))" />
                 <AionIconButton Icon="@AionIcons.Spreadsheet" Tooltip="Export to Excel" OnClick="async () => await Bus.PublishAsync(new ExportResultsToExcel(RowsToExport(queryResult), queryResult.Rows.Count))" />
@@ -183,6 +177,13 @@
                 </MudText>
                 <MudDivider Vertical="true" />
                 <QueryTimer StartTime="@State.Active.ExecutionStartTime" EndTime="@State.Active.ExecutionEndTime" Typo="Typo.caption" />
+            }
+            @* The footer's right end is otherwise empty, so the count comes and goes without moving anything. *@
+            @if (_selectionState.HasSelection)
+            {
+                <MudChip T="string" Class="query-selection-count" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">
+                    @_selectionState.SelectedCount selected
+                </MudChip>
             }
         </div>
     </MudStack>

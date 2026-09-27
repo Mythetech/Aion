@@ -1,5 +1,5 @@
+using Mythetech.Framework.Components.Buttons;
 using Aion.Components.Connections;
-using Aion.Components.Infrastructure.Commands;
 using Aion.Components.Querying;
 using Aion.Components.Settings.Domains;
 using Aion.Components.Querying.Errors;
@@ -183,6 +183,36 @@ public class QueryResponsePanelTests : TestContext
 
         // Assert
         selection.SelectedIndices.ShouldBe([1]);
+    }
+
+    [Fact]
+    public async Task SelectedRows_AreCountedInTheFooterNotTheHeader()
+    {
+        // Arrange
+        Complete(Rows(3));
+        var cut = RenderComponent<QueryResponsePanel>();
+        var selection = cut.FindComponent<QueryResultTable>().Instance.SelectionState;
+
+        // Act
+        await cut.InvokeAsync(() => selection.ToggleSelection(1, ctrlKey: true, shiftKey: false, order: [0, 1, 2]));
+        await cut.InvokeAsync(() => selection.ToggleSelection(2, ctrlKey: true, shiftKey: false, order: [0, 1, 2]));
+
+        // Assert
+        cut.Find(".query-response-footer .query-selection-count").TextContent.Trim().ShouldBe("2 selected");
+        cut.Find(".results-header").QuerySelector(".query-selection-count").ShouldBeNull();
+    }
+
+    [Fact]
+    public void NoSelectedRows_LeaveTheFooterWithoutACount()
+    {
+        // Arrange
+        Complete(Rows(3));
+
+        // Act
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Assert
+        cut.FindAll(".query-selection-count").ShouldBeEmpty();
     }
 
     [Fact]
@@ -546,7 +576,7 @@ public class QueryResponsePanelTests : TestContext
     }
 
     [Fact]
-    public async Task CopyError_PutsTheFullRawErrorOnTheClipboard()
+    public void CopyError_HandsTheFullRawErrorToTheCopyButton()
     {
         // Arrange
         const string raw = "Worker error: SQLITE_ERROR: sqlite3 result code 1: no such column: categry_id";
@@ -554,10 +584,10 @@ public class QueryResponsePanelTests : TestContext
         var cut = RenderComponent<QueryResponsePanel>();
 
         // Act
-        await cut.FindComponent<QueryErrorCard>().Find(".query-error-copy").ClickAsync(new());
+        var copy = cut.FindComponent<QueryErrorCard>().FindComponent<MtCopyButton>().Instance;
 
         // Assert
-        await _bus.Received(1).PublishAsync(Arg.Is<CopyToClipboard>(c => c.Text == raw));
+        copy.Text.ShouldBe(raw);
     }
 
     private void CompleteInEditMode()
