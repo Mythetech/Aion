@@ -1,3 +1,4 @@
+@using Mythetech.Framework.Components.Buttons
 @using Aion.Components.Querying.Commands
 @using Aion.Components.Querying.Editing
 @using Aion.Components.Shared.Dialogs
@@ -15,42 +16,41 @@
             @if (EditState.HasChanges)
             {
                 <span class="pending-bar-summary">@Summary</span>
-                <MudButton Class="pending-bar-review"
-                           Variant="Variant.Text"
-                           Color="Color.Primary"
-                           Size="Size.Small"
-                           Disabled="@(EditableResult is null)"
-                           OnClick="ReviewSqlAsync">
+                <MtButton Class="pending-bar-review"
+                          Variant="Variant.Text"
+                          Color="Color.Primary"
+                          Size="Size.Small"
+                          Disabled="@(EditableResult is null)"
+                          OnClick="ReviewSqlAsync">
                     Review SQL
-                </MudButton>
+                </MtButton>
                 <MudSpacer />
-                <MudButton Class="pending-bar-discard"
-                           Variant="Variant.Outlined"
-                           Size="Size.Small"
-                           Disabled="@_applying"
-                           OnClick="Discard">
+                <MtButton Class="pending-bar-discard"
+                          Variant="Variant.Outlined"
+                          Size="Size.Small"
+                          Disabled="@_applying"
+                          OnClick="Discard">
                     Discard
-                </MudButton>
-                <MudButton Class="pending-bar-apply"
-                           Variant="Variant.Filled"
-                           Color="Color.Primary"
-                           Size="Size.Small"
-                           DropShadow="false"
-                           Disabled="@(_applying || EditableResult is null)"
-                           OnClick="ApplyAsync">
+                </MtButton>
+                <MtButton Class="pending-bar-apply"
+                          Variant="Variant.Filled"
+                          Color="Color.Primary"
+                          Size="Size.Small"
+                          Disabled="@(_applying || EditableResult is null)"
+                          OnClick="ApplyAsync">
                     @ApplyText(EditState.TotalChangeCount)
-                </MudButton>
+                </MtButton>
             }
             else
             {
                 <span class="pending-bar-hint">Click a cell to edit it. Right-click a row to delete it.</span>
                 <MudSpacer />
-                <MudButton Class="pending-bar-stop"
-                           Variant="Variant.Text"
-                           Size="Size.Small"
-                           OnClick="OnStopEditing">
+                <MtButton Class="pending-bar-stop"
+                          Variant="Variant.Text"
+                          Size="Size.Small"
+                          OnClick="OnStopEditing">
                     Stop editing
-                </MudButton>
+                </MtButton>
             }
         </div>
     </MudAlert>

@@ -25,7 +25,8 @@
     margin-left: auto;
     padding: 2px;
     border: 1px solid var(--mud-palette-lines-default);
-    border-radius: 8px;
+    /* The Framework's large roundedness, the same curve as Run and the app's MtButtons. */
+    border-radius: calc(var(--mud-default-borderradius) * 3);
     background-color: var(--mud-palette-surface);
 }
 

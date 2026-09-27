@@ -1,3 +1,4 @@
+@using Mythetech.Framework.Components.Buttons
 @using Aion.Components.Connections.Commands
 @using Aion.Components.Theme
 @using Aion.Contracts.Queries
@@ -11,25 +12,24 @@
                 <span class="transaction-bar-title">Transaction open</span>
                 <span class="transaction-bar-summary">@Summarize(transaction)</span>
                 <MudSpacer />
-                <MudButton Class="transaction-bar-rollback"
-                           Size="Size.Small"
-                           Variant="Variant.Text"
-                           Color="Color.Error"
-                           StartIcon="@AionIcons.RollbackTransaction"
-                           Disabled="@IsBusy"
-                           OnClick="RollbackAsync">
+                <MtButton Class="transaction-bar-rollback"
+                          Size="Size.Small"
+                          Variant="Variant.Text"
+                          Color="Color.Error"
+                          StartIcon="@AionIcons.RollbackTransaction"
+                          Disabled="@IsBusy"
+                          OnClick="RollbackAsync">
                     Rollback
-                </MudButton>
-                <MudButton Class="transaction-bar-commit"
-                           Size="Size.Small"
-                           Variant="Variant.Filled"
-                           Color="Color.Success"
-                           DropShadow="false"
-                           StartIcon="@AionIcons.CommitTransaction"
-                           Disabled="@IsBusy"
-                           OnClick="CommitAsync">
+                </MtButton>
+                <MtButton Class="transaction-bar-commit"
+                          Size="Size.Small"
+                          Variant="Variant.Filled"
+                          Color="Color.Success"
+                          StartIcon="@AionIcons.CommitTransaction"
+                          Disabled="@IsBusy"
+                          OnClick="CommitAsync">
                     Commit
-                </MudButton>
+                </MtButton>
             </div>
         </MudAlert>
     </div>

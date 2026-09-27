@@ -14,7 +14,7 @@
 }
 
 .connection-picker-host ::deep .mud-menu-activator {
-    border-radius: 8px;
+    border-radius: var(--mud-default-borderradius);
 }
 
 .connection-picker-host ::deep .mud-menu-activator:focus-visible {
@@ -32,7 +32,7 @@
     /* Past the point where the names are gone, the button clips rather than drawing over the toggles. */
     overflow: hidden;
     border: 1px solid var(--mud-palette-lines-inputs);
-    border-radius: 8px;
+    border-radius: var(--mud-default-borderradius);
     background-color: var(--mud-palette-surface);
     color: var(--mud-palette-text-primary);
     font-size: 0.875rem;

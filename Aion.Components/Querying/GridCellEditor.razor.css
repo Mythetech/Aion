@@ -45,7 +45,7 @@
     height: 18px;
     padding: 0 6px;
     border: 1px solid var(--mud-palette-lines-default);
-    border-radius: 4px;
+    border-radius: var(--mud-default-borderradius);
     background: var(--mud-palette-surface);
     color: var(--mud-palette-text-secondary);
     font: inherit;
