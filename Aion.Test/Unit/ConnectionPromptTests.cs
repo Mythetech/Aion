@@ -91,6 +91,20 @@ public class ConnectionPromptTests
     }
 
     [Fact]
+    public async Task PasswordPrompter_OpensThePasswordDialogForTheConnection()
+    {
+        var id = Guid.NewGuid();
+
+        await new ConnectionPasswordPrompter(_bus).Consume(new PromptConnectionPassword(id));
+
+        await _bus.Received(1).PublishAsync(Arg.Is<ShowDialog>(d =>
+            d.Dialog == typeof(ConnectionPasswordDialog)
+            && d.Title == "Enter Password"
+            && d.Parameters != null
+            && d.Parameters.Get<Guid>(nameof(ConnectionPasswordDialog.ConnectionId)) == id));
+    }
+
+    [Fact]
     public void ConnectionDialogCreator_ResolvesFromTheRootProvider()
     {
         // The message bus resolves consumers from the root provider. Scoped UI services such as

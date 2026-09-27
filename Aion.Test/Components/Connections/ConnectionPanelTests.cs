@@ -448,6 +448,59 @@ public class ConnectionPanelTests : TestContext
         cut.Find(".tree-status-failed").TextContent.ShouldContain("Connection refused");
     }
 
+    private static ConnectionModel WaitingForPassword() => new()
+    {
+        Name = "Prod",
+        Type = DatabaseType.PostgreSQL,
+        UsesPassword = true,
+        Active = false,
+        HealthStatus = ConnectionHealthStatus.NeedsPassword,
+        LastError = "The password wasn't found in macOS Keychain"
+    };
+
+    [Fact]
+    public void NeedsPassword_OffersEnterPasswordWithTheReason()
+    {
+        var cut = Render(WaitingForPassword());
+
+        cut.Find(".enter-password").TextContent.ShouldContain("Enter password");
+        cut.Find(".needs-password").TextContent.ShouldContain("The password wasn't found in macOS Keychain");
+        cut.FindAll(".tree-status-failed").ShouldBeEmpty();
+        cut.Markup.ShouldContain("Needs password");
+        cut.Markup.ShouldNotContain("Disconnected");
+    }
+
+    [Fact]
+    public async Task NeedsPassword_EnterPassword_AsksForIt()
+    {
+        var connection = WaitingForPassword();
+        var cut = Render(connection);
+
+        await cut.Find(".enter-password").ClickAsync(new MouseEventArgs());
+
+        await _bus.Received(1).PublishAsync(new PromptConnectionPassword(connection.Id));
+    }
+
+    [Fact]
+    public async Task NeedsPassword_Refresh_AsksForThePasswordInsteadOfLoggingInWithoutIt()
+    {
+        var connection = WaitingForPassword();
+        var cut = Render(connection);
+
+        await cut.Find("button[aria-label='Refresh Connection']").ClickAsync(new MouseEventArgs());
+
+        await _bus.Received(1).PublishAsync(new PromptConnectionPassword(connection.Id));
+        await _connectionService.DidNotReceiveWithAnyArgs().GetDatabasesAsync(default!, default);
+    }
+
+    [Fact]
+    public void ConnectedConnection_HasNoEnterPasswordAction()
+    {
+        var cut = Render(ConnectionWithLoadedColumns(ProductColumns()));
+
+        cut.FindAll(".enter-password").ShouldBeEmpty();
+    }
+
     private static readonly TableInfo Customers = new("", "customers");
     private static readonly TableInfo Orders = new("", "orders");
     private static readonly TableInfo OrderItems = new("", "order_items");

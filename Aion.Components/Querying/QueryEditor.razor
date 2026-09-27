@@ -454,6 +454,9 @@
 
         try
         {
+            if (!await EnsurePasswordAsync(query) || cancellation.IsCancellationRequested)
+                return;
+
             // The editor's text and selection belong to this tab only while the editor shows it.
             var shown = _editor != null && _shownQuery?.Id == query.Id;
             var fullText = shown ? await _editor!.GetValue() : query.Query;
@@ -486,6 +489,20 @@
             _runningQueries.Remove(query.Id);
             StateHasChanged();
         }
+    }
+
+    /// <summary>
+    /// Asks for the password of a tab's connection that is waiting for one. The bus waits on the password dialog,
+    /// so the run goes ahead only when the dialog connected.
+    /// </summary>
+    private async Task<bool> EnsurePasswordAsync(QueryModel query)
+    {
+        var connection = Connections.Connections.FirstOrDefault(c => c.Id == query.ConnectionId);
+        if (connection is not { HealthStatus: ConnectionHealthStatus.NeedsPassword })
+            return true;
+
+        await Bus.PublishAsync(new PromptConnectionPassword(connection.Id));
+        return connection.HealthStatus != ConnectionHealthStatus.NeedsPassword;
     }
 
     public async Task Consume(FocusQuery message)

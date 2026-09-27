@@ -1,5 +1,6 @@
 using Aion.Components.CommandPalette.Commands;
 using Aion.Components.Connections;
+using Aion.Components.Connections.Commands;
 using Aion.Components.Querying;
 using Aion.Components.Querying.Commands;
 using Aion.Components.Querying.Events;
@@ -329,5 +330,58 @@ public class QueryEditorRunTests : TestContext
 
         // Assert
         _executed.ShouldHaveSingleItem().ExecutedSql.ShouldBe(Selected);
+    }
+
+    private sealed class PasswordPromptFake(ConnectionModel connection, bool entersPassword) : IConsumer<PromptConnectionPassword>
+    {
+        public int Prompts { get; private set; }
+
+        // Stands in for the password dialog, which the bus waits on until it closes.
+        public Task Consume(PromptConnectionPassword message)
+        {
+            Prompts++;
+            message.ConnectionId.ShouldBe(connection.Id);
+            if (entersPassword)
+            {
+                connection.Active = true;
+                connection.HealthStatus = ConnectionHealthStatus.Healthy;
+            }
+
+            return Task.CompletedTask;
+        }
+    }
+
+    [Fact]
+    public async Task Run_OnAConnectionWaitingForItsPassword_AsksForItAndRunsNothingWhenCancelled()
+    {
+        _connection.HealthStatus = ConnectionHealthStatus.NeedsPassword;
+        var prompt = new PasswordPromptFake(_connection, entersPassword: false);
+        _bus.Subscribe(prompt);
+        _providerResult.SetResult(new QueryResult());
+        var cut = RenderComponent<QueryEditor>();
+        InitializedEditor(cut);
+
+        await cut.InvokeAsync(() => _bus.PublishAsync(new RunQuery())).WaitAsync(TimeSpan.FromSeconds(5));
+
+        prompt.Prompts.ShouldBe(1);
+        await _provider.DidNotReceiveWithAnyArgs().ExecuteQueryAsync(default!, default!, default);
+    }
+
+    [Fact]
+    public async Task Run_OnAConnectionWaitingForItsPassword_RunsOnceThePasswordIsEntered()
+    {
+        _connection.HealthStatus = ConnectionHealthStatus.NeedsPassword;
+        var prompt = new PasswordPromptFake(_connection, entersPassword: true);
+        _bus.Subscribe(prompt);
+        var cut = RenderComponent<QueryEditor>();
+        InitializedEditor(cut);
+
+        var run = cut.InvokeAsync(() => _bus.PublishAsync(new RunQuery()));
+        await _providerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        _providerResult.SetResult(new QueryResult());
+        await run;
+
+        prompt.Prompts.ShouldBe(1);
+        await _provider.Received(1).ExecuteQueryAsync("db", Selected, Arg.Any<CancellationToken>());
     }
 }

@@ -237,6 +237,26 @@ public class ConnectionPickerTests : TestContext
     }
 
     [Fact]
+    public async Task ConnectionWaitingForItsPassword_SaysSoInsteadOfNoDatabases()
+    {
+        // Arrange
+        _connections.Connections.Add(new ConnectionModel
+        {
+            Name = "prod", Type = DatabaseType.PostgreSQL, ConnectionString = "Host=db",
+            HealthStatus = ConnectionHealthStatus.NeedsPassword
+        });
+        var cut = RenderPicker();
+
+        // Act
+        await OpenAsync(cut);
+
+        // Assert
+        var empty = _popovers.FindAll(".mud-menu-item").Single(i => i.TextContent.Contains("Needs a password"));
+        empty.GetAttribute("aria-disabled").ShouldBe("true");
+        _popovers.FindAll(".mud-menu-item").ShouldNotContain(i => i.TextContent.Contains("No databases"));
+    }
+
+    [Fact]
     public async Task NewConnection_AsksForOne()
     {
         // Arrange

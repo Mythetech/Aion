@@ -103,6 +103,12 @@
                                           InputType="InputType.Password"/>
                         }
 
+                        @* For LiteDB the password is the file's encryption password; Windows authentication has none. *@
+                        @if (!UsesWindowsAuth)
+                        {
+                            <PasswordStorageChoice @bind-Value="Model.PasswordChoice" CurrentStore="@Model.PasswordStore"/>
+                        }
+
                     </MudStack>
                 </MudForm>
             </Tab>
@@ -116,6 +122,8 @@
                                   Lines="3"
                                   Required="true"
                                   RequiredError="Connection string is required"/>
+
+                    <PasswordStorageChoice @bind-Value="Model.PasswordChoice" CurrentStore="@Model.PasswordStore"/>
 
                 </MudStack>
             </Tab>

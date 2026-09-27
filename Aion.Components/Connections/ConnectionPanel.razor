@@ -31,6 +31,13 @@
     {
         <MudChip Size="Size.Small" Variant="Variant.Text" T="string" Color="Color.Success">Connected</MudChip>
     }
+    else if (NeedsPassword)
+    {
+        <MudTooltip Text="@GetConnectionErrorTooltip()">
+            <MudChip Size="Size.Small" Variant="Variant.Text" T="string" Color="Color.Warning" OnClick="EnterPassword">
+                Needs password</MudChip>
+        </MudTooltip>
+    }
     else
     {
         <MudTooltip Text="@GetConnectionErrorTooltip()">
@@ -65,9 +72,18 @@
                       Placeholder="Filter tables and columns" aria-label="Filter tables and columns" />
     </div>
 
+    @if (NeedsPassword)
+    {
+        <div class="needs-password" role="status">
+            <MudText Typo="Typo.body2" Class="needs-password-reason">@GetConnectionErrorTooltip()</MudText>
+            <MudButton Class="enter-password" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                       StartIcon="@AionIcons.Password" OnClick="EnterPassword">Enter password</MudButton>
+        </div>
+    }
+
     <div class="schema-tree">
     <MudTreeView T="string" Hover="true" Dense="true" ExpandOnClick="true" Class="h-100 mb-4">
-        @if (Connection.Databases.Count == 0)
+        @if (Connection.Databases.Count == 0 && !NeedsPassword)
         {
             <SchemaStatusItem Value="@($"{Connection.Id}/databases")" State="@DatabasesState" IsEmpty="true"
                               EmptyText="No databases" OnRetry="RefreshConnection" />
@@ -517,8 +533,22 @@
         };
     }
 
+    private bool NeedsPassword => Connection.HealthStatus == ConnectionHealthStatus.NeedsPassword;
+
+    private async Task EnterPassword()
+    {
+        await MessageBus.PublishAsync(new PromptConnectionPassword(Connection.Id));
+    }
+
     private async Task RefreshConnection()
     {
+        // Reconnecting a connection that waits for its password means asking for it.
+        if (NeedsPassword)
+        {
+            await EnterPassword();
+            return;
+        }
+
         _isRefreshing = true;
         StateHasChanged();
 

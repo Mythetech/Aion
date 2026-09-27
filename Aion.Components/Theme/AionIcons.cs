@@ -120,6 +120,8 @@ public static class AionIcons
 
     public static string Key => Round("key");
 
+    public static string Password => Round("password");
+
     public static string PrimaryKey => Round("key");
 
     public static string ForeignKey => Round("link");
