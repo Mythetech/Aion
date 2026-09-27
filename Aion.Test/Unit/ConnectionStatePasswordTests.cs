@@ -199,6 +199,57 @@ public class ConnectionStatePasswordTests
         await ReceivedWarning("Aion couldn't store the password: 1Password CLI can't store passwords. It stays in macOS Keychain.");
     }
 
+    [Fact]
+    public async Task Edit_WaitingForItsPassword_BlankPassword_KeepsWaitingWithItsStore()
+    {
+        var connection = SavedConnection("1Password CLI");
+        _secrets.Lookups["1Password CLI"] = SecretLookup.Unavailable("1Password CLI couldn't read the password: You are not signed in.");
+        await _sut.InitializeAsync();
+        _secrets.Calls.Clear();
+        var renamed = NewConnection(WithoutPassword);
+        renamed.Name = "Prod replica";
+
+        await _sut.UpdateConnection(connection.Id, renamed, PasswordChoice.Store);
+
+        connection.Name.ShouldBe("Prod replica");
+        connection.UsesPassword.ShouldBeTrue();
+        connection.PasswordStore.ShouldBe("1Password CLI");
+        connection.HealthStatus.ShouldBe(ConnectionHealthStatus.NeedsPassword);
+        _secrets.Calls.ShouldBeEmpty();
+        await _connectionService.DidNotReceiveWithAnyArgs().GetDatabasesAsync(default!, default);
+        await _connectionService.Received(1).UpdateConnection(connection);
+    }
+
+    [Fact]
+    public async Task Edit_WaitingForItsPassword_BlankPasswordDontStore_ForgetsTheStoredCopyButKeepsWaiting()
+    {
+        var connection = SavedConnection(ConnectionSecretStoreFake.Vault);
+        await _sut.InitializeAsync();
+
+        await _sut.UpdateConnection(connection.Id, NewConnection(WithoutPassword), PasswordChoice.DontStore);
+
+        connection.UsesPassword.ShouldBeTrue();
+        connection.PasswordStore.ShouldBeNull();
+        connection.HealthStatus.ShouldBe(ConnectionHealthStatus.NeedsPassword);
+        await _connectionService.DidNotReceiveWithAnyArgs().GetDatabasesAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task Edit_WaitingForItsPassword_SwitchedToWindowsAuth_ConnectsWithoutOne()
+    {
+        var connection = SavedConnection(passwordStore: null, connectionString: "Server=db;User Id=app");
+        connection.Type = DatabaseType.SQLServer;
+        await _sut.InitializeAsync();
+        var windowsAuth = NewConnection("Server=db;Integrated Security=True");
+        windowsAuth.Type = DatabaseType.SQLServer;
+
+        await _sut.UpdateConnection(connection.Id, windowsAuth, PasswordChoice.DontStore);
+
+        connection.UsesPassword.ShouldBeFalse();
+        connection.HealthStatus.ShouldNotBe(ConnectionHealthStatus.NeedsPassword);
+        await _connectionService.Received(1).GetDatabasesAsync("Server=db;Integrated Security=True", DatabaseType.SQLServer);
+    }
+
     // Remove and rename
 
     [Fact]

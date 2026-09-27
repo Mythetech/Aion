@@ -791,9 +791,20 @@ public class ConnectionState
         if (connection == null) return ConnectionResult.Failed("The connection no longer exists.");
 
         var previousPassword = ConnectionPasswords.GetPassword(connection.Type, connection.ConnectionString);
+
+        // A connection waiting for its password opens in the dialog with the field blank, so a blank password there
+        // means it wasn't entered, not that there is none. Treating it as none would forget where the password is
+        // stored and log in without one.
+        var stillWaiting = connection.UsesPassword && previousPassword == null
+            && ConnectionPasswords.GetPassword(connection.Type, updated.ConnectionString) == null
+            && !ConnectionStringComposer.UsesWindowsAuth(connection.Type, updated.ConnectionString);
+
         connection.Name = updated.Name;
         connection.ConnectionString = updated.ConnectionString;
         connection.Databases = [];
+
+        if (stillWaiting)
+            return await KeepWaitingForPasswordAsync(connection, passwordChoice);
 
         var result = await TestConnectionAsync(connection.ConnectionString, connection.Type);
         ApplyConnectionResult(connection, result);
@@ -803,6 +814,24 @@ public class ConnectionState
         OnConnectionStateChanged();
 
         return result;
+    }
+
+    private async Task<ConnectionResult> KeepWaitingForPasswordAsync(ConnectionModel connection, PasswordChoice passwordChoice)
+    {
+        if (passwordChoice == PasswordChoice.DontStore && connection.PasswordStore != null)
+        {
+            await ForgetPasswordAsync(connection);
+            connection.LastError = PasswordNotStoredReason;
+        }
+
+        connection.Active = false;
+        connection.HealthStatus = ConnectionHealthStatus.NeedsPassword;
+        connection.LastError ??= PasswordNotStoredReason;
+
+        await _connectionService.UpdateConnection(connection);
+        OnConnectionStateChanged();
+
+        return ConnectionResult.Failed(connection.LastError);
     }
 
     /// <summary>

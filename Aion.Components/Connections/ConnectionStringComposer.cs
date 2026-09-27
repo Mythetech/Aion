@@ -191,6 +191,12 @@ public static class ConnectionStringComposer
     }
 
     /// <summary>
+    /// Whether the connection string logs in with Windows authentication, which takes no password.
+    /// </summary>
+    public static bool UsesWindowsAuth(DatabaseType type, string? connectionString) =>
+        IsTrue(Find(TryParse(connectionString), KeysFor(type).IntegratedSecurity));
+
+    /// <summary>
     /// Returns the connection string with the driver's connect timeout set, replacing any timeout already present.
     /// Types without a connect timeout, or strings that cannot be parsed, are returned unchanged.
     /// </summary>
