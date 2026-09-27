@@ -23,8 +23,8 @@
               Size="Size.Small"
               AriaLabel="More ways to run"
               Disabled="@(Disabled || IsExecuting)"
-              AnchorOrigin="Origin.BottomLeft"
-              TransformOrigin="Origin.TopLeft">
+              AnchorOrigin="Origin.BottomRight"
+              TransformOrigin="Origin.TopRight">
         <MudMenuItem Icon="@AionIcons.RunSelection" Disabled="@(!HasSelection)" OnClick="@OnRunSelection">
             <span class="run-option-title">Run selection</span>
             <span class="run-option-detail">@(HasSelection ? "Only the selected SQL" : "Select some SQL first")</span>

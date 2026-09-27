@@ -31,20 +31,6 @@
     <div class="editor-toolbar">
         @if (State?.Active is { } active)
         {
-            <RunQueryButton OnClick="RunQuery"
-                            Disabled="@(!CanExecuteQuery)"
-                            DisabledReason="@RunBlockedReason"
-                            Hint="@RunHint(active)"
-                            Shortcut="@Keys.Describe(Keys.RunQuery)"
-                            IsExecuting="@active.IsExecuting"
-                            HasSelection="@_editorHasSelection"
-                            OnRunSelection="RunSelection"
-                            ShowExplain="@CanExplain"
-                            OnExplain="Explain"
-                            ShowExplainAnalyze="@CanExplainAnalyze"
-                            ExplainAnalyzeBlockedReason="@(HasOpenTransaction ? "Commit or roll back first" : null)"
-                            OnExplainAnalyze="ExplainAnalyze" />
-
             <ConnectionPicker Query="@active"
                               Disabled="@HasOpenTransaction"
                               DisabledReason="Commit or roll back the open transaction to change the connection" />
@@ -77,6 +63,20 @@
                                           PressedChanged="@(on => State.SetIncludeActualPlan(active, on))" />
                 }
             </div>
+
+            <RunQueryButton OnClick="RunQuery"
+                            Disabled="@(!CanExecuteQuery)"
+                            DisabledReason="@RunBlockedReason"
+                            Hint="@RunHint(active)"
+                            Shortcut="@Keys.Describe(Keys.RunQuery)"
+                            IsExecuting="@active.IsExecuting"
+                            HasSelection="@_editorHasSelection"
+                            OnRunSelection="RunSelection"
+                            ShowExplain="@CanExplain"
+                            OnExplain="Explain"
+                            ShowExplainAnalyze="@CanExplainAnalyze"
+                            ExplainAnalyzeBlockedReason="@(HasOpenTransaction ? "Commit or roll back first" : null)"
+                            OnExplainAnalyze="ExplainAnalyze" />
         }
     </div>
 
