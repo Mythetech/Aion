@@ -1,27 +1,26 @@
 .pending-bar {
-    display: flex;
     flex-shrink: 0;
-    align-items: center;
-    gap: 12px;
-    min-height: 36px;
-    padding: 2px 8px 2px 12px;
-    border-left: 3px solid var(--mud-palette-primary);
-    border-radius: var(--mud-default-borderradius);
-    background-color: color-mix(in srgb, var(--mud-palette-primary) 6%, var(--mud-palette-surface));
     font-size: 0.8125rem;
 }
 
-.pending-bar.has-changes {
-    border-left-color: var(--mud-palette-warning);
-    background-color: color-mix(in srgb, var(--mud-palette-warning) 10%, var(--mud-palette-surface));
+/* MudAlert sizes its message to the text, so it has to fill the row before the actions can sit on the right, and
+   its padding is trimmed to keep the buttons from making the bar taller than the text needs. */
+.pending-bar ::deep .mud-alert-position {
+    align-items: center;
+    min-width: 0;
 }
 
-.pending-bar ::deep .pending-bar-icon {
-    color: var(--mud-palette-primary);
+.pending-bar ::deep .mud-alert-message {
+    flex: 1;
+    min-width: 0;
+    padding: 3px 0;
 }
 
-.pending-bar.has-changes ::deep .pending-bar-icon {
-    color: var(--mud-palette-warning);
+.pending-bar-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
 }
 
 .pending-bar-title {
@@ -35,8 +34,4 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.pending-bar-hint {
-    color: var(--mud-palette-text-secondary);
 }

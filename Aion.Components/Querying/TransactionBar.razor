@@ -6,29 +6,32 @@
 @if (Query.Transaction is { Status: TransactionStatus.Active } transaction)
 {
     <div class="transaction-bar" role="status">
-        <MudIcon Icon="@AionIcons.Transaction" Size="Size.Small" Color="Color.Warning" />
-        <MudText Typo="Typo.body2" Class="transaction-bar-title">Transaction open</MudText>
-        <MudText Typo="Typo.caption" Class="transaction-bar-summary mud-text-secondary">@Summarize(transaction)</MudText>
-        <MudSpacer />
-        <MudButton Class="transaction-bar-rollback"
-                   Size="Size.Small"
-                   Variant="Variant.Text"
-                   Color="Color.Error"
-                   StartIcon="@AionIcons.RollbackTransaction"
-                   Disabled="@IsBusy"
-                   OnClick="RollbackAsync">
-            Rollback
-        </MudButton>
-        <MudButton Class="transaction-bar-commit"
-                   Size="Size.Small"
-                   Variant="Variant.Filled"
-                   Color="Color.Success"
-                   DropShadow="false"
-                   StartIcon="@AionIcons.CommitTransaction"
-                   Disabled="@IsBusy"
-                   OnClick="CommitAsync">
-            Commit
-        </MudButton>
+        <MudAlert Severity="Severity.Warning" Dense="true" Icon="@AionIcons.Transaction">
+            <div class="transaction-bar-content">
+                <span class="transaction-bar-title">Transaction open</span>
+                <span class="transaction-bar-summary">@Summarize(transaction)</span>
+                <MudSpacer />
+                <MudButton Class="transaction-bar-rollback"
+                           Size="Size.Small"
+                           Variant="Variant.Text"
+                           Color="Color.Error"
+                           StartIcon="@AionIcons.RollbackTransaction"
+                           Disabled="@IsBusy"
+                           OnClick="RollbackAsync">
+                    Rollback
+                </MudButton>
+                <MudButton Class="transaction-bar-commit"
+                           Size="Size.Small"
+                           Variant="Variant.Filled"
+                           Color="Color.Success"
+                           DropShadow="false"
+                           StartIcon="@AionIcons.CommitTransaction"
+                           Disabled="@IsBusy"
+                           OnClick="CommitAsync">
+                    Commit
+                </MudButton>
+            </div>
+        </MudAlert>
     </div>
 }
 

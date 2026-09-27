@@ -1,14 +1,37 @@
 .transaction-bar {
+    margin: 0 8px 8px;
+    font-size: 0.875rem;
+}
+
+/* MudAlert sizes its message to the text, so it has to fill the row before the actions can sit on the right, and
+   its padding is trimmed to keep the buttons from making the bar taller than the text needs. */
+.transaction-bar ::deep .mud-alert-position {
+    align-items: center;
+    min-width: 0;
+}
+
+.transaction-bar ::deep .mud-alert-message {
+    flex: 1;
+    min-width: 0;
+    padding: 3px 0;
+}
+
+.transaction-bar-content {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin: 0 8px 8px;
-    padding: 2px 8px 2px 12px;
-    border-left: 3px solid var(--mud-palette-warning);
-    border-radius: var(--mud-default-borderradius);
-    background-color: color-mix(in srgb, var(--mud-palette-warning) 10%, var(--mud-palette-surface));
+    min-width: 0;
 }
 
-.transaction-bar ::deep .transaction-bar-title {
+.transaction-bar-title {
     font-weight: 600;
+    white-space: nowrap;
+}
+
+.transaction-bar-summary {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.75rem;
 }
