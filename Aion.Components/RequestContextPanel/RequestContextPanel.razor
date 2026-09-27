@@ -29,61 +29,65 @@
         </MudPaper>
     </MudStack>
     
-    <SimpleTabs @ref="_simpleTabs">
-        <Tab Name="Info">
-            <QueryInfoPanel Query="@QueryState.Active" />
-        </Tab>
-        
-        @if (!string.IsNullOrWhiteSpace(_code))
-        {
-            <Tab Name="@JsonView">
-                <JsonViewer
-                    @ref="_jsonViewer"
-                    Json="@_code"
-                    ViewMode="@_jsonViewerSelection"
-                    ColumnName="@_columnName"
-                    ViewModeChanged="@((mode) => { _jsonViewerSelection = mode; StateHasChanged(); })"
-                    OnExpandClick="OpenJsonViewerDialog" />
+    @* SimpleTabs sizes its content to its own full height, under its tab bar; the wrapper and the content class
+       bound both to what's left, so a tab's view scrolls inside the panel instead of running off its bottom. *@
+    <div class="context-panel-tabs">
+        <SimpleTabs @ref="_simpleTabs" ContentClass="context-panel-tab-content">
+            <Tab Name="Info">
+                <QueryInfoPanel Query="@QueryState.Active" />
             </Tab>
-        }
-
-        @if (_foreignKeyDetail != null)
-        {
-            <Tab Name="@ForeignKeyView">
-                <ForeignKeyViewer
-                    @ref="_fkViewer"
-                    Detail="@_foreignKeyDetail"
-                    Choices="@_foreignKeyChoices"
-                    OnExpandClick="OpenForeignKeyRowsAsync"
-                    OnForeignKeyChanged="OnForeignKeyChanged" />
-            </Tab>
-        }
         
-        @if (QueryState?.Active?.Transaction.HasValue ?? false)
-        {
-            <Tab Name="Transactions">
-                @if (QueryState.Active.Transaction.HasValue)
-                {
-                    <MudStack Class="pa-2 mr-4">
-                        <KeyValueListItem Key="Id" Value="@QueryState.Active.Transaction.Value.Id" />
-                        <KeyValueListItem Key="Status" Value="@QueryState.Active.Transaction.Value.Status.ToString()" />
-                        <KeyValueListItem Key="Start" Value="@QueryState.Active.Transaction.Value.StartTime.ToLocalTime().ToString("G")" />
+            @if (!string.IsNullOrWhiteSpace(_code))
+            {
+                <Tab Name="@JsonView">
+                    <JsonViewer
+                        @ref="_jsonViewer"
+                        Json="@_code"
+                        ViewMode="@_jsonViewerSelection"
+                        ColumnName="@_columnName"
+                        ViewModeChanged="@((mode) => { _jsonViewerSelection = mode; StateHasChanged(); })"
+                        OnExpandClick="OpenJsonViewerDialog" />
+                </Tab>
+            }
 
-                        <MudDivider Class="pb-4 mt-4" DividerType="DividerType.Middle"/>
+            @if (_foreignKeyDetail != null)
+            {
+                <Tab Name="@ForeignKeyView">
+                    <ForeignKeyViewer
+                        @ref="_fkViewer"
+                        Detail="@_foreignKeyDetail"
+                        Choices="@_foreignKeyChoices"
+                        OnExpandClick="OpenForeignKeyRowsAsync"
+                        OnForeignKeyChanged="OnForeignKeyChanged" />
+                </Tab>
+            }
+        
+            @if (QueryState?.Active?.Transaction.HasValue ?? false)
+            {
+                <Tab Name="Transactions">
+                    @if (QueryState.Active.Transaction.HasValue)
+                    {
+                        <MudStack Class="pa-2 mr-4">
+                            <KeyValueListItem Key="Id" Value="@QueryState.Active.Transaction.Value.Id" />
+                            <KeyValueListItem Key="Status" Value="@QueryState.Active.Transaction.Value.Status.ToString()" />
+                            <KeyValueListItem Key="Start" Value="@QueryState.Active.Transaction.Value.StartTime.ToLocalTime().ToString("G")" />
 
-                        <MudStack Row="true" Class="w-100">
-                            <MudButton Variant="Variant.Filled" Class="rounded-xl flex-grow-1" Color="Color.Error" OnClick="@(async () => await MessageBus.PublishAsync(new RollbackTransaction(QueryState.Active)))">Rollback</MudButton>
-                            <MudButton Variant="Variant.Filled" Class="rounded-xl flex-grow-1" Color="Color.Success" OnClick="@(async () => await MessageBus.PublishAsync(new CommitTransaction(QueryState.Active)))">Commit</MudButton>
+                            <MudDivider Class="pb-4 mt-4" DividerType="DividerType.Middle"/>
+
+                            <MudStack Row="true" Class="w-100">
+                                <MudButton Variant="Variant.Filled" Class="rounded-xl flex-grow-1" Color="Color.Error" OnClick="@(async () => await MessageBus.PublishAsync(new RollbackTransaction(QueryState.Active)))">Rollback</MudButton>
+                                <MudButton Variant="Variant.Filled" Class="rounded-xl flex-grow-1" Color="Color.Success" OnClick="@(async () => await MessageBus.PublishAsync(new CommitTransaction(QueryState.Active)))">Commit</MudButton>
+                            </MudStack>
                         </MudStack>
-                    </MudStack>
-                }
-                else
-                {
-                    <MudText>No Active Transaction</MudText>
-                }
-            </Tab>
-        }
-    </SimpleTabs>
+                    }
+                    else
+                    {
+                        <MudText>No Active Transaction</MudText>
+                    }
+                </Tab>
+            }
+        </SimpleTabs>
+    </div>
 
 </MudStack>
 @code {

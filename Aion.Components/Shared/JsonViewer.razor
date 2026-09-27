@@ -3,69 +3,75 @@
 @using Aion.Components.Shared.JsonTreeView
 @using Aion.Contracts.Extensions
 @using BlazorMonaco.Editor
+@using Mythetech.Framework.Components.Buttons
 @using Mythetech.Framework.Infrastructure.Guards
 
-<MudStack AlignItems="AlignItems.Center" Row="true" Spacing="0" Class="px-4 overflow-y-auto mud-width-full">
-    <MudSpacer />
-    <AionIconButton Tooltip="Copy" OnClick="CopyJsonToClipboardAsync" Icon="@AionIcons.Copy"></AionIconButton>
-    @if (ShowExpandButton)
-    {
-        <AionIconButton Tooltip="Expand" OnClick="OnExpand" Icon="@AionIcons.ExpandContent"/>
-    }
-</MudStack>
+@* The body takes what the toolbar and header leave and scrolls there, so a long document never runs past its panel. *@
+<div class="json-viewer">
+    <MudStack AlignItems="AlignItems.Center" Row="true" Spacing="0" Class="px-4 mud-width-full">
+        <MudSpacer />
+        <MtCopyButton Text="@CopyText" />
+        @if (ShowExpandButton)
+        {
+            <AionIconButton Tooltip="Expand" OnClick="OnExpand" Icon="@AionIcons.ExpandContent"/>
+        }
+    </MudStack>
 
-<MudStack AlignItems="AlignItems.Center" Row="true" Spacing="3" Class="px-4 overflow-y-auto mud-width-full">
-    @if (!string.IsNullOrEmpty(ColumnName))
-    {
-        <MudStack Spacing="0">
-            <MudText Typo="Typo.caption">Column</MudText>
-            <MudText Class="mud-text-secondary">@ColumnName</MudText>
-        </MudStack>
-        <MudSpacer/>
-    }
-    
-    <MudToggleGroup Value="@ViewMode" ValueChanged="OnViewModeChanged" T="string" Outlined="true" Color="Color.Primary" Delimiters="true" Size="Size.Small">
-        <MudToggleItem T="string" Value="@("pretty")">
-            <TooltipIcon Text="JSON (Tree)" Icon="@AionIcons.TreeJson" />
-        </MudToggleItem>
-        <MudToggleItem T="string" Value="@("formatted")">
-            <TooltipIcon Text="JSON (Formatted)" Icon="@AionIcons.PrettyJson" />
-        </MudToggleItem>
-        <MudToggleItem T="string" Value="@("raw")">
-            <TooltipIcon Text="JSON (Raw)" Icon="@AionIcons.RawJson" />
-        </MudToggleItem>
-    </MudToggleGroup>
-</MudStack>
+    <MudStack AlignItems="AlignItems.Center" Row="true" Spacing="3" Class="px-4 mud-width-full">
+        @if (!string.IsNullOrEmpty(ColumnName))
+        {
+            <MudStack Spacing="0">
+                <MudText Typo="Typo.caption">Column</MudText>
+                <MudText Class="mud-text-secondary">@ColumnName</MudText>
+            </MudStack>
+            <MudSpacer/>
+        }
 
-<MudStack Class="pa-2 h-100 w-100">
-    @if (ViewMode.Equals("raw", StringComparison.OrdinalIgnoreCase))
-    {
-        <pre>
-            <code>
-                @Json
-            </code>
-        </pre>
-    }
-    else if (ViewMode.Equals("pretty", StringComparison.OrdinalIgnoreCase))
-    {
-        <JsonTreeView @ref="_tree" Json="@Json.ParseNestedJson()" Dense="true" Hover="true" />
-    }
-    else if (ViewMode.Equals("formatted", StringComparison.OrdinalIgnoreCase))
-    {
-        <JsGuard Name="monaco">
-            <StandaloneCodeEditor @ref="_editor"
-                                  Id="query-json"
-                                  CssClass="h-100 w-100 flex-grow-1"
-                                 ConstructionOptions="EditorConstructionOptions"
-                                 OnDidInit="HandleEditorInit" />
-        </JsGuard>
-    }
-</MudStack>
+        <MudToggleGroup Value="@ViewMode" ValueChanged="OnViewModeChanged" T="string" Outlined="true" Color="Color.Primary" Delimiters="true" Size="Size.Small">
+            <MudToggleItem T="string" Value="@("pretty")">
+                <TooltipIcon Text="JSON (Tree)" Icon="@AionIcons.TreeJson" />
+            </MudToggleItem>
+            <MudToggleItem T="string" Value="@("formatted")">
+                <TooltipIcon Text="JSON (Formatted)" Icon="@AionIcons.PrettyJson" />
+            </MudToggleItem>
+            <MudToggleItem T="string" Value="@("raw")">
+                <TooltipIcon Text="JSON (Raw)" Icon="@AionIcons.RawJson" />
+            </MudToggleItem>
+        </MudToggleGroup>
+    </MudStack>
+
+    <div class="json-viewer-body">
+        @if (ViewMode.Equals("raw", StringComparison.OrdinalIgnoreCase))
+        {
+            <pre>
+                <code>
+                    @Json
+                </code>
+            </pre>
+        }
+        else if (ViewMode.Equals("pretty", StringComparison.OrdinalIgnoreCase))
+        {
+            <JsonTreeView @ref="_tree" Json="@Json.ParseNestedJson()" Dense="true" Hover="true" />
+        }
+        else if (ViewMode.Equals("formatted", StringComparison.OrdinalIgnoreCase))
+        {
+            <JsGuard Name="monaco">
+                <StandaloneCodeEditor @ref="_editor"
+                                      Id="query-json"
+                                      CssClass="h-100 w-100 flex-grow-1"
+                                      ConstructionOptions="EditorConstructionOptions"
+                                      OnDidInit="HandleEditorInit" />
+            </JsGuard>
+        }
+    </div>
+</div>
 
 @code {
     private JsonTreeView.JsonTreeView? _tree;
     private StandaloneCodeEditor? _editor;
     private bool _editorInitialized;
+    private string? _formattedSource;
+    private string? _formatted;
     
     [Parameter] public string Json { get; set; } = "";
     [Parameter] public string ViewMode { get; set; } = "pretty";
@@ -73,7 +79,6 @@
     [Parameter] public bool ShowExpandButton { get; set; } = true;
     [Parameter] public EventCallback<string> ViewModeChanged { get; set; }
     [Parameter] public EventCallback OnExpandClick { get; set; }
-    [Inject] public IJsApiService JsApiService { get; set; } = default!;
 
     private StandaloneEditorConstructionOptions EditorConstructionOptions(StandaloneCodeEditor editor)
     {
@@ -104,21 +109,22 @@
     {
         if (_editor != null)
         {
-            var parsed = Json.ParseNestedJson();
-            var jsondoc = JsonDocument.Parse(parsed);
-            await _editor.SetValue(JsonSerializer.Serialize(jsondoc, new JsonSerializerOptions() {WriteIndented = true}));
+            await _editor.SetValue(FormattedJson());
         }
     }
 
-    private async Task CopyJsonToClipboardAsync()
+    // What's copied is what the formatted view shows; the tree and raw views both copy the JSON as it came.
+    private string CopyText => ViewMode.Equals("formatted", StringComparison.OrdinalIgnoreCase) ? FormattedJson() : Json;
+
+    private string FormattedJson()
     {
-        string? text = null;
-        if (_editor != null)
-        {
-            text = await _editor.GetValue();
-        }
-        
-        await JsApiService.CopyToClipboardAsync(text ?? Json);
+        if (_formattedSource == Json && _formatted != null)
+            return _formatted;
+
+        using var document = JsonDocument.Parse(Json.ParseNestedJson());
+        _formatted = JsonSerializer.Serialize(document, new JsonSerializerOptions { WriteIndented = true });
+        _formattedSource = Json;
+        return _formatted;
     }
 
     private async Task OnViewModeChanged(string newMode)
