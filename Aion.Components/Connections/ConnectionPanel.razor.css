@@ -35,9 +35,18 @@
     font-size: 0.875rem;
 }
 
-/* The type never shrinks, so a long column name gives way to it. */
+/* A long column name gives way to the type. Grid sizes the type's column to fit it before the name gets what is left,
+   so the name truncates first and the type only truncates once the name has no room at all, rather than the row
+   running past the panel. */
+.column-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
+}
+
 .column-type {
-    flex: 0 0 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
     font-family: var(--mud-typography-monospace, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
     font-size: 0.75rem;
@@ -91,6 +100,25 @@
     font-size: 1.125rem;
 }
 
+/* The tree is the panel's one scroll container, so the header and filter stay in place while it scrolls, and it
+   never scrolls sideways: every row fits the panel's width by truncating. MudBlazor makes each nested tree view and
+   each open collapse a scroll container of its own, which can give a group its own scrollbars when a row is a pixel
+   too tall, and a classic scrollbar takes the width the rows were fitted to. */
+.schema-tree {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.schema-tree ::deep .mud-treeview {
+    overflow: visible;
+}
+
+.schema-tree ::deep .mud-collapse-wrapper {
+    overflow: hidden;
+}
+
 .schema-tree ::deep .tree-group-count {
     margin-left: 8px;
     font-variant-numeric: tabular-nums;
@@ -98,17 +126,21 @@
     color: var(--mud-palette-text-secondary);
 }
 
-/* Table and view rows: the name gives way to the row count and the actions menu, and truncates last. */
+/* Database, table and view rows: the name gives way to the row count and the actions menu, the same way a column's
+   name gives way to its type. Rows without a count have one column fewer. */
 .relation-row {
-    display: flex;
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-columns: minmax(0, max-content);
     align-items: center;
-    gap: 8px;
+    column-gap: 8px;
     flex: 1 1 auto;
     min-width: 0;
+    container-type: inline-size;
 }
 
 .relation-row ::deep .relation-name {
-    flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -116,32 +148,19 @@
 }
 
 .row-count {
-    flex: 0 0 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 0.75rem;
     font-variant-numeric: tabular-nums;
     color: var(--mud-palette-text-secondary);
 }
 
-/* A row's actions take no room until it is hovered or the menu button has keyboard focus, so the name and
-   row count have the width of a narrow panel. Screens without hover always show them. */
-.relation-actions {
-    flex: 0 0 auto;
-    display: flex;
-    width: 0;
-    overflow: hidden;
-}
-
-.schema-tree ::deep .mud-treeview-item-content:hover .relation-actions,
-.relation-actions:focus-within {
-    width: auto;
-    overflow: visible;
-}
-
-@media (hover: none) {
-    .relation-actions {
-        width: auto;
-        overflow: visible;
+/* In a narrow panel the row count is the first thing to go, so the name keeps some room beside the actions. */
+@container (max-width: 8rem) {
+    .row-count {
+        display: none;
     }
 }
 
@@ -151,4 +170,10 @@
     align-items: flex-start;
     gap: 8px;
     padding: 8px 4px;
+}
+
+/* A row's actions always take their room. Revealing them on hover moved the name and row count as the pointer came
+   and went, and when the pointer left the row for the open menu the button collapsed and the menu jumped with it. */
+.relation-actions {
+    display: flex;
 }

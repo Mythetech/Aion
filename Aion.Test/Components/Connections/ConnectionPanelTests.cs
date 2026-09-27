@@ -290,6 +290,39 @@ public class ConnectionPanelTests : TestContext
     }
 
     [Fact]
+    public async Task ExpandingATable_WhoseProviderRepeatsColumns_ListsEachColumnOnce()
+    {
+        // A catalog query that matched key constraints by name alone returned a key column once for every schema
+        // holding a table of the same name, and the repeated rows crashed the tree.
+        var columns = ProductColumns();
+        _provider.GetColumnsAsync(Arg.Any<string>(), Database, "", "products").Returns([.. columns, columns[0], columns[2]]);
+        var cut = Render(ConnectionWithTables(Products));
+
+        await ToggleAsync(TableItem(cut, Products));
+
+        cut.WaitForAssertion(() => TableItem(cut, Products).FindAll(".column-row .tree-row-name")
+            .Select(name => name.TextContent)
+            .ShouldBe(["id", "name", "category_id", "description", "stock_quantity"]));
+        GroupItem(cut, "Foreign keys").FindAll(".tree-row-name").Select(name => name.TextContent).ShouldBe(["category_id"]);
+    }
+
+    [Fact]
+    public void TreeValues_StayUniqueWhenTheLoadedSchemaRepeatsTablesAndIndexes()
+    {
+        var connection = ConnectionWithLoadedColumns(ProductColumns());
+        var database = connection.Databases[0];
+        database.Tables = [Products, Products];
+        var index = new IndexInfo("", "", "products", "idx_products_category", false, false, ["category_id"]);
+        database.Indexes = [index, index];
+        database.IndexesLoaded = true;
+
+        var cut = Render(connection);
+
+        cut.FindComponents<MudTreeViewItem<string>>().Select(item => item.Instance.Value).ShouldBeUnique();
+        GroupItem(cut, "Indexes").FindAll(".tree-row-name").Select(name => name.TextContent).ShouldBe(["idx_products_category"]);
+    }
+
+    [Fact]
     public async Task ExpandTableCommand_ExpandsTheTableAndLoadsItsColumns()
     {
         _provider.GetColumnsAsync(Arg.Any<string>(), Database, "", "products").Returns(ProductColumns());
