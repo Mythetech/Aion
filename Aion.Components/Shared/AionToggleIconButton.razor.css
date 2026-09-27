@@ -3,17 +3,12 @@
 }
 
 .aion-toggle-icon-button ::deep .mud-icon-button {
-    width: 30px;
-    height: 30px;
-    padding: 0;
-    border-radius: 6px;
     color: var(--mud-palette-text-secondary);
 }
 
-/* On is told apart by three cues at once, so it reads in either theme: a tinted fill, an outline and a filled icon. */
+/* On is told apart by its tonal fill, its color and a filled icon, so it reads in either theme. */
 .aion-toggle-icon-button ::deep .mud-icon-button[aria-pressed="true"] {
     background-color: color-mix(in srgb, var(--mud-palette-primary) 18%, transparent);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mud-palette-primary) 55%, transparent);
     color: var(--mud-palette-primary);
 }
 
@@ -27,6 +22,5 @@
 
 .aion-toggle-icon-button ::deep .mud-icon-button[aria-pressed="true"][disabled] {
     background-color: color-mix(in srgb, var(--mud-palette-action-disabled) 14%, transparent);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mud-palette-action-disabled) 40%, transparent);
     color: var(--mud-palette-action-disabled);
 }

@@ -1,4 +1,3 @@
-@using Aion.Components.Infrastructure.Commands
 @using Aion.Components.Querying.Commands
 @using Aion.Contracts.Queries
 @using Mythetech.Framework.Components.Buttons
@@ -37,12 +36,11 @@
                           Text="@($"Go to line {line}")"
                           OnClick="GoToAsync" />
             }
-            <MtButton Class="query-error-copy"
-                      Variant="Variant.Outlined"
-                      Color="Color.Error"
-                      Size="Size.Small"
-                      Text="Copy error"
-                      OnClick="CopyAsync" />
+            <MtCopyButton Class="query-error-copy"
+                          Text="@Error.Raw"
+                          CopyTooltip="Copy error"
+                          Color="Color.Error"
+                          Size="Size.Small" />
         </div>
         @if (Meta.Count > 0)
         {
@@ -93,7 +91,6 @@
         }
     }
 
-    private async Task CopyAsync() => await Bus.PublishAsync(new CopyToClipboard(Error.Raw));
 
     private async Task GoToAsync()
     {

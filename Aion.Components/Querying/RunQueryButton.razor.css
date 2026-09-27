@@ -1,6 +1,15 @@
+/* The Framework's large roundedness (MtButton's default), so Run matches the app's other buttons. Registered as a
+   length so the theme's em radius resolves once, here, and both halves inherit the same pixels instead of each
+   resolving it against its own font size. */
+@property --run-split-radius {
+    syntax: '<length>';
+    inherits: true;
+    initial-value: 0px;
+}
+
 .run-split {
     --run-split-height: 32px;
-    --run-split-radius: 10px;
+    --run-split-radius: calc(var(--mud-default-borderradius) * 3);
     display: inline-flex;
     align-items: stretch;
     flex: none;
@@ -12,9 +21,6 @@
     min-width: 0;
     padding: 0 10px 0 12px;
     border-radius: var(--run-split-radius) 0 0 var(--run-split-radius);
-    font-weight: 600;
-    letter-spacing: normal;
-    text-transform: none;
     white-space: nowrap;
     transition: background 0.2s cubic-bezier(.4, 0, .2, 1), box-shadow 0.2s cubic-bezier(.4, 0, .2, 1);
 }

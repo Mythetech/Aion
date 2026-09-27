@@ -1,4 +1,4 @@
-using Aion.Components.Infrastructure.Commands;
+using Mythetech.Framework.Components.Buttons;
 using Aion.Components.Querying;
 using Aion.Components.Querying.Commands;
 using Aion.Components.Querying.Consumers;
@@ -224,11 +224,9 @@ public class PendingChangesBarTests : TestContext
         var cut = RenderBar();
         var provider = await ReviewSqlAsync(cut);
 
-        await provider.Find(".sql-review-copy").ClickAsync(new MouseEventArgs());
-
-        await _fixture.Bus.Received(1).PublishAsync(Arg.Is<CopyToClipboard>(c =>
-            c.Text == "UPDATE \"public\".\"users\"\nSET \"name\" = 'Ada Lovelace'\nWHERE \"id\" = 1;\n\n" +
-                      "UPDATE \"public\".\"users\"\nSET \"name\" = 'Grace Hopper'\nWHERE \"id\" = 2;"));
+        provider.FindComponent<MtCopyButton>().Instance.Text.ShouldBe(
+            "UPDATE \"public\".\"users\"\nSET \"name\" = 'Ada Lovelace'\nWHERE \"id\" = 1;\n\n" +
+            "UPDATE \"public\".\"users\"\nSET \"name\" = 'Grace Hopper'\nWHERE \"id\" = 2;");
     }
 
     [Fact]

@@ -1,5 +1,4 @@
 @using Aion.Components.History.Commands
-@using Aion.Components.Infrastructure.Commands
 @using Aion.Components.NativeMenu
 @using Aion.Components.Querying
 @using Aion.Components.Shared
@@ -113,14 +112,10 @@
                                                       IconSize="Size.Small"
                                                       Text="Run again"
                                                       OnClick="@(() => RunAgainAsync(entry))" />
-                                            <MudIconButton Class="history-copy"
-                                                           Icon="@AionIcons.Copy"
-                                                           Variant="Variant.Outlined"
-                                                           Size="Size.Small"
-                                                           Ripple="false"
-                                                           aria-label="Copy SQL"
-                                                           title="Copy SQL"
-                                                           OnClick="@(() => CopyAsync(entry))" />
+                                            <MtCopyButton Class="history-copy"
+                                                          Text="@entry.Sql"
+                                                          CopyTooltip="Copy SQL"
+                                                          Size="Size.Small" />
                                         </div>
                                     </div>
                                 </li>
@@ -190,8 +185,6 @@
     private async Task OpenAsync(QueryHistoryEntry entry) => await Bus.PublishAsync(new OpenHistoryEntry(entry));
 
     private async Task RunAgainAsync(QueryHistoryEntry entry) => await Bus.PublishAsync(new OpenHistoryEntry(entry, Run: true));
-
-    private async Task CopyAsync(QueryHistoryEntry entry) => await Bus.PublishAsync(new CopyToClipboard(entry.Sql));
 
     private async Task OnEntryKeyDownAsync(KeyboardEventArgs e, QueryHistoryEntry entry)
     {

@@ -1,0 +1,15 @@
+/* The referenced row takes what the header leaves, so its JSON viewer has a bounded height to scroll in. */
+.fk-viewer {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.fk-viewer-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 8px;
+}

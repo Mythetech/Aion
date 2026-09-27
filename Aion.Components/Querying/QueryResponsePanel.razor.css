@@ -46,6 +46,10 @@
     font-size: 0.75rem;
 }
 
+.query-response-footer ::deep .query-selection-count {
+    margin: 0 0 0 auto;
+}
+
 .query-status-failed,
 .query-status-cancelled {
     display: inline-flex;

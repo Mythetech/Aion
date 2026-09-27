@@ -1,6 +1,6 @@
+using Mythetech.Framework.Components.Buttons;
 using Aion.Components.History;
 using Aion.Components.History.Commands;
-using Aion.Components.Infrastructure.Commands;
 using Aion.Components.NativeMenu;
 using Aion.Components.Querying;
 using Aion.Test.TestDoubles;
@@ -175,14 +175,15 @@ public class HistoryPanelTests : TestContext
     }
 
     [Fact]
-    public async Task Copy_PublishesTheEntrysSql()
+    public async Task Copy_CopiesTheEntrysSql()
     {
         await _history.AddAsync(HistoryEntries.Success("SELECT 1", DateTimeOffset.Now));
         var cut = RenderComponent<HistoryPanel>();
 
-        await cut.Find("button[aria-label='Copy SQL']").ClickAsync(new MouseEventArgs());
+        var copy = cut.FindComponent<MtCopyButton>().Instance;
 
-        await _bus.Received(1).PublishAsync(Arg.Is<CopyToClipboard>(c => c.Text == "SELECT 1"));
+        copy.Text.ShouldBe("SELECT 1");
+        copy.CopyTooltip.ShouldBe("Copy SQL");
     }
 
     [Fact]

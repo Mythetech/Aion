@@ -1,3 +1,4 @@
+@using Mythetech.Framework.Components.Buttons
 @using Aion.Components.Connections.Commands
 @using Aion.Components.Connections.Events
 @using Aion.Components.Querying
@@ -76,8 +77,8 @@
     {
         <div class="needs-password" role="status">
             <MudText Typo="Typo.body2" Class="needs-password-reason">@GetConnectionErrorTooltip()</MudText>
-            <MudButton Class="enter-password" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
-                       StartIcon="@AionIcons.Password" OnClick="EnterPassword">Enter password</MudButton>
+            <MtButton Class="enter-password" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                      StartIcon="@AionIcons.Password" OnClick="EnterPassword">Enter password</MtButton>
         </div>
     }
 

@@ -327,7 +327,7 @@
     align-items: center;
     padding: 1px;
     border: 0;
-    border-radius: 4px;
+    border-radius: 50%;
     background: none;
     color: var(--mud-palette-primary);
     cursor: pointer;

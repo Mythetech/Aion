@@ -1,3 +1,4 @@
+@using Mythetech.Framework.Components.Buttons
 @using Aion.Components.Querying.Commands
 @using Aion.Components.Querying.Consumers
 @using Aion.Components.Querying.Editing
@@ -147,12 +148,12 @@
 {
     <div class="result-limit-bar">
         <span>Showing @_shownRows.Count.ToString("N0") of @_view.Count.ToString("N0") @(_view.IsFiltered ? "matching rows" : "rows")</span>
-        <MudButton Class="result-load-more" Variant="Variant.Text" Size="Size.Small" Color="Color.Primary" OnClick="LoadMore">
+        <MtButton Class="result-load-more" Variant="Variant.Text" Size="Size.Small" Color="Color.Primary" OnClick="LoadMore">
             Load @Math.Min(RowLimit, _view.Count - _shownRows.Count).ToString("N0") more
-        </MudButton>
-        <MudButton Class="result-show-all" Variant="Variant.Text" Size="Size.Small" Color="Color.Primary" OnClick="ShowAll">
+        </MtButton>
+        <MtButton Class="result-show-all" Variant="Variant.Text" Size="Size.Small" Color="Color.Primary" OnClick="ShowAll">
             Show all
-        </MudButton>
+        </MtButton>
     </div>
 }
 
