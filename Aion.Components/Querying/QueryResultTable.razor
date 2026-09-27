@@ -1,4 +1,3 @@
-@using Aion.Components.History
 @using Aion.Components.Querying.Commands
 @using Aion.Components.Querying.Consumers
 @using Aion.Components.Querying.Editing
@@ -7,10 +6,12 @@
 @using Aion.Components.RequestContextPanel.Commands
 @using Aion.Components.Settings.Domains
 @using Aion.Components.Shared
+@using Aion.Components.Shared.Snackbar.Commands
 @using Aion.Components.Theme
 @using Aion.Contracts.Database
 @using Aion.Contracts.Queries
 @using Microsoft.JSInterop
+@using System.Text.Json
 @using MudBlazor.Services
 @using MudBlazor.State
 @using Mythetech.Framework.Infrastructure.MessageBus
@@ -30,36 +31,48 @@
              OverscanCount="20"
              ColumnResizeMode="ResizeMode.Container"
              RowClassFunc="@RowClass"
+             RowContextMenuClick="@OpenRowMenuAsync"
              Class="query-result-table">
     <Columns>
-        @* Row numbers, which also select rows *@
+        @* A checkbox and the row's number, one control, so rows are picked the same way while reading and while
+           editing, where clicking a cell edits it. *@
         <TemplateColumn T="ResultRow"
                         Title=""
                         Sortable="false"
                         Filterable="false"
                         Resizable="false"
-                        HeaderClass="row-number-header"
-                        CellClass="row-number-cell">
+                        HeaderClass="row-select-header"
+                        CellClass="row-select-cell">
             <HeaderTemplate>
                 @{
-                    var allSelected = SelectionState.AreAllSelected(_view.Order);
+                    var coverage = SelectionState.CoverageOf(_view.Order);
                 }
                 <button type="button"
-                        class="row-number-toggle"
-                        aria-pressed="@(allSelected ? "true" : "false")"
-                        aria-label="@(allSelected ? "Clear selection" : SelectAllLabel)"
-                        title="@(allSelected ? "Clear selection" : SelectAllLabel)"
-                        @onclick="ToggleSelectAll">#</button>
+                        class="row-select-all"
+                        role="checkbox"
+                        aria-checked="@AriaChecked(coverage)"
+                        aria-label="@SelectAllLabel"
+                        title="@(coverage == SelectionCoverage.All ? "Clear selection" : SelectAllLabel)"
+                        @onclick="ToggleSelectAll">
+                    <MudIcon Icon="@CheckboxIcon(coverage)" Class="row-check" />
+                </button>
             </HeaderTemplate>
             <CellTemplate>
                 @{
                     var rowIndex = context.Item.Index;
                     var selected = SelectionState.IsSelected(rowIndex);
+                    var number = _view.PositionOf(rowIndex) + 1;
                 }
-                <button type="button"
-                        class="row-number"
-                        aria-pressed="@(selected ? "true" : "false")"
-                        @onclick="@(e => HandleRowNumberClick(rowIndex, e))">@(_view.PositionOf(rowIndex) + 1)</button>
+                <button @ref="_selectElements[rowIndex]"
+                        type="button"
+                        class="row-select"
+                        role="checkbox"
+                        aria-checked="@(selected ? "true" : "false")"
+                        aria-label="@($"Select row {number}")"
+                        @onclick="@(e => HandleRowSelectClick(rowIndex, e))">
+                    <MudIcon Icon="@(selected ? AionIcons.Checked : AionIcons.Unchecked)" Class="row-check" />
+                    <span class="row-number">@number</span>
+                </button>
             </CellTemplate>
         </TemplateColumn>
 
@@ -101,8 +114,7 @@
                         var rowIndex = context.Item.Index;
                         var foreignKey = value is not null && IsForeignKeyColumn(col, out var reference) ? reference : null;
                         <div class="cell-content @(column.IsNumeric ? "numeric" : null) @(foreignKey is null ? null : "cell-fk-value")"
-                             @oncontextmenu="@(e => ShowContextMenu(e, context.Item, col, value))"
-                             @oncontextmenu:preventDefault="true"
+                             @oncontextmenu="@(() => NoteRightClickedCell(rowIndex, col))"
                              @onclick="@(e => HandleCellClick(rowIndex, e))">
                             @if (value != null && value.ToString()!.StartsWith('{') && value.ToString()!.EndsWith('}'))
                             {
@@ -144,74 +156,99 @@
     </div>
 }
 
-@* Context Menu *@
+@* Right-clicking anywhere on a row opens its menu at the pointer. It acts on that row, and on the selection too when
+   the row is part of it. *@
 <AionMenu @ref="_contextMenu"
-         AnchorOrigin="Origin.BottomLeft"
-         TransformOrigin="Origin.TopLeft"
-         PositionAtCursor="true">
+          AnchorOrigin="Origin.BottomLeft"
+          TransformOrigin="Origin.TopLeft"
+          PositionAtCursor="true"
+          OpenChanged="OnRowMenuOpenChanged">
     <ChildContent>
-        <MudMenuItem OnClick="@CopyCellValue" Icon="@AionIcons.Copy">
-            Copy Cell
-        </MudMenuItem>
-        <MudMenuItem OnClick="@CopyRowAsJson" Icon="@AionIcons.Json">
-            Copy Row as JSON
-        </MudMenuItem>
-        <MudMenuItem OnClick="@CopyRowAsCsv" Icon="@AionIcons.Csv">
-            Copy Row as CSV
-        </MudMenuItem>
-
-        @if (SelectionState.HasSelection)
+        @if (_contextRow is { } row)
         {
-            <MudDivider />
-            <MudMenuItem OnClick="@CopySelectedRows" Icon="@AionIcons.Copy">
-                Copy Selected (@QueryHistoryFormatter.Rows(SelectionState.SelectedCount))
-            </MudMenuItem>
-            <MudDivider />
-            <MudMenuItem OnClick="@ExportSelectedCsv" Icon="@AionIcons.Csv">
-                Export Selected to CSV
-            </MudMenuItem>
-            <MudMenuItem OnClick="@ExportSelectedJson" Icon="@AionIcons.Json">
-                Export Selected to JSON
-            </MudMenuItem>
-            <MudMenuItem OnClick="@ExportSelectedExcel" Icon="@AionIcons.Spreadsheet">
-                Export Selected to Excel
-            </MudMenuItem>
-        }
+            var column = _contextColumn;
+            var selected = SelectionState.IsSelected(row.Index);
+            var selection = selected ? SelectedShownRows() : [];
+            <ContextMenuFocus OnEscape="CloseRowMenuWithKeyboardAsync">
+                @if (column != null)
+                {
+                    <MudMenuItem Icon="@AionIcons.Copy" Disabled="@(ResultValueFormatter.Full(row.Values.GetValueOrDefault(column)) is null)" OnClick="@(() => CopyCellAsync(row, column))">
+                        Copy cell
+                    </MudMenuItem>
+                }
+                <MudMenuItem Icon="@AionIcons.Copy" OnClick="@(() => CopyRowAsync(row, "Csv"))">
+                    Copy row
+                </MudMenuItem>
+                <MudMenuItem Icon="@AionIcons.Json" OnClick="@(() => CopyRowAsync(row, "Json"))">
+                    Copy row as JSON
+                </MudMenuItem>
+                @if (selection.Count > 1)
+                {
+                    <MudMenuItem Icon="@AionIcons.CopyRows" OnClick="@(() => CopyRowsAsync(selection))">
+                        Copy @selection.Count selected rows
+                    </MudMenuItem>
+                }
 
-        @if (IsEditing && _contextRow != null)
-        {
-            <MudDivider />
-            @if (CanSetContextCellNull)
-            {
-                <MudMenuItem OnClick="@SetContextCellNull" Icon="@AionIcons.SetNull">
-                    Set Cell to NULL
+                @if (IsEditing)
+                {
+                    <MudDivider />
+                    @if (column != null && CanSetCellNull(row, column))
+                    {
+                        <MudMenuItem Icon="@AionIcons.SetNull" OnClick="@(() => FromMenu(() => SetCell(row, column, null)))">
+                            Set cell to NULL
+                        </MudMenuItem>
+                    }
+                    @if (column != null && Edits!.IsCellModified(row.Index, column))
+                    {
+                        <MudMenuItem Icon="@AionIcons.Undo" OnClick="@(() => FromMenu(() => SetCell(row, column, row.Values.GetValueOrDefault(column))))">
+                            Revert cell
+                        </MudMenuItem>
+                    }
+                    @if (IsRowDeleted(row.Index))
+                    {
+                        var restore = selection.Where(r => IsRowDeleted(r.Index)).ToList();
+                        <MudMenuItem Icon="@AionIcons.Restore" IconColor="Color.Success" OnClick="@(() => FromMenu(() => RestoreRows(restore.Count > 1 ? restore : [row])))">
+                            @(restore.Count > 1 ? $"Restore {restore.Count} selected rows" : "Restore row")
+                        </MudMenuItem>
+                    }
+                    else
+                    {
+                        var delete = selection.Where(r => !IsRowDeleted(r.Index)).ToList();
+                        <MudMenuItem Icon="@AionIcons.Delete" IconColor="Color.Error" OnClick="@(() => FromMenu(() => DeleteRows(delete.Count > 1 ? delete : [row])))">
+                            @(delete.Count > 1 ? $"Delete {delete.Count} selected rows" : "Delete row")
+                        </MudMenuItem>
+                    }
+                }
+
+                <MudDivider />
+                <MudMenuItem Icon="@(selected ? AionIcons.Unchecked : AionIcons.Checked)" OnClick="@(() => FromMenu(() => SelectionState.ToggleRow(row.Index, shiftKey: false, _view.Order)))">
+                    @(selected ? "Deselect row" : "Select row")
                 </MudMenuItem>
-            }
-            @if (IsContextCellModified)
-            {
-                <MudMenuItem OnClick="@RevertContextCell" Icon="@AionIcons.Undo">
-                    Revert Cell
+                <MudMenuItem Icon="@AionIcons.ViewJson" OnClick="@(() => ViewRowAsJsonAsync(row))">
+                    View row as JSON
                 </MudMenuItem>
-            }
-            @if (IsRowDeleted(_contextRow.Index))
-            {
-                <MudMenuItem OnClick="@UndeleteContextRow" Icon="@AionIcons.Undo" IconColor="Color.Success">
-                    Restore Row
-                </MudMenuItem>
-            }
-            else
-            {
-                <MudMenuItem OnClick="@DeleteContextRow" Icon="@AionIcons.Delete" IconColor="Color.Error">
-                    Delete Row
-                </MudMenuItem>
-            }
-            var selectedToDelete = SelectedRowsToDelete;
-            @if (selectedToDelete.Count > 1)
-            {
-                <MudMenuItem OnClick="@(() => DeleteRows(selectedToDelete))" Icon="@AionIcons.Delete" IconColor="Color.Error">
-                    Delete @selectedToDelete.Count Selected Rows
-                </MudMenuItem>
-            }
+                @foreach (var link in RelatedRows(row))
+                {
+                    <MudMenuItem Icon="@AionIcons.ForeignKey" OnClick="@(() => OpenForeignKeyFromMenuAsync(link, row))">
+                        @link.Label
+                    </MudMenuItem>
+                }
+
+                @if (selection.Count > 0)
+                {
+                    var exported = selection.Count == 1 ? "selected row" : $"{selection.Count} selected rows";
+                    <MudDivider />
+                    <MudMenuItem Icon="@AionIcons.Csv" OnClick="@(() => ExportRowsAsync(selection, "Csv"))">
+                        Export @exported to CSV
+                    </MudMenuItem>
+                    <MudMenuItem Icon="@AionIcons.Json" OnClick="@(() => ExportRowsAsync(selection, "Json"))">
+                        Export @exported to JSON
+                    </MudMenuItem>
+                    <MudMenuItem Icon="@AionIcons.Spreadsheet" OnClick="@(() => ExportRowsAsync(selection, "Excel"))">
+                        Export @exported to Excel
+                    </MudMenuItem>
+                }
+            </ContextMenuFocus>
         }
     </ChildContent>
 </AionMenu>
@@ -248,10 +285,13 @@
 
     private AionMenu? _contextMenu;
 
-    // Context menu state
+    // The row the menu is open on, and the cell within it when the right-click landed on one.
     private ResultRow? _contextRow;
     private string? _contextColumn;
-    private object? _contextValue;
+    private bool _rowMenuOpen;
+
+    // A right-click reaches the cell before its row, so the cell notes itself here for the row's menu to pick up.
+    private (int Row, string Column)? _rightClickedCell;
 
     private EditState? _subscribedEditState;
 
@@ -260,6 +300,11 @@
     private (int Row, string Column)? _activeCell;
     private bool _focusActiveCell;
     private readonly Dictionary<(int Row, string Column), ElementReference> _cellElements = [];
+
+    // Each rendered row's checkbox, where focus returns when the row's menu closes and no cell can take it.
+    private readonly Dictionary<int, ElementReference> _selectElements = [];
+    private int? _focusRowCheckbox;
+
     private QueryEditMetadata? _rulesMetadata;
     private readonly Dictionary<string, EditableColumn> _columnRules = [];
 
@@ -306,6 +351,7 @@
             _editSession = null;
             _activeCell = null;
             _cellElements.Clear();
+            _selectElements.Clear();
 
             // Running the query again keeps its sort; a result without that column starts unsorted.
             if (_sortState.Value is { } sort && !Result.Columns.Contains(sort.Key))
@@ -401,15 +447,29 @@
             _focusActiveCell = false;
             if (_cellElements.TryGetValue(active, out var element))
             {
-                try
-                {
-                    await element.FocusAsync();
-                }
-                catch (JSException)
-                {
-                    // The cell's row scrolled out of view and was removed, so there is nothing to focus.
-                }
+                await FocusIfShownAsync(element);
             }
+        }
+
+        if (_focusRowCheckbox is { } row)
+        {
+            _focusRowCheckbox = null;
+            if (_selectElements.TryGetValue(row, out var checkbox))
+            {
+                await FocusIfShownAsync(checkbox);
+            }
+        }
+    }
+
+    private static async Task FocusIfShownAsync(ElementReference element)
+    {
+        try
+        {
+            await element.FocusAsync();
+        }
+        catch (JSException)
+        {
+            // The element's row scrolled out of view and was removed, so there is nothing to focus.
         }
     }
 
@@ -522,8 +582,7 @@
                  @onclick="@(() => OnEditCellClick(row, col))"
                  @onfocus="@(() => _activeCell = (rowIndex, col))"
                  @onkeydown="@(e => OnEditCellKeyDown(e, row, col))"
-                 @oncontextmenu="@(e => ShowContextMenu(e, row, col, row.Values.GetValueOrDefault(col)))"
-                 @oncontextmenu:preventDefault="true">
+                 @oncontextmenu="@(() => NoteRightClickedCell(rowIndex, col))">
                 @EditCellValue(row, column)
             </div>
         }
@@ -753,38 +812,10 @@
         return -1;
     }
 
-    private bool CanSetContextCellNull =>
-        _contextRow != null && _contextColumn != null
-        && CanEditCell(_contextRow, _contextColumn)
-        && RulesFor(_contextColumn).IsNullable
-        && Edits!.GetEffectiveValue(_contextRow.Index, _contextColumn, _contextRow.Values) != null;
-
-    private bool IsContextCellModified =>
-        _contextRow != null && _contextColumn != null && Edits?.IsCellModified(_contextRow.Index, _contextColumn) == true;
-
-    private void SetContextCellNull()
-    {
-        if (_contextRow == null || _contextColumn == null) return;
-        SetCell(_contextRow, _contextColumn, null);
-    }
-
-    private void RevertContextCell()
-    {
-        if (_contextRow == null || _contextColumn == null) return;
-        SetCell(_contextRow, _contextColumn, _contextRow.Values.GetValueOrDefault(_contextColumn));
-    }
-
-    // The selected rows that the context menu's row belongs to, in the order shown, without those already deleted.
-    private IReadOnlyList<ResultRow> SelectedRowsToDelete =>
-        _contextRow != null && SelectionState.IsSelected(_contextRow.Index)
-            ? _view.Rows.Where(r => SelectionState.IsSelected(r.Index) && !IsRowDeleted(r.Index)).ToList()
-            : [];
-
-    private void DeleteContextRow()
-    {
-        if (_contextRow == null) return;
-        Edits?.DeleteRow(_contextRow.Index, _contextRow.Values);
-    }
+    private bool CanSetCellNull(ResultRow row, string column) =>
+        CanEditCell(row, column)
+        && RulesFor(column).IsNullable
+        && Edits!.GetEffectiveValue(row.Index, column, row.Values) != null;
 
     private void DeleteRows(IReadOnlyList<ResultRow> rows)
     {
@@ -794,10 +825,12 @@
         }
     }
 
-    private void UndeleteContextRow()
+    private void RestoreRows(IReadOnlyList<ResultRow> rows)
     {
-        if (_contextRow == null) return;
-        Edits?.UndeleteRow(_contextRow.Index);
+        foreach (var row in rows)
+        {
+            Edits?.UndeleteRow(row.Index);
+        }
     }
 
     private void HandleCellClick(int rowIndex, MouseEventArgs e)
@@ -805,7 +838,8 @@
         SelectionState.ToggleSelection(rowIndex, e.CtrlKey || e.MetaKey, e.ShiftKey, _view.Order);
     }
 
-    private void HandleRowNumberClick(int rowIndex, MouseEventArgs e)
+    // A checkbox toggles its row whether or not Ctrl or Cmd is held, so only Shift changes what a click does.
+    private void HandleRowSelectClick(int rowIndex, MouseEventArgs e)
     {
         SelectionState.ToggleRow(rowIndex, e.ShiftKey, _view.Order);
     }
@@ -814,7 +848,7 @@
 
     private void ToggleSelectAll()
     {
-        if (SelectionState.AreAllSelected(_view.Order))
+        if (SelectionState.CoverageOf(_view.Order) == SelectionCoverage.All)
         {
             SelectionState.ClearSelection();
         }
@@ -823,6 +857,20 @@
             SelectionState.SelectAll(_view.Order);
         }
     }
+
+    private static string AriaChecked(SelectionCoverage coverage) => coverage switch
+    {
+        SelectionCoverage.All => "true",
+        SelectionCoverage.Some => "mixed",
+        _ => "false"
+    };
+
+    private static string CheckboxIcon(SelectionCoverage coverage) => coverage switch
+    {
+        SelectionCoverage.All => AionIcons.Checked,
+        SelectionCoverage.Some => AionIcons.PartlyChecked,
+        _ => AionIcons.Unchecked
+    };
 
     private string? RowClass(ResultRow row, int position)
     {
@@ -833,71 +881,134 @@
             { } edits when edits.IsRowInserted(row.Index) => "row-inserted",
             _ => null
         };
+        var context = _rowMenuOpen && _contextRow?.Index == row.Index ? "row-context" : null;
 
-        return selected != null && edit != null ? $"{selected} {edit}" : selected ?? edit;
+        var classes = string.Join(' ', new[] { selected, edit, context }.Where(c => c != null));
+        return classes.Length > 0 ? classes : null;
     }
 
-    private async Task ShowContextMenu(MouseEventArgs e, ResultRow row, string column, object? value)
-    {
-        _contextRow = row;
-        _contextColumn = column;
-        _contextValue = value;
+    // Only notes the cell. The row's handler runs next and opens the menu, so a right-click anywhere on the row,
+    // its checkbox and cell padding included, opens it.
+    private void NoteRightClickedCell(int rowIndex, string column) => _rightClickedCell = (rowIndex, column);
 
-        // Select the row if not already selected
-        var rowIndex = row.Index;
-        if (!SelectionState.IsSelected(rowIndex))
-        {
-            SelectionState.ToggleSelection(rowIndex, ctrlKey: false, shiftKey: false, _view.Order);
-        }
+    private async Task OpenRowMenuAsync(DataGridRowClickEventArgs<ResultRow> args)
+    {
+        var row = args.Item;
+        _contextRow = row;
+        _contextColumn = _rightClickedCell is { } cell && cell.Row == row.Index ? cell.Column : null;
+        _rightClickedCell = null;
 
         if (_contextMenu != null)
         {
-            await _contextMenu.OpenMenuAsync(e);
+            await _contextMenu.OpenMenuAsync(args.MouseEventArgs);
         }
-        StateHasChanged();
     }
 
-    private async Task CopyCellValue()
+    private void OnRowMenuOpenChanged(bool open) => _rowMenuOpen = open;
+
+    private async Task CloseRowMenuWithKeyboardAsync()
     {
-        if (_contextValue == null) return;
-        await Bus.PublishAsync(new CopyCellToClipboard(_contextValue.ToString() ?? ""));
+        if (_contextMenu != null)
+        {
+            await _contextMenu.CloseMenuAsync();
+        }
+
+        ReturnFocusToContextRow();
     }
 
-    private async Task CopyRowAsJson()
+    // The menu has closed by the time an item runs, and focus went with it, so the item hands focus back to the row.
+    // Only Escape and the items do: a click elsewhere that closes the menu keeps the focus it gave.
+    private void FromMenu(Action action)
     {
-        if (_contextRow == null) return;
-        await Bus.PublishAsync(new CopyRowToClipboard(_contextRow.Values, Result.Columns, "Json"));
+        action();
+        ReturnFocusToContextRow();
     }
 
-    private async Task CopyRowAsCsv()
+    private async Task FromMenuAsync(Func<Task> action)
     {
-        if (_contextRow == null) return;
-        await Bus.PublishAsync(new CopyRowToClipboard(_contextRow.Values, Result.Columns, "Csv", Result.Headers()));
+        await action();
+        ReturnFocusToContextRow();
     }
 
-    private async Task CopySelectedRows()
+    // Back to the cell that was right-clicked when it can take focus, as edit mode's cells can, or else the row's checkbox.
+    private void ReturnFocusToContextRow()
     {
-        var selectedRows = SelectionState.GetSelectedRows(Result.Rows);
-        await Bus.PublishAsync(new CopySelectedRowsToClipboard(selectedRows, Result.Columns, "Csv", Result.Headers()));
+        if (_contextRow is not { } row)
+        {
+            return;
+        }
+
+        if (IsEditing && _contextColumn is { } column && _editSession == null)
+        {
+            FocusCell(row.Index, column);
+        }
+        else
+        {
+            _focusRowCheckbox = row.Index;
+        }
     }
 
-    private async Task ExportSelectedCsv()
+    // The selected rows the grid shows, in its order, so what the menu copies, exports or deletes is what's in view.
+    private List<ResultRow> SelectedShownRows() =>
+        _view.Rows.Where(r => SelectionState.IsSelected(r.Index)).ToList();
+
+    private Task CopyCellAsync(ResultRow row, string column) => FromMenuAsync(() =>
+        Bus.PublishAsync(new CopyCellToClipboard(ResultValueFormatter.Full(row.Values.GetValueOrDefault(column)) ?? "")));
+
+    private Task CopyRowAsync(ResultRow row, string format) => FromMenuAsync(() =>
+        Bus.PublishAsync(new CopyRowToClipboard(row.Values, Result.Columns, format, Result.Headers())));
+
+    private Task CopyRowsAsync(IReadOnlyList<ResultRow> rows) => FromMenuAsync(() =>
+        Bus.PublishAsync(new CopySelectedRowsToClipboard(rows.Select(r => r.Values).ToList(), Result.Columns, "Csv", Result.Headers())));
+
+    private Task ExportRowsAsync(IReadOnlyList<ResultRow> rows, string format) => FromMenuAsync(() =>
+        Bus.PublishAsync(new ExportSelectedRows(rows.Select(r => r.Values).ToList(), Result.Columns, format, Result.Headers())));
+
+    private Task ViewRowAsJsonAsync(ResultRow row) => FromMenuAsync(async () =>
     {
-        var selectedRows = SelectionState.GetSelectedRows(Result.Rows);
-        await Bus.PublishAsync(new ExportSelectedRows(selectedRows, Result.Columns, "Csv", Result.Headers()));
+        string json;
+        try
+        {
+            json = JsonSerializer.Serialize(row.Values);
+        }
+        catch (NotSupportedException)
+        {
+            await Bus.PublishAsync(new AddNotification("This row has values that can't be shown as JSON", Severity.Warning));
+            return;
+        }
+
+        await OpenJsonDetailView($"Row {_view.PositionOf(row.Index) + 1}", json);
+    });
+
+    private sealed record RelatedRow(string Column, ForeignKeyInfo ForeignKey, object Value, string Label);
+
+    // The rows this row's foreign keys point at. Only rows from one known table know which columns those are.
+    private List<RelatedRow> RelatedRows(ResultRow row)
+    {
+        if (!ConnectionId.HasValue || string.IsNullOrEmpty(DatabaseName))
+        {
+            return [];
+        }
+
+        // A key being edited links to the row its new value names, as the cell's own link does.
+        var links = _columns
+            .Select(column => IsForeignKeyColumn(column.Key, out var foreignKey)
+                && (Edits is { } edits ? edits.GetEffectiveValue(row.Index, column.Key, row.Values) : row.Values.GetValueOrDefault(column.Key)) is { } value
+                    ? new RelatedRow(column.Key, foreignKey!, value, $"Show {foreignKey!.ReferencedTable} row")
+                    : null)
+            .OfType<RelatedRow>()
+            .ToList();
+
+        // Two keys into the same table, such as created_by and updated_by, are told apart by their columns.
+        return links
+            .Select(link => links.Count(l => l.ForeignKey.ReferencedTable == link.ForeignKey.ReferencedTable) > 1
+                ? link with { Label = $"{link.Label} ({link.Column})" }
+                : link)
+            .ToList();
     }
 
-    private async Task ExportSelectedJson()
-    {
-        var selectedRows = SelectionState.GetSelectedRows(Result.Rows);
-        await Bus.PublishAsync(new ExportSelectedRows(selectedRows, Result.Columns, "Json", Result.Headers()));
-    }
-
-    private async Task ExportSelectedExcel()
-    {
-        var selectedRows = SelectionState.GetSelectedRows(Result.Rows);
-        await Bus.PublishAsync(new ExportSelectedRows(selectedRows, Result.Columns, "Excel", Result.Headers()));
-    }
+    private Task OpenForeignKeyFromMenuAsync(RelatedRow link, ResultRow row) =>
+        FromMenuAsync(() => OpenForeignKeyView(link.Column, link.ForeignKey, link.Value, row));
 
     protected async Task OpenJsonDetailView(string column, string json)
     {

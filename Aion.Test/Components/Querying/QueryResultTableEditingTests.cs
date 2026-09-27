@@ -285,14 +285,16 @@ public class QueryResultTableEditingTests : TestContext
     }
 
     [Fact]
-    public async Task RowNumbers_StillSelectRows()
+    public async Task RowCheckboxes_StillSelectRows()
     {
         var selection = new RowSelectionState();
         var cut = Render(selection);
 
-        await Row(cut, 1).QuerySelector(".row-number")!.ClickAsync(new MouseEventArgs());
+        await Row(cut, 1).QuerySelector(".row-select")!.ClickAsync(new MouseEventArgs());
+        await Row(cut, 0).QuerySelector(".row-select")!.ClickAsync(new MouseEventArgs { ShiftKey = true });
 
-        selection.SelectedIndices.ShouldBe([1]);
+        selection.SelectedIndices.OrderBy(i => i).ShouldBe([0, 1]);
+        cut.Find(".row-select-all").GetAttribute("aria-checked").ShouldBe("true");
     }
 
     [Fact]

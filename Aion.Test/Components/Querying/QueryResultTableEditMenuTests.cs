@@ -63,12 +63,19 @@ public class QueryResultTableEditMenuTests : TestContext
             .Add(x => x.EditMetadata, _metadata)
             .Add(x => x.SelectionState, _selection));
 
-    private async Task OpenMenuAsync(IRenderedComponent<QueryResultTable> cut, int row, string column)
+    // bUnit doesn't bubble events, so a right-click on a cell is raised on the cell and then on its row, the order
+    // the browser delivers them in. With no column it lands on the row outside its cells, such as its checkbox.
+    private async Task OpenMenuAsync(IRenderedComponent<QueryResultTable> cut, int row, string? column = null)
     {
-        await cut.FindAll("tbody tr.mud-table-row")[row]
-            .QuerySelectorAll("td")[Array.IndexOf(ColumnNames, column) + 1]
-            .QuerySelector(".cell-content")!
-            .ContextMenuAsync(new MouseEventArgs());
+        if (column != null)
+        {
+            await cut.FindAll("tbody tr.mud-table-row")[row]
+                .QuerySelectorAll("td")[Array.IndexOf(ColumnNames, column) + 1]
+                .QuerySelector(".cell-content")!
+                .ContextMenuAsync(new MouseEventArgs { Button = 2 });
+        }
+
+        await cut.FindAll("tbody tr.mud-table-row")[row].ContextMenuAsync(new MouseEventArgs { Button = 2 });
         _popovers.WaitForAssertion(() => _popovers.FindAll(".mud-menu-item").ShouldNotBeEmpty());
     }
 
@@ -86,7 +93,7 @@ public class QueryResultTableEditMenuTests : TestContext
         var cut = Render();
         await OpenMenuAsync(cut, 0, "note");
 
-        await ChooseAsync("Set Cell to NULL");
+        await ChooseAsync("Set cell to NULL");
 
         _metadata.EditState.IsCellModified(0, "note").ShouldBeTrue();
         _metadata.EditState.GetEffectiveValue(0, "note", _result.Rows[0]).ShouldBeNull();
@@ -99,7 +106,7 @@ public class QueryResultTableEditMenuTests : TestContext
 
         await OpenMenuAsync(cut, 0, "name");
 
-        MenuItems().ShouldNotContain("Set Cell to NULL");
+        MenuItems().ShouldNotContain("Set cell to NULL");
     }
 
     [Fact]
@@ -109,7 +116,7 @@ public class QueryResultTableEditMenuTests : TestContext
         var cut = Render();
         await OpenMenuAsync(cut, 0, "name");
 
-        await ChooseAsync("Revert Cell");
+        await ChooseAsync("Revert cell");
 
         _metadata.EditState.HasChanges.ShouldBeFalse();
     }
@@ -122,11 +129,87 @@ public class QueryResultTableEditMenuTests : TestContext
         var cut = Render();
         await OpenMenuAsync(cut, 0, "name");
 
-        await ChooseAsync("Delete 2 Selected Rows");
+        await ChooseAsync("Delete 2 selected rows");
 
         _metadata.EditState.DeletedRowCount.ShouldBe(2);
         _metadata.EditState.IsRowDeleted(0).ShouldBeTrue();
         _metadata.EditState.IsRowDeleted(1).ShouldBeFalse();
         _metadata.EditState.IsRowDeleted(2).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task DeleteRow_FromAnywhereOnTheRow_MarksItForDelete()
+    {
+        var cut = Render();
+        await OpenMenuAsync(cut, 1);
+
+        await ChooseAsync("Delete row");
+
+        _metadata.EditState.IsRowDeleted(1).ShouldBeTrue();
+        _metadata.EditState.DeletedRowCount.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task RestoreRow_OnARowMarkedForDelete_KeepsIt()
+    {
+        _metadata.EditState.DeleteRow(1, _result.Rows[1]);
+        var cut = Render();
+        await OpenMenuAsync(cut, 1, "name");
+
+        MenuItems().ShouldNotContain("Delete row");
+        await ChooseAsync("Restore row");
+
+        _metadata.EditState.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task RestoreSelectedRows_KeepsEverySelectedRowMarkedForDelete()
+    {
+        _metadata.EditState.DeleteRow(0, _result.Rows[0]);
+        _metadata.EditState.DeleteRow(2, _result.Rows[2]);
+        _selection.SelectAll([0, 2]);
+        var cut = Render();
+        await OpenMenuAsync(cut, 2);
+
+        await ChooseAsync("Restore 2 selected rows");
+
+        _metadata.EditState.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task ARowInAMultiRowSelection_OffersToDeleteTheSelectionInsteadOfTheRow()
+    {
+        _selection.SelectAll([0, 1]);
+        var cut = Render();
+
+        await OpenMenuAsync(cut, 1, "name");
+
+        MenuItems().ShouldContain("Delete 2 selected rows");
+        MenuItems().ShouldNotContain("Delete row");
+    }
+
+    [Fact]
+    public async Task RightClickingARow_DoesNotSelectIt()
+    {
+        var cut = Render();
+
+        await OpenMenuAsync(cut, 1, "name");
+
+        _selection.HasSelection.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Escape_ReturnsFocusToTheCellThatWasRightClicked()
+    {
+        var cut = Render();
+        await OpenMenuAsync(cut, 1, "note");
+
+        await _popovers.Find(".context-menu-focus").KeyDownAsync(new KeyboardEventArgs { Key = "Escape" });
+
+        // The cell keyboard focus is on is the one that takes Tab into the grid.
+        cut.WaitForAssertion(() => cut.FindAll(".cell-nav[tabindex='0']").Single()
+            .ShouldBeSameAs(cut.FindAll("tbody tr.mud-table-row")[1]
+                .QuerySelectorAll("td")[Array.IndexOf(ColumnNames, "note") + 1]
+                .QuerySelector(".cell-content")));
     }
 }

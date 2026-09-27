@@ -3,7 +3,10 @@
 @using MudBlazor.Services
 @implements IAsyncDisposable
 
-<span id="@_id" class="cell-editor @(IsNumeric ? "numeric" : null) @(_invalid ? "invalid" : null)">
+@* A right-click stops here, short of the row's menu, so the browser's own menu can cut and paste the text. *@
+<span id="@_id"
+      class="cell-editor @(IsNumeric ? "numeric" : null) @(_invalid ? "invalid" : null)"
+      @oncontextmenu:stopPropagation="true">
     <input @ref="_input"
            type="text"
            size="1"
