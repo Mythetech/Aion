@@ -2,6 +2,7 @@ using Aion.Components.Connections;
 using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
+using Aion.Desktop.Services;
 
 namespace Aion.Desktop;
 
@@ -22,7 +23,7 @@ public class ConnectionService : IConnectionService
         var savedConnections = await _storage.LoadConnectionsAsync();
         foreach (var connection in savedConnections)
         {
-            if (!_connections.Any(c => c.ConnectionString.Equals(connection.ConnectionString)))
+            if (_connections.All(c => c.Id != connection.Id))
             {
                 _connections.Add(connection);
             }
@@ -32,9 +33,7 @@ public class ConnectionService : IConnectionService
     public async Task AddConnection(ConnectionModel connection)
     {
         _connections.Add(connection);
-
-        if (connection.SaveCredentials)
-            await _storage.SaveConnectionsAsync(_connections);
+        await _storage.SaveConnectionsAsync(_connections);
     }
 
     public async Task RemoveConnection(Guid id)

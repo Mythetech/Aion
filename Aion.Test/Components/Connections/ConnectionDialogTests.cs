@@ -1,4 +1,5 @@
 using Aion.Components.Connections;
+using Aion.Components.Connections.Secrets;
 using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 using Bunit;
@@ -11,6 +12,7 @@ using MudBlazor.Services;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Components.Connections;
 
@@ -18,6 +20,7 @@ public class ConnectionDialogTests : TestContext
 {
     private readonly IConnectionService _connectionService;
     private readonly ConnectionState _connectionState;
+    private readonly ConnectionSecretStoreFake _secrets = new() { ActiveStoreName = "macOS Keychain" };
 
     public ConnectionDialogTests()
     {
@@ -35,10 +38,11 @@ public class ConnectionDialogTests : TestContext
 
         _connectionService = Substitute.For<IConnectionService>();
         _connectionState = new ConnectionState(_connectionService, providerFactory, Substitute.For<IMessageBus>(),
-            NullLogger<ConnectionState>.Instance);
+            NullLogger<ConnectionState>.Instance, _secrets);
 
         Services.AddSingleton(providerFactory);
         Services.AddSingleton(_connectionState);
+        Services.AddSingleton<IConnectionSecretStore>(_secrets);
     }
 
     private static ConnectionDialogModel FilledIn() => new()
@@ -213,5 +217,120 @@ public class ConnectionDialogTests : TestContext
         cut.WaitForAssertion(() =>
             cut.FindAll("label").ShouldNotContain(l => l.TextContent.Trim() == "Username"));
         model.UseWindowsAuth.ShouldBeTrue();
+    }
+
+    private static AngleSharp.Dom.IElement RadioLabel(IRenderedFragment cut, string text) =>
+        cut.FindAll("label.mud-radio").Single(l => l.TextContent.Contains(text));
+
+    private static bool IsChecked(IRenderedFragment cut, string text) =>
+        RadioLabel(cut, text).QuerySelector("input")!.HasAttribute("checked");
+
+    [Fact]
+    public async Task PasswordChoice_NamesTheActiveStoreAndDefaultsToDontStore()
+    {
+        var cut = await ShowDialogAsync(FilledIn());
+
+        RadioLabel(cut, "Store in macOS Keychain").ShouldNotBeNull();
+        IsChecked(cut, "Don't store (ask when connecting)").ShouldBeTrue();
+        IsChecked(cut, "Store in macOS Keychain").ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task PasswordChoice_ReadOnlyActiveStore_IsDisabledWithAHint()
+    {
+        _secrets.MakeReadOnly("1Password CLI");
+
+        var cut = await ShowDialogAsync(FilledIn());
+
+        RadioLabel(cut, "Store the password").QuerySelector("input")!.HasAttribute("disabled").ShouldBeTrue();
+        cut.Find(".password-storage").TextContent
+            .ShouldContain("1Password CLI can't store passwords. Choose another in Tools > Secret Manager.");
+    }
+
+    [Fact]
+    public async Task PasswordChoice_IsHiddenWithWindowsAuthentication()
+    {
+        var model = FilledIn();
+        model.Type = DatabaseType.SQLServer;
+        model.UseWindowsAuth = true;
+
+        var cut = await ShowDialogAsync(model);
+
+        cut.FindAll(".password-storage").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Connect_WithStoreChosen_StoresThePassword()
+    {
+        _connectionService.GetDatabasesAsync(Arg.Any<string>(), Arg.Any<DatabaseType>())
+            .Returns(new List<string> { "postgres" });
+        var cut = await ShowDialogAsync(FilledIn());
+
+        await RadioLabel(cut, "Store in macOS Keychain").QuerySelector("input")!.ClickAsync(new MouseEventArgs());
+        await cut.Find(".primary-action-button").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.FindAll(".mud-dialog").Count.ShouldBe(0));
+        var connection = _connectionState.Connections.ShouldHaveSingleItem();
+        connection.PasswordStore.ShouldBe("macOS Keychain");
+        _secrets.Passwords[("macOS Keychain", connection.Id)].ShouldBe("wrong");
+    }
+
+    [Fact]
+    public async Task Connect_WithDontStore_KeepsThePasswordOutOfEveryStore()
+    {
+        _connectionService.GetDatabasesAsync(Arg.Any<string>(), Arg.Any<DatabaseType>())
+            .Returns(new List<string> { "postgres" });
+        var cut = await ShowDialogAsync(FilledIn());
+
+        await cut.Find(".primary-action-button").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.FindAll(".mud-dialog").Count.ShouldBe(0));
+        _connectionState.Connections.ShouldHaveSingleItem().PasswordStore.ShouldBeNull();
+        _secrets.Passwords.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task ConnectionStringTab_OffersTheSameChoice()
+    {
+        var cut = await ShowDialogAsync(FilledIn());
+
+        await cut.FindAll(".mud-link").First(l => l.TextContent.Contains("Connection String")).ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => RadioLabel(cut, "Store in macOS Keychain").ShouldNotBeNull());
+        RadioLabel(cut, "Don't store (ask when connecting)").ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task Edit_PasswordStoredElsewhere_SaysWhereItIsAndWhereSavingMovesIt()
+    {
+        var existing = new ConnectionModel
+        {
+            Name = "Prod",
+            Type = DatabaseType.PostgreSQL,
+            ConnectionString = "Host=db;Username=app;Password=secret",
+            PasswordStore = "1Password CLI"
+        };
+
+        var cut = await ShowDialogAsync(ConnectionDialogModel.ForEdit(existing));
+
+        IsChecked(cut, "Store in macOS Keychain").ShouldBeTrue();
+        cut.Find(".password-storage").TextContent.ShouldContain("Stored in 1Password CLI; saving moves it to macOS Keychain");
+    }
+
+    [Fact]
+    public async Task Edit_PasswordInTheActiveStore_SaysItIsStoredThere()
+    {
+        var existing = new ConnectionModel
+        {
+            Name = "Prod",
+            Type = DatabaseType.PostgreSQL,
+            ConnectionString = "Host=db;Username=app;Password=secret",
+            PasswordStore = "macOS Keychain"
+        };
+
+        var cut = await ShowDialogAsync(ConnectionDialogModel.ForEdit(existing));
+
+        cut.Find(".password-storage").TextContent.ShouldContain("Stored in macOS Keychain");
+        cut.Find(".password-storage").TextContent.ShouldNotContain("moves");
     }
 }

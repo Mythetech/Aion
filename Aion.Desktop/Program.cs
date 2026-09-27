@@ -1,5 +1,6 @@
 using Aion.Components;
 using Aion.Components.Connections;
+using Aion.Components.Connections.Secrets;
 using Aion.Components.History;
 using Aion.Components.Infrastructure;
 using Hermes;
@@ -9,6 +10,7 @@ using Mythetech.Framework.Desktop;
 using Mythetech.Framework.Desktop.Hermes;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using Mythetech.Framework.Infrastructure.Plugins;
+using Mythetech.Framework.Infrastructure.Secrets;
 using Mythetech.Framework.Infrastructure.Settings;
 using Mythetech.Framework.Infrastructure.Initialization;
 using Aion.Components.Querying;
@@ -96,6 +98,7 @@ namespace Aion.Desktop
             appBuilder.Services.AddSingleton<IPlatformDetector, NativePlatformDetector>();
             appBuilder.Services.AddAionComponents<ConnectionService>();
             appBuilder.Services.AddSingleton<IConnectionPrompt, ConnectionDialogPrompt>();
+            appBuilder.Services.AddSingleton<IConnectionSecretStore, SecretManagerConnectionStore>();
 
             appBuilder.Services.AddScoped<IDatabaseProvider, PostgreSqlProvider>();
             appBuilder.Services.AddScoped<IDatabaseProvider, MySqlProvider>();
@@ -129,7 +132,7 @@ namespace Aion.Desktop
             appBuilder.Services.AddInitializationHook(sp => sp.GetRequiredService<StartupUpdateCheck>());
             appBuilder.Services.AddInitializationHook<QueryHistoryInitializationHook>();
 
-            appBuilder.Services.AddSingleton<IConnectionStorage, FileConnectionStorage>();
+            appBuilder.Services.AddSingleton<IConnectionStorage>(_ => new FileConnectionStorage(FileConnectionStorage.DefaultFilePath));
             appBuilder.Services.AddSingleton<IQuerySaveService, FileQuerySaveService>();
             appBuilder.Services.AddSingleton<IQueryHistoryStore>(_ => new FileQueryHistoryStore(FileQueryHistoryStore.DefaultFilePath));
             
@@ -148,6 +151,9 @@ namespace Aion.Desktop
             app.Services.UseSettingsFramework();
             app.Services.UsePluginFramework();
             app.Services.UseUpdateService();
+            // Hands the registered keychain and 1Password managers to SecretManagerState; without it no manager is
+            // active, so Tools > Secret Manager is empty and no connection password can be stored.
+            app.Services.UseSecretManager();
 
             AppDomain.CurrentDomain.UnhandledException += (sender, error) =>
             {

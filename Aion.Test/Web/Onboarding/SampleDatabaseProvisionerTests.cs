@@ -22,7 +22,7 @@ public class SampleDatabaseProvisionerTests
 
     public SampleDatabaseProvisionerTests()
     {
-        _connectionState = new ConnectionState(_engines.ConnectionService, _engines.Factory, _bus, Substitute.For<ILogger<ConnectionState>>());
+        _connectionState = new ConnectionState(_engines.ConnectionService, _engines.Factory, _bus, Substitute.For<ILogger<ConnectionState>>(), new ConnectionSecretStoreFake());
         _queryState = new QueryState(_bus, Substitute.For<IQuerySaveService>());
         _sut = new SampleDatabaseProvisioner(
             _engines.Factory,

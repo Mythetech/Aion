@@ -45,7 +45,7 @@ public abstract class ConnectionStateTestBase : TestContext, IAsyncLifetime
         var providerFactory = new DatabaseProviderFactory([Provider]);
         var logger = new Logger<ConnectionState>(logFactory);
         var service = new ConnectionServiceFake(providerFactory);
-        ConnectionState = new ConnectionState(service, providerFactory, MessageBus, logger);
+        ConnectionState = new ConnectionState(service, providerFactory, MessageBus, logger, new ConnectionSecretStoreFake());
         
         TestQuery = new QueryModel
         {

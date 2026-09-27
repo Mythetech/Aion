@@ -1,10 +1,18 @@
 using System.Globalization;
 using Aion.Components.Connections;
+using Aion.Components.Querying;
+using Aion.Components.Querying.Commands;
+using Aion.Components.Querying.Consumers;
+using Aion.Components.Querying.Editing;
 using Aion.Core.Database;
+using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
 using Aion.Contracts.Queries.Editing;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Mythetech.Framework.Infrastructure.MessageBus;
+using NSubstitute;
 using Npgsql;
 using Shouldly;
 using Testcontainers.PostgreSql;
@@ -122,6 +130,91 @@ public class PostgreSqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         var ex = await Should.ThrowAsync<PostgresException>(() => Provider.GetDatabasesAsync(wrongPassword));
 
         ex.Message.ShouldContain("password authentication failed");
+    }
+
+    /// <summary>
+    /// The user's server: tstransit.message_data lives in one database, while the database the connection string
+    /// names has a tstransit schema without that table, so SQL run against the wrong database fails with
+    /// "relation does not exist".
+    /// </summary>
+    private async Task<(ConnectionState Connections, QueryState Queries, ConnectionModel Connection)> SchemaTableConnectionAsync()
+    {
+        await ExecuteOrFailAsync(DatabaseConnectionString, """
+            CREATE SCHEMA tstransit;
+            CREATE TABLE tstransit.message (id bigint PRIMARY KEY, body text);
+            CREATE TABLE tstransit.message_data (
+                id bigint PRIMARY KEY,
+                message_id bigint NOT NULL REFERENCES tstransit.message (id),
+                payload text,
+                created_at timestamptz NOT NULL DEFAULT now());
+            INSERT INTO tstransit.message (id, body) VALUES (1, 'first'), (2, 'second');
+            INSERT INTO tstransit.message_data (id, message_id, payload) VALUES (10, 1, 'a'), (11, 2, 'b');
+            """);
+        await ExecuteOrFailAsync(ConnectionString, "CREATE DATABASE other_db");
+        await ExecuteOrFailAsync(Provider.UpdateConnectionString(ConnectionString, "other_db"),
+            "CREATE SCHEMA tstransit; CREATE TABLE tstransit.message (id bigint PRIMARY KEY)");
+
+        var factory = new DatabaseProviderFactory([Provider]);
+        var connections = new ConnectionState(new TestDoubles.ConnectionServiceFake(factory), factory, Substitute.For<IMessageBus>(),
+            NullLogger<ConnectionState>.Instance, new TestDoubles.ConnectionSecretStoreFake());
+        var connection = new ConnectionModel
+        {
+            Name = "local",
+            ConnectionString = Provider.UpdateConnectionString(ConnectionString, "other_db"),
+            Type = Provider.DatabaseType,
+            Active = true,
+            Databases = [new DatabaseModel { Name = "other_db" }, new DatabaseModel { Name = TestDatabase }]
+        };
+        connections.Connections.Add(connection);
+
+        return (connections, new QueryState(Substitute.For<IMessageBus>(), Substitute.For<IQuerySaveService>()), connection);
+    }
+
+    [Fact]
+    public async Task SelectFirstRows_FromATableInANamedSchema_ReadsItFromTheDatabaseTheTreeListsItUnder()
+    {
+        // Arrange
+        var (connections, queries, connection) = await SchemaTableConnectionAsync();
+
+        // Act
+        await new TableRowsOpener(connections, queries, Substitute.For<IMessageBus>())
+            .Consume(new OpenTableRows(connection.Id, TestDatabase, "tstransit", "message_data"));
+        var tab = queries.Queries.Last();
+        var result = await connections.ExecuteQueryAsync(tab, CancellationToken.None);
+
+        // Assert
+        tab.Query.ShouldBe("SELECT * FROM \"tstransit\".\"message_data\"\nLIMIT 1000;");
+        result.Error.ShouldBeNull();
+        result.Rows.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task EditData_OnATableInANamedSchema_ReadsItAndWritesAnEditBack()
+    {
+        // Arrange
+        var (connections, queries, connection) = await SchemaTableConnectionAsync();
+
+        // Act
+        await new TableEditorOpener(connections, queries, Substitute.For<IMessageBus>(), NullLogger<TableEditorOpener>.Instance)
+            .Consume(new OpenTableEditor(connection.Id, TestDatabase, "tstransit", "message_data"));
+        var tab = queries.Queries.Last();
+        var result = await connections.ExecuteQueryAsync(tab, CancellationToken.None);
+        var metadata = tab.EditMetadata.ShouldNotBeNull();
+        var editable = EditableQueryResult.FromQueryResult(result, metadata.SourceTable, metadata.SourceSchema,
+            metadata.SourceDatabase, metadata.ConnectionId, metadata.ColumnMetadata);
+        var rowIndex = editable.Rows.FindIndex(r => Convert.ToInt64(r["id"]) == 10);
+        var plan = await new PendingChangesSqlBuilder(connections, new SqlChangeGenerator())
+            .BuildAsync(editable, [UpdateCell(editable, rowIndex, "payload", "edited")]);
+        var statement = plan.Generation.Statements.ShouldHaveSingleItem();
+        var update = await plan.Provider.ExecuteQueryAsync(plan.ConnectionString, statement.Sql, CancellationToken.None);
+
+        // Assert
+        result.Error.ShouldBeNull();
+        metadata.IsEditMode.ShouldBeTrue();
+        update.Error.ShouldBeNull(statement.Sql);
+        update.RowsAffected.ShouldBe(1);
+        var payload = await ExecuteOrFailAsync(DatabaseConnectionString, "SELECT payload FROM tstransit.message_data WHERE id = 10");
+        payload.Rows.Single()["payload"].ShouldBe("edited");
     }
 
     [Fact]

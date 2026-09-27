@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Unit.Querying;
 
@@ -40,7 +41,7 @@ public class QueryMessageRecorderTests
         bus.RegisterConsumerType<QueryExecuted, QueryMessageRecorder>();
         bus.RegisterConsumerType<TransactionFinished, QueryMessageRecorder>();
 
-        _connections = new ConnectionState(Substitute.For<IConnectionService>(), factory, bus, NullLogger<ConnectionState>.Instance)
+        _connections = new ConnectionState(Substitute.For<IConnectionService>(), factory, bus, NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake())
         {
             Connections = [_connection]
         };

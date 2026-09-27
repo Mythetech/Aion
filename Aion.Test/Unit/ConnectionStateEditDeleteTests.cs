@@ -1,5 +1,6 @@
 using Aion.Core.Database;
 using Aion.Components.Connections;
+using Aion.Components.Connections.Secrets;
 using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 using Aion.Test.TestDoubles;
@@ -23,7 +24,7 @@ public class ConnectionStateEditDeleteTests
         _providerFactory = Substitute.For<IDatabaseProviderFactory>();
         _connectionService = Substitute.For<IConnectionService>();
         var logger = Substitute.For<ILogger<ConnectionState>>();
-        _sut = new ConnectionState(_connectionService, _providerFactory, _messageBus, logger);
+        _sut = new ConnectionState(_connectionService, _providerFactory, _messageBus, logger, new ConnectionSecretStoreFake());
     }
 
     private ConnectionModel CreateTestConnection(string name = "Test")
@@ -33,8 +34,7 @@ public class ConnectionStateEditDeleteTests
             Name = name,
             ConnectionString = "Host=localhost;Port=5432;Username=test;Password=test",
             Type = DatabaseType.PostgreSQL,
-            Active = true,
-            SaveCredentials = true
+            Active = true
         };
     }
 
@@ -95,11 +95,10 @@ public class ConnectionStateEditDeleteTests
         {
             Name = "Updated",
             ConnectionString = "Host=newhost;Port=5432;Username=test;Password=test",
-            Type = DatabaseType.PostgreSQL,
-            SaveCredentials = true
+            Type = DatabaseType.PostgreSQL
         };
 
-        await _sut.UpdateConnection(connection.Id, updated);
+        await _sut.UpdateConnection(connection.Id, updated, PasswordChoice.DontStore);
 
         var result = _sut.Connections.First();
         result.Name.ShouldBe("Updated");
@@ -118,11 +117,10 @@ public class ConnectionStateEditDeleteTests
         {
             Name = "Updated",
             ConnectionString = "Host=newhost;Port=5432;Username=test;Password=test",
-            Type = DatabaseType.PostgreSQL,
-            SaveCredentials = true
+            Type = DatabaseType.PostgreSQL
         };
 
-        await _sut.UpdateConnection(connection.Id, updated);
+        await _sut.UpdateConnection(connection.Id, updated, PasswordChoice.DontStore);
 
         var result = _sut.Connections.First();
         result.Active.ShouldBeTrue();
@@ -141,11 +139,10 @@ public class ConnectionStateEditDeleteTests
         {
             Name = "Updated",
             ConnectionString = "Host=newhost;Port=5432;Username=test;Password=test",
-            Type = DatabaseType.PostgreSQL,
-            SaveCredentials = true
+            Type = DatabaseType.PostgreSQL
         };
 
-        await _sut.UpdateConnection(connection.Id, updated);
+        await _sut.UpdateConnection(connection.Id, updated, PasswordChoice.DontStore);
 
         await _connectionService.Received(1).UpdateConnection(Arg.Is<ConnectionModel>(c => c.Name == "Updated"));
     }
@@ -162,11 +159,10 @@ public class ConnectionStateEditDeleteTests
         {
             Name = "Updated",
             ConnectionString = "Host=badhost;Port=5432;Username=test;Password=test",
-            Type = DatabaseType.PostgreSQL,
-            SaveCredentials = true
+            Type = DatabaseType.PostgreSQL
         };
 
-        await _sut.UpdateConnection(connection.Id, updated);
+        await _sut.UpdateConnection(connection.Id, updated, PasswordChoice.DontStore);
 
         var result = _sut.Connections.First();
         result.Active.ShouldBeFalse();
@@ -186,11 +182,10 @@ public class ConnectionStateEditDeleteTests
         {
             Name = "Renamed",
             ConnectionString = "Host=badhost;Port=5432;Username=test;Password=wrong",
-            Type = DatabaseType.PostgreSQL,
-            SaveCredentials = true
+            Type = DatabaseType.PostgreSQL
         };
 
-        var result = await _sut.UpdateConnection(connection.Id, updated);
+        var result = await _sut.UpdateConnection(connection.Id, updated, PasswordChoice.DontStore);
 
         result.Success.ShouldBeFalse();
         result.Error.ShouldBe("password authentication failed");

@@ -13,6 +13,7 @@ using MudBlazor.Services;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Components.Querying;
 
@@ -46,7 +47,7 @@ public class ConnectionPickerTests : TestContext
         JSInterop.Mode = JSRuntimeMode.Loose;
 
         _state = new QueryState(_bus, Substitute.For<IQuerySaveService>());
-        _connections = new ConnectionState(Substitute.For<IConnectionService>(), Substitute.For<IDatabaseProviderFactory>(), _bus, new NullLogger<ConnectionState>())
+        _connections = new ConnectionState(Substitute.For<IConnectionService>(), Substitute.For<IDatabaseProviderFactory>(), _bus, new NullLogger<ConnectionState>(), new ConnectionSecretStoreFake())
         {
             Connections = [_sample, _prod]
         };
@@ -233,6 +234,26 @@ public class ConnectionPickerTests : TestContext
         // Assert
         var empty = _popovers.FindAll(".mud-menu-item").Single(i => i.TextContent.Contains("No databases"));
         empty.GetAttribute("aria-disabled").ShouldBe("true");
+    }
+
+    [Fact]
+    public async Task ConnectionWaitingForItsPassword_SaysSoInsteadOfNoDatabases()
+    {
+        // Arrange
+        _connections.Connections.Add(new ConnectionModel
+        {
+            Name = "prod", Type = DatabaseType.PostgreSQL, ConnectionString = "Host=db",
+            HealthStatus = ConnectionHealthStatus.NeedsPassword
+        });
+        var cut = RenderPicker();
+
+        // Act
+        await OpenAsync(cut);
+
+        // Assert
+        var empty = _popovers.FindAll(".mud-menu-item").Single(i => i.TextContent.Contains("Needs a password"));
+        empty.GetAttribute("aria-disabled").ShouldBe("true");
+        _popovers.FindAll(".mud-menu-item").ShouldNotContain(i => i.TextContent.Contains("No databases"));
     }
 
     [Fact]

@@ -54,7 +54,7 @@
                 @if (connection.Databases.Count == 0)
                 {
                     <MudMenuItem Disabled="true">
-                        <span class="picker-option-empty">@(connection.HealthStatus == ConnectionHealthStatus.Checking ? "Loading databases" : "No databases")</span>
+                        <span class="picker-option-empty">@EmptyText(connection)</span>
                     </MudMenuItem>
                 }
                 @foreach (var database in connection.Databases)
@@ -110,6 +110,13 @@
     // A connection with a single database is that database, so naming it again only costs width.
     private bool ShowsDatabase(ConnectionModel connection) =>
         !(connection.Databases.Count == 1 && connection.Databases[0].Name == Query.DatabaseName);
+
+    private static string EmptyText(ConnectionModel connection) => connection.HealthStatus switch
+    {
+        ConnectionHealthStatus.Checking => "Loading databases",
+        ConnectionHealthStatus.NeedsPassword => "Needs a password",
+        _ => "No databases"
+    };
 
     private bool IsChosen(ConnectionModel connection, string database) =>
         connection.Id == Query.ConnectionId && database == Query.DatabaseName;

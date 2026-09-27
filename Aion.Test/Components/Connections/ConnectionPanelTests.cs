@@ -16,6 +16,7 @@ using MudBlazor.Services;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Components.Connections;
 
@@ -49,7 +50,7 @@ public class ConnectionPanelTests : TestContext
         factory.GetProvider(DatabaseType.LiteDB).Returns(_liteDbProvider);
 
         Services.AddSingleton(_bus);
-        _connectionState = new ConnectionState(_connectionService, factory, _bus, NullLogger<ConnectionState>.Instance);
+        _connectionState = new ConnectionState(_connectionService, factory, _bus, NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake());
         Services.AddSingleton(_connectionState);
         Services.AddSingleton(new QueryState(_bus, Substitute.For<IQuerySaveService>()));
         Services.AddSingleton(new BrowserSettings());
@@ -289,6 +290,39 @@ public class ConnectionPanelTests : TestContext
     }
 
     [Fact]
+    public async Task ExpandingATable_WhoseProviderRepeatsColumns_ListsEachColumnOnce()
+    {
+        // A catalog query that matched key constraints by name alone returned a key column once for every schema
+        // holding a table of the same name, and the repeated rows crashed the tree.
+        var columns = ProductColumns();
+        _provider.GetColumnsAsync(Arg.Any<string>(), Database, "", "products").Returns([.. columns, columns[0], columns[2]]);
+        var cut = Render(ConnectionWithTables(Products));
+
+        await ToggleAsync(TableItem(cut, Products));
+
+        cut.WaitForAssertion(() => TableItem(cut, Products).FindAll(".column-row .tree-row-name")
+            .Select(name => name.TextContent)
+            .ShouldBe(["id", "name", "category_id", "description", "stock_quantity"]));
+        GroupItem(cut, "Foreign keys").FindAll(".tree-row-name").Select(name => name.TextContent).ShouldBe(["category_id"]);
+    }
+
+    [Fact]
+    public void TreeValues_StayUniqueWhenTheLoadedSchemaRepeatsTablesAndIndexes()
+    {
+        var connection = ConnectionWithLoadedColumns(ProductColumns());
+        var database = connection.Databases[0];
+        database.Tables = [Products, Products];
+        var index = new IndexInfo("", "", "products", "idx_products_category", false, false, ["category_id"]);
+        database.Indexes = [index, index];
+        database.IndexesLoaded = true;
+
+        var cut = Render(connection);
+
+        cut.FindComponents<MudTreeViewItem<string>>().Select(item => item.Instance.Value).ShouldBeUnique();
+        GroupItem(cut, "Indexes").FindAll(".tree-row-name").Select(name => name.TextContent).ShouldBe(["idx_products_category"]);
+    }
+
+    [Fact]
     public async Task ExpandTableCommand_ExpandsTheTableAndLoadsItsColumns()
     {
         _provider.GetColumnsAsync(Arg.Any<string>(), Database, "", "products").Returns(ProductColumns());
@@ -445,6 +479,59 @@ public class ConnectionPanelTests : TestContext
         });
 
         cut.Find(".tree-status-failed").TextContent.ShouldContain("Connection refused");
+    }
+
+    private static ConnectionModel WaitingForPassword() => new()
+    {
+        Name = "Prod",
+        Type = DatabaseType.PostgreSQL,
+        UsesPassword = true,
+        Active = false,
+        HealthStatus = ConnectionHealthStatus.NeedsPassword,
+        LastError = "The password wasn't found in macOS Keychain"
+    };
+
+    [Fact]
+    public void NeedsPassword_OffersEnterPasswordWithTheReason()
+    {
+        var cut = Render(WaitingForPassword());
+
+        cut.Find(".enter-password").TextContent.ShouldContain("Enter password");
+        cut.Find(".needs-password").TextContent.ShouldContain("The password wasn't found in macOS Keychain");
+        cut.FindAll(".tree-status-failed").ShouldBeEmpty();
+        cut.Markup.ShouldContain("Needs password");
+        cut.Markup.ShouldNotContain("Disconnected");
+    }
+
+    [Fact]
+    public async Task NeedsPassword_EnterPassword_AsksForIt()
+    {
+        var connection = WaitingForPassword();
+        var cut = Render(connection);
+
+        await cut.Find(".enter-password").ClickAsync(new MouseEventArgs());
+
+        await _bus.Received(1).PublishAsync(new PromptConnectionPassword(connection.Id));
+    }
+
+    [Fact]
+    public async Task NeedsPassword_Refresh_AsksForThePasswordInsteadOfLoggingInWithoutIt()
+    {
+        var connection = WaitingForPassword();
+        var cut = Render(connection);
+
+        await cut.Find("button[aria-label='Refresh Connection']").ClickAsync(new MouseEventArgs());
+
+        await _bus.Received(1).PublishAsync(new PromptConnectionPassword(connection.Id));
+        await _connectionService.DidNotReceiveWithAnyArgs().GetDatabasesAsync(default!, default);
+    }
+
+    [Fact]
+    public void ConnectedConnection_HasNoEnterPasswordAction()
+    {
+        var cut = Render(ConnectionWithLoadedColumns(ProductColumns()));
+
+        cut.FindAll(".enter-password").ShouldBeEmpty();
     }
 
     private static readonly TableInfo Customers = new("", "customers");

@@ -26,7 +26,7 @@ public class QueryHistoryRecorderTests
             Substitute.For<IConnectionService>(),
             Substitute.For<IDatabaseProviderFactory>(),
             Substitute.For<IMessageBus>(),
-            NullLogger<ConnectionState>.Instance);
+            NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake());
         connections.Connections.Add(_connection);
         _recorder = new QueryHistoryRecorder(_history, connections);
     }

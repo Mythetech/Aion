@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Unit;
 
@@ -23,7 +24,7 @@ public class AionCommandProviderTests
         var connectionService = Substitute.For<IConnectionService>();
         var providerFactory = Substitute.For<IDatabaseProviderFactory>();
         var logger = Substitute.For<ILogger<ConnectionState>>();
-        _connectionState = new ConnectionState(connectionService, providerFactory, _bus, logger);
+        _connectionState = new ConnectionState(connectionService, providerFactory, _bus, logger, new ConnectionSecretStoreFake());
         _provider = new AionCommandProvider(_bus, _connectionState, AionKeyBindings.ForDesktop(isMac: false));
     }
 

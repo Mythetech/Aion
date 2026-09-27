@@ -32,7 +32,7 @@ public class StorageRestoreServiceTests
             new SqliteWasmProvider(Substitute.For<ISqliteWasmDatabaseService>())
         ]);
         var bus = Substitute.For<IMessageBus>();
-        var connectionState = new ConnectionState(_connectionService, factory, bus, Substitute.For<ILogger<ConnectionState>>());
+        var connectionState = new ConnectionState(_connectionService, factory, bus, Substitute.For<ILogger<ConnectionState>>(), new ConnectionSecretStoreFake());
         var queryState = new QueryState(bus, Substitute.For<IQuerySaveService>());
 
         _sut = new StorageRestoreService(

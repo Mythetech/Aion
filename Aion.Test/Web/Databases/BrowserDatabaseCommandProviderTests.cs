@@ -50,7 +50,7 @@ public class BrowserDatabaseCommandProviderTests : TestContext
             Enumerable.Empty<IConsumerFilter>());
         Services.AddSingleton(_bus);
 
-        _connectionState = new ConnectionState(_engines.ConnectionService, _engines.Factory, _bus, Substitute.For<ILogger<ConnectionState>>());
+        _connectionState = new ConnectionState(_engines.ConnectionService, _engines.Factory, _bus, Substitute.For<ILogger<ConnectionState>>(), new ConnectionSecretStoreFake());
         _connectionState.Connections = [_sales, _inventory];
         Services.AddSingleton(_connectionState);
 

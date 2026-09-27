@@ -9,6 +9,7 @@ using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Unit;
 
@@ -34,7 +35,7 @@ public class ConnectionStateExplainTests
         _factory.GetProvider(DatabaseType.PostgreSQL).Returns(_provider);
 
         var connection = new ConnectionModel { Name = "Test", ConnectionString = "Host=localhost", Type = DatabaseType.PostgreSQL };
-        _sut = new ConnectionState(Substitute.For<IConnectionService>(), _factory, _bus, NullLogger<ConnectionState>.Instance)
+        _sut = new ConnectionState(Substitute.For<IConnectionService>(), _factory, _bus, NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake())
         {
             Connections = [connection]
         };

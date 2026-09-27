@@ -1,3 +1,4 @@
+using Aion.Components.Connections.Secrets;
 using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 
@@ -17,7 +18,13 @@ public class ConnectionDialogModel
     public bool UseWindowsAuth { get; set; }
     public bool Encrypt { get; set; } = true;
     public bool TrustServerCertificate { get; set; }
-    public bool SaveCredentials { get; set; }
+    public PasswordChoice PasswordChoice { get; set; } = PasswordChoice.DontStore;
+
+    /// <summary>
+    /// Where the edited connection's password is stored now, or null when it isn't.
+    /// </summary>
+    public string? PasswordStore { get; set; }
+
     public Guid? EditingConnectionId { get; set; }
 
     /// <summary>
@@ -30,6 +37,7 @@ public class ConnectionDialogModel
         Name = connection.Name,
         Type = connection.Type,
         ConnectionString = connection.ConnectionString,
-        SaveCredentials = connection.SaveCredentials
+        PasswordChoice = connection.PasswordStore != null ? PasswordChoice.Store : PasswordChoice.DontStore,
+        PasswordStore = connection.PasswordStore
     };
 }

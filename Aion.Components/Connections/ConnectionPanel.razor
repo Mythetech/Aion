@@ -31,6 +31,13 @@
     {
         <MudChip Size="Size.Small" Variant="Variant.Text" T="string" Color="Color.Success">Connected</MudChip>
     }
+    else if (NeedsPassword)
+    {
+        <MudTooltip Text="@GetConnectionErrorTooltip()">
+            <MudChip Size="Size.Small" Variant="Variant.Text" T="string" Color="Color.Warning" OnClick="EnterPassword">
+                Needs password</MudChip>
+        </MudTooltip>
+    }
     else
     {
         <MudTooltip Text="@GetConnectionErrorTooltip()">
@@ -65,22 +72,31 @@
                       Placeholder="Filter tables and columns" aria-label="Filter tables and columns" />
     </div>
 
+    @if (NeedsPassword)
+    {
+        <div class="needs-password" role="status">
+            <MudText Typo="Typo.body2" Class="needs-password-reason">@GetConnectionErrorTooltip()</MudText>
+            <MudButton Class="enter-password" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                       StartIcon="@AionIcons.Password" OnClick="EnterPassword">Enter password</MudButton>
+        </div>
+    }
+
     <div class="schema-tree">
     <MudTreeView T="string" Hover="true" Dense="true" ExpandOnClick="true" Class="h-100 mb-4">
-        @if (Connection.Databases.Count == 0)
+        @if (Connection.Databases.Count == 0 && !NeedsPassword)
         {
             <SchemaStatusItem Value="@($"{Connection.Id}/databases")" State="@DatabasesState" IsEmpty="true"
                               EmptyText="No databases" OnRetry="RefreshConnection" />
         }
 
-        @foreach (var database in Connection.Databases)
+        @foreach (var database in Connection.Databases.DistinctBy(d => d.Name))
         {
             var tablesKey = $"{database.Name}/Tables";
             var functionsKey = $"{database.Name}/Functions";
             var viewsKey = $"{database.Name}/Views";
-            var visibleTables = database.TablesState.IsLoaded ? WithoutSystemSchemas(database.Tables) : [];
+            var visibleTables = database.TablesState.IsLoaded ? Listed(database.Tables) : [];
             var tableMatches = _filter.Apply(visibleTables, database);
-            var visibleViews = database.ViewsState.IsLoaded ? WithoutSystemSchemas(database.Views) : [];
+            var visibleViews = database.ViewsState.IsLoaded ? Listed(database.Views) : [];
             var viewMatches = _filter.Apply(visibleViews, database);
 
             <MudTreeViewItem @key="database.Name" Text="@database.Name" Value="@database.Name" @ref="_databases[database.Name]"
@@ -89,11 +105,9 @@
                              ExpandedChanged="@(open => OnDatabaseExpandedChanged(database, open))">
                 @* Database level *@
                 <BodyContent Context="ctx">
-                    <div class="d-flex align-center justify-space-between w-100">
-                        <div class="d-flex align-center">
-                            <MudText>@database.Name</MudText>
-                        </div>
-                        <div>
+                    <div class="relation-row">
+                        <MudText Class="relation-name" title="@database.Name">@database.Name</MudText>
+                        <div class="relation-actions">
                             <AionMenu AnchorOrigin="Origin.BottomRight">
                                 <ActivatorContent>
                                     <MudIconButton Size="Size.Small" Icon="@AionIcons.More"
@@ -240,9 +254,9 @@
 
                             @if (database.RoutinesState.IsLoaded)
                             {
-                                @foreach (var routine in database.Routines)
+                                @foreach (var routine in database.Routines.DistinctBy(routine => RoutineKey(functionsKey, routine)))
                                 {
-                                    var routineKey = $"{functionsKey}/{routine.DisplayName}{routine.ArgumentSignature}";
+                                    var routineKey = RoutineKey(functionsKey, routine);
                                     <MudTreeViewItem @key="routineKey" Value="@routineKey" Icon="@AionIcons.Function">
                                         <BodyContent Context="ctx">
                                             <div class="tree-row detail-row" title="@RoutineSignature(routine)">
@@ -340,10 +354,14 @@
         }
     }
 
-    private RenderFragment ColumnRows(string tableKey, IReadOnlyList<ColumnInfo> columns) => @<text>
-        @foreach (var column in columns)
+    // Every row in the tree is keyed by its value, which Blazor needs unique among siblings. A provider that repeats a
+    // column, as the PostgreSQL catalog query once did for each schema holding a table of the same name, would
+    // otherwise crash the next render, so each name is listed once.
+    private RenderFragment ColumnRows(string tableKey, IEnumerable<ColumnInfo> columns) => @<text>
+        @foreach (var column in columns.DistinctBy(column => column.Name))
         {
-            <MudTreeViewItem @key="column.Name" Value="@($"{tableKey}/column/{column.Name}")"
+            var columnKey = $"{tableKey}/column/{column.Name}";
+            <MudTreeViewItem @key="columnKey" Value="@columnKey"
                              Icon="@ColumnIcon(column)" IconColor="@ColumnIconColor(column)">
                 <BodyContent Context="ctx">
                     @* A native title keeps hover detail cheap: a MudTooltip per row would register a popover for every column. *@
@@ -359,7 +377,9 @@
     // Columns, then for a table its indexes and foreign keys. Views have neither.
     private RenderFragment RelationContents(DatabaseModel database, TableInfo table, string tableKey, SchemaLoadState columnsState, bool withTableGroups)
     {
-        var columns = columnsState.IsLoaded ? database.TableColumns.GetValueOrDefault(table.DisplayName) ?? [] : [];
+        var columns = columnsState.IsLoaded
+            ? (database.TableColumns.GetValueOrDefault(table.DisplayName) ?? []).DistinctBy(column => column.Name).ToList()
+            : [];
 
         return @<text>
             <SchemaStatusItem Value="@($"{tableKey}/status")" State="@columnsState"
@@ -431,6 +451,7 @@
         database.Indexes
             .Where(index => index.TableName == table.Name
                             && (string.IsNullOrEmpty(table.Schema) || index.TableSchema == table.Schema))
+            .DistinctBy(index => index.Name)
             .ToList();
 
     private RenderFragment IndexRows(DatabaseModel database, string groupKey, List<IndexInfo>? indexes) => @<text>
@@ -443,7 +464,8 @@
         {
             @foreach (var index in indexes)
             {
-                <MudTreeViewItem @key="index.Name" Value="@($"{groupKey}/{index.Name}")"
+                var indexKey = $"{groupKey}/{index.Name}";
+                <MudTreeViewItem @key="indexKey" Value="@indexKey"
                                  Icon="@(index.IsPrimary ? AionIcons.PrimaryKey : AionIcons.Index)"
                                  IconColor="@(index.IsPrimary ? Color.Warning : Color.Default)">
                     <BodyContent Context="ctx">
@@ -461,7 +483,8 @@
         @foreach (var column in columns)
         {
             var foreignKey = column.ForeignKey!;
-            <MudTreeViewItem Value="@($"{tableKey}/foreign-keys/{foreignKey.ConstraintName}/{column.Name}")"
+            var foreignKeyKey = $"{tableKey}/foreign-keys/{foreignKey.ConstraintName}/{column.Name}";
+            <MudTreeViewItem @key="foreignKeyKey" Value="@foreignKeyKey"
                              Icon="@AionIcons.ForeignKey">
                 <BodyContent Context="ctx">
                     <div class="tree-row detail-row" title="@ColumnTypeText.Describe(column, Connection.Type)">
@@ -484,18 +507,19 @@
         return index.Columns.Count == 0 ? kind : $"{kind} on ({string.Join(", ", index.Columns)})";
     }
 
-    private List<TableInfo> WithoutSystemSchemas(List<TableInfo> relations)
+    // A relation's row is keyed by its name, so one the provider listed twice is shown once.
+    private List<TableInfo> Listed(List<TableInfo> relations)
     {
+        var distinct = relations.DistinctBy(t => t.DisplayName);
         if (BrowserSettings.ShowSystemTables)
-            return relations;
+            return distinct.ToList();
 
         var systemSchemas = ConnectionState.GetProvider(Connection.Type).SystemSchemas;
-
-        if (systemSchemas.Count == 0)
-            return relations;
-
-        return relations.Where(t => !systemSchemas.Contains(t.Schema, StringComparer.OrdinalIgnoreCase)).ToList();
+        return distinct.Where(t => !systemSchemas.Contains(t.Schema, StringComparer.OrdinalIgnoreCase)).ToList();
     }
+
+    private static string RoutineKey(string functionsKey, RoutineInfo routine) =>
+        $"{functionsKey}/{routine.DisplayName}{routine.ArgumentSignature}";
 
     private static string ColumnIcon(ColumnInfo column) =>
         column.IsPrimaryKey ? AionIcons.PrimaryKey
@@ -517,8 +541,22 @@
         };
     }
 
+    private bool NeedsPassword => Connection.HealthStatus == ConnectionHealthStatus.NeedsPassword;
+
+    private async Task EnterPassword()
+    {
+        await MessageBus.PublishAsync(new PromptConnectionPassword(Connection.Id));
+    }
+
     private async Task RefreshConnection()
     {
+        // Reconnecting a connection that waits for its password means asking for it.
+        if (NeedsPassword)
+        {
+            await EnterPassword();
+            return;
+        }
+
         _isRefreshing = true;
         StateHasChanged();
 

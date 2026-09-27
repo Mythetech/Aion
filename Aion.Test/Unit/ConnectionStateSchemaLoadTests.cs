@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Unit;
 
@@ -26,7 +27,7 @@ public class ConnectionStateSchemaLoadTests
         var factory = Substitute.For<IDatabaseProviderFactory>();
         factory.GetProvider(Arg.Any<DatabaseType>()).Returns(_provider);
 
-        _sut = new ConnectionState(_connectionService, factory, Substitute.For<IMessageBus>(), NullLogger<ConnectionState>.Instance);
+        _sut = new ConnectionState(_connectionService, factory, Substitute.For<IMessageBus>(), NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake());
         _connection = new ConnectionModel
         {
             Name = "Local",
@@ -228,7 +229,7 @@ public class ConnectionStateSchemaLoadTests
         var provider = Substitute.For<IDatabaseProvider>();
         var factory = Substitute.For<IDatabaseProviderFactory>();
         factory.GetProvider(Arg.Any<DatabaseType>()).Returns(provider);
-        var sut = new ConnectionState(_connectionService, factory, Substitute.For<IMessageBus>(), NullLogger<ConnectionState>.Instance);
+        var sut = new ConnectionState(_connectionService, factory, Substitute.For<IMessageBus>(), NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake());
 
         var state = await sut.LoadViewsAsync(_connection, _database);
 

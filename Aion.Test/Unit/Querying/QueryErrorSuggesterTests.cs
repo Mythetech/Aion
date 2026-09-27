@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Unit.Querying;
 
@@ -25,7 +26,7 @@ public class QueryErrorSuggesterTests
         _provider.UpdateConnectionString(Arg.Any<string>(), Arg.Any<string>()).Returns("db");
 
         _connection = new ConnectionModel { Name = "Local", Type = DatabaseType.WasmSQLite, Databases = [_database] };
-        var connections = new ConnectionState(_connectionService, factory, Substitute.For<IMessageBus>(), NullLogger<ConnectionState>.Instance)
+        var connections = new ConnectionState(_connectionService, factory, Substitute.For<IMessageBus>(), NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake())
         {
             Connections = [_connection]
         };
@@ -95,6 +96,21 @@ public class QueryErrorSuggesterTests
 
         // Assert
         suggestion.ShouldBe(new ErrorSuggestion("products"));
+    }
+
+    [Fact]
+    public async Task UnknownTable_WhoseQuotedSchemaHasAStraySpace_SuggestsTheTableItReadsLike()
+    {
+        // Arrange: a space typed inside the quotes names schema "tstransit ", which PostgreSQL reports as
+        // "tstransit .message_data", a name that reads like the listed table.
+        _database.Tables = [new TableInfo("tstransit", "message"), new TableInfo("tstransit", "message_data")];
+
+        // Act
+        var suggestion = await SuggestAsync("42P01: relation \"tstransit .message_data\" does not exist",
+            "SELECT * FROM \"tstransit \" .\"message_data\"\nLIMIT 1000;");
+
+        // Assert
+        suggestion.ShouldBe(new ErrorSuggestion("tstransit.message_data"));
     }
 
     [Fact]

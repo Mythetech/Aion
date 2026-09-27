@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Unit;
 
@@ -25,7 +26,7 @@ public class TransactionFinalizerTests
         factory.GetProvider(DatabaseType.PostgreSQL).Returns(_provider);
 
         var connections = new ConnectionState(Substitute.For<IConnectionService>(), factory, Substitute.For<IMessageBus>(),
-            NullLogger<ConnectionState>.Instance)
+            NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake())
         {
             Connections = [_connection]
         };

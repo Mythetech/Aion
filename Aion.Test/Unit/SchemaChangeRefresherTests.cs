@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Unit;
 
@@ -26,7 +27,7 @@ public class SchemaChangeRefresherTests
         provider.DatabaseType.Returns(DatabaseType.WasmSQLite);
         var factory = Substitute.For<IDatabaseProviderFactory>();
         factory.GetProvider(DatabaseType.WasmSQLite).Returns(provider);
-        _connections = new ConnectionState(_connectionService, factory, Substitute.For<IMessageBus>(), NullLogger<ConnectionState>.Instance);
+        _connections = new ConnectionState(_connectionService, factory, Substitute.For<IMessageBus>(), NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake());
         _connection = new ConnectionModel { Name = "shop", Type = DatabaseType.WasmSQLite, Active = true, Databases = [_database] };
         _connections.Connections.Add(_connection);
         _connectionService.GetTablesAsync(Arg.Any<string>(), "shop", DatabaseType.WasmSQLite).Returns([new TableInfo("", "new_table")]);

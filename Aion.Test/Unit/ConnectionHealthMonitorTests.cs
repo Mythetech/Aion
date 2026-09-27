@@ -10,6 +10,7 @@ using Mythetech.Framework.Infrastructure.MessageBus;
 using Npgsql;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Unit;
 
@@ -25,7 +26,7 @@ public class ConnectionHealthMonitorTests
         var messageBus = Substitute.For<IMessageBus>();
         _connectionService = Substitute.For<IConnectionService>();
         _connectionState = new ConnectionState(_connectionService, Substitute.For<IDatabaseProviderFactory>(), messageBus,
-            NullLogger<ConnectionState>.Instance);
+            NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake());
         _sut = new ConnectionHealthMonitor(_connectionState, messageBus, _settings,
             NullLogger<ConnectionHealthMonitor>.Instance);
     }
@@ -129,6 +130,22 @@ public class ConnectionHealthMonitorTests
         await _sut.CheckConnectionsAsync(CancellationToken.None);
 
         await _connectionService.DidNotReceive().GetDatabasesAsync(Arg.Any<string>(), Arg.Any<DatabaseType>());
+    }
+
+    [Fact]
+    public async Task CheckConnectionsAsync_SkipsConnectionWaitingForItsPassword()
+    {
+        var waiting = Connection(DatabaseType.PostgreSQL, "waiting");
+        waiting.Active = false;
+        waiting.HealthStatus = ConnectionHealthStatus.NeedsPassword;
+        waiting.LastActivityTime = DateTime.UtcNow;
+        _connectionState.Connections = [waiting];
+
+        await _sut.CheckConnectionsAsync(CancellationToken.None);
+        await _sut.RefreshAsync(waiting.Id);
+
+        await _connectionService.DidNotReceive().GetDatabasesAsync(Arg.Any<string>(), Arg.Any<DatabaseType>());
+        waiting.HealthStatus.ShouldBe(ConnectionHealthStatus.NeedsPassword);
     }
 
     [Fact]

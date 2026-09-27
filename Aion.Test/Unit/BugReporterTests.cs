@@ -8,6 +8,7 @@ using Mythetech.Framework.Infrastructure;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Unit;
 
@@ -16,7 +17,7 @@ public class BugReporterTests
     private readonly ILinkOpenService _links = Substitute.For<ILinkOpenService>();
     private readonly ConnectionState _connections = new(
         Substitute.For<IConnectionService>(), Substitute.For<IDatabaseProviderFactory>(),
-        Substitute.For<IMessageBus>(), NullLogger<ConnectionState>.Instance);
+        Substitute.For<IMessageBus>(), NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake());
     private readonly QueryState _queries = new(Substitute.For<IMessageBus>(), Substitute.For<IQuerySaveService>());
 
     [Fact]

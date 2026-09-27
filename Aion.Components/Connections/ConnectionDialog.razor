@@ -102,9 +102,12 @@
                                           Label="Password"
                                           InputType="InputType.Password"/>
                         }
-                        <AionSwitch T="bool" @bind-Value="Model.SaveCredentials"
-                                    Color="Color.Primary"
-                                    Label="Save Credentials"/>
+
+                        @* For LiteDB the password is the file's encryption password; Windows authentication has none. *@
+                        @if (!UsesWindowsAuth)
+                        {
+                            <PasswordStorageChoice @bind-Value="Model.PasswordChoice" CurrentStore="@Model.PasswordStore"/>
+                        }
 
                     </MudStack>
                 </MudForm>
@@ -120,22 +123,11 @@
                                   Required="true"
                                   RequiredError="Connection string is required"/>
 
-                    <AionSwitch T="bool" @bind-Value="Model.SaveCredentials"
-                                Color="Color.Primary"
-                                Label="Save Credentials"/>
+                    <PasswordStorageChoice @bind-Value="Model.PasswordChoice" CurrentStore="@Model.PasswordStore"/>
 
                 </MudStack>
             </Tab>
         </SimpleTabs>
-        @if (Model.SaveCredentials)
-        {
-        <MudAlert Severity="Severity.Warning">
-            <small>
-                Warning: Credentials will be stored unencrypted.
-                This is intended for local development connections only.
-            </small>
-        </MudAlert>
-        }
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="TestConnection" Disabled="@IsBusy" Class="connection-dialog-test">
@@ -254,11 +246,10 @@
                 {
                     Name = name,
                     ConnectionString = connectionString,
-                    Type = Model.Type,
-                    SaveCredentials = Model.SaveCredentials
+                    Type = Model.Type
                 };
 
-                var result = await ConnectionState.UpdateConnection(Model.EditingConnectionId!.Value, updated);
+                var result = await ConnectionState.UpdateConnection(Model.EditingConnectionId!.Value, updated, Model.PasswordChoice);
                 if (!result.Success)
                 {
                     ValidationError = $"Changes saved, but Aion could not connect: {DescribeFailure(result.Error)}";
@@ -274,11 +265,10 @@
                     Name = name,
                     ConnectionString = connectionString,
                     Type = Model.Type,
-                    Active = false,
-                    SaveCredentials = Model.SaveCredentials
+                    Active = false
                 };
 
-                var result = await ConnectionState.ConnectAsync(connection);
+                var result = await ConnectionState.ConnectAsync(connection, Model.PasswordChoice);
                 if (!result.Success)
                 {
                     ValidationError = DescribeFailure(result.Error);

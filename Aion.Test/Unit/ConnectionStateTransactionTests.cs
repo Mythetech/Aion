@@ -11,6 +11,7 @@ using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Unit;
 
@@ -40,7 +41,7 @@ public class ConnectionStateTransactionTests
         _provider.BeginTransactionAsync(Arg.Any<string>()).Returns(_ => new TransactionInfo());
         _factory.GetProvider(DatabaseType.PostgreSQL).Returns(_provider);
 
-        _sut = new ConnectionState(Substitute.For<IConnectionService>(), _factory, _bus, NullLogger<ConnectionState>.Instance)
+        _sut = new ConnectionState(Substitute.For<IConnectionService>(), _factory, _bus, NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake())
         {
             Connections = [_connection]
         };

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Aion.Contracts.Database;
+using Aion.Contracts.Database.Dialects;
 using Aion.Contracts.Queries;
 using Aion.Test.TestDoubles;
 using Aion.Web.Providers;
@@ -284,7 +285,23 @@ public class InBrowserProviderTests
         await provider.GetColumnsAsync("pglite://shop", "shop", schema, table);
 
         _catalogQueries.Count.ShouldBe(2);
-        _catalogQueries.ShouldAllBe(sql => sql.Contains($"table_name = {tableLiteral}") && sql.Contains($"table_schema = {schemaLiteral}"));
+        _catalogQueries.ShouldAllBe(sql => sql.Contains($"= {tableLiteral}") && sql.Contains($"= {schemaLiteral}"));
+    }
+
+    [Fact]
+    public async Task PGlite_GetColumnsAsync_ReadsTheCatalogWithTheStatementsTheServerProviderRuns()
+    {
+        // The server's integration tests run these statements against real PostgreSQL, which PGlite is.
+        CatalogReturns(_ => """{"rows": []}""");
+        var provider = new PGliteProvider(_js.Runtime);
+
+        await provider.GetColumnsAsync("pglite://shop", "shop", "tstransit", "message_data");
+
+        _catalogQueries.ShouldBe(
+        [
+            PostgreSqlCatalogSql.Columns("'tstransit'", "'message_data'"),
+            PostgreSqlCatalogSql.ForeignKeys("'tstransit'", "'message_data'")
+        ]);
     }
 
     [Fact]

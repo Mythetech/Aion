@@ -293,34 +293,7 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
         using var conn = new NpgsqlConnection(connectionString);
         await conn.OpenAsync();
 
-        // numeric_precision is also filled for integer and floating types, in bits, so only numeric's declared
-        // precision is read. An identity column reports is_generated = 'NEVER'; only computed columns are 'ALWAYS'.
-        const string sql = @"
-            SELECT
-                c.column_name,
-                c.data_type,
-                c.is_nullable = 'YES' as is_nullable,
-                c.column_default,
-                c.character_maximum_length,
-                CASE WHEN pk.constraint_type = 'PRIMARY KEY' THEN true ELSE false END as is_primary_key,
-                CASE WHEN c.column_default LIKE 'nextval%' OR c.is_identity = 'YES' THEN true ELSE false END as is_identity,
-                c.udt_name,
-                CASE WHEN c.data_type = 'numeric' THEN c.numeric_precision END as numeric_precision,
-                CASE WHEN c.data_type = 'numeric' THEN c.numeric_scale END as numeric_scale,
-                c.is_generated = 'ALWAYS' as is_generated
-            FROM information_schema.columns c
-            LEFT JOIN (
-                SELECT ku.column_name, tc.constraint_type
-                FROM information_schema.table_constraints tc
-                JOIN information_schema.key_column_usage ku
-                    ON tc.constraint_name = ku.constraint_name
-                WHERE tc.constraint_type = 'PRIMARY KEY'
-                    AND ku.table_name = @table
-                    AND ku.table_schema = @schema
-            ) pk ON c.column_name = pk.column_name
-            WHERE c.table_name = @table
-            AND c.table_schema = @schema
-            ORDER BY c.ordinal_position";
+        var sql = PostgreSqlCatalogSql.Columns("@schema", "@table");
 
         using var cmd = new NpgsqlCommand(sql, conn);
         cmd.Parameters.AddWithValue("@table", table);
@@ -365,23 +338,7 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
         using var conn = new NpgsqlConnection(connectionString);
         await conn.OpenAsync();
 
-        const string sql = @"
-            SELECT
-                tc.constraint_name,
-                kcu.column_name,
-                ccu.table_name AS referenced_table,
-                ccu.column_name AS referenced_column,
-                ccu.table_schema AS referenced_schema
-            FROM information_schema.table_constraints tc
-            JOIN information_schema.key_column_usage kcu
-                ON tc.constraint_name = kcu.constraint_name
-                AND tc.table_schema = kcu.table_schema
-            JOIN information_schema.constraint_column_usage ccu
-                ON ccu.constraint_name = tc.constraint_name
-                AND ccu.table_schema = tc.table_schema
-            WHERE tc.constraint_type = 'FOREIGN KEY'
-                AND tc.table_name = @table
-                AND tc.table_schema = @schema";
+        var sql = PostgreSqlCatalogSql.ForeignKeys("@schema", "@table");
 
         using var cmd = new NpgsqlCommand(sql, conn);
         cmd.Parameters.AddWithValue("@table", table);

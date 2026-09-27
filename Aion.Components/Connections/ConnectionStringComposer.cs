@@ -10,7 +10,7 @@ namespace Aion.Components.Connections;
 /// </summary>
 public static class ConnectionStringComposer
 {
-    private sealed class Key
+    internal sealed class Key
     {
         private readonly HashSet<string> _names;
 
@@ -25,7 +25,7 @@ public static class ConnectionStringComposer
         public bool Matches(string key) => _names.Contains(Normalize(key));
     }
 
-    private sealed record Keys(
+    internal sealed record Keys(
         Key Host,
         Key? Port,
         Key? Database,
@@ -191,6 +191,12 @@ public static class ConnectionStringComposer
     }
 
     /// <summary>
+    /// Whether the connection string logs in with Windows authentication, which takes no password.
+    /// </summary>
+    public static bool UsesWindowsAuth(DatabaseType type, string? connectionString) =>
+        IsTrue(Find(TryParse(connectionString), KeysFor(type).IntegratedSecurity));
+
+    /// <summary>
     /// Returns the connection string with the driver's connect timeout set, replacing any timeout already present.
     /// Types without a connect timeout, or strings that cannot be parsed, are returned unchanged.
     /// </summary>
@@ -210,7 +216,7 @@ public static class ConnectionStringComposer
         return builder.ConnectionString;
     }
 
-    private static Keys KeysFor(DatabaseType type) => type switch
+    internal static Keys KeysFor(DatabaseType type) => type switch
     {
         DatabaseType.PostgreSQL => PostgreSql,
         DatabaseType.MySQL => MySql,
@@ -219,7 +225,7 @@ public static class ConnectionStringComposer
         _ => FileBased
     };
 
-    private static DbConnectionStringBuilder? TryParse(string? connectionString)
+    internal static DbConnectionStringBuilder? TryParse(string? connectionString)
     {
         if (string.IsNullOrWhiteSpace(connectionString))
             return null;
