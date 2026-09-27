@@ -1,5 +1,6 @@
 using Aion.Components;
 using Aion.Components.Connections;
+using Aion.Components.Connections.Secrets;
 using Aion.Components.History;
 using Aion.Components.Infrastructure;
 using Aion.Components.NativeMenu;
@@ -59,6 +60,7 @@ builder.Services.AddSingleton<BrowserStorageCleaner>();
 builder.Services.AddSingleton<ISqliteWasmInitializer, SqliteWasmInitializer>();
 builder.Services.AddSingleton<StorageRestoreService>();
 builder.Services.AddSingleton<IConnectionPrompt, BrowserConnectionPrompt>();
+builder.Services.AddSingleton<IConnectionSecretStore, NoConnectionSecretStore>();
 
 builder.Services.AddMessageBus(typeof(WebApp).Assembly, typeof(ComponentsApp).Assembly);
 

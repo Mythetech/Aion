@@ -36,6 +36,7 @@
          Desktop services that only depend on Aion.Components are compiled in directly instead. -->
     <ItemGroup>
       <Compile Include="..\Aion.Desktop\Services\FileQueryHistoryStore.cs" Link="Desktop\FileQueryHistoryStore.cs" />
+      <Compile Include="..\Aion.Desktop\Services\SecretManagerConnectionStore.cs" Link="Desktop\SecretManagerConnectionStore.cs" />
     </ItemGroup>
 
     <ItemGroup>
