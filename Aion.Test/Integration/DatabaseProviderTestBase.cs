@@ -302,6 +302,76 @@ public abstract class DatabaseProviderTestBase : IAsyncLifetime
         ColumnTypeText.Describe(columns.Single(c => c.Name == "total"), Provider.DatabaseType).ShouldContain(" · generated");
     }
 
+    private const string OtherSchema = "copy_schema";
+
+    /// <summary>
+    /// key_child.id is its primary key and also a foreign key; owner_id is in two foreign keys, one of them composite
+    /// with region. <paramref name="qualifier"/> puts the tables in a schema, so a second copy can reuse every
+    /// constraint name, as schemas created from one script do.
+    /// </summary>
+    private async Task CreateKeyTablesAsync(string qualifier)
+    {
+        await ExecuteOrFailAsync(DatabaseConnectionString,
+            $"CREATE TABLE {qualifier}key_parent (id int NOT NULL, CONSTRAINT key_parent_pkey PRIMARY KEY (id))");
+        await ExecuteOrFailAsync(DatabaseConnectionString,
+            $"CREATE TABLE {qualifier}key_pair (owner_id int NOT NULL, region varchar(10) NOT NULL, CONSTRAINT key_pair_pkey PRIMARY KEY (owner_id, region))");
+        await ExecuteOrFailAsync(DatabaseConnectionString,
+            $"""
+             CREATE TABLE {qualifier}key_child (
+                 id int NOT NULL,
+                 owner_id int NOT NULL,
+                 region varchar(10) NOT NULL,
+                 note varchar(20) NULL,
+                 CONSTRAINT key_child_pkey PRIMARY KEY (id),
+                 CONSTRAINT key_child_id_fkey FOREIGN KEY (id) REFERENCES {qualifier}key_parent (id),
+                 CONSTRAINT key_child_owner_fkey FOREIGN KEY (owner_id) REFERENCES {qualifier}key_parent (id),
+                 CONSTRAINT key_child_pair_fkey FOREIGN KEY (owner_id, region) REFERENCES {qualifier}key_pair (owner_id, region))
+             """);
+    }
+
+    // MySQL reads CREATE SCHEMA as CREATE DATABASE, which is what a schema is there.
+    private async Task CreateKeyTablesInTwoSchemasAsync()
+    {
+        await CreateKeyTablesAsync(string.IsNullOrEmpty(TestSchema) ? "" : $"{TestSchema}.");
+        await ExecuteOrFailAsync(DatabaseConnectionString, $"CREATE SCHEMA {OtherSchema}");
+        await CreateKeyTablesAsync($"{OtherSchema}.");
+    }
+
+    [Fact]
+    public async Task GetColumns_ListsEachColumnOnce_WhenItIsInSeveralKeysAndAnotherSchemaReusesTheirNames()
+    {
+        // Arrange
+        await CreateKeyTablesInTwoSchemasAsync();
+
+        // Act
+        var columns = await Provider.GetColumnsAsync(DatabaseConnectionString, TestDatabase, TestSchema, "key_child");
+
+        // Assert
+        columns.Select(c => c.Name).ShouldBe(["id", "owner_id", "region", "note"]);
+        columns.Where(c => c.IsPrimaryKey).Select(c => c.Name).ShouldBe(["id"]);
+        columns.Where(c => c.IsForeignKey).Select(c => c.Name).ShouldBe(["id", "owner_id", "region"]);
+    }
+
+    [Fact]
+    public async Task GetForeignKeys_PairsEachColumnWithTheColumnItReferences()
+    {
+        // Arrange
+        await CreateKeyTablesInTwoSchemasAsync();
+
+        // Act
+        var foreignKeys = await Provider.GetForeignKeysAsync(DatabaseConnectionString, TestDatabase, TestSchema, "key_child");
+
+        // Assert
+        foreignKeys.Select(fk => (fk.ConstraintName, fk.ColumnName, fk.ReferencedTable, fk.ReferencedColumn)).ShouldBe(
+        [
+            ("key_child_id_fkey", "id", "key_parent", "id"),
+            ("key_child_owner_fkey", "owner_id", "key_parent", "id"),
+            ("key_child_pair_fkey", "owner_id", "key_pair", "owner_id"),
+            ("key_child_pair_fkey", "region", "key_pair", "region")
+        ], ignoreOrder: true);
+        foreignKeys.ShouldAllBe(fk => fk.ReferencedSchema != OtherSchema);
+    }
+
     [Fact]
     public async Task GenerateData_LeavesGeneratedColumnsToTheEngine()
     {
