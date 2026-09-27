@@ -1,8 +1,6 @@
-@using Aion.Components.Infrastructure.Commands
 @using Aion.Components.Querying.Editing
-@using Aion.Components.Theme
+@using Mythetech.Framework.Components.Buttons
 @using Aion.Contracts.Queries.Editing
-@using Mythetech.Framework.Infrastructure.MessageBus
 
 <MudDialog Class="aion-transparent-dialog">
     <DialogContent>
@@ -28,12 +26,7 @@
         </div>
     </DialogContent>
     <DialogActions>
-        <MudButton Class="sql-review-copy"
-                   StartIcon="@AionIcons.Copy"
-                   Disabled="@(_statements.Count == 0)"
-                   OnClick="CopyAsync">
-            Copy SQL
-        </MudButton>
+        <MtCopyButton Class="sql-review-copy" Text="@string.Join("\n\n", _statements)" CopyTooltip="Copy SQL" />
         <MudSpacer />
         <MudButton OnClick="Close">Close</MudButton>
         <MudButton Class="sql-review-apply"
@@ -55,7 +48,6 @@
     [Parameter] public EventCallback OnApply { get; set; }
 
     [Inject] private PendingChangesSqlBuilder SqlBuilder { get; set; } = default!;
-    [Inject] private IMessageBus Bus { get; set; } = default!;
 
     private bool _loading = true;
     private string? _error;
@@ -82,11 +74,6 @@
         {
             _loading = false;
         }
-    }
-
-    private async Task CopyAsync()
-    {
-        await Bus.PublishAsync(new CopyToClipboard(string.Join("\n\n", _statements)));
     }
 
     private async Task ApplyAsync()
