@@ -16,6 +16,7 @@ using MudBlazor.Services;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Components.Connections;
 
@@ -49,7 +50,7 @@ public class ConnectionPanelTests : TestContext
         factory.GetProvider(DatabaseType.LiteDB).Returns(_liteDbProvider);
 
         Services.AddSingleton(_bus);
-        _connectionState = new ConnectionState(_connectionService, factory, _bus, NullLogger<ConnectionState>.Instance);
+        _connectionState = new ConnectionState(_connectionService, factory, _bus, NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake());
         Services.AddSingleton(_connectionState);
         Services.AddSingleton(new QueryState(_bus, Substitute.For<IQuerySaveService>()));
         Services.AddSingleton(new BrowserSettings());

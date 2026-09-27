@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Unit;
 
@@ -21,7 +22,7 @@ public class SqlCompletionServiceTests
         var providerFactory = Substitute.For<IDatabaseProviderFactory>();
         var connectionService = Substitute.For<IConnectionService>();
         var logger = Substitute.For<ILogger<ConnectionState>>();
-        _connectionState = new ConnectionState(connectionService, providerFactory, messageBus, logger);
+        _connectionState = new ConnectionState(connectionService, providerFactory, messageBus, logger, new ConnectionSecretStoreFake());
         _sut = new SqlCompletionService(_connectionState);
     }
 

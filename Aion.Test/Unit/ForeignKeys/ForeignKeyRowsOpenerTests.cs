@@ -14,6 +14,7 @@ using MudBlazor;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Unit.ForeignKeys;
 
@@ -32,7 +33,7 @@ public class ForeignKeyRowsOpenerTests
         var factory = Substitute.For<IDatabaseProviderFactory>();
         factory.GetProvider(DatabaseType.WasmSQLite).Returns(provider);
 
-        _connections = new ConnectionState(Substitute.For<IConnectionService>(), factory, _bus, NullLogger<ConnectionState>.Instance);
+        _connections = new ConnectionState(Substitute.For<IConnectionService>(), factory, _bus, NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake());
         _queries = new QueryState(_bus, Substitute.For<IQuerySaveService>());
         _sut = new ForeignKeyRowsOpener(new ForeignKeyService(_connections), _queries, _bus);
     }

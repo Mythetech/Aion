@@ -17,6 +17,7 @@ using Mythetech.Framework.Infrastructure.Guards;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Components.Querying;
 
@@ -51,7 +52,7 @@ public class QueryEditorErrorMarkerTests : TestContext
             Enumerable.Empty<IMessagePipe>(), Enumerable.Empty<IConsumerFilter>());
         _state = new QueryState(_bus, Substitute.For<IQuerySaveService>());
         var connection = new ConnectionModel { Name = "Local", Type = DatabaseType.WasmSQLite, ConnectionString = "Data Source=shop.db" };
-        var connections = new ConnectionState(Substitute.For<IConnectionService>(), factory, _bus, new NullLogger<ConnectionState>())
+        var connections = new ConnectionState(Substitute.For<IConnectionService>(), factory, _bus, new NullLogger<ConnectionState>(), new ConnectionSecretStoreFake())
         {
             Connections = [connection]
         };

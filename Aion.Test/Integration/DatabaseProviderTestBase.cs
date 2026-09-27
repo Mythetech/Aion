@@ -9,6 +9,7 @@ using Aion.Contracts.Queries.Editing;
 using Microsoft.Extensions.Logging;
 using Shouldly;
 using Xunit;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Integration;
 
@@ -354,7 +355,7 @@ public abstract class DatabaseProviderTestBase : IAsyncLifetime
         var factory = new DatabaseProviderFactory([Provider]);
         var connections = new ConnectionState(new TestDoubles.ConnectionServiceFake(factory), factory,
             NSubstitute.Substitute.For<Mythetech.Framework.Infrastructure.MessageBus.IMessageBus>(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<ConnectionState>.Instance);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake());
         var connection = new Aion.Contracts.Connections.ConnectionModel
         {
             Name = "integration", ConnectionString = ConnectionString, Type = Provider.DatabaseType, Active = true

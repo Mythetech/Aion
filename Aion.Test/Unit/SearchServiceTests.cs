@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Unit;
 
@@ -22,7 +23,7 @@ public class SearchServiceTests
     {
         var bus = Substitute.For<IMessageBus>();
         var providerFactory = Substitute.For<IDatabaseProviderFactory>();
-        _connections = new ConnectionState(_connectionService, providerFactory, bus, Substitute.For<ILogger<ConnectionState>>());
+        _connections = new ConnectionState(_connectionService, providerFactory, bus, Substitute.For<ILogger<ConnectionState>>(), new ConnectionSecretStoreFake());
         _queries = new QueryState(bus, Substitute.For<IQuerySaveService>());
         _sut = new SearchService(_connections, _queries, Substitute.For<ILogger<SearchService>>(), bus);
     }

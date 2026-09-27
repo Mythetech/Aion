@@ -12,7 +12,8 @@ public class ConnectionModelSerializationTests
         Name = "Local",
         ConnectionString = "Host=localhost;Username=postgres",
         Type = DatabaseType.PostgreSQL,
-        SaveCredentials = true,
+        UsesPassword = true,
+        PasswordStore = "macOS Keychain",
         Active = true,
         HealthStatus = ConnectionHealthStatus.Healthy,
         LastActivityTime = DateTime.UtcNow,
@@ -45,7 +46,8 @@ public class ConnectionModelSerializationTests
         roundTripped.Name.ShouldBe("Local");
         roundTripped.ConnectionString.ShouldBe(model.ConnectionString);
         roundTripped.Type.ShouldBe(DatabaseType.PostgreSQL);
-        roundTripped.SaveCredentials.ShouldBeTrue();
+        roundTripped.UsesPassword.ShouldBeTrue();
+        roundTripped.PasswordStore.ShouldBe("macOS Keychain");
     }
 
     [Fact]

@@ -13,6 +13,7 @@ using MudBlazor.Services;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Components.Querying;
 
@@ -46,7 +47,7 @@ public class ConnectionPickerTests : TestContext
         JSInterop.Mode = JSRuntimeMode.Loose;
 
         _state = new QueryState(_bus, Substitute.For<IQuerySaveService>());
-        _connections = new ConnectionState(Substitute.For<IConnectionService>(), Substitute.For<IDatabaseProviderFactory>(), _bus, new NullLogger<ConnectionState>())
+        _connections = new ConnectionState(Substitute.For<IConnectionService>(), Substitute.For<IDatabaseProviderFactory>(), _bus, new NullLogger<ConnectionState>(), new ConnectionSecretStoreFake())
         {
             Connections = [_sample, _prod]
         };

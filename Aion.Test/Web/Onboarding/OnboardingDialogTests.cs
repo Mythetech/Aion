@@ -28,7 +28,7 @@ public class OnboardingDialogTests : TestContext
         JSInterop.Mode = JSRuntimeMode.Loose;
 
         var bus = Substitute.For<IMessageBus>();
-        _connectionState = new ConnectionState(_engines.ConnectionService, _engines.Factory, bus, Substitute.For<ILogger<ConnectionState>>());
+        _connectionState = new ConnectionState(_engines.ConnectionService, _engines.Factory, bus, Substitute.For<ILogger<ConnectionState>>(), new ConnectionSecretStoreFake());
         Services.AddSingleton(new SampleDatabaseProvisioner(
             _engines.Factory,
             _connectionState,

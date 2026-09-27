@@ -14,6 +14,7 @@ using Mythetech.Framework.Infrastructure.Guards;
 using NSubstitute;
 using Shouldly;
 using Aion.Components.Settings.Domains;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Components.Querying;
 
@@ -46,7 +47,7 @@ public class QueryEditorTests : TestContext
             Enumerable.Empty<IMessagePipe>(),
             Enumerable.Empty<IConsumerFilter>());
         _state = new(_bus, NSubstitute.Substitute.For<IQuerySaveService>());
-        _connections = new ConnectionState(Substitute.For<IConnectionService>(), Substitute.For<IDatabaseProviderFactory>(), _bus, new NullLogger<ConnectionState>());
+        _connections = new ConnectionState(Substitute.For<IConnectionService>(), Substitute.For<IDatabaseProviderFactory>(), _bus, new NullLogger<ConnectionState>(), new ConnectionSecretStoreFake());
         Services.AddSingleton(_bus);
         Services.AddSingleton(_state);
         Services.AddSingleton(_connections);

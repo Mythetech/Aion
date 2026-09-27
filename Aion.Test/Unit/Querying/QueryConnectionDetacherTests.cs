@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Unit.Querying;
 
@@ -29,7 +30,7 @@ public class QueryConnectionDetacherTests
             Substitute.For<IConnectionService>(),
             Substitute.For<IDatabaseProviderFactory>(),
             _bus,
-            Substitute.For<ILogger<ConnectionState>>());
+            Substitute.For<ILogger<ConnectionState>>(), new ConnectionSecretStoreFake());
         connectionState.Connections = [connection];
 
         await connectionState.RemoveConnection(connection.Id);

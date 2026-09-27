@@ -48,7 +48,7 @@ public sealed class EditingFixture
         factory.GetProvider(engine).Returns(Provider);
 
         ConnectionState = new ConnectionState(
-            Substitute.For<IConnectionService>(), factory, Bus, NullLogger<ConnectionState>.Instance);
+            Substitute.For<IConnectionService>(), factory, Bus, NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake());
 
         Database = new DatabaseModel { Name = DatabaseName };
         Connection = new ConnectionModel

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Unit.Querying;
 
@@ -25,7 +26,7 @@ public class QueryErrorSuggesterTests
         _provider.UpdateConnectionString(Arg.Any<string>(), Arg.Any<string>()).Returns("db");
 
         _connection = new ConnectionModel { Name = "Local", Type = DatabaseType.WasmSQLite, Databases = [_database] };
-        var connections = new ConnectionState(_connectionService, factory, Substitute.For<IMessageBus>(), NullLogger<ConnectionState>.Instance)
+        var connections = new ConnectionState(_connectionService, factory, Substitute.For<IMessageBus>(), NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake())
         {
             Connections = [_connection]
         };

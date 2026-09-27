@@ -10,7 +10,7 @@ namespace Aion.Components.Connections;
 /// </summary>
 public static class ConnectionStringComposer
 {
-    private sealed class Key
+    internal sealed class Key
     {
         private readonly HashSet<string> _names;
 
@@ -25,7 +25,7 @@ public static class ConnectionStringComposer
         public bool Matches(string key) => _names.Contains(Normalize(key));
     }
 
-    private sealed record Keys(
+    internal sealed record Keys(
         Key Host,
         Key? Port,
         Key? Database,
@@ -210,7 +210,7 @@ public static class ConnectionStringComposer
         return builder.ConnectionString;
     }
 
-    private static Keys KeysFor(DatabaseType type) => type switch
+    internal static Keys KeysFor(DatabaseType type) => type switch
     {
         DatabaseType.PostgreSQL => PostgreSql,
         DatabaseType.MySQL => MySql,
@@ -219,7 +219,7 @@ public static class ConnectionStringComposer
         _ => FileBased
     };
 
-    private static DbConnectionStringBuilder? TryParse(string? connectionString)
+    internal static DbConnectionStringBuilder? TryParse(string? connectionString)
     {
         if (string.IsNullOrWhiteSpace(connectionString))
             return null;

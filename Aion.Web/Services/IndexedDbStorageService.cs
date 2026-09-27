@@ -144,7 +144,6 @@ public record ConnectionRecord
     public string Name { get; init; } = "";
     public string ConnectionString { get; init; } = "";
     public int Type { get; init; }
-    public bool SaveCredentials { get; init; }
 
     public ConnectionRecord() { }
 
@@ -154,7 +153,6 @@ public record ConnectionRecord
         Name = model.Name;
         ConnectionString = model.ConnectionString;
         Type = (int)model.Type;
-        SaveCredentials = model.SaveCredentials;
     }
 
     public ConnectionModel ToConnectionModel() => new()
@@ -163,7 +161,6 @@ public record ConnectionRecord
         Name = Name,
         ConnectionString = ConnectionString,
         Type = (DatabaseType)Type,
-        SaveCredentials = SaveCredentials,
         IsSavedConnection = true
     };
 }

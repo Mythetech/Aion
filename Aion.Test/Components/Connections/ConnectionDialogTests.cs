@@ -1,4 +1,5 @@
 using Aion.Components.Connections;
+using Aion.Components.Connections.Secrets;
 using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
 using Bunit;
@@ -11,6 +12,7 @@ using MudBlazor.Services;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Components.Connections;
 
@@ -18,6 +20,7 @@ public class ConnectionDialogTests : TestContext
 {
     private readonly IConnectionService _connectionService;
     private readonly ConnectionState _connectionState;
+    private readonly ConnectionSecretStoreFake _secrets = new() { ActiveStoreName = "macOS Keychain" };
 
     public ConnectionDialogTests()
     {
@@ -35,10 +38,11 @@ public class ConnectionDialogTests : TestContext
 
         _connectionService = Substitute.For<IConnectionService>();
         _connectionState = new ConnectionState(_connectionService, providerFactory, Substitute.For<IMessageBus>(),
-            NullLogger<ConnectionState>.Instance);
+            NullLogger<ConnectionState>.Instance, _secrets);
 
         Services.AddSingleton(providerFactory);
         Services.AddSingleton(_connectionState);
+        Services.AddSingleton<IConnectionSecretStore>(_secrets);
     }
 
     private static ConnectionDialogModel FilledIn() => new()

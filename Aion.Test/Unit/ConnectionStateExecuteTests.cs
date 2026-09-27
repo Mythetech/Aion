@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Unit;
 
@@ -28,7 +29,7 @@ public class ConnectionStateExecuteTests
         _provider.UpdateConnectionString(Arg.Any<string>(), Arg.Any<string>()).Returns("db");
 
         var connection = new ConnectionModel { Name = "Test", ConnectionString = "Host=localhost", Type = DatabaseType.PostgreSQL };
-        _sut = new ConnectionState(Substitute.For<IConnectionService>(), factory, _bus, NullLogger<ConnectionState>.Instance)
+        _sut = new ConnectionState(Substitute.For<IConnectionService>(), factory, _bus, NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake())
         {
             Connections = [connection]
         };

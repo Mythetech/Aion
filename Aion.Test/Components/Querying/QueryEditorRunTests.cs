@@ -19,6 +19,7 @@ using Mythetech.Framework.Infrastructure.Guards;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Components.Querying;
 
@@ -71,7 +72,7 @@ public class QueryEditorRunTests : TestContext
         _bus = new InMemoryMessageBus(Services, new NullLogger<InMemoryMessageBus>(),
             Enumerable.Empty<IMessagePipe>(), Enumerable.Empty<IConsumerFilter>());
         _state = new QueryState(_bus, Substitute.For<IQuerySaveService>());
-        var connections = new ConnectionState(Substitute.For<IConnectionService>(), factory, _bus, new NullLogger<ConnectionState>())
+        var connections = new ConnectionState(Substitute.For<IConnectionService>(), factory, _bus, new NullLogger<ConnectionState>(), new ConnectionSecretStoreFake())
         {
             Connections = [_connection]
         };

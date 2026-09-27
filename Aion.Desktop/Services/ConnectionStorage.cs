@@ -1,10 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text.Json;
-using System.Threading.Tasks;
+using Aion.Components.Connections;
 using Aion.Contracts.Connections;
+
+namespace Aion.Desktop.Services;
 
 public interface IConnectionStorage
 {
@@ -12,42 +9,44 @@ public interface IConnectionStorage
     Task<IEnumerable<ConnectionModel>> LoadConnectionsAsync();
 }
 
+/// <summary>
+/// Saves every connection to a JSON file. Passwords never reach it: <see cref="ConnectionsFile"/> strips them as it
+/// writes, and they live in the secret manager each connection names instead.
+/// </summary>
 public class FileConnectionStorage : IConnectionStorage
 {
     private readonly string _storageFile;
 
-    public FileConnectionStorage()
+    public FileConnectionStorage(string storageFile)
     {
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        _storageFile = Path.Combine(appData, "Aion", "connections.json");
+        _storageFile = storageFile;
     }
+
+    public static string DefaultFilePath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Aion", "connections.json");
 
     public async Task SaveConnectionsAsync(IEnumerable<ConnectionModel> connections)
     {
-        var directory = Path.GetDirectoryName(_storageFile);
-        if (!Directory.Exists(directory))
-            Directory.CreateDirectory(directory!);
+        Directory.CreateDirectory(Path.GetDirectoryName(_storageFile)!);
 
-        var savedConnections = connections
-            .Where(c => c.SaveCredentials)
-            .ToList();
-            
-        await File.WriteAllTextAsync(_storageFile, 
-            JsonSerializer.Serialize(savedConnections));
+        // Write then move so a crash mid-write leaves the previous connections intact rather than a truncated file.
+        var tempPath = _storageFile + ".tmp";
+        await File.WriteAllTextAsync(tempPath, ConnectionsFile.Serialize(connections));
+        File.Move(tempPath, _storageFile, overwrite: true);
     }
 
     public async Task<IEnumerable<ConnectionModel>> LoadConnectionsAsync()
     {
         if (!File.Exists(_storageFile))
-            return Enumerable.Empty<ConnectionModel>();
+            return [];
 
-        var json = await File.ReadAllTextAsync(_storageFile);
-        var connections = JsonSerializer.Deserialize<List<ConnectionModel>>(json);
-        
-        // Mark these as saved connections
-        foreach (var conn in connections!)
-            conn.IsSavedConnection = true;
-            
-        return connections;
+        var contents = ConnectionsFile.Deserialize(await File.ReadAllTextAsync(_storageFile));
+
+        // Files written before passwords moved to secret managers hold them in plain text. They are not moved
+        // anywhere: the file is written again straight away so they are off disk after the first launch.
+        if (contents.WipedPasswords)
+            await SaveConnectionsAsync(contents.Connections);
+
+        return contents.Connections;
     }
-} 
+}

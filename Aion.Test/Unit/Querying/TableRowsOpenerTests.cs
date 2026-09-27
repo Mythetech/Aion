@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Unit.Querying;
 
@@ -25,7 +26,7 @@ public class TableRowsOpenerTests
 
     public TableRowsOpenerTests()
     {
-        _connections = new ConnectionState(Substitute.For<IConnectionService>(), _factory, _bus, NullLogger<ConnectionState>.Instance);
+        _connections = new ConnectionState(Substitute.For<IConnectionService>(), _factory, _bus, NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake());
         _queries = new QueryState(_bus, Substitute.For<IQuerySaveService>());
         _sut = new TableRowsOpener(_connections, _queries, _bus);
     }

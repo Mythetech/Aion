@@ -7,6 +7,7 @@ using MudBlazor;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Unit;
 
@@ -23,15 +24,14 @@ public class ConnectionStateConnectTests
         _messageBus = Substitute.For<IMessageBus>();
         _connectionService = Substitute.For<IConnectionService>();
         _sut = new ConnectionState(_connectionService, Substitute.For<IDatabaseProviderFactory>(), _messageBus,
-            NullLogger<ConnectionState>.Instance);
+            NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake());
     }
 
     private static ConnectionModel CreateConnection(string name = "Local") => new()
     {
         Name = name,
         ConnectionString = ConnectionString,
-        Type = DatabaseType.PostgreSQL,
-        SaveCredentials = true
+        Type = DatabaseType.PostgreSQL
     };
 
     private void ServerRejects(string message) =>

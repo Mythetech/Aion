@@ -36,7 +36,7 @@ public class BrowserStorageCleanerTests
 
         _history = new HistoryState(_historyStore, NullLogger<HistoryState>.Instance);
         _sut = new BrowserStorageCleaner(
-            new ConnectionState(connectionService, factory, bus, Substitute.For<ILogger<ConnectionState>>()),
+            new ConnectionState(connectionService, factory, bus, Substitute.For<ILogger<ConnectionState>>(), new ConnectionSecretStoreFake()),
             new QueryState(bus, Substitute.For<IQuerySaveService>()),
             _history,
             new IndexedDbStorageService(js.Runtime),

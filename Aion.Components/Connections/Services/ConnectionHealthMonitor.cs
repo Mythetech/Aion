@@ -133,9 +133,11 @@ public class ConnectionHealthMonitor : IConnectionHealthMonitor
         return connection.Active;
     }
 
-    // In-process engines have no server to lose, and polling them only flickers the status chip.
+    // In-process engines have no server to lose, and polling them only flickers the status chip. A connection
+    // waiting for its password would only fail to log in, over and over.
     private static bool IsCheckable(ConnectionModel connection) =>
-        !connection.Type.IsInProcess() && connection.HealthStatus != ConnectionHealthStatus.Checking;
+        !connection.Type.IsInProcess()
+        && connection.HealthStatus is not (ConnectionHealthStatus.Checking or ConnectionHealthStatus.NeedsPassword);
 
     private async Task CheckAndUpdateConnectionAsync(ConnectionModel connection)
     {

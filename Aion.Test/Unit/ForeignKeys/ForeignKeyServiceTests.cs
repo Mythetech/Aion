@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Mythetech.Framework.Infrastructure.MessageBus;
 using NSubstitute;
 using Shouldly;
+using Aion.Test.TestDoubles;
 
 namespace Aion.Test.Unit.ForeignKeys;
 
@@ -22,7 +23,7 @@ public class ForeignKeyServiceTests
     public ForeignKeyServiceTests()
     {
         _connections = new ConnectionState(Substitute.For<IConnectionService>(), _factory, Substitute.For<IMessageBus>(),
-            NullLogger<ConnectionState>.Instance);
+            NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake());
         _sut = new ForeignKeyService(_connections);
     }
 

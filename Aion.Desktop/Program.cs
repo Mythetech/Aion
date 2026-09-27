@@ -132,7 +132,7 @@ namespace Aion.Desktop
             appBuilder.Services.AddInitializationHook(sp => sp.GetRequiredService<StartupUpdateCheck>());
             appBuilder.Services.AddInitializationHook<QueryHistoryInitializationHook>();
 
-            appBuilder.Services.AddSingleton<IConnectionStorage, FileConnectionStorage>();
+            appBuilder.Services.AddSingleton<IConnectionStorage>(_ => new FileConnectionStorage(FileConnectionStorage.DefaultFilePath));
             appBuilder.Services.AddSingleton<IQuerySaveService, FileQuerySaveService>();
             appBuilder.Services.AddSingleton<IQueryHistoryStore>(_ => new FileQueryHistoryStore(FileQueryHistoryStore.DefaultFilePath));
             

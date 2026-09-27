@@ -7,6 +7,7 @@ using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
 using MudBlazor;
 using Aion.Components.Connections.Events;
+using Aion.Components.Connections.Secrets;
 using Aion.Components.Shared.Snackbar.Commands;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
@@ -19,15 +20,20 @@ public class ConnectionState
     private readonly IDatabaseProviderFactory _providerFactory;
     private readonly IMessageBus _messageBus;
     private readonly ILogger<ConnectionState> _logger;
+    private readonly IConnectionSecretStore _secretStore;
     private readonly ConcurrentDictionary<string, bool> _finishingTransactions = new();
 
-    public ConnectionState(IConnectionService connectionService, IDatabaseProviderFactory providerFactory, IMessageBus bus, ILogger<ConnectionState> logger)
+    public ConnectionState(IConnectionService connectionService, IDatabaseProviderFactory providerFactory, IMessageBus bus, ILogger<ConnectionState> logger,
+        IConnectionSecretStore secretStore)
     {
         _connectionService = connectionService;
         _providerFactory = providerFactory;
         _messageBus = bus;
         _logger = logger;
+        _secretStore = secretStore;
     }
+
+    public const string PasswordNotStoredReason = "The password isn't stored. Enter it to connect.";
     
     public event Action? ConnectionStateChanged;
     
@@ -49,6 +55,12 @@ public class ConnectionState
         }
 
         OnConnectionStateChanged();
+
+        // One at a time, so connections kept in 1Password share one unlock instead of each asking for it.
+        foreach (var connection in Connections.ToList())
+        {
+            await LoadPasswordAsync(connection);
+        }
 
         // Concurrent so several unreachable servers cost one driver timeout at startup, not one each.
         await Task.WhenAll(Connections.ToList().Select(RefreshDatabaseAsync));
@@ -79,7 +91,7 @@ public class ConnectionState
     /// <summary>
     /// Connects a new connection and, only when the server answers, marks it active, saves it and announces it.
     /// </summary>
-    public async Task<ConnectionResult> ConnectAsync(ConnectionModel connection)
+    public async Task<ConnectionResult> ConnectAsync(ConnectionModel connection, PasswordChoice passwordChoice = PasswordChoice.DontStore)
     {
         var result = await TestConnectionAsync(connection.ConnectionString, connection.Type);
         if (!result.Success)
@@ -87,6 +99,7 @@ public class ConnectionState
 
         ApplyConnectionResult(connection, result);
 
+        await KeepPasswordAsync(connection, passwordChoice, previousPassword: null);
         await _connectionService.AddConnection(connection);
         Connections.Add(connection);
 
@@ -385,6 +398,10 @@ public class ConnectionState
     /// </summary>
     public async Task<ConnectionResult> RefreshDatabaseAsync(ConnectionModel connection)
     {
+        // Logging in without the password would only fail, and servers can lock accounts after failed logins.
+        if (connection.HealthStatus == ConnectionHealthStatus.NeedsPassword)
+            return ConnectionResult.Failed(connection.LastError ?? PasswordNotStoredReason);
+
         var result = await TestConnectionAsync(connection.ConnectionString, connection.Type);
         ApplyConnectionResult(connection, result);
         OnConnectionStateChanged();
@@ -709,6 +726,7 @@ public class ConnectionState
 
         Connections.Remove(connection);
         await _connectionService.RemoveConnection(id);
+        await ForgetPasswordAsync(connection);
         OnConnectionStateChanged();
         await _messageBus.PublishAsync(new ConnectionRemoved(id));
     }
@@ -717,19 +735,20 @@ public class ConnectionState
     /// Saves the edited settings and reconnects with them. The edit is kept even when the server is
     /// unreachable, so the result only reports whether the reconnect worked.
     /// </summary>
-    public async Task<ConnectionResult> UpdateConnection(Guid id, ConnectionModel updated)
+    public async Task<ConnectionResult> UpdateConnection(Guid id, ConnectionModel updated, PasswordChoice passwordChoice)
     {
         var connection = Connections.FirstOrDefault(c => c.Id == id);
         if (connection == null) return ConnectionResult.Failed("The connection no longer exists.");
 
+        var previousPassword = ConnectionPasswords.GetPassword(connection.Type, connection.ConnectionString);
         connection.Name = updated.Name;
         connection.ConnectionString = updated.ConnectionString;
-        connection.SaveCredentials = updated.SaveCredentials;
         connection.Databases = [];
 
         var result = await TestConnectionAsync(connection.ConnectionString, connection.Type);
         ApplyConnectionResult(connection, result);
 
+        await KeepPasswordAsync(connection, passwordChoice, previousPassword);
         await _connectionService.UpdateConnection(connection);
         OnConnectionStateChanged();
 
@@ -749,6 +768,114 @@ public class ConnectionState
         await _connectionService.UpdateConnection(connection);
         OnConnectionStateChanged();
     }
+
+    /// <summary>
+    /// Connects a connection that is waiting for its password. The password is kept in the running connection
+    /// string, so with Don't store it lasts until Aion quits. A rejected password leaves the connection waiting.
+    /// </summary>
+    public async Task<ConnectionResult> ConnectWithPasswordAsync(Guid id, string password, PasswordChoice passwordChoice)
+    {
+        var connection = Connections.FirstOrDefault(c => c.Id == id);
+        if (connection == null) return ConnectionResult.Failed("The connection no longer exists.");
+
+        var connectionString = ConnectionPasswords.WithPassword(connection.Type, connection.ConnectionString, password);
+        var result = await TestConnectionAsync(connectionString, connection.Type);
+        if (!result.Success)
+            return result;
+
+        var previousStore = connection.PasswordStore;
+        connection.ConnectionString = connectionString;
+        ApplyConnectionResult(connection, result);
+
+        await KeepPasswordAsync(connection, passwordChoice, previousPassword: null);
+        if (connection.PasswordStore != previousStore)
+        {
+            await _connectionService.UpdateConnection(connection);
+        }
+
+        OnConnectionStateChanged();
+        return result;
+    }
+
+    /// <summary>
+    /// Puts a saved connection's password back into its connection string from the store it was saved to. When
+    /// there is none to read, the connection waits for one instead of trying to log in without it.
+    /// </summary>
+    private async Task LoadPasswordAsync(ConnectionModel connection)
+    {
+        if (!connection.UsesPassword || ConnectionPasswords.GetPassword(connection.Type, connection.ConnectionString) != null)
+            return;
+
+        var lookup = connection.PasswordStore is { } store
+            ? await _secretStore.GetPasswordAsync(store, connection.Id)
+            : SecretLookup.NotFound(PasswordNotStoredReason);
+
+        if (lookup.IsFound)
+        {
+            connection.ConnectionString = ConnectionPasswords.WithPassword(connection.Type, connection.ConnectionString, lookup.Password!);
+            return;
+        }
+
+        connection.Active = false;
+        connection.HealthStatus = ConnectionHealthStatus.NeedsPassword;
+        connection.LastError = lookup.Reason ?? PasswordNotStoredReason;
+    }
+
+    /// <summary>
+    /// Stores the connection's password in the active store, or forgets any stored copy, as the user chose.
+    /// A failed store never loses the connection; it is kept and the user is warned.
+    /// </summary>
+    private async Task KeepPasswordAsync(ConnectionModel connection, PasswordChoice choice, string? previousPassword)
+    {
+        var password = ConnectionPasswords.GetPassword(connection.Type, connection.ConnectionString);
+        connection.UsesPassword = password != null;
+
+        if (password == null || choice == PasswordChoice.DontStore)
+        {
+            await ForgetPasswordAsync(connection);
+            return;
+        }
+
+        var previousStore = connection.PasswordStore;
+        var alreadyStored = previousStore != null && password == previousPassword;
+
+        // Writing it again would only cost another keychain or 1Password prompt.
+        if (alreadyStored && previousStore == _secretStore.ActiveStoreName)
+            return;
+
+        var stored = await _secretStore.SavePasswordAsync(connection.Id, password, previousStore);
+        if (stored.Success)
+        {
+            connection.PasswordStore = stored.Store;
+            return;
+        }
+
+        var failure = EndSentence(stored.Store == null
+            ? $"Aion couldn't store the password: {stored.Error}"
+            : $"Aion couldn't store the password in {stored.Store}: {stored.Error}");
+
+        if (alreadyStored)
+        {
+            // The copy it already had is still the right password, so it stays in use rather than being asked for.
+            await _messageBus.PublishAsync(new AddNotification($"{failure} It stays in {previousStore}.", Severity.Warning));
+            return;
+        }
+
+        // Any copy stored before holds an old password now.
+        await ForgetPasswordAsync(connection);
+        await _messageBus.PublishAsync(new AddNotification(failure, Severity.Warning));
+    }
+
+    private async Task ForgetPasswordAsync(ConnectionModel connection)
+    {
+        if (connection.PasswordStore is not { } store)
+            return;
+
+        connection.PasswordStore = null;
+        await _secretStore.DeletePasswordAsync(store, connection.Id);
+    }
+
+    private static string EndSentence(string text) => text.EndsWith('.') ? text : text + ".";
 
     public IDatabaseProvider GetProvider(DatabaseType type) => _providerFactory.GetProvider(type);
 }

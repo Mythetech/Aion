@@ -30,7 +30,7 @@ public class HistoryEntryOpenerTests
             Substitute.For<IConnectionService>(),
             Substitute.For<IDatabaseProviderFactory>(),
             _bus,
-            NullLogger<ConnectionState>.Instance);
+            NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake());
         connections.Connections.Add(_connection);
         _opener = new HistoryEntryOpener(_queries, connections, _bus);
     }
