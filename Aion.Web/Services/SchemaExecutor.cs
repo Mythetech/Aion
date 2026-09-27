@@ -73,10 +73,37 @@ public class SchemaExecutor : ISchemaExecutor
     }
 
     /// <summary>
+    /// Creates the tables, and deletes the database again when they fail and this attempt is what created it.
+    /// Nothing connects to a database until its tables are made, so an empty one left behind would sit in
+    /// browser storage with no way to reach or remove it. A database that was already there is left alone.
+    /// </summary>
+    private static async Task<string?> CreateTablesAsync(IDatabaseProvider provider, string connectionString, SchemaWizardModel model)
+    {
+        if (provider is not IManagedDatabaseProvider storage)
+            return await CreateTablesInTransactionAsync(provider, connectionString, model);
+
+        bool existed;
+        try
+        {
+            existed = await storage.DatabaseExistsAsync(model.DatabaseName);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return CouldNotCreate(ex);
+        }
+
+        var error = await CreateTablesInTransactionAsync(provider, connectionString, model);
+        if (error is not null && !existed)
+            await DeleteQuietlyAsync(storage, model.DatabaseName);
+
+        return error;
+    }
+
+    /// <summary>
     /// Runs every CREATE TABLE in one transaction, so a failure leaves the database as it was and the user can
     /// fix the definition and finish again without the tables that did succeed getting in the way.
     /// </summary>
-    private static async Task<string?> CreateTablesAsync(IDatabaseProvider provider, string connectionString, SchemaWizardModel model)
+    private static async Task<string?> CreateTablesInTransactionAsync(IDatabaseProvider provider, string connectionString, SchemaWizardModel model)
     {
         TransactionInfo transaction;
         try
@@ -136,6 +163,18 @@ public class SchemaExecutor : ISchemaExecutor
         try
         {
             await provider.RollbackTransactionAsync(connectionString, transactionId);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+        }
+    }
+
+    // As with the rollback, the reason the tables failed is what the user needs to see.
+    private static async Task DeleteQuietlyAsync(IManagedDatabaseProvider storage, string database)
+    {
+        try
+        {
+            await storage.DeleteDatabaseAsync(database);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

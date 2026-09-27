@@ -22,18 +22,18 @@
                         <MudTextField @bind-Value="Model.Name"
                                       Label="Connection Name"/>
 
-                        <MudSelect T="DatabaseType"
-                                   Value="Model.Type"
-                                   ValueChanged="OnTypeChanged"
-                                   Label="Database Type"
-                                   Required="true"
-                                   RequiredError="Database type is required"
-                                   Disabled="@IsEditMode">
+                        <AionSelect T="DatabaseType"
+                                    Value="Model.Type"
+                                    ValueChanged="OnTypeChanged"
+                                    Label="Database Type"
+                                    Required="true"
+                                    RequiredError="Database type is required"
+                                    Disabled="@IsEditMode">
                             @foreach (var type in ProviderFactory.SupportedDatabases)
                             {
                                 <MudSelectItem Value="@type">@type.ToString()</MudSelectItem>
                             }
-                        </MudSelect>
+                        </AionSelect>
 
                         @if (Model.Type == DatabaseType.LiteDB)
                         {

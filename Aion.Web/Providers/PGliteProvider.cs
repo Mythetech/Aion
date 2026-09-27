@@ -50,6 +50,12 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
         _databases.Add(name);
     }
 
+    public async Task<bool> DatabaseExistsAsync(string name)
+    {
+        var module = await GetModuleAsync();
+        return await module.InvokeAsync<bool>("exists", name);
+    }
+
     public async Task DeleteDatabaseAsync(string name)
     {
         var module = await GetModuleAsync();

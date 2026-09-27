@@ -2,9 +2,14 @@ using System.Text.RegularExpressions;
 
 namespace Aion.Components.Connections;
 
+/// <summary>
+/// What a statement changed of what the schema tree shows, from least to most to reload: each value includes
+/// everything before it, since listing the tables again also counts their rows.
+/// </summary>
 public enum SchemaChange
 {
     None,
+    RowCounts,
     Tables,
     Databases
 }
@@ -22,7 +27,10 @@ public static partial class SchemaChangeDetector
         if (DatabaseStatement().IsMatch(text))
             return SchemaChange.Databases;
 
-        return SchemaStatement().IsMatch(text) ? SchemaChange.Tables : SchemaChange.None;
+        if (SchemaStatement().IsMatch(text))
+            return SchemaChange.Tables;
+
+        return RowStatement().IsMatch(text) ? SchemaChange.RowCounts : SchemaChange.None;
     }
 
     [GeneratedRegex(@"--[^\n]*|/\*.*?\*/", RegexOptions.Singleline)]
@@ -34,4 +42,7 @@ public static partial class SchemaChangeDetector
     // MySQL treats SCHEMA as a synonym for DATABASE, and a PostgreSQL schema changes which tables are listed.
     [GeneratedRegex(@"(?:^|;)\s*(?:CREATE|DROP)\s+(?:DATABASE|SCHEMA)\b", RegexOptions.IgnoreCase)]
     private static partial Regex DatabaseStatement();
+
+    [GeneratedRegex(@"(?:^|;)\s*(?:INSERT|UPDATE|DELETE|MERGE|REPLACE|TRUNCATE)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex RowStatement();
 }
