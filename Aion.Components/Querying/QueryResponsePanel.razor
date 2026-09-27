@@ -1,6 +1,7 @@
 @using System.Text.Json.Nodes
 @using Mythetech.Framework.Infrastructure.MessageBus
 @using Aion.Components.Connections
+@using Aion.Components.History
 @using Aion.Components.Querying.Commands
 @using Aion.Components.Querying.Consumers
 @using Aion.Components.Querying.Editing
@@ -80,11 +81,20 @@
                 {
                     <QueryErrorCard Query="@State.Active" />
                 }
+                else if (queryResult.Columns.Count == 0)
+                {
+                    @* A statement that returns no columns, such as an UPDATE or a CREATE, leaves no grid to show, only what it did. *@
+                    <div class="query-statement-outcome" role="status">
+                        <MudIcon Icon="@AionIcons.Success" Size="Size.Small" />
+                        <span class="query-statement-outcome-text">@(State.Active.ResultKind.PlanSummary() ?? StatementOutcome(queryResult))</span>
+                    </div>
+                }
                 else
                 {
                     <QueryResultTable Result="@State.Active.Result"
                                       QueryName="@State.Active.Name"
                                       SearchFilter="@_search"
+                                      @bind-Sort="_sort"
                                       SelectionState="@_selectionState"
                                       EditState="@GetEditState()"
                                       EditMetadata="@State.Active.EditMetadata"
@@ -196,6 +206,7 @@ else if (State?.Active?.IsExecuting ?? false)
     [Inject] protected QueryMessageLog MessageLog { get; set; } = default!;
 
     private string? _search = "";
+    private ResultSort? _sort;
     private const string Results = "results";
     private const string Analyze = "analyze";
     private const string Messages = "messages";
@@ -278,8 +289,9 @@ else if (State?.Active?.IsExecuting ?? false)
         _ => "query-message-info"
     };
 
-    // Exports follow find in results, so they hold the rows the grid shows rather than every row fetched.
-    private QueryResult RowsToExport(QueryResult result) => ResultRowFilter.Apply(result, _search);
+    // Exports follow find in results and the sort, so they hold the rows the grid shows, in its order, rather
+    // than every row fetched in the order it arrived.
+    private QueryResult RowsToExport(QueryResult result) => ResultGridView.Apply(result, _search, _sort);
 
     private static string FormatDuration(QueryModel query) =>
         query.ExecutionDuration is { } duration ? QueryTimer.FormatDuration(duration) : string.Empty;
@@ -305,9 +317,11 @@ else if (State?.Active?.IsExecuting ?? false)
     }
 
     private static string DescribeResult(QueryResult result) =>
-        result.Columns.Count == 0 && result.RowsAffected is { } affected
-            ? $"{affected} row{(affected == 1 ? "" : "s")} affected"
-            : $"{result.RowCount} Results";
+        result.Columns.Count == 0 ? StatementOutcome(result) : $"{result.RowCount} Results";
+
+    // Not every engine counts the rows a statement changed, and schema changes have none to count.
+    private static string StatementOutcome(QueryResult result) =>
+        result.RowsAffected is { } affected ? QueryHistoryFormatter.RowsAffected(affected) : "Statement completed";
 
     private DatabaseType GetActiveDatabaseType()
     {
@@ -337,10 +351,11 @@ else if (State?.Active?.IsExecuting ?? false)
 
     private void ExitEditMode()
     {
-        if (State.Active == null) return;
+        if (State.Active?.EditMetadata is not { } metadata) return;
 
-        // Pending changes live on the metadata, so clearing it also drops them
-        State.Active.EditMetadata = null;
+        // Pending changes live on the metadata, so a new one drops them; the rows still come from the same table,
+        // so its foreign keys keep their links.
+        State.Active.EditMetadata = metadata.WithoutEditing();
 
         StateHasChanged();
     }

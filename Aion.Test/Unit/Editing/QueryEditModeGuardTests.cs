@@ -100,6 +100,52 @@ public class QueryEditModeGuardTests
         _fixture.Notifications().ShouldHaveSingleItem().Severity.ShouldBe(Severity.Warning);
     }
 
+    // Read-only rows opened from one table keep its columns only so their foreign keys link.
+    private QueryModel CreateReadOnlyQuery(string executedSql, params string[] resultColumns)
+    {
+        var query = CreateEditingQuery(executedSql, resultColumns);
+        query.EditMetadata!.IsEditMode = false;
+        return query;
+    }
+
+    [Theory]
+    [InlineData("SELECT * FROM \"public\".\"users\"\nLIMIT 1000;")]
+    [InlineData("SELECT name FROM users WHERE id > 3")]
+    public async Task ReadOnlyRows_FromTheSameTable_KeepTheirForeignKeyLinks(string sql)
+    {
+        var query = CreateReadOnlyQuery(sql, "name");
+
+        await CreateSut().Consume(new QueryExecuted(query));
+
+        query.EditMetadata.ShouldNotBeNull();
+        _fixture.Published().ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData("SELECT * FROM orders")]
+    [InlineData("SELECT * FROM users u JOIN orders o ON o.user_id = u.id")]
+    [InlineData("SELECT COUNT(*) FROM users")]
+    public async Task ReadOnlyRows_FromOtherSql_DropTheirForeignKeyLinksQuietly(string sql)
+    {
+        var query = CreateReadOnlyQuery(sql, "id", "name");
+
+        await CreateSut().Consume(new QueryExecuted(query));
+
+        query.EditMetadata.ShouldBeNull();
+        _fixture.Published().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task ReadOnlyRows_FromAnotherDatabase_DropTheirForeignKeyLinks()
+    {
+        var query = CreateReadOnlyQuery("SELECT * FROM users", "id", "name");
+        query.DatabaseName = "other";
+
+        await CreateSut().Consume(new QueryExecuted(query));
+
+        query.EditMetadata.ShouldBeNull();
+    }
+
     [Fact]
     public async Task QueryNotInEditMode_IsIgnored()
     {

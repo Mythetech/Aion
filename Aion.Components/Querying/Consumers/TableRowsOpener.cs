@@ -39,6 +39,13 @@ public class TableRowsOpener : IConsumer<OpenTableRows>
         query.DatabaseName = message.DatabaseName;
         query.Query = sql.Trim();
 
+        // The rows come from one known table, so its foreign keys link each value to the row it references. Without
+        // its columns the rows still open, only without links.
+        if (await _connections.GetTableColumnsAsync(connection, message.DatabaseName, message.Schema, message.TableName) is { } columns)
+        {
+            query.EditMetadata = QueryEditMetadata.ForReadOnlyRows(connection.Id, message.DatabaseName, message.Schema, message.TableName, columns);
+        }
+
         // The editor loads a tab's text when it is told to focus it, and Run reads the editor, so the run
         // waits for the focus to finish.
         await _bus.PublishAsync(new FocusQuery(query));

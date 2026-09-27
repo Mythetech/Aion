@@ -1,5 +1,6 @@
 using AngleSharp.Dom;
 using Aion.Components.Querying;
+using Aion.Components.Querying.Results;
 using Aion.Components.Settings.Domains;
 using Aion.Contracts.Database;
 using Aion.Contracts.Queries;
@@ -243,6 +244,49 @@ public class QueryResultTableTests : TestContext
         ShownNames(cut).ShouldBe(["cog", "bolt", "gear", "nut"]);
 
         await ClickHeaderAsync(cut, "price");
+        ShownNames(cut).ShouldBe(["bolt", "nut", "gear", "cog"]);
+    }
+
+    [Fact]
+    public async Task ClickingAHeader_TellsTheHostTheNewSort()
+    {
+        var sorts = new List<ResultSort?>();
+        var cut = RenderComponent<QueryResultTable>(p => p
+            .Add(x => x.Result, Prices())
+            .Add(x => x.QueryName, "Query1")
+            .Add(x => x.SortChanged, sort => sorts.Add(sort)));
+
+        await ClickHeaderAsync(cut, "price");
+        await ClickHeaderAsync(cut, "price");
+
+        sorts.ShouldBe([new ResultSort("price", ResultSortDirection.Ascending), new ResultSort("price", ResultSortDirection.Descending)]);
+    }
+
+    [Fact]
+    public void SortFromTheHost_OrdersTheRows()
+    {
+        var cut = RenderComponent<QueryResultTable>(p => p
+            .Add(x => x.Result, Prices())
+            .Add(x => x.QueryName, "Query1")
+            .Add(x => x.Sort, new ResultSort("price", ResultSortDirection.Descending)));
+
+        ShownNames(cut).ShouldBe(["cog", "bolt", "gear", "nut"]);
+    }
+
+    [Fact]
+    public async Task NewResultWithoutTheSortedColumn_DropsTheSortAndTellsTheHost()
+    {
+        var sorts = new List<ResultSort?>();
+        var cut = RenderComponent<QueryResultTable>(p => p
+            .Add(x => x.Result, Prices())
+            .Add(x => x.QueryName, "Query1")
+            .Add(x => x.SortChanged, sort => sorts.Add(sort)));
+        await ClickHeaderAsync(cut, "price");
+
+        cut.SetParametersAndRender(p => p.Add(x => x.Result, Numbered(2)));
+        cut.SetParametersAndRender(p => p.Add(x => x.Result, Prices()));
+
+        sorts.Last().ShouldBeNull();
         ShownNames(cut).ShouldBe(["bolt", "nut", "gear", "cog"]);
     }
 
