@@ -91,7 +91,7 @@ public class SqlChangeGenerator : ISqlChangeGenerator
 
         var valuesToInsert = change.NewValues
             .Select(kvp => (Info: ResolveColumn(result, kvp.Key), kvp.Value))
-            .Where(c => !c.Info.IsIdentity)
+            .Where(c => !c.Info.IsIdentity && !c.Info.IsGenerated)
             .Select(c => new ColumnValue(c.Info.Name, c.Value))
             .ToList();
 
@@ -114,7 +114,7 @@ public class SqlChangeGenerator : ISqlChangeGenerator
 
         var valuesToUpdate = change.GetModifiedColumns()
             .Select(col => (Info: ResolveColumn(result, col), Value: change.NewValues.GetValueOrDefault(col)))
-            .Where(c => !c.Info.IsPrimaryKey && !c.Info.IsIdentity)
+            .Where(c => !c.Info.IsPrimaryKey && !c.Info.IsIdentity && !c.Info.IsGenerated)
             .Select(c => new ColumnValue(c.Info.Name, c.Value))
             .ToList();
 

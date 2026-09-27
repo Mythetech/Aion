@@ -6,9 +6,9 @@ namespace Aion.Test.Web.Providers;
 public class SqliteCatalogSqlTests
 {
     [Theory]
-    [InlineData("products", "PRAGMA table_info(\"products\")")]
-    [InlineData("odd\"name", "PRAGMA table_info(\"odd\"\"name\")")]
-    [InlineData("it's", "PRAGMA table_info(\"it's\")")]
+    [InlineData("products", "PRAGMA table_xinfo(\"products\")")]
+    [InlineData("odd\"name", "PRAGMA table_xinfo(\"odd\"\"name\")")]
+    [InlineData("it's", "PRAGMA table_xinfo(\"it's\")")]
     public void TableInfo_QuotesTheTableAsAnIdentifier(string table, string expected)
     {
         SqliteCatalogSql.TableInfo(table).ShouldBe(expected);

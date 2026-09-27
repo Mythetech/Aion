@@ -144,7 +144,10 @@ public sealed partial record ColumnTypeShape(string Name, ColumnTypeFamily Famil
 
     private static readonly string[] MySqlModifiers = [" unsigned", " signed", " zerofill"];
 
-    public static ColumnTypeShape Of(ColumnInfo column, DatabaseType engine) => Of(column.DataType, engine, column.MaxLength);
+    // The short text carries what a catalog reports beside the type name, such as PostgreSQL's numeric precision,
+    // and the name the category of a PostgreSQL array or user-defined type stands for.
+    public static ColumnTypeShape Of(ColumnInfo column, DatabaseType engine) =>
+        Of(ColumnTypeText.Short(column, engine), engine, column.MaxLength);
 
     /// <param name="catalogLength">The length the catalog reports beside the type, as MySQL, SQL Server and
     /// PostgreSQL's information_schema do. SQL Server reports -1 for (max).</param>

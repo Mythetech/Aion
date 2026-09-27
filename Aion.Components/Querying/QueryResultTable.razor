@@ -446,7 +446,7 @@
 
         if (!_columnRules.TryGetValue(column, out var rules))
         {
-            rules = EditableColumn.For(column, EditMetadata?.ColumnMetadata ?? []);
+            rules = EditableColumn.For(column, EditMetadata?.ColumnMetadata ?? [], DatabaseType);
             _columnRules[column] = rules;
         }
 
@@ -679,7 +679,7 @@
         if (session.TryGetCommitText(out var text) && session.RowIndex < _rows.Count)
         {
             var row = _rows[session.RowIndex];
-            SetCell(row, session.Column, CellEditText.Resolve(text, row.Values.GetValueOrDefault(session.Column), ColumnType(session.Column)));
+            SetCell(row, session.Column, CellEditText.Resolve(text, row.Values.GetValueOrDefault(session.Column), ColumnType(session.Column), session.Rules));
         }
     }
 

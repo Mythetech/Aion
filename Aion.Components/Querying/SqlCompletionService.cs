@@ -62,9 +62,9 @@ public class SqlCompletionService
             await EnsureSchemaLoadedAsync(connection, database, editorText);
         }
 
-        if (context == SqlContext.DotQualified && database != null)
+        if (context == SqlContext.DotQualified && connection != null && database != null)
         {
-            var dotResults = GetDotQualifiedCompletions(editorText, line, column, database);
+            var dotResults = GetDotQualifiedCompletions(editorText, line, column, database, connection.Type);
             if (dotResults.Count > 0) return dotResults;
         }
 
@@ -73,10 +73,10 @@ public class SqlCompletionService
             results.AddRange(GetTableCompletions(database));
         }
 
-        if (context == SqlContext.ColumnPosition && database != null)
+        if (context == SqlContext.ColumnPosition && connection != null && database != null)
         {
             var tableRefs = ExtractTableReferences(editorText, database);
-            results.AddRange(GetColumnCompletions(tableRefs, database));
+            results.AddRange(GetColumnCompletions(tableRefs, database, connection.Type));
         }
 
         if (database?.RoutinesLoaded == true && context is SqlContext.ColumnPosition or SqlContext.Unknown)
@@ -275,7 +275,8 @@ public class SqlCompletionService
 
     private static List<SqlCompletionItem> GetColumnCompletions(
         List<(string schema, string table, string? alias)> tableRefs,
-        DatabaseModel database)
+        DatabaseModel database,
+        DatabaseType engine)
     {
         var results = new List<SqlCompletionItem>();
         if (database.TableColumns == null) return results;
@@ -291,7 +292,7 @@ public class SqlCompletionService
                 {
                     Label = col.Name,
                     Kind = SqlCompletionKind.Column,
-                    Detail = FormatColumnDetail(col),
+                    Detail = FormatColumnDetail(col, engine),
                     InsertText = col.Name,
                     SortText = $"2_{col.Name}"
                 });
@@ -302,7 +303,7 @@ public class SqlCompletionService
     }
 
     private List<SqlCompletionItem> GetDotQualifiedCompletions(
-        string text, int line, int column, DatabaseModel database)
+        string text, int line, int column, DatabaseModel database, DatabaseType engine)
     {
         var textUpToCursor = GetTextUpToCursor(text, line, column);
         var wordBeforeDot = GetWordBeforeDot(textUpToCursor);
@@ -341,7 +342,7 @@ public class SqlCompletionService
                 {
                     Label = col.Name,
                     Kind = SqlCompletionKind.Column,
-                    Detail = FormatColumnDetail(col),
+                    Detail = FormatColumnDetail(col, engine),
                     InsertText = col.Name,
                     SortText = $"2_{col.Name}"
                 }).ToList();
@@ -379,13 +380,15 @@ public class SqlCompletionService
         }).ToList();
     }
 
-    private static string FormatColumnDetail(ColumnInfo col)
+    // The type reads as the schema tree shows it, with any length, precision and scale already in it.
+    private static string FormatColumnDetail(ColumnInfo col, DatabaseType engine)
     {
-        var parts = new List<string> { col.DataType };
+        var type = ColumnTypeText.Short(col, engine);
+        var parts = type.Length == 0 ? new List<string>() : [type];
         if (col.IsNullable) parts.Add("nullable");
         if (col.IsPrimaryKey) parts.Add("PK");
         if (col.IsForeignKey) parts.Add("FK");
-        if (col.MaxLength.HasValue) parts.Add($"max: {col.MaxLength}");
+        if (col.IsGenerated) parts.Add("generated");
         return string.Join(", ", parts);
     }
 

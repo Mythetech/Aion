@@ -60,6 +60,47 @@ public class DataGenerationPlanTests
     }
 
     [Theory]
+    [InlineData(DatabaseType.PostgreSQL, "numeric")]
+    [InlineData(DatabaseType.MySQL, "decimal(12,2)")]
+    [InlineData(DatabaseType.SQLServer, "decimal")]
+    [InlineData(DatabaseType.WasmPostgreSQL, "numeric")]
+    [InlineData(DatabaseType.WasmSQLite, "REAL")]
+    public void CreateBindings_LeavesGeneratedColumnsToTheDatabase(DatabaseType engine, string type)
+    {
+        var total = Column("total", type, nullable: true);
+        total.IsGenerated = true;
+
+        var binding = Binding(engine, Column("price", type), total);
+
+        binding.FilledByDatabase.ShouldBe("generated");
+        binding.Generator.ShouldBeNull();
+        binding.WritesValue.ShouldBeFalse();
+        DataGenerationPlan.CompatibleGenerators(binding).ShouldBeEmpty();
+    }
+
+    // PostgreSQL and SQL Server report the precision beside the type, so numeric(5,2) arrives as "numeric" and 5, 2.
+    [Theory]
+    [InlineData(DatabaseType.PostgreSQL, "numeric")]
+    [InlineData(DatabaseType.SQLServer, "decimal")]
+    public void CreateBindings_KeepsDefaultNumbersWithinTheCatalogsPrecision(DatabaseType engine, string type)
+    {
+        var price = Column("price", type);
+        price.NumericPrecision = 5;
+        price.NumericScale = 2;
+
+        var binding = Binding(engine, price);
+
+        binding.Options.MinValue.ShouldBe(0);
+        binding.Options.MaxValue.ShouldBe(999);
+    }
+
+    [Fact]
+    public void CreateBindings_SuggestsBooleansForMySqlsTinyintOne()
+    {
+        Binding(DatabaseType.MySQL, Column("flag", "tinyint(1)")).Generator.ShouldBeOfType<BooleanGenerator>();
+    }
+
+    [Theory]
     [InlineData("int4", DatabaseType.PostgreSQL, typeof(RandomIntGenerator))]
     [InlineData("character varying", DatabaseType.PostgreSQL, typeof(RandomTextGenerator))]
     [InlineData("nvarchar", DatabaseType.SQLServer, typeof(RandomTextGenerator))]

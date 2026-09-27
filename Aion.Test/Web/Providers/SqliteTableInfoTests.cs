@@ -4,12 +4,12 @@ using Shouldly;
 namespace Aion.Test.Web.Providers;
 
 /// <summary>
-/// The rows mirror what PRAGMA table_info returns in the in-browser SQLite build.
+/// The rows mirror what PRAGMA table_xinfo returns in the in-browser SQLite build.
 /// </summary>
 public class SqliteTableInfoTests
 {
-    private static SqliteTableInfoRow Row(string name, string type, bool notNull = false, int pk = 0, string? defaultValue = null) =>
-        new(name, type, notNull, defaultValue, pk);
+    private static SqliteTableInfoRow Row(string name, string type, bool notNull = false, int pk = 0, string? defaultValue = null, int hidden = 0) =>
+        new(name, type, notNull, defaultValue, pk, hidden);
 
     [Fact]
     public void IntegerPrimaryKey_IsNotNullableEvenThoughThePragmaSaysNotNullIsOff()
@@ -66,5 +66,32 @@ public class SqliteTableInfoTests
             ("notes", "", null)
         ]);
         columns.ShouldAllBe(c => !c.IsIdentity);
+    }
+
+    [Fact]
+    public void VirtualAndStoredGeneratedColumns_AreGenerated()
+    {
+        var columns = SqliteTableInfo.ToColumns(
+        [
+            Row("price", "REAL"),
+            Row("with_tax", "REAL", hidden: 2),
+            Row("label", "TEXT", hidden: 3)
+        ]);
+
+        columns.Select(c => (c.Name, c.IsGenerated)).ShouldBe(
+        [
+            ("price", false),
+            ("with_tax", true),
+            ("label", true)
+        ]);
+    }
+
+    [Fact]
+    public void HiddenColumnsOfVirtualTables_AreLeftOut()
+    {
+        // PRAGMA table_info never listed them, and they can't be selected with * or written like other columns.
+        var columns = SqliteTableInfo.ToColumns([Row("body", ""), Row("notes_fts", "", hidden: 1), Row("rank", "", hidden: 1)]);
+
+        columns.Select(c => c.Name).ShouldBe(["body"]);
     }
 }

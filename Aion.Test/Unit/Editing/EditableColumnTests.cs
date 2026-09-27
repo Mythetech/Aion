@@ -15,26 +15,35 @@ public class EditableColumnTests
         new() { Name = "note", DataType = "TEXT", IsNullable = true },
         new() { Name = "price", DataType = "numeric(10,2)", IsNullable = true },
         new() { Name = "stock", DataType = "integer", IsNullable = false },
-        new() { Name = "anything", DataType = "", IsNullable = true }
+        new() { Name = "anything", DataType = "", IsNullable = true },
+        new() { Name = "total", DataType = "numeric", IsNullable = true, IsGenerated = true },
+        new() { Name = "size", DataType = "enum('text','image')", IsNullable = false }
     ];
 
     [Theory]
     [InlineData("id")]
     [InlineData("code")]
     [InlineData("row_version")]
+    [InlineData("total")]
     [InlineData("computed")]
-    public void KeysIdentitiesAndUnknownColumns_AreNotEditable(string column)
+    public void KeysIdentitiesGeneratedAndUnknownColumns_AreNotEditable(string column)
     {
-        var editable = EditableColumn.For(column, Columns);
+        var editable = EditableColumn.For(column, Columns, DatabaseType.PostgreSQL);
 
         editable.IsEditable.ShouldBeFalse();
         editable.ReadOnlyReason.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
+    public void GeneratedColumns_SayTheDatabaseComputesThem()
+    {
+        EditableColumn.For("total", Columns, DatabaseType.PostgreSQL).ReadOnlyReason.ShouldBe("The database computes this column's values");
+    }
+
+    [Fact]
     public void Lookup_IgnoresCase()
     {
-        EditableColumn.For("NOTE", Columns).IsNullable.ShouldBeTrue();
+        EditableColumn.For("NOTE", Columns, DatabaseType.PostgreSQL).IsNullable.ShouldBeTrue();
     }
 
     [Theory]
@@ -43,12 +52,29 @@ public class EditableColumnTests
     [InlineData("price", true, false)]
     [InlineData("stock", false, false)]
     [InlineData("anything", true, true)]
+    [InlineData("size", false, false)]
     public void EditableColumns_SayWhetherTheyTakeNullAndEmptyText(string column, bool nullable, bool acceptsEmptyText)
     {
-        var editable = EditableColumn.For(column, Columns);
+        var editable = EditableColumn.For(column, Columns, DatabaseType.PostgreSQL);
 
         editable.IsEditable.ShouldBeTrue();
         editable.IsNullable.ShouldBe(nullable);
         editable.AcceptsEmptyText.ShouldBe(acceptsEmptyText);
+    }
+
+    [Theory]
+    [InlineData("tinyint(1)", DatabaseType.MySQL, true)]
+    [InlineData("tinyint(4)", DatabaseType.MySQL, false)]
+    [InlineData("boolean", DatabaseType.PostgreSQL, true)]
+    [InlineData("boolean", DatabaseType.WasmPostgreSQL, true)]
+    [InlineData("bit", DatabaseType.SQLServer, true)]
+    [InlineData("BOOLEAN", DatabaseType.WasmSQLite, true)]
+    [InlineData("integer", DatabaseType.PostgreSQL, false)]
+    [InlineData("text", DatabaseType.PostgreSQL, false)]
+    public void EditableColumns_SayWhetherTheyHoldFlags(string dataType, DatabaseType engine, bool expected)
+    {
+        List<ColumnInfo> columns = [new() { Name = "flag", DataType = dataType, IsNullable = true }];
+
+        EditableColumn.For("flag", columns, engine).IsBoolean.ShouldBe(expected);
     }
 }

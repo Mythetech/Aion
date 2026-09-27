@@ -28,6 +28,11 @@ public class PostgreSqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
     protected override string GeneratedRowsTableSql =>
         "CREATE TABLE generated_rows (id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY, label varchar(20) NOT NULL, active boolean NOT NULL, note text NULL, code integer UNIQUE)";
 
+    protected override string ComputedTotalsTableSql =>
+        "CREATE TABLE computed_totals (id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY, price numeric(10,2) NOT NULL, quantity integer NOT NULL, created_at timestamp DEFAULT now(), total numeric GENERATED ALWAYS AS (price * quantity) STORED)";
+
+    protected override string DecimalTypeName => "numeric";
+
     protected override string UnknownColumnCode => "SQLSTATE 42703";
 
     protected override string[] TestTableResultTypes => ["integer", "varchar(100)", "text"];
@@ -211,7 +216,7 @@ public class PostgreSqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
             CREATE TABLE column_types (
                 a_varchar varchar(255), a_char char(3), a_text text, a_timestamp timestamp, a_timestamptz timestamptz,
                 a_time time, a_timetz timetz, a_double double precision, a_numeric numeric(10,2), a_varbit varbit(8), a_ints int[],
-                a_tags varchar(20)[], a_mood mood, a_moods mood[])
+                a_tags varchar(20)[], a_mood mood, a_moods mood[], a_any_numeric numeric, a_whole_numeric numeric(12), a_prices numeric(8,2)[])
             """);
 
         var columns = await Provider.GetColumnsAsync(DatabaseConnectionString, TestDatabase, "public", "column_types");
@@ -219,8 +224,8 @@ public class PostgreSqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         columns.Select(c => ColumnTypeText.Short(c, DatabaseType.PostgreSQL)).ShouldBe(
         [
             "varchar(255)", "char(3)", "text", "timestamp", "timestamptz",
-            "time", "timetz", "double", "numeric", "varbit(8)", "integer[]",
-            "varchar[]", "mood", "mood[]"
+            "time", "timetz", "double", "numeric(10,2)", "varbit(8)", "integer[]",
+            "varchar[]", "mood", "mood[]", "numeric", "numeric(12,0)", "numeric[]"
         ]);
     }
 

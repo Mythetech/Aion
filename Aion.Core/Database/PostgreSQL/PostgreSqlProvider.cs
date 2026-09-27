@@ -293,6 +293,8 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
         using var conn = new NpgsqlConnection(connectionString);
         await conn.OpenAsync();
 
+        // numeric_precision is also filled for integer and floating types, in bits, so only numeric's declared
+        // precision is read. An identity column reports is_generated = 'NEVER'; only computed columns are 'ALWAYS'.
         const string sql = @"
             SELECT
                 c.column_name,
@@ -302,7 +304,10 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
                 c.character_maximum_length,
                 CASE WHEN pk.constraint_type = 'PRIMARY KEY' THEN true ELSE false END as is_primary_key,
                 CASE WHEN c.column_default LIKE 'nextval%' OR c.is_identity = 'YES' THEN true ELSE false END as is_identity,
-                c.udt_name
+                c.udt_name,
+                CASE WHEN c.data_type = 'numeric' THEN c.numeric_precision END as numeric_precision,
+                CASE WHEN c.data_type = 'numeric' THEN c.numeric_scale END as numeric_scale,
+                c.is_generated = 'ALWAYS' as is_generated
             FROM information_schema.columns c
             LEFT JOIN (
                 SELECT ku.column_name, tc.constraint_type
@@ -333,7 +338,10 @@ public class PostgreSqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDa
                 MaxLength = reader.IsDBNull(4) ? null : reader.GetInt32(4),
                 IsPrimaryKey = reader.GetBoolean(5),
                 IsIdentity = reader.GetBoolean(6),
-                UdtName = reader.IsDBNull(7) ? null : reader.GetString(7)
+                UdtName = reader.IsDBNull(7) ? null : reader.GetString(7),
+                NumericPrecision = reader.IsDBNull(8) ? null : reader.GetInt32(8),
+                NumericScale = reader.IsDBNull(9) ? null : reader.GetInt32(9),
+                IsGenerated = reader.GetBoolean(10)
             });
         }
 
