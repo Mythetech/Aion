@@ -2,6 +2,7 @@ using Aion.Components.Connections;
 using Aion.Components.Querying;
 using Aion.Components.Querying.Events;
 using Aion.Components.Settings.Domains;
+using Aion.Components.Shared;
 using Aion.Components.Shortcuts;
 using Aion.Contracts.Connections;
 using Aion.Contracts.Database;
@@ -118,13 +119,28 @@ public class QueryEditorRunMenuTests : TestContext
         _popovers.FindAll(".mud-menu-item").FirstOrDefault(item => item.QuerySelector(".run-option-title")?.TextContent == title);
 
     [Fact]
-    public void Run_IsTheFirstControlInTheToolbar()
+    public void Toolbar_PutsTheConnectionFirstAndRunLast()
     {
         // Act
         var cut = RenderComponent<QueryEditor>();
 
         // Assert
-        cut.Find(".editor-toolbar").QuerySelectorAll("button").First().ClassList.ShouldContain("run-query-button");
+        var controls = cut.Find(".editor-toolbar").Children;
+        controls.First().ClassList.ShouldContain("connection-picker-host");
+        controls[^2].ClassList.ShouldContain("editor-toggles");
+        controls.Last().ClassList.ShouldContain("run-split");
+    }
+
+    [Fact]
+    public void RunOptions_OpenFromTheRightEdge()
+    {
+        // Act
+        var cut = RenderComponent<QueryEditor>();
+
+        // Assert
+        var menu = cut.FindComponent<RunQueryButton>().FindComponent<AionMenu>().Instance;
+        menu.AnchorOrigin.ShouldBe(Origin.BottomRight);
+        menu.TransformOrigin.ShouldBe(Origin.TopRight);
     }
 
     [Fact]
