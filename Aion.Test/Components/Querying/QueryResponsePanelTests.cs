@@ -57,6 +57,21 @@ public class QueryResponsePanelTests : TestContext
     }
 
     [Fact]
+    public void Running_ShowsItsStatusCenteredInTheResultsFrame()
+    {
+        // Arrange
+        _query.StartExecution();
+
+        // Act
+        var cut = RenderComponent<QueryResponsePanel>();
+
+        // Assert
+        var frame = cut.Find(".query-running");
+        frame.QuerySelector(".query-running-backdrop").ShouldNotBeNull();
+        frame.QuerySelector(".query-running-status")!.TextContent.ShouldContain("Running Query");
+    }
+
+    [Fact]
     public void FailedRun_ShowsErrorCardInsteadOfAnEmptyGrid()
     {
         // Arrange

@@ -130,3 +130,28 @@
 .query-message-error {
     color: var(--mud-palette-error);
 }
+
+/* The same 16px frame as the results view (pa-4), with the skeleton filling it and the status centered on it. */
+.query-running {
+    position: relative;
+    height: 100%;
+    padding: 16px;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.query-running ::deep .query-running-backdrop {
+    position: absolute;
+    inset: 16px;
+    height: auto;
+}
+
+.query-running-status {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    height: 100%;
+}
