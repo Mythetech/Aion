@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Aion.Contracts.Database;
 
@@ -6,8 +7,9 @@ namespace Aion.Components.Connections;
 /// <summary>
 /// Formats column metadata for the schema tree and the results grid: a short type that fits beside the
 /// column name and a full description for the hover tooltip. PostgreSQL and PGlite report information_schema spellings
-/// ("character varying", "timestamp with time zone"), MySQL and SQL Server report short lowercase
-/// names with the length in a separate field, and SQLite reports the declared type text as written.
+/// ("character varying", "timestamp with time zone") and SQL Server short lowercase names, both with the length,
+/// precision and scale in separate fields. MySQL reports its full column type ("decimal(10,2)", "int unsigned") and
+/// SQLite the declared type text as written.
 /// </summary>
 public static partial class ColumnTypeText
 {
@@ -52,6 +54,11 @@ public static partial class ColumnTypeText
         "character", "character varying", "bit varying"
     };
 
+    private static readonly HashSet<string> DecimalTypes = new(StringComparer.Ordinal) { "numeric", "decimal" };
+
+    // A MySQL enum or set spells out every value it allows, which would crowd the name out of a tree row.
+    private static readonly HashSet<string> ValueListTypes = new(StringComparer.Ordinal) { "enum", "set" };
+
     public static string Short(ColumnInfo column, DatabaseType engine)
     {
         if (PostgresTypeName(column, engine) is { } named)
@@ -64,7 +71,10 @@ public static partial class ColumnTypeText
         var (name, arguments) = SplitArguments(type);
         name = ShortName(name, engine);
 
-        return name + (arguments ?? Length(column, name, engine));
+        if (engine == DatabaseType.MySQL && ValueListTypes.Contains(name))
+            return name;
+
+        return name + (arguments ?? Arguments(column, name, engine));
     }
 
     /// <summary>
@@ -90,7 +100,7 @@ public static partial class ColumnTypeText
         {
             named is not null ? (IsUserDefined(column) ? $"{named} (user-defined type)" : named)
             : type.Length == 0 ? "no declared type"
-            : type + (type.Contains('(') ? "" : Length(column, type.ToLowerInvariant(), engine)),
+            : type + (type.Contains('(') ? "" : Arguments(column, type.ToLowerInvariant(), engine)),
             column.IsNullable ? "NULL" : "NOT NULL"
         };
 
@@ -99,6 +109,9 @@ public static partial class ColumnTypeText
 
         if (column.IsIdentity)
             parts.Add("identity");
+
+        if (column.IsGenerated)
+            parts.Add("generated");
 
         if (column.ForeignKey is { } foreignKey)
             parts.Add($"references {ReferencedTable(foreignKey)}({foreignKey.ReferencedColumn})");
@@ -136,6 +149,12 @@ public static partial class ColumnTypeText
 
         return ShortNames.GetValueOrDefault(name, name);
     }
+
+    // The arguments a catalog reports beside the type name rather than inside it.
+    private static string Arguments(ColumnInfo column, string typeName, DatabaseType engine) =>
+        DecimalTypes.Contains(typeName) && column.NumericPrecision is { } precision
+            ? string.Create(CultureInfo.InvariantCulture, $"({precision},{column.NumericScale ?? 0})")
+            : Length(column, typeName, engine);
 
     private static string Length(ColumnInfo column, string typeName, DatabaseType engine)
     {

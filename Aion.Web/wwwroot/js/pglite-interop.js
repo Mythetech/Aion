@@ -160,6 +160,14 @@ export function indexedDbName(name) {
     return `/pglite/${name}`;
 }
 
+// A database outlives the session that opened it, so one that isn't open here may still be in IndexedDB.
+export async function exists(name) {
+    if (instances[name]) return true;
+
+    const databases = await indexedDB.databases();
+    return databases.some(d => d.name === indexedDbName(name));
+}
+
 export async function destroy(name) {
     const db = instances[name];
     if (db) {

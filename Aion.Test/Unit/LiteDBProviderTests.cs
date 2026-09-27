@@ -1,4 +1,5 @@
 using Aion.Contracts.Database;
+using Aion.Contracts.Queries;
 using Aion.Core.Database.LiteDB;
 using LiteDB;
 using Shouldly;
@@ -40,5 +41,50 @@ public sealed class LiteDBProviderTests : IDisposable
             ("empty", TableRowCount.Exact(0)),
             ("products", TableRowCount.Exact(3))
         ]);
+    }
+
+    [Theory]
+    [InlineData("SELEC $ FROM products", "SELEC", 1, 1)]
+    [InlineData("SELECT $ FROM products\nWHERE n = = 1", "=", 2, 11)]
+    [InlineData("SELECT $ FROM products WHERE n = '\U0001F600'\n  AND = 1", "=", 2, 7)]
+    public async Task ExecuteQuery_WhenTheStatementDoesNotParse_LocatesTheTokenLiteDBStoppedAt(string sql, string token, int line, int column)
+    {
+        var result = await _provider.ExecuteQueryAsync(ConnectionString, sql, CancellationToken.None);
+
+        var error = result.ErrorDetail.ShouldNotBeNull();
+        error.Kind.ShouldBe(QueryErrorKind.Syntax);
+        error.Token.ShouldBe(token);
+        (error.Line, error.Column).ShouldBe((line, column));
+    }
+
+    [Fact]
+    public async Task ExecuteQuery_WhenTheStatementEndsTooSoon_PointsAtItsEnd()
+    {
+        var result = await _provider.ExecuteQueryAsync(ConnectionString, "SELECT $ FROM products\nORDER BY", CancellationToken.None);
+
+        var error = result.ErrorDetail.ShouldNotBeNull();
+        error.Title.ShouldBe("Syntax error at end of input");
+        (error.Line, error.Column, error.EndColumn).ShouldBe((2, 7, 9));
+    }
+
+    [Fact]
+    public async Task ExecuteQuery_KeepsLiteDBsMessageAndErrorCode()
+    {
+        var result = await _provider.ExecuteQueryAsync(ConnectionString, "SELEC $ FROM products", CancellationToken.None);
+
+        result.Error.ShouldBe("Unexpected token `SELEC` in position 1.");
+        result.ErrorDetail.ShouldNotBeNull().Code.ShouldBe("Error 203");
+    }
+
+    [Fact]
+    public async Task ExecuteInTransaction_WhenTheStatementDoesNotParse_LocatesTheTokenToo()
+    {
+        var transaction = await _provider.BeginTransactionAsync(ConnectionString);
+
+        var result = await _provider.ExecuteInTransactionAsync(ConnectionString, "SELECT $ FROM products\nWHERE n = = 1", transaction.Id, CancellationToken.None);
+        await _provider.RollbackTransactionAsync(ConnectionString, transaction.Id);
+
+        var error = result.ErrorDetail.ShouldNotBeNull();
+        (error.Line, error.Column).ShouldBe((2, 11));
     }
 }

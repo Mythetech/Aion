@@ -90,6 +90,62 @@ public class ColumnTypeTextTests
         ColumnTypeText.Short(column, DatabaseType.PostgreSQL).ShouldBe("int");
     }
 
+    // PostgreSQL and SQL Server report a declared precision and scale beside the type name, the way they report a length.
+    [Theory]
+    [InlineData("numeric", DatabaseType.PostgreSQL, 10, 2, "numeric(10,2)")]
+    [InlineData("numeric", DatabaseType.WasmPostgreSQL, 12, 0, "numeric(12,0)")]
+    [InlineData("numeric", DatabaseType.PostgreSQL, null, null, "numeric")]
+    [InlineData("decimal", DatabaseType.SQLServer, 10, 2, "decimal(10,2)")]
+    [InlineData("numeric", DatabaseType.SQLServer, 18, 0, "numeric(18,0)")]
+    public void Short_AddsTheDeclaredPrecisionAndScale(string dataType, DatabaseType engine, int? precision, int? scale, string expected)
+    {
+        var column = Column(dataType);
+        column.NumericPrecision = precision;
+        column.NumericScale = scale;
+
+        ColumnTypeText.Short(column, engine).ShouldBe(expected);
+    }
+
+    [Fact]
+    public void Describe_AddsTheDeclaredPrecisionAndScale()
+    {
+        var column = Column("numeric");
+        column.NumericPrecision = 10;
+        column.NumericScale = 2;
+
+        ColumnTypeText.Describe(column, DatabaseType.PostgreSQL).ShouldBe("numeric(10,2) · NULL");
+    }
+
+    // MySQL's COLUMN_TYPE spells out the whole type: its length or precision, BOOLEAN's tinyint(1) and unsigned.
+    [Theory]
+    [InlineData("tinyint(1)", "tinyint(1)")]
+    [InlineData("int unsigned", "int unsigned")]
+    [InlineData("bigint unsigned", "bigint unsigned")]
+    [InlineData("decimal(10,2)", "decimal(10,2)")]
+    [InlineData("decimal(10,2) unsigned", "decimal(10,2) unsigned")]
+    [InlineData("varchar(255)", "varchar(255)")]
+    [InlineData("datetime(3)", "datetime(3)")]
+    [InlineData("enum('a','bb')", "enum")]
+    [InlineData("set('x','y')", "set")]
+    public void Short_MySql_KeepsTheColumnTypeButNotTheValuesOfAnEnumOrSet(string columnType, string expected)
+    {
+        ColumnTypeText.Short(Column(columnType), DatabaseType.MySQL).ShouldBe(expected);
+    }
+
+    [Fact]
+    public void Describe_MySql_ListsTheValuesOfAnEnum()
+    {
+        ColumnTypeText.Describe(Column("enum('a','bb')"), DatabaseType.MySQL).ShouldBe("enum('a','bb') · NULL");
+    }
+
+    [Fact]
+    public void Describe_SaysTheDatabaseGeneratesTheColumn()
+    {
+        var column = new ColumnInfo { Name = "total", DataType = "integer", IsNullable = true, IsGenerated = true };
+
+        ColumnTypeText.Describe(column, DatabaseType.PostgreSQL).ShouldBe("integer · NULL · generated");
+    }
+
     [Theory]
     [InlineData("int", null, "int")]
     [InlineData("varchar", 255, "varchar(255)")]

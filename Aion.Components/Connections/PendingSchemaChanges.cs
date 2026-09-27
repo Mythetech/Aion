@@ -2,8 +2,8 @@ using System.Collections.Concurrent;
 
 namespace Aion.Components.Connections;
 
-/// <summary>Where a schema change was made, so the schema can be loaded again there.</summary>
-public record PendingSchemaChange(Guid ConnectionId, string? DatabaseName, bool DatabasesChanged);
+/// <summary>Where a schema change was made, and how much of the schema to load again there.</summary>
+public record PendingSchemaChange(Guid ConnectionId, string? DatabaseName, SchemaChange Change);
 
 /// <summary>
 /// Schema changes made inside transactions that are still open. Until a transaction commits its changes
@@ -16,7 +16,7 @@ public class PendingSchemaChanges
     /// <summary>A transaction runs against one database, so later changes only widen what to reload.</summary>
     public void Remember(string transactionId, PendingSchemaChange change) =>
         _byTransaction.AddOrUpdate(transactionId, change,
-            (_, earlier) => earlier with { DatabasesChanged = earlier.DatabasesChanged || change.DatabasesChanged });
+            (_, earlier) => change.Change > earlier.Change ? earlier with { Change = change.Change } : earlier);
 
     /// <summary>Forgets the transaction's changes, returning them, or null when it made none.</summary>
     public PendingSchemaChange? Take(string transactionId) =>

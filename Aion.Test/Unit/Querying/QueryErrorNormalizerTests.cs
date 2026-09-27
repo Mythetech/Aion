@@ -130,6 +130,8 @@ public class QueryErrorNormalizerTests
     [InlineData("Incorrect syntax near 'SELEC'.", "SELEC")]
     [InlineData("Incorrect syntax near the keyword 'FROM'.", "FROM")]
     [InlineData("You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'SELEC name FROM products' at line 1", "SELEC")]
+    [InlineData("Unexpected token `SELEC` in position 1.", "SELEC")]
+    [InlineData("Unexpected token `=` in position 33. Expected `FROM`.", "=")]
     public void SyntaxErrors_FromEachEngine_NameTheTokenTheyFailedNear(string message, string token)
     {
         // Act
@@ -144,6 +146,7 @@ public class QueryErrorNormalizerTests
     [Theory]
     [InlineData("syntax error at end of input")]
     [InlineData("You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '' at line 1")]
+    [InlineData("Unexpected token `[EOF]` in position 29.")]
     public void SyntaxErrorsAtTheEnd_HaveNoToken(string message)
     {
         // Act

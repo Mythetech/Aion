@@ -96,4 +96,44 @@ public class ColumnTypeShapeTests
         shape.MinInteger.ShouldBe(min);
         shape.MaxInteger.ShouldBe(max);
     }
+
+    [Theory]
+    [InlineData("numeric", DatabaseType.PostgreSQL)]
+    [InlineData("numeric", DatabaseType.WasmPostgreSQL)]
+    [InlineData("decimal", DatabaseType.SQLServer)]
+    public void Of_Column_ReadsTheRangeFromTheCatalogsPrecisionAndScale(string dataType, DatabaseType engine)
+    {
+        var column = new ColumnInfo { Name = "price", DataType = dataType, NumericPrecision = 5, NumericScale = 2 };
+
+        var shape = ColumnTypeShape.Of(column, engine);
+
+        shape.Family.ShouldBe(ColumnTypeFamily.Decimal);
+        shape.MinInteger.ShouldBe(-999L);
+        shape.MaxInteger.ShouldBe(999L);
+    }
+
+    [Theory]
+    [InlineData("tinyint(1)", ColumnTypeFamily.Boolean)]
+    [InlineData("tinyint(4)", ColumnTypeFamily.Integer)]
+    [InlineData("int unsigned", ColumnTypeFamily.Integer)]
+    [InlineData("decimal(10,2) unsigned", ColumnTypeFamily.Decimal)]
+    [InlineData("enum('a','bb')", ColumnTypeFamily.Unknown)]
+    public void Of_Column_ReadsMySqlsColumnType(string columnType, ColumnTypeFamily expected)
+    {
+        var column = new ColumnInfo { Name = "c", DataType = columnType };
+
+        ColumnTypeShape.Of(column, DatabaseType.MySQL).Family.ShouldBe(expected);
+    }
+
+    [Theory]
+    [InlineData("character varying", DatabaseType.PostgreSQL, 40, 40)]
+    [InlineData("nvarchar", DatabaseType.SQLServer, -1, null)]
+    [InlineData("varchar(20)", DatabaseType.MySQL, 20, 20)]
+    [InlineData("tinytext", DatabaseType.MySQL, 255, 255)]
+    public void Of_Column_KeepsTheCatalogLengthOfTextColumns(string dataType, DatabaseType engine, int catalogLength, int? expected)
+    {
+        var column = new ColumnInfo { Name = "c", DataType = dataType, MaxLength = catalogLength };
+
+        ColumnTypeShape.Of(column, engine).MaxLength.ShouldBe(expected);
+    }
 }

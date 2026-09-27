@@ -23,19 +23,20 @@ public class ForeignKeyRowsOpenerTests
     private readonly IMessageBus _bus = Substitute.For<IMessageBus>();
     private readonly ConnectionState _connections;
     private readonly QueryState _queries;
+    private readonly IDatabaseProvider _provider;
     private readonly ForeignKeyRowsOpener _sut;
 
     public ForeignKeyRowsOpenerTests()
     {
-        var provider = Substitute.For<IDatabaseProvider, ISqlDialectProvider>();
-        provider.DatabaseType.Returns(DatabaseType.WasmSQLite);
-        ((ISqlDialectProvider)provider).Dialect.Returns(SqliteDialect.Instance);
+        _provider = Substitute.For<IDatabaseProvider, ISqlDialectProvider>();
+        _provider.DatabaseType.Returns(DatabaseType.WasmSQLite);
+        ((ISqlDialectProvider)_provider).Dialect.Returns(SqliteDialect.Instance);
         var factory = Substitute.For<IDatabaseProviderFactory>();
-        factory.GetProvider(DatabaseType.WasmSQLite).Returns(provider);
+        factory.GetProvider(DatabaseType.WasmSQLite).Returns(_provider);
 
         _connections = new ConnectionState(Substitute.For<IConnectionService>(), factory, _bus, NullLogger<ConnectionState>.Instance, new ConnectionSecretStoreFake());
         _queries = new QueryState(_bus, Substitute.For<IQuerySaveService>());
-        _sut = new ForeignKeyRowsOpener(new ForeignKeyService(_connections), _queries, _bus);
+        _sut = new ForeignKeyRowsOpener(new ForeignKeyService(_connections), _connections, _queries, _bus);
     }
 
     private List<object> Published() => _bus.ReceivedCalls()
@@ -66,6 +67,30 @@ public class ForeignKeyRowsOpenerTests
         Published().OfType<RunQuery>().ShouldHaveSingleItem();
         var published = Published();
         published.FindIndex(m => m is FocusQuery).ShouldBeLessThan(published.FindIndex(m => m is RunQuery));
+    }
+
+    [Fact]
+    public async Task RelatedRows_KeepTheirTablesColumnsSoTheirForeignKeysLinkToo()
+    {
+        var connection = Connection();
+        connection.Databases.Add(new DatabaseModel { Name = "shop" });
+        _provider.GetColumnsAsync(Arg.Any<string>(), "shop", "", "customers").Returns(
+        [
+            new ColumnInfo { Name = "id", IsPrimaryKey = true },
+            new ColumnInfo
+            {
+                Name = "region_id",
+                ForeignKey = new ForeignKeyInfo { ColumnName = "region_id", ReferencedTable = "regions", ReferencedColumn = "id" }
+            }
+        ]);
+        var detail = new ForeignKeyDetail("Orders", "customer_id", "customers", "id", 7L, connection.Id, "shop");
+
+        await _sut.Consume(new OpenForeignKeyRows(detail));
+
+        var source = _queries.Active!.EditMetadata.ShouldNotBeNull();
+        source.IsEditMode.ShouldBeFalse();
+        (source.ConnectionId, source.SourceDatabase, source.SourceTable).ShouldBe((connection.Id, "shop", "customers"));
+        source.ColumnMetadata.Single(c => c.IsForeignKey).ForeignKey!.ReferencedTable.ShouldBe("regions");
     }
 
     [Fact]

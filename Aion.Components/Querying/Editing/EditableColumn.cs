@@ -1,3 +1,4 @@
+using Aion.Components.Scaffolding;
 using Aion.Contracts.Database;
 
 namespace Aion.Components.Querying.Editing;
@@ -12,11 +13,15 @@ namespace Aion.Components.Querying.Editing;
 /// quietly turn it into 0 or a default date, so an empty editor means NULL there instead.
 /// </param>
 /// <param name="ReadOnlyReason">Why the cells can't change, shown on the cell, or null when they can.</param>
-public sealed record EditableColumn(bool IsEditable, bool IsNullable, bool AcceptsEmptyText, string? ReadOnlyReason)
+/// <param name="IsBoolean">
+/// Whether the column holds flags, whatever the engine calls the type, so the words true and false typed into it
+/// are written as a boolean rather than as text.
+/// </param>
+public sealed record EditableColumn(bool IsEditable, bool IsNullable, bool AcceptsEmptyText, string? ReadOnlyReason, bool IsBoolean = false)
 {
     private static readonly string[] TextTypeMarkers = ["char", "text", "clob", "string", "sysname"];
 
-    public static EditableColumn For(string column, IReadOnlyList<ColumnInfo> metadata)
+    public static EditableColumn For(string column, IReadOnlyList<ColumnInfo> metadata, DatabaseType engine)
     {
         var info = metadata.FirstOrDefault(c => c.Name.Equals(column, StringComparison.OrdinalIgnoreCase));
 
@@ -35,10 +40,17 @@ public sealed record EditableColumn(bool IsEditable, bool IsNullable, bool Accep
             return ReadOnly("The database generates this column's values");
         }
 
-        return new EditableColumn(true, info.IsNullable, IsTextType(info.DataType), null);
+        if (info.IsGenerated)
+        {
+            return ReadOnly("The database computes this column's values");
+        }
+
+        var isBoolean = ColumnTypeShape.Of(info, engine).Family == ColumnTypeFamily.Boolean;
+        return new EditableColumn(true, info.IsNullable, IsTextType(info.DataType), null, isBoolean);
     }
 
-    // An untyped column, as SQLite allows, stores whatever it is given, empty text included.
+    // An untyped column, as SQLite allows, stores whatever it is given, empty text included. Only the name before
+    // any arguments counts, since a MySQL enum lists its values there and one of them may read "text".
     private static bool IsTextType(string dataType)
     {
         if (string.IsNullOrWhiteSpace(dataType))
@@ -46,7 +58,8 @@ public sealed record EditableColumn(bool IsEditable, bool IsNullable, bool Accep
             return true;
         }
 
-        var type = dataType.ToLowerInvariant();
+        var open = dataType.IndexOf('(');
+        var type = (open < 0 ? dataType : dataType[..open]).ToLowerInvariant();
         return TextTypeMarkers.Any(type.Contains);
     }
 

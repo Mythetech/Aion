@@ -50,6 +50,12 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
         _databases.Add(name);
     }
 
+    public async Task<bool> DatabaseExistsAsync(string name)
+    {
+        var module = await GetModuleAsync();
+        return await module.InvokeAsync<bool>("exists", name);
+    }
+
     public async Task DeleteDatabaseAsync(string name)
     {
         var module = await GetModuleAsync();
@@ -109,6 +115,8 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
 
     public async Task<List<ColumnInfo>> GetColumnsAsync(string connectionString, string database, string schema, string table)
     {
+        // numeric_precision is also filled for integer and floating types, in bits, so only numeric's declared
+        // precision is read. An identity column reports is_generated = 'NEVER'; only computed columns are 'ALWAYS'.
         var sql = $@"
             SELECT
                 c.column_name,
@@ -118,7 +126,10 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
                 c.character_maximum_length,
                 CASE WHEN pk.constraint_type = 'PRIMARY KEY' THEN true ELSE false END as is_primary_key,
                 CASE WHEN c.column_default LIKE 'nextval%' OR c.is_identity = 'YES' THEN true ELSE false END as is_identity,
-                c.udt_name
+                c.udt_name,
+                CASE WHEN c.data_type = 'numeric' THEN c.numeric_precision END as numeric_precision,
+                CASE WHEN c.data_type = 'numeric' THEN c.numeric_scale END as numeric_scale,
+                c.is_generated = 'ALWAYS' as is_generated
             FROM information_schema.columns c
             LEFT JOIN (
                 SELECT ku.column_name, tc.constraint_type
@@ -145,11 +156,13 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
                 IsNullable = row.GetProperty("is_nullable").GetBoolean(),
                 DefaultValue = row.TryGetProperty("column_default", out var def) && def.ValueKind != JsonValueKind.Null
                     ? def.GetString() : null,
-                MaxLength = row.TryGetProperty("character_maximum_length", out var ml) && ml.ValueKind != JsonValueKind.Null
-                    ? ml.GetInt32() : null,
+                MaxLength = OptionalInt(row, "character_maximum_length"),
                 IsPrimaryKey = row.GetProperty("is_primary_key").GetBoolean(),
                 IsIdentity = row.GetProperty("is_identity").GetBoolean(),
-                UdtName = row.TryGetProperty("udt_name", out var udt) && udt.ValueKind == JsonValueKind.String ? udt.GetString() : null
+                UdtName = row.TryGetProperty("udt_name", out var udt) && udt.ValueKind == JsonValueKind.String ? udt.GetString() : null,
+                NumericPrecision = OptionalInt(row, "numeric_precision"),
+                NumericScale = OptionalInt(row, "numeric_scale"),
+                IsGenerated = row.TryGetProperty("is_generated", out var generated) && generated.ValueKind == JsonValueKind.True
             });
         }
 
@@ -163,6 +176,9 @@ public class PGliteProvider : IDatabaseProvider, IDatabaseIndexProvider, IQueryP
 
         return columns;
     }
+
+    private static int? OptionalInt(JsonElement row, string property) =>
+        row.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.Number ? value.GetInt32() : null;
 
     public async Task<List<ForeignKeyInfo>> GetForeignKeysAsync(string connectionString, string database, string schema, string table)
     {

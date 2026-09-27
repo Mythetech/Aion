@@ -77,4 +77,31 @@ public class CellEditTextTests
     {
         CellEditText.Resolve(null, "USB-C Hub").ShouldBeNull();
     }
+
+    private static readonly EditableColumn Flag = new(true, true, false, null, IsBoolean: true);
+
+    // MySQL stores BOOLEAN as tinyint(1) and rejects the text 'false' there, so the words become a real boolean.
+    [Theory]
+    [InlineData("false", true, false)]
+    [InlineData("TRUE", false, true)]
+    [InlineData(" true ", null, true)]
+    public void Resolve_TheWordsOfABooleanInAFlagColumn_AreABoolean(string text, bool? original, bool expected)
+    {
+        CellEditText.Resolve(text, original, rules: Flag).ShouldBe(expected);
+    }
+
+    [Fact]
+    public void Resolve_OtherTextInAFlagColumn_StaysText()
+    {
+        CellEditText.Resolve("1", false, rules: Flag).ShouldBe("1");
+        CellEditText.Resolve("maybe", false, rules: Flag).ShouldBe("maybe");
+    }
+
+    [Fact]
+    public void Resolve_TheWordsOfABooleanInATextColumn_StayText()
+    {
+        var text = new EditableColumn(true, true, true, null);
+
+        CellEditText.Resolve("false", "true", rules: text).ShouldBe("false");
+    }
 }

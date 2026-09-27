@@ -143,6 +143,117 @@ public class SchemaChangeRefresherTests
         await NoTablesReloaded();
     }
 
+    private void CountsAre(long products) =>
+        _connectionService.GetTablesAsync(Arg.Any<string>(), "shop", DatabaseType.WasmSQLite)
+            .Returns([new TableInfo("", "products") { RowCount = TableRowCount.Exact(products) }]);
+
+    private TableRowCount? ProductsCount() => _database.Tables.Single(t => t.Name == "products").RowCount;
+
+    private void TreeShowsProducts(long rows) =>
+        _database.Tables = [new TableInfo("", "products") { RowCount = TableRowCount.Exact(rows) }];
+
+    [Fact]
+    public async Task SuccessfulInsert_ReloadsTheRowCountsOfThatDatabase()
+    {
+        // Arrange
+        TreeShowsProducts(3);
+        CountsAre(4);
+
+        // Act
+        await _sut.Consume(Ran("INSERT INTO products (name) VALUES ('lamp')", new QueryResult { RowsAffected = 1 }));
+
+        // Assert
+        ProductsCount().ShouldBe(TableRowCount.Exact(4));
+    }
+
+    [Fact]
+    public async Task StatementThatReportsChangedRows_ReloadsTheRowCounts()
+    {
+        // Arrange
+        TreeShowsProducts(3);
+        CountsAre(1);
+
+        // Act
+        await _sut.Consume(Ran("WITH gone AS (DELETE FROM products WHERE id > 1 RETURNING id) SELECT count(*) FROM gone",
+            new QueryResult { RowsAffected = 2 }));
+
+        // Assert
+        ProductsCount().ShouldBe(TableRowCount.Exact(1));
+    }
+
+    [Fact]
+    public async Task FailedDelete_ChangesNothing()
+    {
+        // Arrange
+        TreeShowsProducts(3);
+
+        // Act
+        await _sut.Consume(Ran("DELETE FROM products", new QueryResult { Error = "database is locked" }));
+
+        // Assert
+        await NoTablesReloaded();
+    }
+
+    [Fact]
+    public async Task DeleteInsideATransaction_WaitsForTheCommit()
+    {
+        // Arrange
+        TreeShowsProducts(3);
+
+        // Act
+        await _sut.Consume(Ran("DELETE FROM products", new QueryResult { RowsAffected = 3 }, new TransactionInfo()));
+
+        // Assert
+        await NoTablesReloaded();
+    }
+
+    [Fact]
+    public async Task DeleteInsideATransaction_ReloadsTheRowCountsOnCommit()
+    {
+        // Arrange
+        TreeShowsProducts(3);
+        CountsAre(0);
+        var transaction = new TransactionInfo();
+        await _sut.Consume(Ran("DELETE FROM products", new QueryResult { RowsAffected = 3 }, transaction));
+
+        // Act
+        await _sut.Consume(Finished(transaction, committed: true));
+
+        // Assert
+        ProductsCount().ShouldBe(TableRowCount.Exact(0));
+    }
+
+    [Fact]
+    public async Task DeleteInsideATransaction_RolledBack_ChangesNothing()
+    {
+        // Arrange
+        TreeShowsProducts(3);
+        var transaction = new TransactionInfo();
+        await _sut.Consume(Ran("DELETE FROM products", new QueryResult { RowsAffected = 3 }, transaction));
+
+        // Act
+        await _sut.Consume(Finished(transaction, committed: false));
+
+        // Assert
+        await NoTablesReloaded();
+    }
+
+    [Fact]
+    public async Task CreateTableThenInsertInATransaction_ReloadsTheWholeSchemaOnCommit()
+    {
+        // Arrange
+        TreeShowsProducts(3);
+        var transaction = new TransactionInfo();
+        await _sut.Consume(Ran("CREATE TABLE \"new_table\" (id INTEGER)", new QueryResult(), transaction));
+        await _sut.Consume(Ran("INSERT INTO new_table VALUES (1)", new QueryResult { RowsAffected = 1 }, transaction));
+
+        // Act
+        await _sut.Consume(Finished(transaction, committed: true));
+
+        // Assert
+        _database.Tables.ShouldBe([new TableInfo("", "new_table")]);
+    }
+
     [Theory]
     [InlineData(QueryResultKind.EstimatedPlan)]
     [InlineData(QueryResultKind.ActualPlan)]

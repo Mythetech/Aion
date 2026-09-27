@@ -35,6 +35,11 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
 
     protected override string UnknownColumnCode => "Msg 207";
 
+    protected override string ComputedTotalsTableSql =>
+        "CREATE TABLE computed_totals (id int IDENTITY(1,1) NOT NULL PRIMARY KEY, price decimal(10,2) NOT NULL, quantity int NOT NULL, created_at datetime2 DEFAULT SYSDATETIME(), total AS (price * quantity))";
+
+    protected override string DecimalTypeName => "decimal";
+
     protected override string[] TestTableResultTypes => ["int", "varchar", "text"];
 
     public override async Task InitializeAsync()
@@ -204,7 +209,8 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         await ExecuteOrFailAsync(DatabaseConnectionString, """
             CREATE TABLE dbo.column_types (
                 a_nvarchar nvarchar(100), a_nvarchar_max nvarchar(max), a_varbinary_max varbinary(max), a_char char(3),
-                a_text text, a_xml xml, a_datetime2 datetime2, a_guid uniqueidentifier, a_version rowversion)
+                a_text text, a_xml xml, a_datetime2 datetime2, a_guid uniqueidentifier, a_version rowversion,
+                a_decimal decimal(10,2), a_numeric numeric(12), a_varchar varchar(50), a_int int, a_money money)
             """);
 
         var columns = await Provider.GetColumnsAsync(DatabaseConnectionString, TestDatabase, "dbo", "column_types");
@@ -212,7 +218,8 @@ public class SqlServerProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         columns.Select(c => ColumnTypeText.Short(c, DatabaseType.SQLServer)).ShouldBe(
         [
             "nvarchar(100)", "nvarchar(max)", "varbinary(max)", "char(3)",
-            "text", "xml", "datetime2", "uniqueidentifier", "rowversion"
+            "text", "xml", "datetime2", "uniqueidentifier", "rowversion",
+            "decimal(10,2)", "numeric(12,0)", "varchar(50)", "int", "money"
         ]);
     }
 

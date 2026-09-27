@@ -1,3 +1,5 @@
+using Aion.Contracts.Queries;
+
 namespace Aion.Components.Querying.Results;
 
 /// <summary>
@@ -61,6 +63,20 @@ public sealed class ResultGridView
             shown = ResultSorter.Sort(shown, sort);
 
         return new ResultGridView(shown, isFiltered);
+    }
+
+    /// <summary>
+    /// The result with only the rows the grid shows for this filter and sort, in the order it shows them, or the
+    /// result itself when neither applies.
+    /// </summary>
+    public static QueryResult Apply(QueryResult result, string? filter, ResultSort? sort)
+    {
+        if (string.IsNullOrEmpty(filter) && sort is null)
+            return result;
+
+        var shown = result.Clone();
+        shown.Rows = Build(ResultRow.Wrap(result.Rows), filter, sort).Rows.Select(row => row.Values).ToList();
+        return shown;
     }
 
     private static List<ResultRow> Filter(IReadOnlyList<ResultRow> rows, string filter)

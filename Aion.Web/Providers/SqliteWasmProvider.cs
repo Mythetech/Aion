@@ -123,7 +123,8 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQu
                     DeclaredType: reader.GetString(2),
                     NotNull: reader.GetInt32(3) != 0,
                     DefaultValue: reader.IsDBNull(4) ? null : reader.GetString(4),
-                    PrimaryKeyPosition: reader.GetInt32(5)));
+                    PrimaryKeyPosition: reader.GetInt32(5),
+                    Hidden: reader.GetInt32(6)));
             }
         }
 
@@ -416,6 +417,8 @@ public class SqliteWasmProvider : IDatabaseProvider, IDatabaseIndexProvider, IQu
     {
         await _databaseService.ImportDatabaseAsync($"{name}.db", data);
     }
+
+    public Task<bool> DatabaseExistsAsync(string name) => _databaseService.ExistsDatabaseAsync($"{name}.db");
 
     public async Task DeleteDatabaseAsync(string name)
     {

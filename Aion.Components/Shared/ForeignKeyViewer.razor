@@ -23,20 +23,20 @@
 @if (Choices.Count > 1)
 {
     <MudStack Class="px-4 pt-2">
-        <MudSelect T="string"
-                   Value="@Detail?.SourceColumn"
-                   ValueChanged="OnChoiceChanged"
-                   Label="Select Foreign Key"
-                   Dense="true"
-                   Margin="Margin.Dense"
-                   Variant="Variant.Outlined">
+        <AionSelect T="string"
+                    Value="@Detail?.SourceColumn"
+                    ValueChanged="OnChoiceChanged"
+                    Label="Select Foreign Key"
+                    Dense="true"
+                    Margin="Margin.Dense"
+                    Variant="Variant.Outlined">
             @foreach (var choice in Choices)
             {
                 <MudSelectItem Value="@choice.SourceColumn">
                     @choice.SourceColumn → @choice.ReferencedTableDisplayName
                 </MudSelectItem>
             }
-        </MudSelect>
+        </AionSelect>
     </MudStack>
 }
 

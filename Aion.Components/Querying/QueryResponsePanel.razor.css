@@ -26,6 +26,19 @@
     gap: 4px;
 }
 
+.query-statement-outcome {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px;
+    font-size: 0.875rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+.query-statement-outcome ::deep .mud-icon-root {
+    color: var(--mud-palette-success);
+}
+
 .query-response-footer {
     gap: 12px;
     min-height: 24px;

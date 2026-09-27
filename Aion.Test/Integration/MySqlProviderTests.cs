@@ -38,6 +38,11 @@ public class MySqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
     protected override string UnknownColumnCode => "Error 1054";
 
     // MySql.Data names TEXT columns VARCHAR in result metadata.
+    protected override string ComputedTotalsTableSql =>
+        "CREATE TABLE computed_totals (id int NOT NULL AUTO_INCREMENT PRIMARY KEY, price decimal(10,2) NOT NULL, quantity int NOT NULL, created_at datetime DEFAULT CURRENT_TIMESTAMP, total decimal(20,2) GENERATED ALWAYS AS (price * quantity) VIRTUAL)";
+
+    protected override string DecimalTypeName => "decimal";
+
     protected override string[] TestTableResultTypes => ["int", "varchar", "varchar"];
 
     public override async Task InitializeAsync()
@@ -162,7 +167,7 @@ public class MySqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         idColumn.IsNullable.ShouldBeFalse();
         
         var nameColumn = columns.First(c => c.Name == "name");
-        nameColumn.DataType.ShouldBe("varchar");  // MySQL returns 'varchar' without length in type
+        nameColumn.DataType.ShouldBe("varchar(100)");  // COLUMN_TYPE, which spells out the length
         nameColumn.IsNullable.ShouldBeFalse();
         nameColumn.MaxLength.ShouldBe(100);
         
@@ -190,7 +195,8 @@ public class MySqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         await ExecuteOrFailAsync(DatabaseConnectionString, """
             CREATE TABLE column_types (
                 a_varchar varchar(255), a_char char(3), a_varbinary varbinary(16), a_text text, a_longtext longtext,
-                a_enum enum('a','bb'), a_decimal decimal(10,2), a_datetime datetime, a_json json)
+                a_enum enum('a','bb'), a_decimal decimal(10,2), a_datetime datetime, a_json json,
+                a_bool boolean, a_tinyint tinyint, a_uint int unsigned, a_ubigint bigint unsigned, a_udecimal decimal(8,3) unsigned)
             """);
 
         var columns = await Provider.GetColumnsAsync(DatabaseConnectionString, TestDatabase, "", "column_types");
@@ -198,7 +204,8 @@ public class MySqlProviderTests : DatabaseProviderTestBase, IAsyncLifetime
         columns.Select(c => ColumnTypeText.Short(c, DatabaseType.MySQL)).ShouldBe(
         [
             "varchar(255)", "char(3)", "varbinary(16)", "text", "longtext",
-            "enum", "decimal", "datetime", "json"
+            "enum", "decimal(10,2)", "datetime", "json",
+            "tinyint(1)", "tinyint", "int unsigned", "bigint unsigned", "decimal(8,3) unsigned"
         ]);
     }
 

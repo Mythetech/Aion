@@ -1,5 +1,4 @@
 using System.Text;
-using Aion.Contracts.Queries;
 
 namespace Aion.Components.Querying.Results;
 
@@ -35,19 +34,6 @@ public static class ResultRowFilter
         }
 
         return text.ToString();
-    }
-
-    /// <summary>
-    /// The result with only the rows the filter keeps, or the result itself when there is no filter.
-    /// </summary>
-    public static QueryResult Apply(QueryResult result, string? filter)
-    {
-        if (string.IsNullOrEmpty(filter))
-            return result;
-
-        var filtered = result.Clone();
-        filtered.Rows = result.Rows.Where(row => Matches(row, filter)).ToList();
-        return filtered;
     }
 
     private static bool HasOwnDisplay(object value) =>

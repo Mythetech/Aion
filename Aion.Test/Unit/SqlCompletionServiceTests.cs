@@ -173,9 +173,18 @@ public class SqlCompletionServiceTests
 
         var nameColumn = result.FirstOrDefault(i => i.Label == "name");
         nameColumn.ShouldNotBeNull();
-        nameColumn.Detail.ShouldContain("varchar");
-        nameColumn.Detail.ShouldContain("nullable");
-        nameColumn.Detail.ShouldContain("max: 255");
+        nameColumn.Detail.ShouldBe("varchar(255), nullable");
+    }
+
+    [Fact]
+    public async Task GetCompletionsAsync_ColumnDetail_ShowsDeclaredPrecisionAndGeneratedColumns()
+    {
+        var (connectionId, dbName) = SetupDatabaseWithColumns();
+
+        var result = await _sut.GetCompletionsAsync("SELECT * FROM users WHERE ", 0, 26, null, connectionId, dbName);
+
+        result.Single(i => i.Label == "balance").Detail.ShouldBe("numeric(10,2)");
+        result.Single(i => i.Label == "email_domain").Detail.ShouldBe("text, nullable, generated");
     }
 
     #endregion
@@ -397,7 +406,9 @@ public class SqlCompletionServiceTests
                 [
                     new ColumnInfo { Name = "id", DataType = "integer", IsPrimaryKey = true },
                     new ColumnInfo { Name = "name", DataType = "varchar", IsNullable = true, MaxLength = 255 },
-                    new ColumnInfo { Name = "email", DataType = "varchar", IsNullable = false }
+                    new ColumnInfo { Name = "email", DataType = "varchar", IsNullable = false },
+                    new ColumnInfo { Name = "balance", DataType = "numeric", NumericPrecision = 10, NumericScale = 2 },
+                    new ColumnInfo { Name = "email_domain", DataType = "text", IsNullable = true, IsGenerated = true }
                 ]
             },
             LoadedColumnTables = ["public.users"]

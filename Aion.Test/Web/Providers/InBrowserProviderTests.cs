@@ -246,6 +246,32 @@ public class InBrowserProviderTests
         columns.Select(c => c.UdtName).ShouldBe(["_int4", "mood"]);
     }
 
+    [Fact]
+    public async Task PGlite_GetColumnsAsync_ReadsGeneratedColumnsAndDeclaredPrecision()
+    {
+        CatalogReturns(sql => sql.Contains("information_schema.columns")
+            ? """
+              {"rows": [
+                {"column_name": "price", "data_type": "numeric", "udt_name": "numeric", "is_nullable": true, "column_default": null, "character_maximum_length": null, "numeric_precision": 10, "numeric_scale": 2, "is_primary_key": false, "is_identity": false, "is_generated": false},
+                {"column_name": "total", "data_type": "numeric", "udt_name": "numeric", "is_nullable": true, "column_default": null, "character_maximum_length": null, "numeric_precision": null, "numeric_scale": null, "is_primary_key": false, "is_identity": false, "is_generated": true}
+              ]}
+              """
+            : """{"rows": []}""");
+        var provider = new PGliteProvider(_js.Runtime);
+
+        var columns = await provider.GetColumnsAsync("pglite://shop", "shop", "public", "orders");
+
+        columns.Select(c => (c.Name, c.NumericPrecision, c.NumericScale, c.IsGenerated)).ShouldBe(
+        [
+            ("price", (int?)10, (int?)2, false),
+            ("total", null, null, true)
+        ]);
+        var columnsQuery = _catalogQueries.First(sql => sql.Contains("information_schema.columns"));
+        columnsQuery.ShouldContain("is_generated");
+        columnsQuery.ShouldContain("numeric_precision");
+        columnsQuery.ShouldContain("numeric_scale");
+    }
+
     [Theory]
     [InlineData("public", "it's", "'public'", "'it''s'")]
     [InlineData("public", "odd\"name", "'public'", "'odd\"name'")]

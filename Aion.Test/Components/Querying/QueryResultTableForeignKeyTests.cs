@@ -92,4 +92,65 @@ public class QueryResultTableForeignKeyTests : TestContext
         Published().Choices!.Select(c => (c.SourceColumn, c.ReferencedTableDisplayName, c.ForeignKeyValue))
             .ShouldBe([("customer_id", "sales.customers", (object)7), ("product_id", "catalog.products", 42)]);
     }
+
+    // Rows opened from one known table, such as its first 1000 rows, carry the table's columns without edit mode.
+    private IRenderedComponent<QueryResultTable> RenderReadOnly() =>
+        RenderComponent<QueryResultTable>(p => p
+            .Add(x => x.Result, new QueryResult
+            {
+                Columns = ["id", "customer_id", "product_id"],
+                Rows =
+                [
+                    new Dictionary<string, object> { ["id"] = 1, ["customer_id"] = 7, ["product_id"] = 42 },
+                    new Dictionary<string, object> { ["id"] = 2, ["customer_id"] = null!, ["product_id"] = 43 }
+                ]
+            })
+            .Add(x => x.QueryName, "First 1000 rows - sales.orders")
+            .Add(x => x.EditMetadata, new QueryEditMetadata
+            {
+                SourceTable = "orders", SourceSchema = "sales", SourceDatabase = "shop", ConnectionId = _connectionId,
+                ColumnMetadata = OrderColumns()
+            })
+            .Add(x => x.ConnectionId, _connectionId)
+            .Add(x => x.DatabaseName, "shop"));
+
+    [Fact]
+    public async Task ForeignKeyCellInReadOnlyRows_OpensTheViewerWithTheRowsForeignKeys()
+    {
+        var cut = RenderReadOnly();
+
+        await cut.Find("[aria-label='Show customer_id reference']").ClickAsync(new());
+
+        var published = Published();
+        published.ForeignKeyDetail.ReferencedTableDisplayName.ShouldBe("sales.customers");
+        published.ForeignKeyDetail.ForeignKeyValue.ShouldBe(7);
+        published.ForeignKeyDetail.ConnectionId.ShouldBe(_connectionId);
+        published.Choices!.Select(c => (c.SourceColumn, c.ForeignKeyValue))
+            .ShouldBe([("customer_id", (object)7), ("product_id", 42)]);
+    }
+
+    [Fact]
+    public void ReadOnlyRows_LinkEveryForeignKeyValueButNulls()
+    {
+        var cut = RenderReadOnly();
+
+        cut.FindAll(".cell-fk").Select(link => link.GetAttribute("aria-label"))
+            .ShouldBe(["Show customer_id reference", "Show product_id reference", "Show product_id reference"]);
+    }
+
+    [Fact]
+    public void RowsFromAnUnknownTable_HaveNoForeignKeyLinks()
+    {
+        var cut = RenderComponent<QueryResultTable>(p => p
+            .Add(x => x.Result, new QueryResult
+            {
+                Columns = ["customer_id"],
+                Rows = [new Dictionary<string, object> { ["customer_id"] = 7 }]
+            })
+            .Add(x => x.QueryName, "Query1")
+            .Add(x => x.ConnectionId, _connectionId)
+            .Add(x => x.DatabaseName, "shop"));
+
+        cut.FindAll(".cell-fk").ShouldBeEmpty();
+    }
 }

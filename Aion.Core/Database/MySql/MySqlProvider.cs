@@ -364,15 +364,19 @@ public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabas
         await conn.OpenAsync();
 
         // longtext and longblob report a 4 GB maximum length, which would overflow the int read below.
+        // COLUMN_TYPE keeps what DATA_TYPE drops: a BOOLEAN's tinyint(1), decimal precision and unsigned.
+        // EXTRA says VIRTUAL GENERATED or STORED GENERATED for a computed column, but also DEFAULT_GENERATED for
+        // one whose default is an expression such as CURRENT_TIMESTAMP, which still takes values.
         const string sql = @"
             SELECT
                 c.COLUMN_NAME,
-                c.DATA_TYPE,
+                c.COLUMN_TYPE,
                 c.IS_NULLABLE = 'YES' as IS_NULLABLE,
                 c.COLUMN_DEFAULT,
                 LEAST(c.CHARACTER_MAXIMUM_LENGTH, 2147483647) as CHARACTER_MAXIMUM_LENGTH,
                 c.COLUMN_KEY = 'PRI' as IS_PRIMARY_KEY,
-                c.EXTRA = 'auto_increment' as IS_IDENTITY
+                c.EXTRA = 'auto_increment' as IS_IDENTITY,
+                (c.EXTRA LIKE '%VIRTUAL GENERATED%' OR c.EXTRA LIKE '%STORED GENERATED%') as IS_GENERATED
             FROM information_schema.COLUMNS c
             WHERE c.TABLE_SCHEMA = @database
             AND c.TABLE_NAME = @table
@@ -393,7 +397,8 @@ public class MySqlProvider : IDatabaseProvider, IDatabaseIndexProvider, IDatabas
                 DefaultValue = reader.IsDBNull(3) ? null : reader.GetString(3),
                 MaxLength = reader.IsDBNull(4) ? null : reader.GetInt32(4),
                 IsPrimaryKey = reader.GetBoolean(5),
-                IsIdentity = reader.GetBoolean(6)
+                IsIdentity = reader.GetBoolean(6),
+                IsGenerated = reader.GetBoolean(7)
             });
         }
 

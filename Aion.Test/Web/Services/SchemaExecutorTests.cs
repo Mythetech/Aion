@@ -49,6 +49,8 @@ public class SchemaExecutorTests
 
     private IDatabaseProvider Provider => _engines.Postgres;
 
+    private IManagedDatabaseProvider Storage => (IManagedDatabaseProvider)_engines.Postgres;
+
     private static SchemaWizardModel Model(params string[] tables) => new()
     {
         DatabaseName = "shop",
@@ -137,6 +139,76 @@ public class SchemaExecutorTests
         result.Error.ShouldBe("Could not create the tables: Database 'shop' has an open transaction in a query tab.");
         _executed.ShouldBeEmpty();
         _connectionState.Connections.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Execute_WhenATableFailsInANewDatabase_DeletesTheDatabaseItCreated()
+    {
+        // Arrange
+        Storage.DatabaseExistsAsync("shop").Returns(false);
+        FailTable("orders", EngineError("syntax error at or near \"(\""));
+
+        // Act
+        await _sut.ExecuteAsync(Model("orders"));
+
+        // Assert
+        await Storage.Received(1).DeleteDatabaseAsync("shop");
+    }
+
+    [Fact]
+    public async Task Execute_WhenTheTransactionCannotStartInANewDatabase_DeletesTheDatabaseItCreated()
+    {
+        // Arrange
+        Storage.DatabaseExistsAsync("shop").Returns(false);
+        Provider.BeginTransactionAsync(Arg.Any<string>()).ThrowsAsync(new InvalidOperationException("disk I/O error"));
+
+        // Act
+        await _sut.ExecuteAsync(Model("orders"));
+
+        // Assert
+        await Storage.Received(1).DeleteDatabaseAsync("shop");
+    }
+
+    [Fact]
+    public async Task Execute_WhenATableFailsInADatabaseThatAlreadyExisted_KeepsIt()
+    {
+        // Arrange
+        Storage.DatabaseExistsAsync("shop").Returns(true);
+        FailTable("orders", EngineError("relation \"orders\" already exists"));
+
+        // Act
+        await _sut.ExecuteAsync(Model("orders"));
+
+        // Assert
+        await Storage.DidNotReceiveWithAnyArgs().DeleteDatabaseAsync(default!);
+    }
+
+    [Fact]
+    public async Task Execute_WhenEveryTableIsCreated_KeepsTheNewDatabase()
+    {
+        // Arrange
+        Storage.DatabaseExistsAsync("shop").Returns(false);
+
+        // Act
+        await _sut.ExecuteAsync(Model("orders"));
+
+        // Assert
+        await Storage.DidNotReceiveWithAnyArgs().DeleteDatabaseAsync(default!);
+    }
+
+    [Fact]
+    public async Task Execute_WhenDeletingTheNewDatabaseAlsoFails_StillReportsWhyTheTableFailed()
+    {
+        // Arrange
+        Storage.DatabaseExistsAsync("shop").Returns(false);
+        Storage.DeleteDatabaseAsync("shop").ThrowsAsync(new InvalidOperationException("blocked"));
+        FailTable("orders", EngineError("syntax error at or near \"(\""));
+
+        // Act
+        var result = await _sut.ExecuteAsync(Model("orders"));
+
+        // Assert
+        result.Error.ShouldBe("Could not create table \"orders\": syntax error at or near \"(\"");
     }
 
     [Fact]

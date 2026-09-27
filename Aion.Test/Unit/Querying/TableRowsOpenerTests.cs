@@ -93,6 +93,51 @@ public class TableRowsOpenerTests
         published.FindIndex(m => m is FocusQuery).ShouldBeLessThan(published.FindIndex(m => m is RunQuery));
     }
 
+    private static List<ColumnInfo> OrderColumns() =>
+    [
+        new() { Name = "id", IsPrimaryKey = true },
+        new()
+        {
+            Name = "customer_id",
+            ForeignKey = new ForeignKeyInfo { ColumnName = "customer_id", ReferencedTable = "customers", ReferencedColumn = "id" }
+        }
+    ];
+
+    private (ConnectionModel Connection, IDatabaseProvider Provider) ConnectToShop()
+    {
+        var connection = Connect(DatabaseType.WasmSQLite, new SqliteWasmCommands());
+        connection.Databases.Add(new DatabaseModel { Name = "shop" });
+        return (connection, _factory.GetProvider(DatabaseType.WasmSQLite));
+    }
+
+    [Fact]
+    public async Task RowsOfOneTable_KeepItsColumnsSoTheirForeignKeysLink()
+    {
+        var (connection, provider) = ConnectToShop();
+        provider.GetColumnsAsync(Arg.Any<string>(), "shop", "", "orders").Returns(OrderColumns());
+
+        await _sut.Consume(new OpenTableRows(connection.Id, "shop", "", "orders"));
+
+        var source = _queries.Active!.EditMetadata.ShouldNotBeNull();
+        source.IsEditMode.ShouldBeFalse();
+        (source.ConnectionId, source.SourceDatabase, source.SourceSchema, source.SourceTable).ShouldBe((connection.Id, "shop", "", "orders"));
+        source.ColumnMetadata.Single(c => c.IsForeignKey).ForeignKey!.ReferencedTable.ShouldBe("customers");
+    }
+
+    [Fact]
+    public async Task ColumnsThatCannotBeRead_StillOpenTheRows_WithoutLinks()
+    {
+        var (connection, provider) = ConnectToShop();
+        provider.GetColumnsAsync(Arg.Any<string>(), "shop", "", "orders")
+            .Returns<List<ColumnInfo>>(_ => throw new InvalidOperationException("permission denied for table orders"));
+
+        await _sut.Consume(new OpenTableRows(connection.Id, "shop", "", "orders"));
+
+        _queries.Active!.EditMetadata.ShouldBeNull();
+        Published().OfType<RunQuery>().ShouldHaveSingleItem();
+        Published().OfType<AddNotification>().ShouldBeEmpty();
+    }
+
     [Fact]
     public async Task ConnectionThatIsGone_OpensNothing()
     {
