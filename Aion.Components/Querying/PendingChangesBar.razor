@@ -8,49 +8,52 @@
 
 @* Edit mode's status and actions, kept in view under the grid so the changes and the way to apply them are never
    on another tab. *@
-<div class="pending-bar @(EditState.HasChanges ? "has-changes" : null)" role="region" aria-label="Edit mode">
-    <MudIcon Icon="@AionIcons.PendingEdits" Size="Size.Small" Class="pending-bar-icon" />
-    <span class="pending-bar-title">Editing @TableName</span>
-    @if (EditState.HasChanges)
-    {
-        <span class="pending-bar-summary">@Summary</span>
-        <MudButton Class="pending-bar-review"
-                   Variant="Variant.Text"
-                   Color="Color.Primary"
-                   Size="Size.Small"
-                   Disabled="@(EditableResult is null)"
-                   OnClick="ReviewSqlAsync">
-            Review SQL
-        </MudButton>
-        <MudSpacer />
-        <MudButton Class="pending-bar-discard"
-                   Variant="Variant.Outlined"
-                   Size="Size.Small"
-                   Disabled="@_applying"
-                   OnClick="Discard">
-            Discard
-        </MudButton>
-        <MudButton Class="pending-bar-apply"
-                   Variant="Variant.Filled"
-                   Color="Color.Primary"
-                   Size="Size.Small"
-                   DropShadow="false"
-                   Disabled="@(_applying || EditableResult is null)"
-                   OnClick="ApplyAsync">
-            @ApplyText(EditState.TotalChangeCount)
-        </MudButton>
-    }
-    else
-    {
-        <span class="pending-bar-hint">Click a cell to edit it. Right-click a row to delete it.</span>
-        <MudSpacer />
-        <MudButton Class="pending-bar-stop"
-                   Variant="Variant.Text"
-                   Size="Size.Small"
-                   OnClick="OnStopEditing">
-            Stop editing
-        </MudButton>
-    }
+<div class="pending-bar" role="region" aria-label="Edit mode">
+    <MudAlert Severity="@Severity" Dense="true" Icon="@AionIcons.PendingEdits">
+        <div class="pending-bar-content">
+            <span class="pending-bar-title">Editing @TableName</span>
+            @if (EditState.HasChanges)
+            {
+                <span class="pending-bar-summary">@Summary</span>
+                <MudButton Class="pending-bar-review"
+                           Variant="Variant.Text"
+                           Color="Color.Primary"
+                           Size="Size.Small"
+                           Disabled="@(EditableResult is null)"
+                           OnClick="ReviewSqlAsync">
+                    Review SQL
+                </MudButton>
+                <MudSpacer />
+                <MudButton Class="pending-bar-discard"
+                           Variant="Variant.Outlined"
+                           Size="Size.Small"
+                           Disabled="@_applying"
+                           OnClick="Discard">
+                    Discard
+                </MudButton>
+                <MudButton Class="pending-bar-apply"
+                           Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Size="Size.Small"
+                           DropShadow="false"
+                           Disabled="@(_applying || EditableResult is null)"
+                           OnClick="ApplyAsync">
+                    @ApplyText(EditState.TotalChangeCount)
+                </MudButton>
+            }
+            else
+            {
+                <span class="pending-bar-hint">Click a cell to edit it. Right-click a row to delete it.</span>
+                <MudSpacer />
+                <MudButton Class="pending-bar-stop"
+                           Variant="Variant.Text"
+                           Size="Size.Small"
+                           OnClick="OnStopEditing">
+                    Stop editing
+                </MudButton>
+            }
+        </div>
+    </MudAlert>
 </div>
 
 @code {
@@ -71,6 +74,9 @@
     private bool _applying;
 
     public static string ApplyText(int count) => $"Apply {Count(count, "change")}";
+
+    // Editing alone is a mode worth noticing; pending changes are unapplied work, so they ask for more attention.
+    private Severity Severity => EditState.HasChanges ? Severity.Warning : Severity.Info;
 
     private string Summary
     {

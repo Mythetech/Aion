@@ -1,12 +1,10 @@
 @using Aion.Components.Infrastructure.Commands
 @using Aion.Components.Querying.Commands
-@using Aion.Components.Theme
 @using Aion.Contracts.Queries
 @using Mythetech.Framework.Components.Buttons
 @using Mythetech.Framework.Infrastructure.MessageBus
 
-<div class="query-error-card" role="alert">
-    <MudIcon Icon="@AionIcons.Error" Color="Color.Error" Size="Size.Small" Class="query-error-icon" />
+<MudAlert Severity="Severity.Error" Class="query-error-card mx-1 my-2" role="alert">
     <div class="query-error-body">
         <div class="query-error-headline">
             <span class="query-error-title">@Error.Title</span>
@@ -34,12 +32,14 @@
             {
                 <MtButton Class="query-error-goto"
                           Variant="Variant.Outlined"
+                          Color="Color.Error"
                           Size="Size.Small"
                           Text="@($"Go to line {line}")"
                           OnClick="GoToAsync" />
             }
             <MtButton Class="query-error-copy"
                       Variant="Variant.Outlined"
+                      Color="Color.Error"
                       Size="Size.Small"
                       Text="Copy error"
                       OnClick="CopyAsync" />
@@ -49,7 +49,7 @@
             <div class="query-error-meta">@string.Join(" · ", Meta)</div>
         }
     </div>
-</div>
+</MudAlert>
 
 @code {
     [Inject] protected IMessageBus Bus { get; set; } = default!;

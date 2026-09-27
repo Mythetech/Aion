@@ -95,6 +95,38 @@ public class PendingChangesBarTests : TestContext
         cut.Find(".pending-bar-summary").TextContent.Trim().ShouldBe("1 pending change");
     }
 
+    private Severity BarSeverity(IRenderedComponent<PendingChangesBar> cut) => cut.FindComponent<MudAlert>().Instance.Severity;
+
+    [Fact]
+    public void WithoutChanges_IsAnInfoAlert()
+    {
+        var cut = RenderBar();
+
+        BarSeverity(cut).ShouldBe(Severity.Info);
+    }
+
+    [Fact]
+    public void WithChanges_IsAWarningAlert()
+    {
+        Rename(0, "Ada Lovelace");
+
+        var cut = RenderBar();
+
+        BarSeverity(cut).ShouldBe(Severity.Warning);
+    }
+
+    [Fact]
+    public async Task TurnsToAWarning_WhenAChangeIsMade_AndBackToInfo_WhenTheChangesAreDiscarded()
+    {
+        var cut = RenderBar();
+
+        await cut.InvokeAsync(() => Rename(0, "Ada Lovelace"));
+        BarSeverity(cut).ShouldBe(Severity.Warning);
+
+        await cut.Find(".pending-bar-discard").ClickAsync(new MouseEventArgs());
+        BarSeverity(cut).ShouldBe(Severity.Info);
+    }
+
     [Fact]
     public async Task Apply_AppliesThePendingChangesToTheEditedTable()
     {
