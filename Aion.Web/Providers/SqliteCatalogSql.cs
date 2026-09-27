@@ -12,7 +12,7 @@ public static class SqliteCatalogSql
     // SQLite refuses a compound SELECT of more than 500 terms by default (SQLITE_MAX_COMPOUND_SELECT).
     public const int CountBatchSize = 400;
 
-    public static string TableInfo(string table) => $"PRAGMA table_info({Quote(table)})";
+    public static string TableInfo(string table) => $"PRAGMA table_xinfo({Quote(table)})";
 
     public static string ForeignKeyList(string table) => $"PRAGMA foreign_key_list({Quote(table)})";
 

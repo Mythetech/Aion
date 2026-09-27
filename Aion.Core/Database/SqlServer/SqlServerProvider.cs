@@ -125,6 +125,8 @@ public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDat
         using var conn = new SqlConnection(connectionString);
         await conn.OpenAsync();
 
+        // NUMERIC_PRECISION is also filled for integer, money and float types, so only decimal and numeric's
+        // declared precision is read. It is a tinyint, so it is widened for the int read below.
         const string sql = @"
             SELECT
                 c.COLUMN_NAME,
@@ -144,7 +146,10 @@ public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDat
                             AND ku.COLUMN_NAME = c.COLUMN_NAME
                     ) THEN 1 ELSE 0
                 END as IS_PRIMARY_KEY,
-                COLUMNPROPERTY(OBJECT_ID(@schemaTable), c.COLUMN_NAME, 'IsIdentity') as IS_IDENTITY
+                COLUMNPROPERTY(OBJECT_ID(@schemaTable), c.COLUMN_NAME, 'IsIdentity') as IS_IDENTITY,
+                CASE WHEN c.DATA_TYPE IN ('decimal', 'numeric') THEN CAST(c.NUMERIC_PRECISION AS int) END as NUMERIC_PRECISION,
+                CASE WHEN c.DATA_TYPE IN ('decimal', 'numeric') THEN c.NUMERIC_SCALE END as NUMERIC_SCALE,
+                COLUMNPROPERTY(OBJECT_ID(@schemaTable), c.COLUMN_NAME, 'IsComputed') as IS_COMPUTED
             FROM INFORMATION_SCHEMA.COLUMNS c
             WHERE c.TABLE_NAME = @table
             AND c.TABLE_SCHEMA = @schema
@@ -166,7 +171,10 @@ public class SqlServerProvider : IDatabaseProvider, IDatabaseIndexProvider, IDat
                 DefaultValue = reader.IsDBNull(3) ? null : reader.GetString(3),
                 MaxLength = reader.IsDBNull(4) ? null : reader.GetInt32(4),
                 IsPrimaryKey = reader.GetInt32(5) == 1,
-                IsIdentity = reader.GetInt32(6) == 1
+                IsIdentity = reader.GetInt32(6) == 1,
+                NumericPrecision = reader.IsDBNull(7) ? null : reader.GetInt32(7),
+                NumericScale = reader.IsDBNull(8) ? null : reader.GetInt32(8),
+                IsGenerated = reader.GetInt32(9) == 1
             });
         }
 

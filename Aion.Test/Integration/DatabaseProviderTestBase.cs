@@ -260,6 +260,95 @@ public abstract class DatabaseProviderTestBase : IAsyncLifetime
         rows.ShouldAllBe(r => new long[] { 1, 2, 5 }.Contains(Convert.ToInt64(r["parent_id"])));
     }
 
+    /// <summary>
+    /// CREATE TABLE computed_totals in the engine's own DDL: an identity key, a required price of the engine's decimal
+    /// type with precision 10 and scale 2, a required whole-number quantity, a created_at the engine defaults to the
+    /// current time, and total, a column the engine computes as price * quantity.
+    /// </summary>
+    protected abstract string ComputedTotalsTableSql { get; }
+
+    /// <summary>What the engine calls its exact decimal type: numeric on PostgreSQL, decimal elsewhere.</summary>
+    protected abstract string DecimalTypeName { get; }
+
+    [Fact]
+    public async Task GetColumns_FlagsOnlyComputedColumnsAsGenerated()
+    {
+        // Arrange
+        await ExecuteOrFailAsync(DatabaseConnectionString, ComputedTotalsTableSql);
+
+        // Act
+        var columns = await Provider.GetColumnsAsync(DatabaseConnectionString, TestDatabase, TestSchema, "computed_totals");
+
+        // Assert: the identity key and the defaulted created_at are filled in by the engine too, but they take values.
+        columns.Select(c => c.Name).ShouldBe(["id", "price", "quantity", "created_at", "total"]);
+        columns.Where(c => c.IsGenerated).Select(c => c.Name).ShouldBe(["total"]);
+        columns.Single(c => c.Name == "id").IsIdentity.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task GetColumns_ReportsTheDeclaredPrecisionAndScale()
+    {
+        // Arrange
+        await ExecuteOrFailAsync(DatabaseConnectionString, ComputedTotalsTableSql);
+
+        // Act
+        var columns = await Provider.GetColumnsAsync(DatabaseConnectionString, TestDatabase, TestSchema, "computed_totals");
+
+        // Assert
+        var price = columns.Single(c => c.Name == "price");
+        ColumnTypeText.Short(price, Provider.DatabaseType).ShouldBe($"{DecimalTypeName}(10,2)");
+        ColumnTypeText.Describe(price, Provider.DatabaseType).ShouldStartWith($"{DecimalTypeName}(10,2) · NOT NULL");
+        ColumnTypeText.Describe(columns.Single(c => c.Name == "total"), Provider.DatabaseType).ShouldContain(" · generated");
+    }
+
+    [Fact]
+    public async Task GenerateData_LeavesGeneratedColumnsToTheEngine()
+    {
+        // Arrange
+        await ExecuteOrFailAsync(DatabaseConnectionString, ComputedTotalsTableSql);
+        var model = await GenerationModelAsync("computed_totals", 25);
+        Column(model, "total").FilledByDatabase.ShouldBe("generated");
+        Column(model, "price").Generator.ShouldBeOfType<RandomNumberGenerator>();
+        Column(model, "quantity").Generator.ShouldBeOfType<RandomIntGenerator>();
+
+        // Act
+        var result = await new DataGenerationService().GenerateAsync(model, Provider, DatabaseConnectionString);
+
+        // Assert
+        result.Error.ShouldBeNull();
+        var rows = (await ExecuteOrFailAsync(DatabaseConnectionString, "SELECT price, quantity, total FROM computed_totals")).Rows;
+        rows.Count.ShouldBe(25);
+        rows.ShouldAllBe(r => Convert.ToDecimal(r["total"]) == Convert.ToDecimal(r["price"]) * Convert.ToDecimal(r["quantity"]));
+    }
+
+    [Fact]
+    public async Task GridEdit_LeavesGeneratedColumnsOutOfInsertsAndUpdates()
+    {
+        // Arrange
+        await ExecuteOrFailAsync(DatabaseConnectionString, ComputedTotalsTableSql);
+        await ExecuteOrFailAsync(DatabaseConnectionString, "INSERT INTO computed_totals (price, quantity) VALUES (2.50, 4)");
+        var editable = await LoadEditableTableAsync(DatabaseConnectionString, TestSchema, "computed_totals",
+            "SELECT id, price, quantity, created_at, total FROM computed_totals ORDER BY id");
+        var original = editable.Rows[0].ToDictionary(kvp => kvp.Key, kvp => (object?)kvp.Value);
+        var update = PendingChange.CreateUpdate(0, original,
+            new Dictionary<string, object?>(original) { ["quantity"] = "6", ["total"] = "1" });
+        var insert = PendingChange.CreateInsert(1, new Dictionary<string, object?>
+        {
+            ["id"] = null, ["price"] = "1.25", ["quantity"] = "8", ["created_at"] = null, ["total"] = null
+        });
+
+        // Act
+        var (updateSql, updated) = await ApplyGridChangeAsync(DatabaseConnectionString, editable, update);
+        var (insertSql, inserted) = await ApplyGridChangeAsync(DatabaseConnectionString, editable, insert);
+
+        // Assert
+        updated.Error.ShouldBeNull(updateSql);
+        inserted.Error.ShouldBeNull(insertSql);
+        var totals = (await ExecuteOrFailAsync(DatabaseConnectionString, "SELECT total FROM computed_totals ORDER BY id")).Rows
+            .Select(r => Convert.ToDecimal(r["total"]));
+        totals.ShouldBe([15.00m, 10.00m]);
+    }
+
     /// <summary>The short types the results grid shows for the test table's id, name and description columns.</summary>
     protected abstract string[] TestTableResultTypes { get; }
 

@@ -15,20 +15,29 @@ public class EditableColumnTests
         new() { Name = "note", DataType = "TEXT", IsNullable = true },
         new() { Name = "price", DataType = "numeric(10,2)", IsNullable = true },
         new() { Name = "stock", DataType = "integer", IsNullable = false },
-        new() { Name = "anything", DataType = "", IsNullable = true }
+        new() { Name = "anything", DataType = "", IsNullable = true },
+        new() { Name = "total", DataType = "numeric", IsNullable = true, IsGenerated = true },
+        new() { Name = "size", DataType = "enum('text','image')", IsNullable = false }
     ];
 
     [Theory]
     [InlineData("id")]
     [InlineData("code")]
     [InlineData("row_version")]
+    [InlineData("total")]
     [InlineData("computed")]
-    public void KeysIdentitiesAndUnknownColumns_AreNotEditable(string column)
+    public void KeysIdentitiesGeneratedAndUnknownColumns_AreNotEditable(string column)
     {
         var editable = EditableColumn.For(column, Columns);
 
         editable.IsEditable.ShouldBeFalse();
         editable.ReadOnlyReason.ShouldNotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public void GeneratedColumns_SayTheDatabaseComputesThem()
+    {
+        EditableColumn.For("total", Columns).ReadOnlyReason.ShouldBe("The database computes this column's values");
     }
 
     [Fact]
@@ -43,6 +52,7 @@ public class EditableColumnTests
     [InlineData("price", true, false)]
     [InlineData("stock", false, false)]
     [InlineData("anything", true, true)]
+    [InlineData("size", false, false)]
     public void EditableColumns_SayWhetherTheyTakeNullAndEmptyText(string column, bool nullable, bool acceptsEmptyText)
     {
         var editable = EditableColumn.For(column, Columns);

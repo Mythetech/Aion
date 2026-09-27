@@ -246,7 +246,7 @@ public class ColumnGeneratorBinding
     public ColumnTypeShape Type { get; set; } = new(string.Empty, ColumnTypeFamily.Unknown);
 
     /// <summary>
-    /// Why the database writes this column itself ("identity", "rowid", "rowversion"), in which case it is left out
+    /// Why the database writes this column itself ("identity", "generated", "rowid", "rowversion"), in which case it is left out
     /// of every INSERT; null when Aion generates its values.
     /// </summary>
     public string? FilledByDatabase { get; set; }

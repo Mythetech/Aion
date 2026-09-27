@@ -35,10 +35,16 @@ public sealed record EditableColumn(bool IsEditable, bool IsNullable, bool Accep
             return ReadOnly("The database generates this column's values");
         }
 
+        if (info.IsGenerated)
+        {
+            return ReadOnly("The database computes this column's values");
+        }
+
         return new EditableColumn(true, info.IsNullable, IsTextType(info.DataType), null);
     }
 
-    // An untyped column, as SQLite allows, stores whatever it is given, empty text included.
+    // An untyped column, as SQLite allows, stores whatever it is given, empty text included. Only the name before
+    // any arguments counts, since a MySQL enum lists its values there and one of them may read "text".
     private static bool IsTextType(string dataType)
     {
         if (string.IsNullOrWhiteSpace(dataType))
@@ -46,7 +52,8 @@ public sealed record EditableColumn(bool IsEditable, bool IsNullable, bool Accep
             return true;
         }
 
-        var type = dataType.ToLowerInvariant();
+        var open = dataType.IndexOf('(');
+        var type = (open < 0 ? dataType : dataType[..open]).ToLowerInvariant();
         return TextTypeMarkers.Any(type.Contains);
     }
 

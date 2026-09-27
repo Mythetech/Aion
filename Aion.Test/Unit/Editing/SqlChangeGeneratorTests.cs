@@ -23,7 +23,8 @@ public class SqlChangeGeneratorTests
             [
                 new ColumnInfo { Name = "id", IsPrimaryKey = true, IsIdentity = true },
                 new ColumnInfo { Name = "name" },
-                new ColumnInfo { Name = "note" }
+                new ColumnInfo { Name = "note" },
+                new ColumnInfo { Name = "name_length", IsGenerated = true }
             ]
         };
     }
@@ -128,6 +129,29 @@ public class SqlChangeGeneratorTests
 
         generation.Statements.Single().Sql.ShouldBe("INSERT INTO \"public\".\"users\"\n(\"name\")\nVALUES ('new');");
         generation.Statements.Single().ExpectsSingleRow.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Insert_SkipsGeneratedColumns()
+    {
+        var change = PendingChange.CreateInsert(3, new Dictionary<string, object?> { ["id"] = null, ["name"] = "new", ["name_length"] = null });
+
+        var generation = await _sut.GenerateSqlAsync(CreateResult("id", "name", "name_length"), [change], new PostgreSqlCommands());
+
+        generation.Statements.Single().Sql.ShouldBe("INSERT INTO \"public\".\"users\"\n(\"name\")\nVALUES ('new');");
+    }
+
+    [Fact]
+    public async Task Update_SkipsGeneratedColumns()
+    {
+        var change = PendingChange.CreateUpdate(
+            0,
+            new Dictionary<string, object?> { ["id"] = 7, ["name"] = "old", ["name_length"] = 3 },
+            new Dictionary<string, object?> { ["id"] = 7, ["name"] = "newer", ["name_length"] = 5 });
+
+        var generation = await _sut.GenerateSqlAsync(CreateResult("id", "name", "name_length"), [change], new PostgreSqlCommands());
+
+        generation.Statements.Single().Sql.ShouldBe("UPDATE \"public\".\"users\"\nSET \"name\" = 'newer'\nWHERE \"id\" = 7;");
     }
 
     [Fact]

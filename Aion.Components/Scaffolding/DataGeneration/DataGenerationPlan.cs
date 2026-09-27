@@ -32,8 +32,8 @@ public static class DataGenerationPlan
 
     /// <summary>
     /// The generators whose values the column can hold. NULL is offered only when the column allows it and
-    /// existing references only for a foreign key. Leaving the column out is always offered, because providers
-    /// don't report computed columns and those accept no value at all.
+    /// existing references only for a foreign key. Leaving the column out is always offered, so the database can
+    /// fill in its default.
     /// </summary>
     public static IReadOnlyList<IDataGenerator> CompatibleGenerators(ColumnGeneratorBinding binding) =>
         binding.FilledByDatabase is not null
@@ -86,12 +86,15 @@ public static class DataGenerationPlan
 
     /// <summary>
     /// Why the database writes the column itself, or null when Aion generates its values. Values sent for these
-    /// columns are rejected (identity, rowversion) or would collide with the numbers the database hands out.
+    /// columns are rejected (identity, generated, rowversion) or would collide with the numbers the database hands out.
     /// </summary>
     private static string? FilledByDatabase(ColumnInfo column, ColumnTypeShape type, IReadOnlyList<ColumnInfo> columns, DatabaseType engine)
     {
         if (column.IsIdentity)
             return "identity";
+
+        if (column.IsGenerated)
+            return "generated";
 
         if (type.Family == ColumnTypeFamily.RowVersion)
             return "rowversion";
