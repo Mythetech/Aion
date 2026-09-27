@@ -45,15 +45,19 @@ public class RowSelectionState
     }
 
     /// <summary>
-    /// A click on a row's number: toggles that row and keeps the rest, and Shift adds the rows shown between
-    /// the last clicked row and this one.
+    /// A click on a row's checkbox: toggles that row and keeps the rest. Shift gives the rows shown between the
+    /// last clicked row and this one the state this row takes, so it selects a range, or clears one when this
+    /// row was already selected.
     /// </summary>
     public void ToggleRow(int index, bool shiftKey, IReadOnlyList<int> order)
     {
         var range = shiftKey ? RangeTo(index, order) : null;
         if (range != null)
         {
-            SelectedIndices.UnionWith(range);
+            if (SelectedIndices.Contains(index))
+                SelectedIndices.ExceptWith(range);
+            else
+                SelectedIndices.UnionWith(range);
         }
         else
         {
@@ -84,32 +88,24 @@ public class RowSelectionState
     public bool IsSelected(int index) => SelectedIndices.Contains(index);
 
     /// <summary>
-    /// Whether every one of the given rows is selected, and there is at least one.
+    /// Whether none, some or all of the given rows are selected, for a select-all checkbox over them; with no rows
+    /// given, none are.
     /// </summary>
-    public bool AreAllSelected(IReadOnlyCollection<int> indices)
+    public SelectionCoverage CoverageOf(IReadOnlyCollection<int> indices)
     {
-        if (indices.Count == 0 || SelectedIndices.Count < indices.Count)
-            return false;
+        if (indices.Count == 0 || SelectedIndices.Count == 0)
+            return SelectionCoverage.None;
 
+        var selected = 0;
         foreach (var index in indices)
         {
-            if (!SelectedIndices.Contains(index))
-                return false;
+            if (SelectedIndices.Contains(index))
+                selected++;
         }
 
-        return true;
-    }
-
-    /// <summary>
-    /// The selected rows in the order they were fetched.
-    /// </summary>
-    public List<Dictionary<string, object>> GetSelectedRows(List<Dictionary<string, object>> allRows)
-    {
-        return SelectedIndices
-            .Where(i => i >= 0 && i < allRows.Count)
-            .OrderBy(i => i)
-            .Select(i => allRows[i])
-            .ToList();
+        return selected == 0 ? SelectionCoverage.None
+            : selected == indices.Count ? SelectionCoverage.All
+            : SelectionCoverage.Some;
     }
 
     public int SelectedCount => SelectedIndices.Count;
@@ -154,4 +150,11 @@ public class RowSelectionState
     }
 
     private void OnSelectionChanged() => SelectionChanged?.Invoke();
+}
+
+public enum SelectionCoverage
+{
+    None,
+    Some,
+    All
 }

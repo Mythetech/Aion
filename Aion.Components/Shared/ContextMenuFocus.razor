@@ -1,0 +1,32 @@
+@* A menu opened at the pointer leaves focus where it was, where MudMenu's keyboard handling never hears a key. This
+   wraps the menu's items and takes focus as the menu opens, so Escape and the arrow keys reach the menu without an
+   item looking chosen before the pointer or a key picks one. Escape anywhere in the menu is reported, so the page
+   can put focus back where the menu was opened. *@
+<div @ref="_element" class="context-menu-focus" tabindex="-1" @onkeydown="OnKeyDownAsync">
+    @ChildContent
+</div>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    [Parameter] public EventCallback OnEscape { get; set; }
+
+    private ElementReference _element;
+
+    // A menu's items are rendered only while it is open, so this first render is the menu opening.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await _element.FocusAsync(preventScroll: true);
+        }
+    }
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await OnEscape.InvokeAsync();
+        }
+    }
+}

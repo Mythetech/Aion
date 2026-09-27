@@ -339,16 +339,23 @@ public class QueryResultTableTests : TestContext
         cut.FindAll(".column-heading")[0].ClassList.ShouldNotContain("numeric");
     }
 
-    private static IElement RowNumber(IRenderedComponent<QueryResultTable> cut, int row) =>
-        cut.FindAll("tbody tr.mud-table-row")[row].QuerySelector(".row-number")!;
+    private static IElement RowCheckbox(IRenderedComponent<QueryResultTable> cut, int row) =>
+        cut.FindAll("tbody tr.mud-table-row")[row].QuerySelector(".row-select")!;
+
+    private static IElement SelectAll(IRenderedComponent<QueryResultTable> cut) => cut.Find(".row-select-all");
+
+    private static List<string?> CheckedStates(IRenderedComponent<QueryResultTable> cut) =>
+        cut.FindAll("tbody .row-select").Select(c => c.GetAttribute("aria-checked")).ToList();
 
     [Fact]
-    public void RowNumbersReplaceCheckboxes()
+    public void EveryRow_HasACheckboxNextToItsNumber()
     {
         var cut = Render(Numbered(3));
 
-        cut.FindAll(".mud-checkbox").ShouldBeEmpty();
-        cut.FindAll("tbody .row-number").Select(n => n.TextContent.Trim()).ShouldBe(["1", "2", "3"]);
+        cut.FindAll("tbody .row-select").Select(c => c.GetAttribute("role")).ShouldBe(["checkbox", "checkbox", "checkbox"]);
+        CheckedStates(cut).ShouldBe(["false", "false", "false"]);
+        cut.FindAll("tbody .row-select .row-number").Select(n => n.TextContent.Trim()).ShouldBe(["1", "2", "3"]);
+        RowCheckbox(cut, 1).GetAttribute("aria-label").ShouldBe("Select row 2");
     }
 
     [Fact]
@@ -362,46 +369,76 @@ public class QueryResultTableTests : TestContext
     }
 
     [Fact]
-    public async Task ClickingARowNumber_TogglesThatRowAndKeepsTheRest()
+    public async Task ClickingARowCheckbox_TogglesThatRowAndKeepsTheRest()
     {
         var selection = new RowSelectionState();
         var cut = Render(Numbered(3), selection);
 
-        await RowNumber(cut, 0).ClickAsync(new());
-        await RowNumber(cut, 2).ClickAsync(new());
+        await RowCheckbox(cut, 0).ClickAsync(new());
+        await RowCheckbox(cut, 2).ClickAsync(new());
         selection.SelectedIndices.OrderBy(i => i).ShouldBe([0, 2]);
+        CheckedStates(cut).ShouldBe(["true", "false", "true"]);
 
-        await RowNumber(cut, 0).ClickAsync(new());
+        await RowCheckbox(cut, 0).ClickAsync(new());
         selection.SelectedIndices.ShouldBe([2]);
     }
 
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task CtrlOrCmdClickingARowCheckbox_TogglesThatRowAndKeepsTheRest(bool ctrl, bool meta)
+    {
+        var selection = new RowSelectionState();
+        var cut = Render(Numbered(3), selection);
+        await RowCheckbox(cut, 0).ClickAsync(new());
+
+        await RowCheckbox(cut, 1).ClickAsync(new MouseEventArgs { CtrlKey = ctrl, MetaKey = meta });
+        await RowCheckbox(cut, 0).ClickAsync(new MouseEventArgs { CtrlKey = ctrl, MetaKey = meta });
+
+        selection.SelectedIndices.ShouldBe([1]);
+    }
+
     [Fact]
-    public async Task ShiftClickingARowNumber_SelectsTheRowsBetween()
+    public async Task ShiftClickingARowCheckbox_SelectsTheRowsBetween()
     {
         var selection = new RowSelectionState();
         var cut = RenderPrices(selection);
         await ClickHeaderAsync(cut, "price");
 
-        await RowNumber(cut, 0).ClickAsync(new());
-        await RowNumber(cut, 2).ClickAsync(new MouseEventArgs { ShiftKey = true });
+        await RowCheckbox(cut, 0).ClickAsync(new());
+        await RowCheckbox(cut, 2).ClickAsync(new MouseEventArgs { ShiftKey = true });
 
         // Sorted by price the first three rows are gear, bolt and cog: rows 2, 0 and 3 of the result.
         selection.SelectedIndices.OrderBy(i => i).ShouldBe([0, 2, 3]);
     }
 
     [Fact]
-    public async Task RowNumberHeader_SelectsEveryRowThenClears_IncludingRowsBeyondTheLimit()
+    public async Task SelectAllCheckbox_SelectsEveryRowThenClears_IncludingRowsBeyondTheLimit()
     {
         _settings.RowLimit = 2;
         var selection = new RowSelectionState();
         var cut = Render(Numbered(5), selection);
 
-        await cut.Find(".row-number-toggle").ClickAsync(new());
+        await SelectAll(cut).ClickAsync(new());
         selection.SelectedIndices.OrderBy(i => i).ShouldBe([0, 1, 2, 3, 4]);
-        cut.Find(".row-number-toggle").GetAttribute("aria-pressed").ShouldBe("true");
+        SelectAll(cut).GetAttribute("aria-checked").ShouldBe("true");
 
-        await cut.Find(".row-number-toggle").ClickAsync(new());
+        await SelectAll(cut).ClickAsync(new());
         selection.SelectedIndices.ShouldBeEmpty();
+        SelectAll(cut).GetAttribute("aria-checked").ShouldBe("false");
+    }
+
+    [Fact]
+    public async Task SelectAllCheckbox_IsMixedWhileSomeRowsAreSelected_AndThenSelectsTheRest()
+    {
+        var selection = new RowSelectionState();
+        var cut = Render(Numbered(3), selection);
+
+        await RowCheckbox(cut, 1).ClickAsync(new());
+        SelectAll(cut).GetAttribute("aria-checked").ShouldBe("mixed");
+
+        await SelectAll(cut).ClickAsync(new());
+        selection.SelectedIndices.OrderBy(i => i).ShouldBe([0, 1, 2]);
     }
 
     [Fact]
@@ -410,29 +447,40 @@ public class QueryResultTableTests : TestContext
         var selection = new RowSelectionState();
         var cut = Render(Numbered(3), selection);
 
-        await RowNumber(cut, 1).ClickAsync(new());
+        await RowCheckbox(cut, 1).ClickAsync(new());
 
         cut.FindAll("tbody tr.mud-table-row").Select(tr => tr.ClassList.Contains("row-selected")).ShouldBe([false, true, false]);
     }
 
     [Fact]
-    public async Task RowNumberHeader_WhileFiltering_SelectsOnlyMatchingRows()
+    public async Task SelectAllCheckbox_WhileFiltering_SelectsOnlyMatchingRows()
     {
         var selection = new RowSelectionState();
         var cut = Render(Numbered(12), selection, filter: "item 1");
 
-        await cut.Find(".row-number-toggle").ClickAsync(new());
+        await SelectAll(cut).ClickAsync(new());
 
         selection.SelectedIndices.OrderBy(i => i).ShouldBe([0, 9, 10, 11]);
-        cut.Find(".row-number-toggle").GetAttribute("aria-label").ShouldBe("Clear selection");
+        SelectAll(cut).GetAttribute("aria-checked").ShouldBe("true");
+        SelectAll(cut).GetAttribute("title").ShouldBe("Clear selection");
     }
 
     [Fact]
-    public void RowNumberHeader_WhileFiltering_SaysItSelectsMatchingRows()
+    public void SelectAllCheckbox_WhileFiltering_SaysItSelectsMatchingRows()
     {
         var cut = Render(Numbered(12), filter: "item 1");
 
-        cut.Find(".row-number-toggle").GetAttribute("aria-label").ShouldBe("Select all matching rows");
+        SelectAll(cut).GetAttribute("aria-label").ShouldBe("Select all matching rows");
+    }
+
+    [Fact]
+    public async Task SelectAllCheckbox_WhileFiltering_IgnoresSelectedRowsTheFilterHides()
+    {
+        var selection = new RowSelectionState();
+        var cut = Render(Numbered(12), selection, filter: "item 1");
+        await cut.InvokeAsync(() => selection.SelectAll([4]));
+
+        SelectAll(cut).GetAttribute("aria-checked").ShouldBe("false");
     }
 
     [Fact]

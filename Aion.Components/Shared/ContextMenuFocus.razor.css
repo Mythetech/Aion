@@ -1,0 +1,8 @@
+.context-menu-focus {
+    outline: none;
+}
+
+/* MudBlazor spaces a menu's dividers only when they sit directly in its list, which this wrapper is now between. */
+.context-menu-focus ::deep .mud-divider {
+    margin: 4px 0;
+}

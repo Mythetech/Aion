@@ -52,6 +52,18 @@ public static class AionIcons
 
     public static string Copy => Round("content_copy");
 
+    public static string CopyRows => Round("copy_all");
+
+    public static string Checked => Round("check_box");
+
+    public static string Unchecked => Round("check_box_outline_blank");
+
+    public static string PartlyChecked => Round("indeterminate_check_box");
+
+    public static string ViewJson => Round("data_object");
+
+    public static string Restore => Round("restore_from_trash");
+
     public static string Bug => Round("bug_report");
 
     public static string Editor => Round("code");

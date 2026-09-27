@@ -46,55 +46,95 @@
     box-shadow: inset 0 -1px 0 var(--mud-palette-table-lines);
 }
 
-.result-grid ::deep .row-number-header,
-.result-grid ::deep .mud-table-body .mud-table-row .row-number-cell {
+.result-grid ::deep .row-select-header,
+.result-grid ::deep .mud-table-body .mud-table-row .row-select-cell {
     width: 1%;
     padding: 0;
     padding-inline: 0;
     border-right: 1px solid var(--mud-palette-table-lines);
 }
 
-.result-grid ::deep .mud-table-head .row-number-header {
+/* The header's checkbox lines up with the rows' below it, so its cell drops the header padding. */
+.result-grid ::deep .mud-table-head .mud-table-cell.row-select-header {
+    padding: 0;
+    padding-inline: 0;
     vertical-align: middle;
+}
+
+.result-grid ::deep .row-select-header .column-header {
+    width: 100%;
 }
 
 .result-grid ::deep .mud-table-body .row-selected > .mud-table-cell {
     background-color: rgba(var(--mud-palette-primary-rgb), 0.1);
 }
 
-.row-number,
-.row-number-toggle {
-    display: block;
+/* The row the context menu was opened on, so it's clear which row its actions take. */
+.result-grid ::deep .mud-table-body .row-context > .mud-table-cell {
+    box-shadow: inset 0 1px 0 var(--mud-palette-primary), inset 0 -1px 0 var(--mud-palette-primary);
+}
+
+/* The checkbox and number are one button, so the whole cell selects the row; numbers line up on the right. */
+.row-select,
+.row-select-all {
+    display: flex;
+    align-items: center;
+    /* MudBlazor's button reset centers a button's content, which would move the header's lone checkbox off the
+       column the rows' checkboxes line up in. */
+    justify-content: flex-start;
+    gap: 4px;
     width: 100%;
-    min-width: 3.5ch;
-    padding: 0 8px;
+    padding: 0 8px 0 6px;
     border: 0;
     background: none;
     color: var(--mud-palette-text-secondary);
     font: inherit;
-    font-variant-numeric: tabular-nums;
-    text-align: right;
     cursor: pointer;
     user-select: none;
 }
 
-.row-number {
-    line-height: 27px;
+.row-select {
+    height: 27px;
 }
 
-.row-number:hover,
-.row-number-toggle:hover {
+.row-select-all {
+    height: 24px;
+}
+
+.row-number {
+    flex: 1 0 auto;
+    min-width: 2ch;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.result-grid ::deep .row-check {
+    flex-shrink: 0;
+    font-size: 1.125rem;
+    width: 1.125rem;
+    height: 1.125rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+.row-select:hover,
+.row-select-all:hover {
     color: var(--mud-palette-primary);
 }
 
-.row-number[aria-pressed="true"],
-.row-number-toggle[aria-pressed="true"] {
+.result-grid ::deep .row-select:hover .row-check,
+.result-grid ::deep .row-select-all:hover .row-check,
+.result-grid ::deep .row-select[aria-checked="true"] .row-check,
+.result-grid ::deep .row-select-all:not([aria-checked="false"]) .row-check {
+    color: var(--mud-palette-primary);
+}
+
+.row-select[aria-checked="true"] {
     color: var(--mud-palette-primary);
     font-weight: 600;
 }
 
-.row-number:focus-visible,
-.row-number-toggle:focus-visible {
+.row-select:focus-visible,
+.row-select-all:focus-visible {
     outline: 2px solid var(--mud-palette-primary);
     outline-offset: -2px;
 }
@@ -172,6 +212,18 @@
     max-width: 32rem;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* A read cell's content fills its cell, padding included, so a right-click anywhere in the cell is on that cell
+   and its menu can copy it. Edit mode's cells fill theirs the same way below. */
+.query-result-table .cell-content:not(.cell-nav) {
+    box-sizing: border-box;
+    height: 27px;
+    line-height: 27px;
+    width: calc(100% + 24px);
+    max-width: calc(32rem + 24px);
+    margin: 0 -12px;
+    padding: 0 12px;
 }
 
 .result-grid ::deep .cell-link {

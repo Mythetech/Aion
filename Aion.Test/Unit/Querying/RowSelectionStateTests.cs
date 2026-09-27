@@ -78,6 +78,34 @@ public class RowSelectionStateTests
     }
 
     [Fact]
+    public void ShiftRowNumberClick_OnASelectedRow_ClearsTheRowsBetweenInTheOrderShown()
+    {
+        var selection = new RowSelectionState();
+        selection.SelectAll(SortedOrder);
+        selection.ToggleRow(0, shiftKey: false, SortedOrder);
+        selection.ToggleRow(0, shiftKey: false, SortedOrder);
+
+        selection.ToggleRow(1, shiftKey: true, SortedOrder);
+
+        selection.SelectedIndices.OrderBy(i => i).ShouldBe([2, 4]);
+    }
+
+    [Fact]
+    public void CoverageOf_SaysWhetherNoneSomeOrAllOfTheGivenRowsAreSelected()
+    {
+        var selection = new RowSelectionState();
+        selection.CoverageOf([0, 1, 2]).ShouldBe(SelectionCoverage.None);
+
+        selection.SelectAll([1, 7]);
+        selection.CoverageOf([0, 1, 2]).ShouldBe(SelectionCoverage.Some);
+        selection.CoverageOf([0, 2]).ShouldBe(SelectionCoverage.None);
+
+        selection.SelectAll([0, 1, 2, 7]);
+        selection.CoverageOf([0, 1, 2]).ShouldBe(SelectionCoverage.All);
+        selection.CoverageOf([]).ShouldBe(SelectionCoverage.None);
+    }
+
+    [Fact]
     public void SelectAll_SelectsExactlyTheGivenRows()
     {
         var selection = new RowSelectionState();
@@ -86,17 +114,6 @@ public class RowSelectionStateTests
         selection.SelectAll([0, 3]);
 
         selection.SelectedIndices.OrderBy(i => i).ShouldBe([0, 3]);
-    }
-
-    [Fact]
-    public void AreAllSelected_IsTrueOnlyWhenEveryGivenRowIsSelected()
-    {
-        var selection = new RowSelectionState();
-        selection.SelectAll([0, 1, 2]);
-
-        selection.AreAllSelected([0, 2]).ShouldBeTrue();
-        selection.AreAllSelected([0, 3]).ShouldBeFalse();
-        selection.AreAllSelected([]).ShouldBeFalse();
     }
 
     [Fact]

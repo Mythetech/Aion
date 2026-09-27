@@ -15,7 +15,8 @@ public class AionMenuTests : TestContext
 
     public AionMenuTests()
     {
-        Services.AddMudServices();
+        // Aion turns popover flipping off app-wide, which left menus near the bottom of the window running off it.
+        Services.AddMudServices(options => options.PopoverOptions.OverflowBehavior = OverflowBehavior.FlipNever);
         JSInterop.Mode = JSRuntimeMode.Loose;
         _popovers = RenderComponent<MudPopoverProvider>();
     }
@@ -44,6 +45,25 @@ public class AionMenuTests : TestContext
         MenuList().ClassList.ShouldContain("pa-3");
         MenuList().ClassList.ShouldNotContain("pa-1");
     }
+
+    [Fact]
+    public async Task OpenMenu_FlipsWhenThereIsNoRoomBelow()
+    {
+        await OpenAsync(RenderMenu());
+
+        Popover().ClassList.ShouldContain(AionMenu.FlipWhenOutOfRoomClass);
+    }
+
+    [Fact]
+    public async Task PopoverClass_KeepsTheMenuFlipping()
+    {
+        await OpenAsync(RenderMenu(p => p.Add(x => x.PopoverClass, "row-menu")));
+
+        Popover().ClassList.ShouldContain("row-menu");
+        Popover().ClassList.ShouldContain(AionMenu.FlipWhenOutOfRoomClass);
+    }
+
+    private IElement Popover() => _popovers.Find(".mud-popover");
 
     private IRenderedComponent<AionMenu> RenderMenu(Action<ComponentParameterCollectionBuilder<AionMenu>>? configure = null) =>
         RenderComponent<AionMenu>(p =>

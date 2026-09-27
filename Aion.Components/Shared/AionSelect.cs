@@ -10,20 +10,13 @@ namespace Aion.Components.Shared;
 public class AionSelect<T> : MudSelect<T>
 {
     /// <summary>
-    /// Aion turns popover flipping off app-wide (see <c>RegistrationExtensions</c>), and MudSelect has no parameter
-    /// for its popover's overflow behavior. MudBlazor's positioning script decides whether to flip from this class
-    /// alone, so adding it restores the flip for selects.
+    /// The class that restores popover flipping, which Aion turns off app-wide (see <see cref="PopoverFlip"/>).
     /// </summary>
-    public const string FlipWhenOutOfRoomClass = "mud-popover-overflow-flip-onopen";
+    public const string FlipWhenOutOfRoomClass = PopoverFlip.WhenOutOfRoomClass;
 
     protected override void OnParametersSet()
     {
         base.OnParametersSet();
-
-        var classes = PopoverClass?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
-        if (!classes.Contains(FlipWhenOutOfRoomClass))
-        {
-            PopoverClass = string.Join(' ', classes.Append(FlipWhenOutOfRoomClass));
-        }
+        PopoverClass = PopoverFlip.AddTo(PopoverClass);
     }
 }
