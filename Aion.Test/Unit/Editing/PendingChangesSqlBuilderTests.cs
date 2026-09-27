@@ -32,7 +32,7 @@ public class PendingChangesSqlBuilderTests
     private static void Commit(EditState edits, Dictionary<string, object> row, CellEditSession session)
     {
         session.TryGetCommitText(out var text).ShouldBeTrue();
-        edits.UpdateCell(0, session.Column, CellEditText.Resolve(text, row[session.Column]), row);
+        edits.UpdateCell(0, session.Column, CellEditText.Resolve(text, row[session.Column], rules: session.Rules), row);
     }
 
     [Theory]
@@ -53,11 +53,11 @@ public class PendingChangesSqlBuilderTests
         };
         var edits = new EditState();
 
-        var cleared = new CellEditSession(0, "name", "Ada", EditableColumn.For("name", Columns));
+        var cleared = new CellEditSession(0, "name", "Ada", EditableColumn.For("name", Columns, engine));
         cleared.Type("");
         Commit(edits, row, cleared);
 
-        var nulled = new CellEditSession(0, "note", "first", EditableColumn.For("note", Columns));
+        var nulled = new CellEditSession(0, "note", "first", EditableColumn.For("note", Columns, engine));
         nulled.SetNull().ShouldBeTrue();
         Commit(edits, row, nulled);
 

@@ -28,15 +28,22 @@ public static class CellEditText
 
     /// <summary>
     /// The value a committed edit stores. Text that still reads as the original keeps the original value, so
-    /// opening an editor and leaving it, or retyping the same number, never records a change.
+    /// opening an editor and leaving it, or retyping the same number, never records a change. In a flag column
+    /// the words true and false become a boolean, which each engine's dialect writes as its own literal; MySQL
+    /// keeps BOOLEAN as tinyint(1) and refuses the text 'false' there.
     /// </summary>
-    public static object? Resolve(string? text, object? original, string? columnType = null)
+    public static object? Resolve(string? text, object? original, string? columnType = null, EditableColumn? rules = null)
     {
         if (text is null)
         {
             return original is null or DBNull ? original : null;
         }
 
-        return original is not (null or DBNull) && text == From(original, columnType) ? original : text;
+        if (original is not (null or DBNull) && text == From(original, columnType))
+        {
+            return original;
+        }
+
+        return rules is { IsBoolean: true } && bool.TryParse(text, out var flag) ? flag : text;
     }
 }

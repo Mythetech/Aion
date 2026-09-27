@@ -1,5 +1,6 @@
 using Aion.Components.Connections;
 using Aion.Components.ForeignKeys;
+using Aion.Components.Querying.Editing;
 using Aion.Components.RequestContextPanel;
 using Aion.Components.Scaffolding.DataGeneration;
 using Aion.Core.Database;
@@ -347,6 +348,30 @@ public abstract class DatabaseProviderTestBase : IAsyncLifetime
         var totals = (await ExecuteOrFailAsync(DatabaseConnectionString, "SELECT total FROM computed_totals ORDER BY id")).Rows
             .Select(r => Convert.ToDecimal(r["total"]));
         totals.ShouldBe([15.00m, 10.00m]);
+    }
+
+    [Theory]
+    [InlineData("false", false)]
+    [InlineData("true", true)]
+    public async Task GridEdit_WritesTheTextOfABooleanIntoTheEnginesBooleanColumn(string text, bool expected)
+    {
+        // Arrange: the grid edits every value as text, so a flag arrives as the word it displays.
+        await ExecuteOrFailAsync(DatabaseConnectionString, GeneratedRowsTableSql);
+        var dialect = ((ISqlDialectProvider)Provider).Dialect;
+        await ExecuteOrFailAsync(DatabaseConnectionString,
+            $"INSERT INTO generated_rows (label, active) VALUES ('a', {dialect.FormatLiteral(!expected)})");
+        var editable = await LoadEditableTableAsync(DatabaseConnectionString, TestSchema, "generated_rows",
+            "SELECT id, label, active FROM generated_rows");
+        var rules = EditableColumn.For("active", editable.ColumnMetadata, Provider.DatabaseType);
+        var committed = CellEditText.Resolve(text, editable.Rows[0]["active"], rules: rules);
+
+        // Act
+        var (sql, result) = await ApplyGridChangeAsync(DatabaseConnectionString, editable, UpdateCell(editable, 0, "active", committed));
+
+        // Assert
+        result.Error.ShouldBeNull(sql);
+        var row = (await ExecuteOrFailAsync(DatabaseConnectionString, "SELECT active FROM generated_rows")).Rows.Single();
+        Convert.ToBoolean(row["active"]).ShouldBe(expected);
     }
 
     /// <summary>The short types the results grid shows for the test table's id, name and description columns.</summary>
