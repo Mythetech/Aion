@@ -129,6 +129,19 @@
     </div>
 </div>
 
+<script>
+    // Defined before Blazor starts: MainLayout hides the splash on its first render, which can run before the parser
+    // reaches scripts placed after the Monaco bundle.
+    window.aionSplash = {
+        hide: function() {
+            var splash = document.getElementById('aion-splash');
+            if (splash) {
+                splash.classList.add('fade-out');
+                setTimeout(function() { splash.remove(); }, 400);
+            }
+        }
+    };
+</script>
 <script src="_framework/blazor.webview.js"></script>
 <script src="_content/MudBlazor/MudBlazor.min.js"></script>
 <script src="_content/Mythetech.Framework/mythetech.js" type="module"></script>
@@ -171,15 +184,13 @@
         require(['vs/editor/editor.main'], function() {});
     }
     registerJsGuard("monaco", function() { return typeof monaco !== 'undefined'; });
-</script>
-<script>
-    window.aionSplash = {
-        hide: function() {
-            var splash = document.getElementById('aion-splash');
-            if (splash) {
-                splash.classList.add('fade-out');
-                setTimeout(function() { splash.remove(); }, 400);
-            }
+
+    // The smoke check calls this to prove Monaco and BlazorMonaco's interop script both reached the WebView.
+    window.aionEditorScripts = {
+        loaded: function() {
+            return typeof monaco !== 'undefined'
+                && typeof monaco.editor?.create === 'function'
+                && typeof window.blazorMonaco?.editor === 'object';
         }
     };
 </script>

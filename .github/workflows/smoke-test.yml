@@ -28,3 +28,4 @@ jobs:
       icon_linux: "Aion.Desktop/wwwroot/aion512.png"
       icon_macos: "Aion.Desktop/wwwroot/aion.icns"
       platforms: ${{ inputs.platforms }}
+      require_verdict: true
