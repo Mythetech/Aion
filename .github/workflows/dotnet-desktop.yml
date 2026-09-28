@@ -25,3 +25,21 @@ jobs:
       run: dotnet test
       env:
         Configuration: Release
+
+  # Packages Aion unsigned on every platform and fails the PR unless each build reports a
+  # passing Hermes smoke verdict. Unit tests already run in the job above.
+  smoke-test:
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      packages: read
+    uses: mythetech/workflows/.github/workflows/desktop-smoke-test.yml@main
+    with:
+      app_name: "Aion"
+      project_path: "Aion.Desktop/Aion.Desktop.csproj"
+      global_json_file: "global.json"
+      icon_windows: "Aion.Desktop/wwwroot/aion.ico"
+      icon_linux: "Aion.Desktop/wwwroot/aion512.png"
+      icon_macos: "Aion.Desktop/wwwroot/aion.icns"
+      enable_tests: false
+      require_verdict: true

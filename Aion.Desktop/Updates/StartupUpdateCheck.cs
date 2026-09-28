@@ -1,5 +1,6 @@
 using Mythetech.Framework.Desktop.Updates;
 using Mythetech.Framework.Infrastructure.Initialization;
+using Mythetech.Framework.Infrastructure.Smoke;
 
 namespace Aion.Desktop.Updates;
 
@@ -12,15 +13,20 @@ namespace Aion.Desktop.Updates;
 /// awaited by <see cref="UpdateBannerHost"/> after it renders, because the app awaits every
 /// initialization hook before loading connections, and Velopack's feed request can take as long as
 /// its HTTP timeout on a stalled network.
+///
+/// A smoke run skips the check entirely: it would reach the update feed, could download an update under the
+/// auto-download setting, and a failed request logs an error, which fails the run for a network blip.
 /// </remarks>
 public class StartupUpdateCheck : IAsyncInitializationHook
 {
     private readonly IUpdateService _updateService;
+    private readonly ISmokeTestContext _smokeTest;
     private readonly TaskCompletionSource _settingsLoaded = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    public StartupUpdateCheck(IUpdateService updateService)
+    public StartupUpdateCheck(IUpdateService updateService, ISmokeTestContext smokeTest)
     {
         _updateService = updateService;
+        _smokeTest = smokeTest;
     }
 
     public int Order => 900;
@@ -35,6 +41,9 @@ public class StartupUpdateCheck : IAsyncInitializationHook
 
     public async Task RunAsync()
     {
+        if (_smokeTest.IsEnabled)
+            return;
+
         await _settingsLoaded.Task;
         await _updateService.CheckForUpdatesOnStartupAsync();
     }

@@ -13,9 +13,11 @@ using Mythetech.Framework.Infrastructure.Plugins;
 using Mythetech.Framework.Infrastructure.Secrets;
 using Mythetech.Framework.Infrastructure.Settings;
 using Mythetech.Framework.Infrastructure.Initialization;
+using Mythetech.Framework.Infrastructure.Smoke;
 using Aion.Components.Querying;
 using Aion.Components.Settings;
 using Aion.Desktop.Services;
+using Aion.Desktop.Smoke;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -77,7 +79,14 @@ namespace Aion.Desktop
                 {
                     builder.AddConfiguration(configuration.GetSection("Logging"));
                     builder.AddConsole();
-                    builder.AddPlatformErrorReporting(o => o.AnonymousSessionId = HermesSession.AnonymousSessionId);
+                    builder.AddPlatformErrorReporting(o =>
+                    {
+                        o.AnonymousSessionId = HermesSession.AnonymousSessionId;
+
+                        // Off until ErrorReportingHook reads privacy consent; the SDK default is enabled, and
+                        // errors logged before then would otherwise buffer and upload without consent.
+                        o.Enabled = false;
+                    });
                 });
 
             appBuilder.Services.AddHttpClient();
@@ -131,6 +140,9 @@ namespace Aion.Desktop
             appBuilder.Services.AddSingleton<StartupUpdateCheck>();
             appBuilder.Services.AddInitializationHook(sp => sp.GetRequiredService<StartupUpdateCheck>());
             appBuilder.Services.AddInitializationHook<QueryHistoryInitializationHook>();
+
+            appBuilder.Services.AddSmokeChecks()
+                .WithSmokeCheck<EditorScriptsSmokeCheck>();
 
             appBuilder.Services.AddSingleton<IConnectionStorage>(_ => new FileConnectionStorage(FileConnectionStorage.DefaultFilePath));
             appBuilder.Services.AddSingleton<IQuerySaveService, FileQuerySaveService>();
