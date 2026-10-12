@@ -199,7 +199,7 @@
 
     private void HandleConnectionStateChanged()
     {
-        if (_activePanelId != null && !ConnectionState.Connections.Any(c => c.Id.ToString() == _activePanelId))
+        if (ConnectionPanelId.IsOrphaned(_activePanelId, ConnectionState.Connections))
         {
             _activePanelId = null;
         }
