@@ -66,8 +66,8 @@
             <PanelNavContent>
                 @foreach (var connection in ConnectionState.Connections)
                 {
-                    <ContextPanelItem Id="@connection.Id.ToString()" Icon="@AionIcons.Connection" Title="@connection.Name"
-                                      BadgeColor="Color.Success">
+                    <ContextPanelItem @key="connection.Id" Id="@connection.Id.ToString()" Icon="@AionIcons.Connection"
+                                      Title="@connection.Name" BadgeColor="Color.Success">
                         <PanelContent>
                             <ConnectionPanel Connection="@connection" />
                         </PanelContent>

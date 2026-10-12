@@ -59,7 +59,7 @@
             <PanelNavContent>
                 @foreach (var connection in ConnectionState.Connections)
                 {
-                    <div @oncontextmenu="@(e => ShowConnectionContextMenu(e, connection))"
+                    <div @key="connection.Id" @oncontextmenu="@(e => ShowConnectionContextMenu(e, connection))"
                          @oncontextmenu:preventDefault="true">
                         <ContextPanelItem Id="@connection.Id.ToString()" Icon="@AionIcons.Connection"
                                           Title="@connection.Name" BadgeColor="@(connection.Active ? Color.Success : Color.Error)">
