@@ -2,8 +2,6 @@ namespace Aion.Components.RequestContextPanel;
 
 public static class SidePanelLayout
 {
-    public const int CollapsedWidth = 52;
-
     // The foreign key and JSON views lay out a label, a value and actions side by side, which clip below this.
     private const int MinOpenWidth = 360;
 
@@ -17,6 +15,4 @@ public static class SidePanelLayout
         var panelWidth = Math.Clamp((int)(containerWidth * 0.3), Math.Min(MinOpenWidth, half), half);
         return containerWidth - panelWidth;
     }
-
-    public static int ClosedDividerPosition(int containerWidth) => containerWidth - CollapsedWidth;
 }

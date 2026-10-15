@@ -13,10 +13,4 @@ public class SidePanelLayoutTests
     {
         SidePanelLayout.OpenDividerPosition(containerWidth).ShouldBe(divider);
     }
-
-    [Fact]
-    public void ClosedDividerPosition_LeavesTheCollapsedStrip()
-    {
-        SidePanelLayout.ClosedDividerPosition(1080).ShouldBe(1028);
-    }
 }

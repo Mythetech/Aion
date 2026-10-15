@@ -143,8 +143,24 @@ html {
     visibility: hidden;
 }
 
+/* MudSplitPanel sizes both panels with inline pixel widths, and flex then splits any width the window
+   gains between them. Sizing the collapsed rail to its content keeps it fixed at every window size. */
+.divider-locked > .child-panel:first-child {
+    flex: 1 1 0;
+}
+
 .divider-locked > .child-panel:last-child {
+    flex: 0 0 auto;
+    width: auto !important;
     overflow: visible;
+}
+
+/* The package's MudBlazor theme stylesheet targets OverlayScrollbars 1.x markup and never matches, which
+   leaves the library's black handles on the dark theme. These are the colors that stylesheet intends. */
+.os-scrollbar.os-theme-dark {
+    --os-handle-bg: var(--mud-palette-lines-default);
+    --os-handle-bg-hover: var(--mud-palette-text-secondary);
+    --os-handle-bg-active: var(--mud-palette-text-primary);
 }
 
 .monaco-editor-container {
