@@ -121,16 +121,18 @@
 
     private Task CloseSidePanelAsync() => SetSidePanelOpenAsync(false);
 
+    // Closed, the divider-locked CSS sizes the strip to its content, so only opening positions the divider.
     private async Task SetSidePanelOpenAsync(bool open)
     {
         _sidePanelClosed = !open;
         StateHasChanged();
+
+        if (!open) return;
+
         await Task.Yield();
 
         var containerWidth = await GetOuterSplitterWidthAsync();
-        await _outerSplitter.SetDividerPositionAsync(open
-            ? SidePanelLayout.OpenDividerPosition(containerWidth)
-            : SidePanelLayout.ClosedDividerPosition(containerWidth));
+        await _outerSplitter.SetDividerPositionAsync(SidePanelLayout.OpenDividerPosition(containerWidth));
 
         StateHasChanged();
     }
@@ -141,18 +143,6 @@
         Bus.Subscribe<OpenJsonDetailView>(this);
         Bus.Subscribe<OpenForeignKeyView>(this);
         QueryState.StateChanged += StateHasChanged;
-    }
-    
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            if (_sidePanelClosed)
-            {
-                var containerWidth = await GetOuterSplitterWidthAsync();
-                await _outerSplitter.SetDividerPositionAsync(SidePanelLayout.ClosedDividerPosition(containerWidth));
-            }
-        }
     }
 
     public async ValueTask DisposeAsync()

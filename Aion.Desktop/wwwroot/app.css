@@ -143,7 +143,15 @@ html {
     visibility: hidden;
 }
 
+/* MudSplitPanel sizes both panels with inline pixel widths, and flex then splits any width the window
+   gains between them. Sizing the collapsed rail to its content keeps it fixed at every window size. */
+.divider-locked > .child-panel:first-child {
+    flex: 1 1 0;
+}
+
 .divider-locked > .child-panel:last-child {
+    flex: 0 0 auto;
+    width: auto !important;
     overflow: visible;
 }
 
