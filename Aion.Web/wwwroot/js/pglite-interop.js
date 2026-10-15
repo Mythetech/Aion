@@ -1,3 +1,8 @@
+// PGlite fetches its filesystem bundle relative to this script and checks the bundle's size against the one it
+// was built with. The CDN caches each unversioned URL on its own, so after a release the script and the bundle
+// can come from different versions and every database fails to open. A pinned version keeps them together.
+const PGLITE_URL = 'https://cdn.jsdelivr.net/npm/@electric-sql/pglite@0.5.10/dist/index.js';
+
 const instances = {};
 
 // Each database has one session, and a catalog read in a savepoint spans several statements on it, so every
@@ -34,7 +39,7 @@ function toRows(result) {
 export async function create(name) {
     if (instances[name]) return;
 
-    const { PGlite } = await import('https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/index.js');
+    const { PGlite } = await import(PGLITE_URL);
     instances[name] = await PGlite.create(`idb://${name}`);
 }
 
