@@ -6,6 +6,7 @@
     <!-- Aion.Components -->
     <PackageVersion Include="BlazorMonaco" Version="3.3.0" />
     <PackageVersion Include="ClosedXML" Version="0.105.0" />
+    <PackageVersion Include="Mythetech.BlazorOverlayScrollbars" Version="1.0.2" />
     <PackageVersion Include="Mythetech.Framework" Version="0.21.9" />
     <PackageVersion Include="Mythetech.Framework.Desktop" Version="0.21.9" />
     <PackageVersion Include="Z.Blazor.Diagrams" Version="3.0.4.1" />

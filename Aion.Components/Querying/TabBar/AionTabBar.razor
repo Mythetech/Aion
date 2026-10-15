@@ -3,44 +3,49 @@
 @using Aion.Components.Theme
 @using Aion.Components.Querying.Commands
 @using Mythetech.Framework.Infrastructure.MessageBus
+@using Blazor.OverlayScrollbars
 @implements IDisposable
 
 <div class="aion-tab-bar">
-    <div class="tab-scroll-container">
-        <MudDropContainer T="QueryModel"
-                          @ref="_dropContainer"
-                          @key="@_dropContainerKey"
-                          Items="@OrderedQueries"
-                          ItemsSelector="ItemsSelector"
-                          ItemDropped="HandleDropped"
-                          ApplyDropClassesOnDragStarted="true"
-                          CanDropClass="tab-drop-target"
-                          Class="aion-tab-drop-container">
-            <ChildContent>
-                @foreach (var query in OrderedQueries)
-                {
+    <OverlayScrollbar Class="tab-scroll-container" Options="@TabScrollOptions">
+        @* OverlayScrollbars moves this element into its viewport once. Blazor re-creates the keyed drop container
+           after every drop, and with no stable parent it would append the new one outside the viewport. *@
+        <div class="tab-scroll-content">
+            <MudDropContainer T="QueryModel"
+                              @ref="_dropContainer"
+                              @key="@_dropContainerKey"
+                              Items="@OrderedQueries"
+                              ItemsSelector="ItemsSelector"
+                              ItemDropped="HandleDropped"
+                              ApplyDropClassesOnDragStarted="true"
+                              CanDropClass="tab-drop-target"
+                              Class="aion-tab-drop-container">
+                <ChildContent>
+                    @foreach (var query in OrderedQueries)
+                    {
+                        <MudDropZone T="QueryModel"
+                                     Identifier="@($"tab-{query.Id}")"
+                                     Class="aion-tab-dropzone" />
+                    }
                     <MudDropZone T="QueryModel"
-                                 Identifier="@($"tab-{query.Id}")"
-                                 Class="aion-tab-dropzone" />
-                }
-                <MudDropZone T="QueryModel"
-                             Identifier="end-zone"
-                             Class="aion-tab-end-dropzone" />
-            </ChildContent>
-            <ItemRenderer>
-                <AionTabItem Query="@context"
-                             IsActive="@(context.Id == State.Active?.Id)"
-                             OnClick="HandleTabClick"
-                             OnClose="HandleTabClose"
-                             OnCloseOthers="HandleCloseOthers"
-                             OnCloseRight="HandleCloseRight"
-                             OnCloseAll="HandleCloseAll"
-                             OnClone="HandleClone"
-                             OnRename="HandleRename"
-                             OnEmphasisColorChanged="HandleEmphasisColor" />
-            </ItemRenderer>
-        </MudDropContainer>
-    </div>
+                                 Identifier="end-zone"
+                                 Class="aion-tab-end-dropzone" />
+                </ChildContent>
+                <ItemRenderer>
+                    <AionTabItem Query="@context"
+                                 IsActive="@(context.Id == State.Active?.Id)"
+                                 OnClick="HandleTabClick"
+                                 OnClose="HandleTabClose"
+                                 OnCloseOthers="HandleCloseOthers"
+                                 OnCloseRight="HandleCloseRight"
+                                 OnCloseAll="HandleCloseAll"
+                                 OnClone="HandleClone"
+                                 OnRename="HandleRename"
+                                 OnEmphasisColorChanged="HandleEmphasisColor" />
+                </ItemRenderer>
+            </MudDropContainer>
+        </div>
+    </OverlayScrollbar>
     <AionIconButton Icon="@AionIcons.Add" Tooltip="New Query" Size="Size.Small" OnClick="HandleAdd" />
 </div>
 
@@ -59,6 +64,25 @@
 
     [Parameter]
     public EventCallback OnAddQuery { get; set; }
+
+    // WebKit's native horizontal scrollbar takes height from the tabs and ignores the theme. The package
+    // passes every unset option to OverlayScrollbars as null, which replaces the library's default instead of
+    // keeping it (a null visibility never shows the scrollbar), so each scrollbar option is set here.
+    private static readonly OverlayScrollbarOptions TabScrollOptions = new()
+    {
+        ScrollBehavior = new ScrollBehaviorOptions { X = "scroll", Y = "hidden" },
+        Scrollbars = new ScrollbarOptions
+        {
+            Theme = "os-theme-dark",
+            Visibility = "auto",
+            AutoHide = "leave",
+            AutoHideDelay = 400,
+            AutoHideSuspend = false,
+            DragScroll = true,
+            ClickScroll = false,
+            Pointers = ["mouse", "touch", "pen"]
+        }
+    };
 
     private MudDropContainer<QueryModel>? _dropContainer;
     private int _dropContainerKey;

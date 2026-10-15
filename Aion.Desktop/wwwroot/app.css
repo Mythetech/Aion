@@ -155,6 +155,14 @@ html {
     overflow: visible;
 }
 
+/* The package's MudBlazor theme stylesheet targets OverlayScrollbars 1.x markup and never matches, which
+   leaves the library's black handles on the dark theme. These are the colors that stylesheet intends. */
+.os-scrollbar.os-theme-dark {
+    --os-handle-bg: var(--mud-palette-lines-default);
+    --os-handle-bg-hover: var(--mud-palette-text-secondary);
+    --os-handle-bg-active: var(--mud-palette-text-primary);
+}
+
 .monaco-editor-container {
     min-height: 100px;
     height: 100%;

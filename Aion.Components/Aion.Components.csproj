@@ -14,6 +14,7 @@
       <PackageReference Include="BlazorMonaco" />
       <PackageReference Include="ClosedXML" />
       <PackageReference Include="Hogimn.Sql.Formatter" />
+      <PackageReference Include="Mythetech.BlazorOverlayScrollbars" />
       <PackageReference Include="Mythetech.Framework" />
       <PackageReference Include="Z.Blazor.Diagrams" />
     </ItemGroup>
