@@ -6,9 +6,9 @@
     <!-- Aion.Components -->
     <PackageVersion Include="BlazorMonaco" Version="3.3.0" />
     <PackageVersion Include="ClosedXML" Version="0.105.0" />
-    <PackageVersion Include="Mythetech.BlazorOverlayScrollbars" Version="1.0.2" />
-    <PackageVersion Include="Mythetech.Framework" Version="0.21.9" />
-    <PackageVersion Include="Mythetech.Framework.Desktop" Version="0.21.9" />
+    <PackageVersion Include="Mythetech.BlazorOverlayScrollbars" Version="1.0.3" />
+    <PackageVersion Include="Mythetech.Framework" Version="0.21.10" />
+    <PackageVersion Include="Mythetech.Framework.Desktop" Version="0.21.10" />
     <PackageVersion Include="Z.Blazor.Diagrams" Version="3.0.4.1" />
     <!-- Aion.Core -->
     <PackageVersion Include="Hogimn.Sql.Formatter" Version="2.0.2" />
@@ -17,12 +17,12 @@
     <PackageVersion Include="MySql.Data" Version="9.5.0" />
     <PackageVersion Include="Npgsql" Version="9.0.2" />
     <!-- Aion.Web -->
-    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.13" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.12" />
     <PackageVersion Include="SqliteWasmBlazor" Version="0.9.0-pre" />
-    <PackageVersion Include="Mythetech.Framework.WebAssembly" Version="0.21.9" />
+    <PackageVersion Include="Mythetech.Framework.WebAssembly" Version="0.21.10" />
     <!-- Aion.Desktop -->
-    <PackageVersion Include="Mythetech.Platform.Sdk" Version="0.0.0-preview.13" />
+    <PackageVersion Include="Mythetech.Platform.Sdk" Version="0.0.0-preview.15" />
     <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.3240.44" />
     <!-- Aion.Test -->
     <PackageVersion Include="bunit" Version="1.38.5" />
