@@ -37,7 +37,7 @@
         .splash-logo {
             width: 120px;
             height: 120px;
-            border-radius: 50%;
+            object-fit: contain;
             animation: rotateGlow 3s linear infinite;
         }
 
@@ -69,39 +69,34 @@
 
         @keyframes rotateGlow {
             0% {
-                box-shadow:
-                    0.15em 0.15em 0.5em 0.15em #312651,
-                    -0.15em 0.15em 0.5em 0.15em #9a57a7,
-                    0.15em -0.15em 0.5em 0.15em #76a0ff,
-                    -0.15em -0.15em 0.5em 0.15em #a6b3e5;
+                filter: drop-shadow(0.15em 0.15em 0.3em #31265166)
+                        drop-shadow(-0.15em 0.15em 0.3em #9a57a766)
+                        drop-shadow(0.15em -0.15em 0.3em #76a0ff66)
+                        drop-shadow(-0.15em -0.15em 0.3em #a6b3e566);
             }
             25% {
-                box-shadow:
-                    -0.15em -0.15em 0.5em 0.15em #312651,
-                    0.15em -0.15em 0.5em 0.15em #9a57a7,
-                    -0.15em 0.15em 0.5em 0.15em #76a0ff,
-                    0.15em 0.15em 0.5em 0.15em #a6b3e5;
+                filter: drop-shadow(-0.15em -0.15em 0.3em #31265166)
+                        drop-shadow(0.15em -0.15em 0.3em #9a57a766)
+                        drop-shadow(-0.15em 0.15em 0.3em #76a0ff66)
+                        drop-shadow(0.15em 0.15em 0.3em #a6b3e566);
             }
             50% {
-                box-shadow:
-                    -0.15em -0.15em 0.5em 0.15em #a6b3e5,
-                    0.15em -0.15em 0.5em 0.15em #312651,
-                    -0.15em 0.15em 0.5em 0.15em #9a57a7,
-                    0.15em 0.15em 0.5em 0.15em #76a0ff;
+                filter: drop-shadow(-0.15em -0.15em 0.3em #a6b3e566)
+                        drop-shadow(0.15em -0.15em 0.3em #31265166)
+                        drop-shadow(-0.15em 0.15em 0.3em #9a57a766)
+                        drop-shadow(0.15em 0.15em 0.3em #76a0ff66);
             }
             75% {
-                box-shadow:
-                    0.15em 0.15em 0.5em 0.15em #76a0ff,
-                    -0.15em -0.15em 0.5em 0.15em #a6b3e5,
-                    0.15em -0.15em 0.5em 0.15em #312651,
-                    -0.15em 0.15em 0.5em 0.15em #9a57a7;
+                filter: drop-shadow(0.15em 0.15em 0.3em #76a0ff66)
+                        drop-shadow(-0.15em -0.15em 0.3em #a6b3e566)
+                        drop-shadow(0.15em -0.15em 0.3em #31265166)
+                        drop-shadow(-0.15em 0.15em 0.3em #9a57a766);
             }
             100% {
-                box-shadow:
-                    0.15em 0.15em 0.5em 0.15em #312651,
-                    -0.15em 0.15em 0.5em 0.15em #9a57a7,
-                    0.15em -0.15em 0.5em 0.15em #76a0ff,
-                    -0.15em -0.15em 0.5em 0.15em #a6b3e5;
+                filter: drop-shadow(0.15em 0.15em 0.3em #31265166)
+                        drop-shadow(-0.15em 0.15em 0.3em #9a57a766)
+                        drop-shadow(0.15em -0.15em 0.3em #76a0ff66)
+                        drop-shadow(-0.15em -0.15em 0.3em #a6b3e566);
             }
         }
 
